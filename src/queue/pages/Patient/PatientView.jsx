@@ -484,17 +484,22 @@ async function handleGenerateNumber() {
     try {
       setIsGenerating(true);
 
+      // Clean the name of trailing/leading spaces
+      const cleanedServiceName = service.name.trim();
+
       // 1. Fetch BOTH the prefix and the department_id from the departments table
+      // Changed .eq to .ilike for case-insensitive matching
       const { data: deptData, error: deptError } = await supabase
         .from('departments')
         .select('department_id, prefix')
-        .eq('name', service.name)
+        .ilike('name', cleanedServiceName) 
         .maybeSingle();
 
       if (deptError) console.warn('Issue fetching department info:', deptError);
 
       if (!deptData || !deptData.department_id) {
-        throw new Error(`Could not find the department ID for "${service.name}" in the database. Please ensure the names match exactly.`);
+        // This will now show the EXACT string it tried to search for
+        throw new Error(`Could not find the department ID for "${cleanedServiceName}" in the database. Please check your Supabase 'departments' table to ensure this name exists.`);
       }
 
       let finalPrefix = service.queuePrefix;
@@ -519,8 +524,7 @@ async function handleGenerateNumber() {
       const nextSequence = (count || 0) + 1;
       const isPriority = queueType.key === 'priority';
       
-     // Format number (e.g. PH001) and add P- if priority (e.g. P-PH001)
-   // Format number with a hyphen (e.g., IN-001) using padStart(3, '0')
+      // Format number with a hyphen (e.g., IN-001) using padStart(3, '0')
       const paddedNumber = `${finalPrefix}-${String(nextSequence).padStart(3, '0')}`;
       
       // If priority, add P- prefix in front (e.g., P-IN-001)
@@ -528,6 +532,7 @@ async function handleGenerateNumber() {
       if (isPriority) {
         formattedNumber = `P-${paddedNumber}`;
       }
+
       // 5. FIRST INSERT: Add to the 'patient' table
       const { data: newPatient, error: patientError } = await supabase
         .from('patient')
@@ -566,7 +571,7 @@ async function handleGenerateNumber() {
       setStep('ticket');
 
     } catch (error) {
-      alert(`Database Error: ${error.message}\n\nPlease check the console for details.`);
+      alert(`Database Error: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
