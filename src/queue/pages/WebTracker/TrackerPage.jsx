@@ -4,34 +4,68 @@ import WaitingScreen from '../../components/WaitingScreen.jsx'
 import YourTurnScreen from '../../components/YourTurnScreen.jsx'
 import CompletedScreen from '../../components/CompletedScreen.jsx'
 
-// In production this will come from the URL, e.g. /tracker?ticket=LB-021
 const POLL_INTERVAL_MS = 30000
 
 export default function TrackerPage() {
   const [ticket, setTicket] = useState(null)
-  const queueNumber = new URLSearchParams(window.location.search).get('ticket') || 'LB-021'
+  const [error, setError] = useState(null)
+
+  // The QR code now contains the unique queue_id UUID.
+  const ticketId = new URLSearchParams(window.location.search).get('ticket')
 
   useEffect(() => {
     let cancelled = false
 
     const load = async () => {
-      const data = await api.fetchTicketStatus(queueNumber)
-      if (!cancelled) setTicket(data)
+      if (!ticketId) {
+        setError('No ticket number was provided.')
+        return
+      }
+
+      const result = await api.fetchTicketStatus(ticketId)
+
+      if (!cancelled) {
+        if (result.error) {
+          setError(result.error)
+          setTicket(null)
+        } else {
+          setError(null)
+          setTicket(result)
+        }
+      }
     }
 
     load()
+
     const interval = setInterval(load, POLL_INTERVAL_MS)
 
     return () => {
       cancelled = true
       clearInterval(interval)
     }
-  }, [queueNumber])
+  }, [ticketId])
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
+          <h1 className="text-xl font-bold text-slate-800">
+            Ticket Not Found
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            {error}
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (!ticket) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-400">Loading your ticket…</p>
+        <p className="text-sm text-slate-400">
+          Loading your ticket...
+        </p>
       </div>
     )
   }

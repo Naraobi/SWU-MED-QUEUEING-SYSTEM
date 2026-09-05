@@ -351,7 +351,15 @@ function ConfirmScreen({ queueType, location, service, waitingAhead, isGeneratin
   );
 }
 
-function TicketScreen({ queueType, service, queueNumber, onPrint, onSkipPrint }) {
+function TicketScreen({
+  queueType,
+  service,
+  queueNumber,
+  queueId,
+  onPrint,
+  onSkipPrint
+}) {
+  const trackerUrl = `${window.location.origin}/tracker?ticket=${queueId}`;
   return (
     <Screen>
       <KioskHeader />
@@ -390,7 +398,7 @@ function TicketScreen({ queueType, service, queueNumber, onPrint, onSkipPrint })
           </div>
 
           <div className="flex flex-col items-center justify-center">
-            <QRCodeSVG value={`${service.name}-${queueNumber}`} size={90} />
+            <QRCodeSVG value={trackerUrl} size={90} />
             <p className="mt-1 max-w-[90px] text-center text-[9px] text-slate-400">
               Scan the QR code to track your queue status on your phone.
             </p>
@@ -470,16 +478,18 @@ export default function PatientView() {
   const [location, setLocation] = useState(null);
   const [service, setService] = useState(null);
   const [queueNumber, setQueueNumber] = useState('');
+  const [queueId, setQueueId] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
   function handleReset() {
-    setQueueType(null);
-    setLocation(null);
-    setService(null);
-    setQueueNumber('');
-    setIsGenerating(false);
-    setStep('welcome');
-  }
+  setQueueType(null);
+  setLocation(null);
+  setService(null);
+  setQueueNumber('');
+  setQueueId('');
+  setIsGenerating(false);
+  setStep('welcome');
+}
 async function handleGenerateNumber() {
     try {
       setIsGenerating(true);
@@ -550,25 +560,31 @@ async function handleGenerateNumber() {
       }
 
       // 6. SECOND INSERT: Create the 'queue_ticket' (counter_id is omitted so it defaults to null)
-      const { error: ticketError } = await supabase
-        .from('queue_ticket')
-        .insert([{
-          queue_number: formattedNumber,
-          queue_sequence: nextSequence,
-          patient_id: newPatient.patient_id,
-          department_id: deptData.department_id,
-          status: 'waiting',
-          is_priority: isPriority 
-        }]);
+    const { data: newTicket, error: ticketError } = await supabase
+      .from('queue_ticket')
+      .insert([{
+        queue_number: formattedNumber,
+        queue_sequence: nextSequence,
+        patient_id: newPatient.patient_id,
+        department_id: deptData.department_id,
+        status: 'waiting',
+        is_priority: isPriority
+      }])
+      .select('queue_id')
+      .single();
 
       if (ticketError) {
         console.error('Ticket Insert Error:', JSON.stringify(ticketError, null, 2));
         throw new Error(`Queue ticket table error: ${ticketError.message}`);
       }
 
+      if (!newTicket?.queue_id) {
+        throw new Error('Queue ticket was created, but no queue ID was returned.');
+      }
       // 7. Success! Move to the next screen
-      setQueueNumber(formattedNumber);
-      setStep('ticket');
+    setQueueNumber(formattedNumber);
+    setQueueId(newTicket.queue_id);
+    setStep('ticket');
 
     } catch (error) {
       alert(`Database Error: ${error.message}`);
@@ -646,6 +662,7 @@ useEffect(() => {
         queueType={queueType}
         service={service}
         queueNumber={queueNumber}
+        queueId={queueId}
         onPrint={handlePrint}
         onSkipPrint={handleReset}
       />
