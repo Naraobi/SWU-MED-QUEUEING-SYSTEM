@@ -359,7 +359,7 @@ function TicketScreen({
   onPrint,
   onSkipPrint
 }) {
-  const trackerUrl = `https://swu-med-queueing-system-1.onrender.com/tracker?ticket=${queueId}`;
+  const trackerUrl = `${window.location.origin}/tracker?ticket=${queueId}`;
   return (
     <Screen>
       <KioskHeader />
