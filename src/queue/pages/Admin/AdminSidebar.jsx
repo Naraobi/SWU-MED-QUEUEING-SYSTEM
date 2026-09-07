@@ -79,7 +79,7 @@ export function AdminHeaderBar({ title }) {
   const profileName = user?.first_name && user?.last_name
     ? `${user.first_name} ${user.last_name}`
     : 'John Doe';
-  const profileRole = user?.role?.name || 'Admin';
+  const profileRole = user?.role?.role || 'Admin';
   const initials = user?.first_name && user?.last_name
     ? `${user.first_name[0]}${user.last_name[0]}`
     : 'JD';

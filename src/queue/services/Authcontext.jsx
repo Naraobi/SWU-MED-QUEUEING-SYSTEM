@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
           last_name: 'Abella',
           department: 'Billing Department',
           department_prefix: 'BP',
-          role: { name: 'Staff' },
+          role: { role: 'Staff' },
         };
         setUser(demoUser);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
@@ -52,8 +52,8 @@ export function AuthProvider({ children }) {
             department,
             role_id,
             role:role_id (
-              id,
-              name
+              role_id,
+              role
             )
           `)
           .eq('auth_user_id', authUser.id)
@@ -104,7 +104,7 @@ export function AuthProvider({ children }) {
         last_name: 'Abella',
         department: 'Billing Department',
         department_prefix: 'BP',
-        role: { name: 'Staff' },
+        role: { role: 'Staff' },
       };
       setUser(demoUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
@@ -137,8 +137,8 @@ export function AuthProvider({ children }) {
           department,
           role_id,
           role:role_id (
-            id,
-            name
+            role_id,
+            role
           )
         `)
         .eq('auth_user_id', authUser.id)
@@ -151,7 +151,7 @@ export function AuthProvider({ children }) {
       }
 
       // 3. Get the role
-      const roleName = userData.role?.name;
+      const roleName = userData.role?.role;
 
       if (!roleName) {
         await supabase.auth.signOut();
