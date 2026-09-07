@@ -5,6 +5,7 @@ import UserCrud from './UserCrud';
 import DepartmentManagement from './DepartmentManagement';
 import Reports from './Reports';
 import AdminQueueManagement from './QueueManagement';
+import Settings from './Settings';
 
 export default function SuperAdminApp() {
   const [activePage, setActivePage] = useState('dashboard');
@@ -16,9 +17,7 @@ export default function SuperAdminApp() {
       {activePage === 'departments' && <DepartmentManagement />}
       {activePage === 'reports' && <Reports />}
       {activePage === 'queues' && <AdminQueueManagement />}
-      {activePage === 'settings' && (
-        <p className="text-sm text-slate-500">Settings &mdash; coming soon.</p>
-      )}
+      {activePage === 'settings' && <Settings />}
     </Layout>
   );
 }

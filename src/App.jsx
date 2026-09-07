@@ -46,6 +46,7 @@ function App() {
 
           <Route path="/superadmin/login" element={<Login />} />
           <Route path="/superadmin" element={<Navigate to="/superadmin/Dashboard" replace />} />
+          <Route path="/__preview_superadmin" element={<SuperAdminApp />} />
 
           <Route
             path="/superadmin/Dashboard"

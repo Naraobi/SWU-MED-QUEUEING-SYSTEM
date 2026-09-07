@@ -6,7 +6,6 @@ import {
   ClipboardList,
   BarChart3,
   Settings as SettingsIcon,
-  Bell,
   UserCircle,
   LogOut,
   Upload,
@@ -17,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../services/Authcontext';
 import { supabase } from '../../../supabase'; // Adjust path if needed
 import logo from '../../../assets/logo.png';
+import NotificationsBell from './NotificationsBell';
 
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -31,6 +31,7 @@ export default function Layout({ activePage, onNavigate, children }) {
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Moved the logout logic here so the sidebar button can use it
   function handleLogout() {
@@ -89,7 +90,7 @@ export default function Layout({ activePage, onNavigate, children }) {
           <div className="border-t border-slate-100 p-3">
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => setShowLogoutModal(true)}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700"
             >
               <LogOut size={18} />
@@ -106,13 +107,7 @@ export default function Layout({ activePage, onNavigate, children }) {
 
             <div className="flex items-center gap-5">
               {/* Notifications */}
-              <button
-                type="button"
-                className="text-slate-500 hover:text-slate-700"
-                aria-label="Notifications"
-              >
-                <Bell size={20} />
-              </button>
+              <NotificationsBell />
 
               {/* Profile Icon triggers modal */}
               <button
@@ -136,6 +131,45 @@ export default function Layout({ activePage, onNavigate, children }) {
       {showProfileModal && (
         <ProfileModal onClose={() => setShowProfileModal(false)} />
       )}
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <LogoutModal
+          onCancel={() => setShowLogoutModal(false)}
+          onConfirm={handleLogout}
+        />
+      )}
+    </div>
+  );
+}
+
+// Internal Logout Confirmation Modal Component
+function LogoutModal({ onCancel, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
+        <h2 className="text-lg font-bold text-slate-800">Log Out?</h2>
+        <p className="mt-2 text-sm text-slate-500">
+          Are you sure you want to log out? You will need to sign in again to
+          access your assigned terminal.
+        </p>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 rounded-lg border border-[#00529B] py-2.5 text-sm font-semibold text-[#00529B] transition hover:bg-blue-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 rounded-lg bg-[#7A1F2B] py-2.5 text-sm font-semibold text-white transition hover:bg-[#611825]"
+          >
+            Log Out
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Building2, Users, Clock, Monitor, Sparkles, AlertTriangle, TrendingUp, Info, RotateCw } from 'lucide-react';
+import {
+  Building2,
+  Users,
+  Clock,
+  Monitor,
+  Sparkles,
+  AlertTriangle,
+  TrendingUp,
+  Info,
+  RotateCw,
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { supabase } from '../../../supabase';
 
 const INSIGHTS = [
@@ -23,6 +37,8 @@ const QUEUE_DISTRIBUTION = [
   { label: 'Completed', pct: 30, color: '#2563EB' },
 ];
 
+const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
 function DonutChart({ data }) {
   let cumulative = 0;
   const radius = 40;
@@ -34,6 +50,7 @@ function DonutChart({ data }) {
         const dash = (slice.pct / 100) * circumference;
         const offset = circumference - (cumulative / 100) * circumference;
         cumulative += slice.pct;
+
         return (
           <circle
             key={slice.label}
@@ -52,10 +69,269 @@ function DonutChart({ data }) {
   );
 }
 
+function formatDate(date) {
+  return date.toISOString().split('T')[0];
+}
+
+function startOfDay(date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function isSameDay(first, second) {
+  return (
+    first &&
+    second &&
+    first.getFullYear() === second.getFullYear() &&
+    first.getMonth() === second.getMonth() &&
+    first.getDate() === second.getDate()
+  );
+}
+
+function isBetweenDates(date, start, end) {
+  if (!start || !end) return false;
+  const value = startOfDay(date).getTime();
+  const first = Math.min(startOfDay(start).getTime(), startOfDay(end).getTime());
+  const last = Math.max(startOfDay(start).getTime(), startOfDay(end).getTime());
+  return value >= first && value <= last;
+}
+
+function getCalendarDays(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const mondayIndex = (firstDay.getDay() + 6) % 7;
+  const gridStart = new Date(year, month, 1 - mondayIndex);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    return date;
+  });
+}
+
+function CalendarPopup({ value, onChange, onClose }) {
+  const today = startOfDay(new Date());
+
+  const [visibleMonth, setVisibleMonth] = useState(
+    value ? new Date(value.getFullYear(), value.getMonth(), 1) : new Date(today.getFullYear(), today.getMonth(), 1)
+  );
+  const [rangeStart, setRangeStart] = useState(value || today);
+  const [rangeEnd, setRangeEnd] = useState(null);
+
+  const days = getCalendarDays(visibleMonth);
+
+  const moveMonth = (amount) => {
+    setVisibleMonth(
+      (current) => new Date(current.getFullYear(), current.getMonth() + amount, 1)
+    );
+  };
+
+  const selectPreset = (preset) => {
+    const now = startOfDay(new Date());
+
+    if (preset === 'Today') {
+      setRangeStart(now);
+      setRangeEnd(null);
+      onChange(now);
+      return;
+    }
+
+    if (preset === 'Yesterday') {
+      const date = new Date(now);
+      date.setDate(date.getDate() - 1);
+      setRangeStart(date);
+      setRangeEnd(null);
+      onChange(date);
+      return;
+    }
+
+    if (preset === 'Last week') {
+      const end = new Date(now);
+      end.setDate(end.getDate() - 1);
+      const start = new Date(end);
+      start.setDate(start.getDate() - 6);
+      setRangeStart(start);
+      setRangeEnd(end);
+      onChange(start);
+      return;
+    }
+
+    if (preset === 'Last month') {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      setRangeStart(start);
+      setRangeEnd(end);
+      onChange(start);
+      return;
+    }
+
+    if (preset === 'Last quarter') {
+      const currentQuarter = Math.floor(now.getMonth() / 3);
+      const start = new Date(now.getFullYear(), currentQuarter * 3 - 3, 1);
+      const end = new Date(now.getFullYear(), currentQuarter * 3, 0);
+      setRangeStart(start);
+      setRangeEnd(end);
+      onChange(start);
+    }
+  };
+
+  const selectDate = (date) => {
+    if (!rangeStart || rangeEnd) {
+      setRangeStart(date);
+      setRangeEnd(null);
+      onChange(date);
+      return;
+    }
+
+    if (date.getTime() < rangeStart.getTime()) {
+      setRangeStart(date);
+      setRangeEnd(rangeStart);
+      onChange(date);
+      return;
+    }
+
+    setRangeEnd(date);
+    onChange(rangeStart);
+  };
+
+  const reset = () => {
+    setRangeStart(today);
+    setRangeEnd(null);
+    setVisibleMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+    onChange(today);
+  };
+
+  const monthLabel = visibleMonth.toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  return (
+    <div
+      className="absolute right-0 top-full z-50 mt-2 w-[610px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.18)]"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="flex min-h-[390px]">
+        <div className="flex w-[185px] shrink-0 flex-col border-r border-slate-100 px-6 py-7">
+          <div className="space-y-1">
+            {['Today', 'Yesterday', 'Last week', 'Last month', 'Last quarter'].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => selectPreset(preset)}
+                className="block w-full rounded-md px-1 py-2 text-left text-[15px] font-medium text-slate-700 transition hover:bg-slate-50 hover:text-[#087FF5]"
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={reset}
+            className="mt-auto px-1 text-left text-[15px] font-semibold text-[#087FF5] hover:underline"
+          >
+            Reset
+          </button>
+        </div>
+
+        <div className="flex-1 px-7 py-7">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-[25px] font-bold text-slate-800">{monthLabel}</h3>
+
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                aria-label="Previous month"
+                onClick={() => moveMonth(-1)}
+                className="rounded-full p-1 text-slate-700 hover:bg-slate-100"
+              >
+                <ChevronLeft size={22} strokeWidth={2.5} />
+              </button>
+              <button
+                type="button"
+                aria-label="Next month"
+                onClick={() => moveMonth(1)}
+                className="rounded-full p-1 text-slate-700 hover:bg-slate-100"
+              >
+                <ChevronRight size={22} strokeWidth={2.5} />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 text-center">
+            {WEEKDAYS.map((day) => (
+              <div
+                key={day}
+                className="pb-3 text-[14px] font-medium text-slate-400"
+              >
+                {day}
+              </div>
+            ))}
+
+            {days.map((date) => {
+              const currentMonth = date.getMonth() === visibleMonth.getMonth();
+              const selectedStart = isSameDay(date, rangeStart);
+              const selectedEnd = isSameDay(date, rangeEnd);
+              const inRange = isBetweenDates(date, rangeStart, rangeEnd);
+
+              return (
+                <button
+                  key={formatDate(date)}
+                  type="button"
+                  onClick={() => selectDate(date)}
+                  className={`relative flex h-12 items-center justify-center text-[15px] ${
+                    inRange ? 'bg-[#DCEEFF]' : ''
+                  } ${
+                    !currentMonth
+                      ? 'text-slate-300'
+                      : 'text-slate-700'
+                  }`}
+                >
+                  {(selectedStart || selectedEnd) && (
+                    <span className="absolute h-10 w-10 rounded-full bg-[#0B8AF7]" />
+                  )}
+
+                  <span
+                    className={`relative z-10 ${
+                      selectedStart || selectedEnd
+                        ? 'font-semibold text-white'
+                        : ''
+                    }`}
+                  >
+                    {date.getDate()}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-10 rounded-lg bg-[#0B2447] px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#0B2447]/90"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Calendar UI state only. Existing dashboard data/functions remain unchanged.
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   async function fetchDepartments() {
     setLoading(true);
@@ -70,15 +346,40 @@ export default function Dashboard() {
     fetchDepartments();
   }, []);
 
+  useEffect(() => {
+    const handleOutsideClick = () => setCalendarOpen(false);
+
+    if (calendarOpen) {
+      document.addEventListener('click', handleOutsideClick);
+    }
+
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, [calendarOpen]);
+
   const activeCount = departments.filter((d) => d.status === 'active').length;
-  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const today = new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 
   const STATS = [
     { label: 'Departments', value: `${activeCount}/${departments.length || 0}`, caption: 'Active departments', icon: Building2 },
     { label: 'Total Waiting', value: '145', caption: 'Across all departments', icon: Users },
     { label: 'Average Wait', value: '18m', caption: 'Average wait time', icon: Clock },
-    { label: 'Counters', value: '42', caption: 'Active counters', icon: Monitor },
+    { label: 'Skipped', value: '16', caption: 'Skipped queuing', icon: RotateCw },
+    { label: 'Completed', value: '255', caption: 'Completed queuing', icon: TrendingUp },
+    { label: 'Terminals', value: '42/64', caption: 'Active terminals', icon: Monitor },
   ];
+
+  const calendarLabel = isSameDay(selectedDate, new Date())
+    ? 'Today'
+    : selectedDate.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
 
   return (
     <div>
@@ -87,20 +388,46 @@ export default function Dashboard() {
           <h1 className="text-2xl font-semibold text-slate-800">System Overview</h1>
           <p className="text-sm text-slate-500">Today &middot; {today}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <select className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 focus:outline-none">
-            <option>Today</option>
-            <option>This Week</option>
-            <option>This Month</option>
-          </select>
-          <input type="date" className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 focus:outline-none" />
-          <button type="button" className="rounded-lg bg-[#0B2447] px-4 py-2 text-xs font-medium text-white hover:bg-[#0B2447]/90">
+
+        <div className="flex items-center gap-2.5">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setCalendarOpen((open) => !open);
+              }}
+              className="flex min-w-[128px] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 focus:outline-none"
+              aria-expanded={calendarOpen}
+              aria-haspopup="dialog"
+            >
+              <span className="flex items-center gap-2">
+                <CalendarDays size={14} className="text-slate-500" />
+                {calendarLabel}
+              </span>
+              <ChevronDown size={13} className="text-slate-500" />
+            </button>
+
+            {calendarOpen && (
+              <CalendarPopup
+                value={selectedDate}
+                onChange={setSelectedDate}
+                onClose={() => setCalendarOpen(false)}
+              />
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="rounded-lg bg-[#0B2447] px-4 py-2 text-xs font-medium text-white hover:bg-[#0B2447]/90"
+          >
             Apply Filter
           </button>
+
           <button
             type="button"
             onClick={fetchDepartments}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:border-slate-300"
+            className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:bg-white"
           >
             <RotateCw size={12} /> Refresh
           </button>
@@ -109,11 +436,11 @@ export default function Dashboard() {
 
       {/* Note: Departments card is live (from Supabase). Total Waiting / Average Wait /
           Counters are still placeholders until a real queue/transactions table exists. */}
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-6">
         {STATS.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.label} className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+            <div key={stat.label} className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{stat.label}</p>
                 <Icon size={16} className="text-slate-400" />
@@ -125,7 +452,7 @@ export default function Dashboard() {
         })}
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Sparkles size={16} className="text-[#0B1524]" />
