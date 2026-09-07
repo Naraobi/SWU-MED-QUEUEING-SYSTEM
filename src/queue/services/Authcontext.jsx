@@ -13,8 +13,7 @@ export function AuthProvider({ children }) {
     const restoreUser = async () => {
       if (!isSupabaseConfigured) {
         const demoUser = {
-          id: 'demo-staff',
-          auth_user_id: null,
+          user_id: 'demo-staff',
           email: 'staff.demo@swu.local',
           first_name: 'Ruth',
           last_name: 'Abella',
@@ -44,8 +43,7 @@ export function AuthProvider({ children }) {
         const { data: userData, error } = await supabase
           .from('user')
           .select(`
-            id,
-            auth_user_id,
+            user_id,
             email,
             first_name,
             last_name,
@@ -56,7 +54,7 @@ export function AuthProvider({ children }) {
               role
             )
           `)
-          .eq('auth_user_id', authUser.id)
+          .eq('user_id', authUser.id)
           .maybeSingle();
 
         if (error || !userData) {
@@ -72,7 +70,7 @@ export function AuthProvider({ children }) {
               .select('prefix')
               .eq('name', userData.department)
               .maybeSingle();
-              
+
             if (deptData) {
               fetchedPrefix = deptData.prefix;
             }
@@ -97,8 +95,7 @@ export function AuthProvider({ children }) {
   async function signIn(email, password) {
     if (!isSupabaseConfigured) {
       const demoUser = {
-        id: 'demo-staff',
-        auth_user_id: null,
+        user_id: 'demo-staff',
         email: email || 'staff.demo@swu.local',
         first_name: 'Ruth',
         last_name: 'Abella',
@@ -125,12 +122,11 @@ export function AuthProvider({ children }) {
 
       const authUser = authData.user;
 
-      // 2. Find the user in our public.users table
+      // 2. Find the user in our public.user table
       const { data: userData, error } = await supabase
         .from('user')
         .select(`
-          id,
-          auth_user_id,
+          user_id,
           email,
           first_name,
           last_name,
@@ -141,7 +137,7 @@ export function AuthProvider({ children }) {
             role
           )
         `)
-        .eq('auth_user_id', authUser.id)
+        .eq('user_id', authUser.id)
         .maybeSingle();
 
       if (error || !userData) {
@@ -166,7 +162,7 @@ export function AuthProvider({ children }) {
           .select('prefix')
           .eq('name', userData.department)
           .maybeSingle();
-          
+
         if (deptData) {
           fetchedPrefix = deptData.prefix;
         }
@@ -179,7 +175,7 @@ export function AuthProvider({ children }) {
         await supabase
           .from('user')
           .update({ status: 'Active' })
-          .eq('id', userData.id);
+          .eq('user_id', authUser.id);
       } catch (updateError) {
         console.error('Failed to update status to Active:', updateError);
       }
@@ -203,12 +199,12 @@ export function AuthProvider({ children }) {
 
   async function signOut() {
     // Set user status back to 'Inactive' before wiping session
-    if (isSupabaseConfigured && user && user.id) {
+    if (isSupabaseConfigured && user && user.user_id) {
       try {
         await supabase
           .from('user')
           .update({ status: 'Inactive' })
-          .eq('id', user.id);
+          .eq('user_id', user.user_id);
       } catch (err) {
         console.error('Failed to update status to Inactive:', err);
       }
