@@ -25,7 +25,7 @@ export default function Topbar({ title, subtitle }) {
     'Billing Department'
 
   return (
-    <div className="flex h-[58px] min-h-[58px] w-full items-center justify-between border-b border-slate-200 bg-white">
+    <div className="flex h-[74px] min-h-[74px] w-full items-center justify-between border-b border-slate-200 bg-white">
 
       {/* LEFT SIDE
           Intentionally pushed farther from the sidebar

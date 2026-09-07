@@ -79,7 +79,7 @@ export function AdminHeaderBar({ title }) {
   const profileName = user?.first_name && user?.last_name
     ? `${user.first_name} ${user.last_name}`
     : 'John Doe';
-  const profileRole = user?.role?.name === 'Admin' ? 'Admin' : 'Super Admin';
+  const profileRole = user?.role?.name || 'Admin';
   const initials = user?.first_name && user?.last_name
     ? `${user.first_name[0]}${user.last_name[0]}`
     : 'JD';
@@ -87,7 +87,7 @@ export function AdminHeaderBar({ title }) {
   const headerTitle = title || `Admin / ${user?.department || 'Department'}`;
 
   return (
-    <header className="flex min-h-[64px] items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
+    <header className="flex h-[74px] items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
       <div className="flex items-center gap-3">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#dce8f9] text-sm font-semibold text-slate-700">
           {departmentPrefix}
