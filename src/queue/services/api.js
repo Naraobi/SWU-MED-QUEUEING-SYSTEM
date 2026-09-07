@@ -534,6 +534,96 @@ export async function fetchDepartmentByName(name) {
   return data
 }
 
+// --- COUNTERS (Admin > Queue Management > Assigned Terminal) -----------------
+const COUNTERS_TABLE = 'counters'
+
+export async function fetchCounters(departmentId) {
+  if (!departmentId || !supabase) return []
+
+  const { data, error } = await supabase
+    .from(COUNTERS_TABLE)
+    .select(`
+      id,
+      counter_number,
+      prefix,
+      status,
+      assigned_staff_id,
+      assigned:assigned_staff_id ( user_id, first_name, last_name, email )
+    `)
+    .eq('department_id', departmentId)
+    .order('counter_number', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching counters:', error)
+    return []
+  }
+  return data
+}
+
+export async function fetchStaffForDepartment(departmentName) {
+  if (!departmentName || !supabase) return []
+
+  const { data, error } = await supabase
+    .from('user')
+    .select('user_id, first_name, last_name, email')
+    .eq('department', departmentName)
+    .order('first_name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching department staff:', error)
+    return []
+  }
+  return data
+}
+
+export async function createCounter({ departmentId, counterNumber, prefix, assignedStaffId }) {
+  const { data, error } = await supabase
+    .from(COUNTERS_TABLE)
+    .insert([{
+      department_id: departmentId,
+      counter_number: counterNumber,
+      prefix: prefix || null,
+      assigned_staff_id: assignedStaffId || null,
+      status: 'offline',
+    }])
+    .select(`
+      id,
+      counter_number,
+      prefix,
+      status,
+      assigned_staff_id,
+      assigned:assigned_staff_id ( user_id, first_name, last_name, email )
+    `)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function updateCounter(id, payload) {
+  const { data, error } = await supabase
+    .from(COUNTERS_TABLE)
+    .update({ ...payload, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select(`
+      id,
+      counter_number,
+      prefix,
+      status,
+      assigned_staff_id,
+      assigned:assigned_staff_id ( user_id, first_name, last_name, email )
+    `)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deleteCounter(id) {
+  const { error } = await supabase.from(COUNTERS_TABLE).delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function updateDepartmentName(id, name) {
   if (!supabase) return { id, name }
 

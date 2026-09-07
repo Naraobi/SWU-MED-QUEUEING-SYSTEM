@@ -15,11 +15,15 @@ import {
 import {
   callNextPatient,
   completeCurrentPatient,
+  createCounter,
+  fetchCounters,
   fetchDepartmentByName,
   fetchQueueHistory,
   fetchQueueState,
+  fetchStaffForDepartment,
   recallCurrentPatient,
   skipCurrentPatient,
+  updateCounter,
   updateDepartmentName,
 } from '../../services/api';
 import { useAuth } from '../../services/Authcontext';
@@ -113,6 +117,7 @@ export function TerminalManagementPage() {
   const [skipReason, setSkipReason] = useState('');
   const [fetchedAt, setFetchedAt] = useState(Date.now());
   const [, forceTick] = useState(0);
+  const [terminalCounts, setTerminalCounts] = useState({ online: 0, total: 0 });
 
   async function refresh() {
     try {
@@ -134,6 +139,21 @@ export function TerminalManagementPage() {
     return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [departmentPrefix]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTerminalCounts() {
+      const dept = await fetchDepartmentByName(user?.department);
+      if (cancelled || !dept) return;
+      const counters = await fetchCounters(dept.id);
+      if (cancelled) return;
+      setTerminalCounts({ online: counters.filter((c) => c.status === 'online').length, total: counters.length });
+    }
+
+    loadTerminalCounts();
+    return () => { cancelled = true; };
+  }, [user?.department]);
 
   // Ticks the on-screen timer every second between polls.
   useEffect(() => {
@@ -185,7 +205,7 @@ export function TerminalManagementPage() {
         <Stat label="Average Wait" value="18m" caption="Average wait time (no column yet)" icon={Clock3} />
         <Stat label="Skipped" value={loading ? '…' : String(state.stats.skipped)} caption="Total skipped" icon={SkipForward} />
         <Stat label="Completed" value={loading ? '…' : String(state.stats.completed)} caption="Completed queuing" icon={CheckCircle2} />
-        <Stat label="Terminal" value="5/6" caption="No terminals table yet" icon={Monitor} />
+        <Stat label="Terminal" value={`${terminalCounts.online}/${terminalCounts.total}`} caption="Online terminals" icon={Monitor} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -291,84 +311,142 @@ export function TerminalManagementPage() {
   );
 }
 
-/* ---------------- Queue Management (Assigned Terminal) ---------------- */
-/* NOTE: still local-only — there's no `terminals` table in the backend
-   reference yet. Send that schema (id, label, staff_id, location,
-   status) and this can be wired the same way Terminal Management is. */
+/* ---------------- Queue Management (Assigned Terminal / counters) ---------------- */
 
-const ASSIGNED_TERMINALS = [
-  { no: 'Terminal 1', name: 'John doe', email: 'jodo.doe.swu@phinmaed.com', location: 'Lobby', role: 'Staff', status: 'Online' },
-  { no: 'Terminal 2', name: 'Maria Piatos', email: 'jodo.doe.swu@phinmaed.com', location: 'Lobby', role: 'Staff', status: 'Offline' },
-  { no: 'Terminal 3', name: 'Radiology', email: 'jodo.doe.swu@phinmaed.com', location: 'Lobby', role: 'Staff', status: 'Online' },
-  { no: 'Terminal 4', name: 'Internal Medical', email: 'jodo.doe.swu@phinmaed.com', location: 'Lobby', role: 'Staff', status: 'Online' },
-  { no: 'Terminal 5', name: 'Billing/Payment', email: 'jodo.doe.swu@phinmaed.com', location: 'Lobby', role: 'Staff', status: 'Online' },
-  { no: 'Terminal 6', name: 'Billing/Payment', email: 'jodo.doe.swu@phinmaed.com', location: 'Lobby', role: 'Staff', status: 'Online' },
-];
-
-function TerminalFormFields({ form, setForm, staffOptions, locationOptions }) {
+function TerminalFormFields({ form, setForm, staffOptions }) {
   return (
     <div className="space-y-3">
       <label className={labelClass}>Assigned To
-        <select className={`${inputClass} mt-1`} value={form.assigned} onChange={(e) => setForm({ ...form, assigned: e.target.value })}>
-          <option value="">Mga staff nga naa ani nga department</option>
-          {staffOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+        <select className={`${inputClass} mt-1`} value={form.assignedStaffId} onChange={(e) => setForm({ ...form, assignedStaffId: e.target.value })}>
+          <option value="">Unassigned</option>
+          {staffOptions.map((person) => (
+            <option key={person.user_id} value={person.user_id}>{person.first_name} {person.last_name}</option>
+          ))}
         </select>
       </label>
-      <label className={labelClass}>Location
-        <select className={`${inputClass} mt-1`} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}>
-          <option value="">Lobby basta mga location ni ari</option>
-          {locationOptions.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
-        </select>
+      <label className={labelClass}>Counter Number
+        <input type="number" className={`${inputClass} mt-1`} value={form.counterNumber} onChange={(e) => setForm({ ...form, counterNumber: e.target.value })} placeholder="0" />
       </label>
-      <label className={labelClass}>Terminal Number
-        <input type="number" className={`${inputClass} mt-1`} value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} placeholder="0" />
+      <label className={labelClass}>Prefix
+        <input className={`${inputClass} mt-1`} value={form.prefix} onChange={(e) => setForm({ ...form, prefix: e.target.value })} placeholder="e.g. BP-1" />
       </label>
     </div>
   );
 }
 
 export function QueueManagementPage() {
+  const { user } = useAuth();
+  const [departmentId, setDepartmentId] = useState(null);
   const [query, setQuery] = useState('');
-  const [terminals, setTerminals] = useState(ASSIGNED_TERMINALS);
+  const [counters, setCounters] = useState([]);
+  const [staffOptions, setStaffOptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [modal, setModal] = useState(null); // null | 'add' | { type: 'edit', row }
   const [page, setPage] = useState(1);
-  const [form, setForm] = useState({ assigned: '', location: '', number: '' });
+  const [form, setForm] = useState({ assignedStaffId: '', counterNumber: '', prefix: '' });
 
-  const staffOptions = ['John doe', 'Maria Piatos', 'Radiology', 'Internal Medical', 'Billing/Payment'];
-  const locationOptions = ['Lobby', '2nd Floor', 'Billing Wing', 'Laboratory Wing'];
+  useEffect(() => {
+    let cancelled = false;
 
-  const rows = terminals.filter((row) => `${row.no} ${row.name} ${row.email}`.toLowerCase().includes(query.toLowerCase()));
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const dept = await fetchDepartmentByName(user?.department);
+        if (cancelled) return;
+        setDepartmentId(dept?.id || null);
+
+        const [counterRows, staffRows] = await Promise.all([
+          fetchCounters(dept?.id),
+          fetchStaffForDepartment(user?.department),
+        ]);
+        if (!cancelled) {
+          setCounters(counterRows);
+          setStaffOptions(staffRows);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load terminals.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [user?.department]);
+
+  const rows = counters.filter((row) => {
+    const name = row.assigned ? `${row.assigned.first_name} ${row.assigned.last_name} ${row.assigned.email}` : '';
+    return `Terminal ${row.counter_number} ${row.prefix || ''} ${name}`.toLowerCase().includes(query.toLowerCase());
+  });
 
   function openEdit(row) {
-    setForm({ assigned: row.name, location: row.location, number: row.no.replace(/\D/g, '') });
+    setForm({ assignedStaffId: row.assigned_staff_id || '', counterNumber: String(row.counter_number), prefix: row.prefix || '' });
     setModal({ type: 'edit', row });
   }
 
   function openAdd() {
-    setForm({ assigned: '', location: '', number: '' });
+    setForm({ assignedStaffId: '', counterNumber: '', prefix: '' });
     setModal('add');
   }
 
-  function saveEdit() {
-    setTerminals((rows) => rows.map((row) => (row === modal.row ? { ...row, name: form.assigned || row.name, location: form.location || row.location } : row)));
-    setModal(null);
+  async function saveEdit() {
+    try {
+      const updated = await updateCounter(modal.row.id, {
+        assigned_staff_id: form.assignedStaffId || null,
+        counter_number: Number(form.counterNumber) || modal.row.counter_number,
+        prefix: form.prefix || null,
+      });
+      setCounters((rows) => rows.map((row) => (row.id === updated.id ? updated : row)));
+      setModal(null);
+    } catch (err) {
+      setError(err.message || 'Failed to update terminal.');
+    }
   }
 
-  function saveAdd() {
-    if (!form.number) { setModal(null); return; }
-    setTerminals((rows) => [...rows, { no: `Terminal ${form.number}`, name: form.assigned || 'Unassigned', email: '--', location: form.location || 'Lobby', role: 'Staff', status: 'Offline' }]);
-    setModal(null);
+  async function saveAdd() {
+    if (!form.counterNumber || !departmentId) { setModal(null); return; }
+    try {
+      const created = await createCounter({
+        departmentId,
+        counterNumber: Number(form.counterNumber),
+        prefix: form.prefix,
+        assignedStaffId: form.assignedStaffId || null,
+      });
+      setCounters((rows) => [...rows, created]);
+      setModal(null);
+    } catch (err) {
+      setError(err.message || 'Failed to create terminal.');
+    }
   }
+
+  async function toggleStatus(row, event) {
+    event.stopPropagation();
+    try {
+      const updated = await updateCounter(row.id, { status: row.status === 'online' ? 'offline' : 'online' });
+      setCounters((rows) => rows.map((r) => (r.id === updated.id ? updated : r)));
+    } catch (err) {
+      setError(err.message || 'Failed to update status.');
+    }
+  }
+
+  const activeCount = counters.filter((c) => c.status === 'online').length;
+  const assignedCount = counters.filter((c) => c.assigned_staff_id).length;
 
   return (
     <div>
       <PageHeading title="Queue Management" subtitle="Manage Staff" action="Add Terminal" onAction={openAdd} />
 
+      {error && (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600">{error}</div>
+      )}
+
       <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Stat label="Total" value={String(terminals.length)} caption="Total terminals" icon={Monitor} />
-        <Stat label="Active" value={String(terminals.filter((t) => t.status === 'Online').length)} caption="Active terminals" icon={CheckCircle2} />
-        <Stat label="Inactive" value={String(terminals.filter((t) => t.status !== 'Online').length)} caption="Inactive terminal" icon={Trash2} />
-        <Stat label="Completed" value="255" caption="Completed queuing" icon={CheckCircle2} />
+        <Stat label="Total" value={loading ? '…' : String(counters.length)} caption="Total terminals" icon={Monitor} />
+        <Stat label="Active" value={loading ? '…' : String(activeCount)} caption="Active terminals" icon={CheckCircle2} />
+        <Stat label="Inactive" value={loading ? '…' : String(counters.length - activeCount)} caption="Inactive terminal" icon={Trash2} />
+        <Stat label="Assigned" value={loading ? '…' : String(assignedCount)} caption="Terminals with staff" icon={Users} />
       </div>
 
       <section className={`${panelClass} overflow-hidden`}>
@@ -382,28 +460,38 @@ export function QueueManagementPage() {
               <th className="px-4 py-2">Terminal No.</th>
               <th className="px-4 py-2">Full Name</th>
               <th className="px-4 py-2">Email</th>
-              <th className="px-4 py-2">Location</th>
-              <th className="px-4 py-2">Role</th>
+              <th className="px-4 py-2">Prefix</th>
               <th className="px-4 py-2">Status</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.no} onClick={() => openEdit(row)} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-3 font-semibold">{row.no}</td>
-                <td className="px-4 py-3">{row.name}</td>
-                <td className="px-4 py-3 text-slate-500">{row.email}</td>
-                <td className="px-4 py-3 text-slate-500">{row.location}</td>
-                <td className="px-4 py-3 text-slate-500">{row.role}</td>
+            {loading && (
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Loading terminals…</td></tr>
+            )}
+            {!loading && rows.map((row) => (
+              <tr key={row.id} onClick={() => openEdit(row)} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-4 py-3 font-semibold">Terminal {row.counter_number}</td>
+                <td className="px-4 py-3">{row.assigned ? `${row.assigned.first_name} ${row.assigned.last_name}` : 'Unassigned'}</td>
+                <td className="px-4 py-3 text-slate-500">{row.assigned?.email || '--'}</td>
+                <td className="px-4 py-3 text-slate-500">{row.prefix || '--'}</td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${row.status === 'Online' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>{row.status}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => toggleStatus(row, e)}
+                    className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${row.status === 'online' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}
+                  >
+                    {row.status || 'offline'}
+                  </button>
                 </td>
               </tr>
             ))}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">No terminals yet.</td></tr>
+            )}
           </tbody>
         </table>
         <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
-          <span>Showing 1 to {rows.length} of {terminals.length} terminals</span>
+          <span>Showing 1 to {rows.length} of {counters.length} terminals</span>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setPage((v) => Math.max(1, v - 1))} disabled={page === 1} className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40">Prev</button>
             {[1, 2, 3].map((value) => (
@@ -416,13 +504,13 @@ export function QueueManagementPage() {
 
       {modal && typeof modal === 'object' && (
         <Modal title="Edit Assigned Terminal" onClose={() => setModal(null)} actions={<><button type="button" onClick={() => setModal(null)} className="rounded-md border px-4 py-2 text-xs font-semibold">Cancel</button><button type="button" onClick={saveEdit} className="rounded-md bg-[#075b9f] px-4 py-2 text-xs font-semibold text-white">Save Changes</button></>}>
-          <TerminalFormFields form={form} setForm={setForm} staffOptions={staffOptions} locationOptions={locationOptions} />
+          <TerminalFormFields form={form} setForm={setForm} staffOptions={staffOptions} />
         </Modal>
       )}
 
       {modal === 'add' && (
         <Modal title="Add Terminal" onClose={() => setModal(null)} actions={<><button type="button" onClick={() => setModal(null)} className="rounded-md border px-4 py-2 text-xs font-semibold">Cancel</button><button type="button" onClick={saveAdd} className="rounded-md bg-[#075b9f] px-4 py-2 text-xs font-semibold text-white">Save</button></>}>
-          <TerminalFormFields form={form} setForm={setForm} staffOptions={staffOptions} locationOptions={locationOptions} />
+          <TerminalFormFields form={form} setForm={setForm} staffOptions={staffOptions} />
         </Modal>
       )}
     </div>
@@ -438,6 +526,8 @@ export function ReportsPage() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [terminalCounts, setTerminalCounts] = useState({ online: 0, total: 0 });
+  const [staffCounts, setStaffCounts] = useState({ onDuty: 0, total: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -465,6 +555,25 @@ export function ReportsPage() {
     return () => { cancelled = true; };
   }, [departmentPrefix]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStaffingCounts() {
+      const dept = await fetchDepartmentByName(user?.department);
+      if (cancelled || !dept) return;
+      const [counters, staff] = await Promise.all([
+        fetchCounters(dept.id),
+        fetchStaffForDepartment(user?.department),
+      ]);
+      if (cancelled) return;
+      setTerminalCounts({ online: counters.filter((c) => c.status === 'online').length, total: counters.length });
+      setStaffCounts({ onDuty: counters.filter((c) => c.assigned_staff_id).length, total: staff.length });
+    }
+
+    loadStaffingCounts();
+    return () => { cancelled = true; };
+  }, [user?.department]);
+
   return (
     <div>
       <PageHeading title="Report & Analytics" subtitle="Manage Staff" />
@@ -477,8 +586,8 @@ export function ReportsPage() {
         <Stat label="Total Waiting" value={loading ? '…' : String(state.stats.waiting)} caption="Across all department" icon={Users} />
         <Stat label="Average Wait" value="18m" caption="No column yet" icon={Clock3} />
         <Stat label="Completed" value={loading ? '…' : String(state.stats.completed)} caption="Completed queuing" icon={CheckCircle2} />
-        <Stat label="Staff" value="6/8" caption="No staff-on-duty column yet" icon={Users} />
-        <Stat label="Terminal" value="3/4" caption="No terminals table yet" icon={Monitor} />
+        <Stat label="Staff" value={`${staffCounts.onDuty}/${staffCounts.total}`} caption="Staff on duty" icon={Users} />
+        <Stat label="Terminal" value={`${terminalCounts.online}/${terminalCounts.total}`} caption="Online terminals" icon={Monitor} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
