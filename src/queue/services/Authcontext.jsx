@@ -42,7 +42,7 @@ export function AuthProvider({ children }) {
 
         // 1. Get application user + role + department
         const { data: userData, error } = await supabase
-          .from('users')
+          .from('user')
           .select(`
             id,
             auth_user_id,
@@ -127,7 +127,7 @@ export function AuthProvider({ children }) {
 
       // 2. Find the user in our public.users table
       const { data: userData, error } = await supabase
-        .from('users')
+        .from('user')
         .select(`
           id,
           auth_user_id,
@@ -177,7 +177,7 @@ export function AuthProvider({ children }) {
       // Set user status to 'Active'
       try {
         await supabase
-          .from('users')
+          .from('user')
           .update({ status: 'Active' })
           .eq('id', userData.id);
       } catch (updateError) {
@@ -206,7 +206,7 @@ export function AuthProvider({ children }) {
     if (isSupabaseConfigured && user && user.id) {
       try {
         await supabase
-          .from('users')
+          .from('user')
           .update({ status: 'Inactive' })
           .eq('id', user.id);
       } catch (err) {

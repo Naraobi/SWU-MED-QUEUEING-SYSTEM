@@ -423,7 +423,7 @@ function getDemoQueueState() {
 // status, created_at, updated_at, with role_id FK -> roles (id, name) per the
 // backend reference doc. Adjust USERS_TABLE/ROLES_TABLE or the select below
 // if your actual table/column names differ.
-const USERS_TABLE = 'users'
+const USERS_TABLE = 'user'
 const ROLES_TABLE = 'roles'
 
 export async function fetchUsers() {
