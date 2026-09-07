@@ -18,7 +18,7 @@ function RootRedirect() {
   }
 
   if (user && user.role) {
-    const roleName = user.role.role;
+    const roleName = user.role.name;
     if (roleName === 'Superadmin') {
       return <Navigate to="/superadmin/Dashboard" replace />;
     } else if (roleName === 'Admin') {
