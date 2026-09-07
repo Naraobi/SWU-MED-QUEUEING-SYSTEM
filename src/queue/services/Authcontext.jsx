@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../../supabase';
+import { isSupabaseConfigured, supabase } from '../../supabase';
 
 const AuthContext = createContext(null);
 const STORAGE_KEY = 'swumed_user';
@@ -11,6 +11,22 @@ export function AuthProvider({ children }) {
   // Restore logged-in user when page is refreshed
   useEffect(() => {
     const restoreUser = async () => {
+      if (!isSupabaseConfigured) {
+        const demoUser = {
+          user_id: 'demo-staff',
+          email: 'staff.demo@swu.local',
+          first_name: 'Ruth',
+          last_name: 'Abella',
+          department: 'Billing Department',
+          department_prefix: 'BP',
+          role: { role: 'Staff' },
+        };
+        setUser(demoUser);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
+        setLoading(false);
+        return;
+      }
+
       try {
         const {
           data: { user: authUser },
@@ -54,7 +70,7 @@ export function AuthProvider({ children }) {
               .select('prefix')
               .eq('name', userData.department)
               .maybeSingle();
-              
+
             if (deptData) {
               fetchedPrefix = deptData.prefix;
             }
@@ -77,6 +93,21 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signIn(email, password) {
+    if (!isSupabaseConfigured) {
+      const demoUser = {
+        user_id: 'demo-staff',
+        email: email || 'staff.demo@swu.local',
+        first_name: 'Ruth',
+        last_name: 'Abella',
+        department: 'Billing Department',
+        department_prefix: 'BP',
+        role: { role: 'Staff' },
+      };
+      setUser(demoUser);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
+      return { error: null, user: demoUser, role: 'Staff' };
+    }
+
     try {
       // 1. Supabase Auth verifies email + password
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -91,7 +122,7 @@ export function AuthProvider({ children }) {
 
       const authUser = authData.user;
 
-      // 2. Find the user in our public.user table (ADDED 'department' HERE)
+      // 2. Find the user in our public.user table
       const { data: userData, error } = await supabase
         .from('user')
         .select(`
@@ -131,7 +162,7 @@ export function AuthProvider({ children }) {
           .select('prefix')
           .eq('name', userData.department)
           .maybeSingle();
-          
+
         if (deptData) {
           fetchedPrefix = deptData.prefix;
         }
@@ -168,7 +199,7 @@ export function AuthProvider({ children }) {
 
   async function signOut() {
     // Set user status back to 'Inactive' before wiping session
-    if (user && user.user_id) {
+    if (isSupabaseConfigured && user && user.user_id) {
       try {
         await supabase
           .from('user')
@@ -179,7 +210,7 @@ export function AuthProvider({ children }) {
       }
     }
 
-    await supabase.auth.signOut();
+    if (isSupabaseConfigured) await supabase.auth.signOut();
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
   }

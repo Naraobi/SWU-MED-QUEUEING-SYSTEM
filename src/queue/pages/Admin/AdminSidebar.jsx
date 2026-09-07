@@ -7,10 +7,10 @@ import {
   LogOut,
   Monitor,
   Settings,
-  UserCircle,
   Users,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../services/Authcontext';
 import logo from '../../../assets/logo.png';
 import LogoutModal from '../../components/modals/LogoutModal';
 
@@ -29,16 +29,13 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
 
   return (
     <>
-      <aside className="flex h-screen w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
-        <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
+      <aside className="flex h-screen w-56 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
+        <div className="flex h-[74px] flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
           <img src={logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
-          <div>
-            <div className="text-[15px] font-bold text-[#0B4E8A]">SWUMed</div>
-            <div className="text-[10px] font-medium tracking-wide text-slate-400">Queuing System</div>
-          </div>
+          <div className="text-[10px] font-medium tracking-wide text-slate-400">Queuing System</div>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-1 px-3 py-6">
           {NAV_ITEMS.map(({ key, label, icon: Icon }) => {
             const isActive = activeItem === key;
 
@@ -47,7 +44,7 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
                 key={key}
                 type="button"
                 onClick={() => onSelect(key)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium transition ${
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs font-medium transition ${
                   isActive
                     ? 'bg-[#00549A] text-white shadow-sm'
                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
@@ -77,17 +74,39 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
   );
 }
 
-export function AdminHeaderBar({ title = 'Admin / Billing Department' }) {
+export function AdminHeaderBar({ title }) {
+  const { user } = useAuth();
+  const profileName = user?.first_name && user?.last_name
+    ? `${user.first_name} ${user.last_name}`
+    : 'John Doe';
+  const profileRole = user?.role?.role || 'Admin';
+  const initials = user?.first_name && user?.last_name
+    ? `${user.first_name[0]}${user.last_name[0]}`
+    : 'JD';
+  const departmentPrefix = user?.department_prefix || '--';
+  const headerTitle = title || `Admin / ${user?.department || 'Department'}`;
+
   return (
-    <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-      <div className="text-2xl font-medium text-slate-600">{title}</div>
+    <header className="flex h-[74px] items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#dce8f9] text-sm font-semibold text-slate-700">
+          {departmentPrefix}
+        </span>
+        <div className="text-xl font-medium text-slate-600">{headerTitle}</div>
+      </div>
 
       <div className="flex items-center gap-4">
         <button type="button" className="text-slate-500 hover:text-slate-700" aria-label="Notifications">
           <Bell size={20} />
         </button>
-        <button type="button" className="text-slate-500 hover:text-slate-700" aria-label="Profile">
-          <UserCircle size={22} />
+        <button type="button" className="flex items-center gap-2 border-l border-slate-200 pl-4 text-right" aria-label="Profile">
+          <span>
+            <span className="block text-xs font-semibold text-slate-800">{profileRole}</span>
+            <span className="block text-[10px] text-slate-500">{profileName}</span>
+          </span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#dce8f9] text-xs font-bold text-[#315a91]">
+            {initials}
+          </span>
         </button>
       </div>
     </header>

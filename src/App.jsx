@@ -35,7 +35,8 @@ function RootRedirect() {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <QueueProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           
@@ -61,9 +62,7 @@ function App() {
             path="/staff/*"
             element={
               <ProtectedRoute>
-                <QueueProvider>
-                  <StaffApp />
-                </QueueProvider>
+                <StaffApp />
               </ProtectedRoute>
             }
           />
@@ -79,7 +78,8 @@ function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+        </BrowserRouter>
+      </QueueProvider>
     </AuthProvider>
   );
 }
