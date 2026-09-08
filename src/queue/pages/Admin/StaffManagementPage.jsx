@@ -64,6 +64,11 @@ export default function StaffManagementPage() {
   const [form, setForm] = useState(emptyForm());
   const [addQuery, setAddQuery] = useState('');
 
+  const staffRoles = useMemo(
+  () => roles.filter((role) => role.name?.toLowerCase() === 'staff'),
+  [roles]
+);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -125,11 +130,20 @@ export default function StaffManagementPage() {
     setModal({ type: 'edit', user });
   }
 
-  function openAdd() {
-    setForm(emptyForm());
-    setAddQuery('');
-    setModal('add');
-  }
+function openAdd() {
+  const staffRole = roles.find(
+    (role) => role.name?.toLowerCase() === 'staff'
+  );
+
+  setForm({
+    ...emptyForm(),
+    role_id: staffRole?.id || ''
+  });
+
+  setAddQuery('');
+  setModal('add');
+}
+
 
   async function saveUser() {
     setSaving(true);
@@ -321,13 +335,15 @@ export default function StaffManagementPage() {
               <label className={labelClass}>Email<input className={fieldClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
 
               <div className="grid grid-cols-2 gap-3">
-                <label className={labelClass}>Select Role
-                  <select className={fieldClass} value={form.role_id} onChange={(e) => setForm({ ...form, role_id: e.target.value })}>
-                    <option value="">-- Select role --</option>
-                    {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                  </select>
-                </label>
-                {/* Department: not in the users/roles schema shown — local only for now */}
+<label className={labelClass}>
+  Role
+  <input
+    className={fieldClass}
+    value="Staff"
+    disabled
+  />
+</label>
+   {/* Department: not in the users/roles schema shown — local only for now */}
                 <label className={labelClass}>Select Department
                   <input className={fieldClass} value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="Not in schema yet" />
                 </label>
@@ -392,11 +408,8 @@ export default function StaffManagementPage() {
               <label className={labelClass}>First Name<input className={fieldClass} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></label>
               <label className={labelClass}>Last Name<input className={fieldClass} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></label>
               <label className={labelClass}>Email<input className={fieldClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-              <label className={labelClass}>Select Role
-                <select className={fieldClass} value={form.role_id} onChange={(e) => setForm({ ...form, role_id: e.target.value })}>
-                  <option value="">-- Select role --</option>
-                  {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                </select>
+              <label className={labelClass}>Role
+                <input className={fieldClass} value="Staff" disabled />
               </label>
             </div>
             <footer className="flex justify-end gap-2 border-t border-slate-200 bg-[#f5faff] px-5 py-3">

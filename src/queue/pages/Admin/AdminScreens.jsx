@@ -143,13 +143,20 @@ export function TerminalManagementPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadTerminalCounts() {
-      const dept = await fetchDepartmentByName(user?.department);
-      if (cancelled || !dept) return;
-      const counters = await fetchCounters(dept.id);
-      if (cancelled) return;
-      setTerminalCounts({ online: counters.filter((c) => c.status === 'online').length, total: counters.length });
-    }
+async function loadTerminalCounts() {
+  const dept = await fetchDepartmentByName(user?.department);
+  if (cancelled || !dept) return;
+
+  const counters = await fetchCounters(dept.department_id);
+
+  if (cancelled) return;
+
+  setTerminalCounts({
+    online: counters.filter((c) => c.status === 'active').length,
+    total: counters.length
+  });
+}
+
 
     loadTerminalCounts();
     return () => { cancelled = true; };
@@ -313,26 +320,79 @@ export function TerminalManagementPage() {
 
 /* ---------------- Queue Management (Assigned Terminal / counters) ---------------- */
 
-function TerminalFormFields({ form, setForm, staffOptions }) {
+function TerminalFormFields({
+  form,
+  setForm,
+  staffOptions
+}) {
   return (
     <div className="space-y-3">
-      <label className={labelClass}>Assigned To
-        <select className={`${inputClass} mt-1`} value={form.assignedStaffId} onChange={(e) => setForm({ ...form, assignedStaffId: e.target.value })}>
-          <option value="">Unassigned</option>
+
+      <label className={labelClass}>
+        Assigned To
+
+        <select
+          className={`${inputClass} mt-1`}
+          value={form.assignedStaffId}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              assignedStaffId: e.target.value
+            })
+          }
+        >
+          <option value="">
+            Unassigned
+          </option>
+
           {staffOptions.map((person) => (
-            <option key={person.user_id} value={person.user_id}>{person.first_name} {person.last_name}</option>
+            <option
+              key={person.user_id}
+              value={person.user_id}
+            >
+              {person.first_name} {person.last_name}
+            </option>
           ))}
         </select>
       </label>
-      <label className={labelClass}>Counter Number
-        <input type="number" className={`${inputClass} mt-1`} value={form.counterNumber} onChange={(e) => setForm({ ...form, counterNumber: e.target.value })} placeholder="0" />
+
+      <label className={labelClass}>
+        Counter Number
+
+        <input
+          type="number"
+          className={`${inputClass} mt-1`}
+          value={form.counterNumber}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              counterNumber: e.target.value
+            })
+          }
+          placeholder="0"
+        />
       </label>
-      <label className={labelClass}>Prefix
-        <input className={`${inputClass} mt-1`} value={form.prefix} onChange={(e) => setForm({ ...form, prefix: e.target.value })} placeholder="e.g. BP-1" />
+
+      <label className={labelClass}>
+        Prefix
+
+        <input
+          className={`${inputClass} mt-1`}
+          value={form.prefix}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              prefix: e.target.value
+            })
+          }
+          placeholder="e.g. IN-1"
+        />
       </label>
+
     </div>
-  );
+  )
 }
+
 
 export function QueueManagementPage() {
   const { user } = useAuth();
@@ -346,35 +406,53 @@ export function QueueManagementPage() {
   const [page, setPage] = useState(1);
   const [form, setForm] = useState({ assignedStaffId: '', counterNumber: '', prefix: '' });
 
-  useEffect(() => {
-    let cancelled = false;
+useEffect(() => {
+  let cancelled = false;
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const dept = await fetchDepartmentByName(user?.department);
-        if (cancelled) return;
-        setDepartmentId(dept?.id || null);
+  async function load() {
+    setLoading(true);
+    setError(null);
 
-        const [counterRows, staffRows] = await Promise.all([
-          fetchCounters(dept?.id),
-          fetchStaffForDepartment(user?.department),
-        ]);
-        if (!cancelled) {
-          setCounters(counterRows);
-          setStaffOptions(staffRows);
-        }
-      } catch (err) {
-        if (!cancelled) setError(err.message || 'Failed to load terminals.');
-      } finally {
-        if (!cancelled) setLoading(false);
+    try {
+      const dept = await fetchDepartmentByName(user?.department);
+
+      if (cancelled) return;
+
+      const resolvedDepartmentId =
+        dept?.department_id || null;
+
+      setDepartmentId(resolvedDepartmentId);
+
+      const [counterRows, staffRows] = await Promise.all([
+        fetchCounters(resolvedDepartmentId),
+        fetchStaffForDepartment(user?.department),
+      ]);
+
+      console.log('Admin department:', user?.department);
+      console.log('Staff options:', staffRows);
+
+      if (!cancelled) {
+        setCounters(counterRows);
+        setStaffOptions(staffRows);
+      }
+    } catch (err) {
+      if (!cancelled) {
+        setError(err.message || 'Failed to load terminals.');
+      }
+    } finally {
+      if (!cancelled) {
+        setLoading(false);
       }
     }
+  }
 
-    load();
-    return () => { cancelled = true; };
-  }, [user?.department]);
+  load();
+
+  return () => {
+    cancelled = true;
+  };
+}, [user?.department]);
+
 
   const rows = counters.filter((row) => {
     const name = row.assigned ? `${row.assigned.first_name} ${row.assigned.last_name} ${row.assigned.email}` : '';
@@ -404,34 +482,52 @@ export function QueueManagementPage() {
       setError(err.message || 'Failed to update terminal.');
     }
   }
+async function saveAdd() {
+  console.log('SAVE ADD STARTED');
+  console.log('Form:', form);
 
-  async function saveAdd() {
-    if (!form.counterNumber || !departmentId) { setModal(null); return; }
-    try {
-      const created = await createCounter({
-        departmentId,
-        counterNumber: Number(form.counterNumber),
-        prefix: form.prefix,
-        assignedStaffId: form.assignedStaffId || null,
-      });
-      setCounters((rows) => [...rows, created]);
-      setModal(null);
-    } catch (err) {
-      setError(err.message || 'Failed to create terminal.');
-    }
+  if (!form.counterNumber) {
+    setError('Counter number is required.');
+    return;
   }
 
-  async function toggleStatus(row, event) {
+  if (!form.prefix) {
+    setError('Department prefix is required.');
+    return;
+  }
+
+  try {
+    setError(null);
+
+    const created = await createCounter({
+      counterNumber: Number(form.counterNumber),
+      prefix: form.prefix,
+      assignedStaffId: form.assignedStaffId || null,
+    });
+
+    console.log('COUNTER CREATED:', created);
+
+    setCounters((rows) => [...rows, created]);
+    setModal(null);
+  } catch (err) {
+    console.error('CREATE COUNTER ERROR:', err);
+    setError(err.message || 'Failed to create terminal.');
+  }
+}
+
+ async function toggleStatus(row, event) {
     event.stopPropagation();
     try {
-      const updated = await updateCounter(row.id, { status: row.status === 'online' ? 'offline' : 'online' });
-      setCounters((rows) => rows.map((r) => (r.id === updated.id ? updated : r)));
+      // Updated toggle logic
+      const updated = await updateCounter(row.id, { 
+        status: row.status === 'active' ? 'inactive' : 'active' 
+      });
+      setCounters((rows) => rows.map((r) => (r.counter_id === updated.counter_id ? updated : r)));
     } catch (err) {
       setError(err.message || 'Failed to update status.');
     }
   }
-
-  const activeCount = counters.filter((c) => c.status === 'online').length;
+  const activeCount = counters.filter((c) => c.status === 'active').length;
   const assignedCount = counters.filter((c) => c.assigned_staff_id).length;
 
   return (
@@ -480,7 +576,7 @@ export function QueueManagementPage() {
                     onClick={(e) => toggleStatus(row, e)}
                     className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${row.status === 'online' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}
                   >
-                    {row.status || 'offline'}
+                    {row.status || 'inactive'}
                   </button>
                 </td>
               </tr>
@@ -510,7 +606,7 @@ export function QueueManagementPage() {
 
       {modal === 'add' && (
         <Modal title="Add Terminal" onClose={() => setModal(null)} actions={<><button type="button" onClick={() => setModal(null)} className="rounded-md border px-4 py-2 text-xs font-semibold">Cancel</button><button type="button" onClick={saveAdd} className="rounded-md bg-[#075b9f] px-4 py-2 text-xs font-semibold text-white">Save</button></>}>
-          <TerminalFormFields form={form} setForm={setForm} staffOptions={staffOptions} />
+      <TerminalFormFields form={form} setForm={setForm} staffOptions={staffOptions} />
         </Modal>
       )}
     </div>
@@ -566,7 +662,7 @@ export function ReportsPage() {
         fetchStaffForDepartment(user?.department),
       ]);
       if (cancelled) return;
-      setTerminalCounts({ online: counters.filter((c) => c.status === 'online').length, total: counters.length });
+      setTerminalCounts({ online: counters.filter((c) => c.status === 'active').length, total: counters.length });
       setStaffCounts({ onDuty: counters.filter((c) => c.assigned_staff_id).length, total: staff.length });
     }
 
@@ -680,7 +776,7 @@ export function SettingsPage() {
       setDeptLoading(true);
       const dept = await fetchDepartmentByName(user?.department);
       if (!cancelled) {
-        setDepartmentId(dept?.id ?? null);
+        setDepartmentId(dept?.department_id ?? null);
         setDepartmentName(dept?.name || user?.department || '');
         setDeptLoading(false);
       }

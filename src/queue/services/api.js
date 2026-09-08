@@ -161,29 +161,46 @@ function getServiceDuration(startedAtIso, completedAtIso) {
   return `${mins}:${String(secs).padStart(2, '0')}`
 }
 
-// Map Supabase queue row to frontend queue format.
-function mapQueueItem(row, index = 0) {
+function mapQueueItem(
+  row,
+  index = 0
+) {
   if (!row) return null
 
   return {
     dbId: row.queue_id,
     id: row.queue_number,
-    uniqueKey: `${row.queue_number}-${row.queue_id || index}`,
+
+    uniqueKey:
+      `${row.queue_number}-${row.queue_id || index}`,
+
     service:
-      row.service ||
-      (row.is_priority ? 'Priority' : 'Regular'),
-    terminal: row.terminal || 'Default',
+      row.is_priority
+        ? 'Priority'
+        : 'Regular',
+
+    terminal:
+      row.counter_id
+        ? `Counter ${row.counter_id}`
+        : 'Unassigned',
+
     status: row.status,
-    secondsElapsed: getSecondsElapsed(row.called_at),
-    avatarSeed: row.queue_number,
-    etaMinutes: row.etaMinutes || 5
+
+    secondsElapsed:
+      getSecondsElapsed(row.called_at),
+
+    avatarSeed:
+      row.queue_number,
+
+    // Temporary frontend fallback.
+    // AI estimates can be connected here later.
+    etaMinutes:
+      Number(row.etaMinutes) || 5
   }
 }
-
 /* ============================================================================
    PATIENT TRACKER
    ============================================================================ */
-
 export async function fetchTicketStatus(ticketId) {
   try {
     if (!ticketId) {
@@ -192,8 +209,10 @@ export async function fetchTicketStatus(ticketId) {
       }
     }
 
-    // 1. Get the exact ticket.
-    const { data: ticket, error: ticketError } = await supabase
+    const {
+      data: ticket,
+      error: ticketError
+    } = await supabase
       .from('queue_ticket')
       .select(`
         queue_id,
@@ -227,15 +246,18 @@ export async function fetchTicketStatus(ticketId) {
       }
     }
 
-    // 2. Get department information.
+    // Fetch department USING the department_id
+    // already stored in the ticket.
     const {
       data: department,
       error: departmentError
     } = await supabase
       .from('departments')
-      .select(
-        'department_id, name, prefix, est_time'
-      )
+      .select(`
+        department_id,
+        name,
+        est_time
+      `)
       .eq(
         'department_id',
         ticket.department_id
@@ -252,16 +274,26 @@ export async function fetchTicketStatus(ticketId) {
     const departmentName =
       department?.name || 'Hospital Services'
 
-    // 3. Determine start/end of ticket issue date.
-    const issuedDate = new Date(ticket.issued_at)
+    const issuedDate =
+      new Date(ticket.issued_at)
 
-    const startOfDay = new Date(issuedDate)
+    const startOfDay =
+      new Date(issuedDate)
+
     startOfDay.setHours(0, 0, 0, 0)
 
-    const endOfDay = new Date(issuedDate)
-    endOfDay.setHours(23, 59, 59, 999)
+    const endOfDay =
+      new Date(issuedDate)
 
-    // 4. Get all waiting tickets in the same department/day.
+    endOfDay.setHours(
+      23,
+      59,
+      59,
+      999
+    )
+
+    // Get waiting patients for this
+    // department and issue date.
     const {
       data: waitingTickets,
       error: waitingError
@@ -300,30 +332,32 @@ export async function fetchTicketStatus(ticketId) {
       )
     }
 
-    // 5. Count patients ahead.
     let peopleAhead = 0
 
     if (waitingTickets) {
-      const ticketIndex = waitingTickets.findIndex(
-        item => item.queue_id === ticket.queue_id
-      )
+      const ticketIndex =
+        waitingTickets.findIndex(
+          item =>
+            item.queue_id === ticket.queue_id
+        )
 
-      if (ticketIndex >= 0) {
-        peopleAhead = ticketIndex
-      } else {
-        peopleAhead = 0
-      }
+      peopleAhead =
+        ticketIndex >= 0
+          ? ticketIndex
+          : 0
     }
 
-    // 6. Find currently serving patient.
+    // Currently serving patient.
     const {
       data: servingTicket,
       error: servingError
     } = await supabase
       .from('queue_ticket')
-      .select(
-        'queue_number, counter_id, called_at'
-      )
+      .select(`
+        queue_number,
+        counter_id,
+        called_at
+      `)
       .eq(
         'department_id',
         ticket.department_id
@@ -350,17 +384,46 @@ export async function fetchTicketStatus(ticketId) {
       )
     }
 
-    // 7. Determine estimated waiting time.
-    // Temporary baseline. AI prediction can be connected later.
-    const averageServiceMinutes =
+    // First try to use the latest AI estimate.
+    const {
+      data: prediction,
+      error: predictionError
+    } = await supabase
+      .from('estimated_time')
+      .select(`
+        predicted_waiting_time,
+        generated_at
+      `)
+      .eq(
+        'department_id',
+        ticket.department_id
+      )
+      .order('generated_at', {
+        ascending: false
+      })
+      .limit(1)
+      .maybeSingle()
+
+    if (predictionError) {
+      console.warn(
+        'AI estimate unavailable:',
+        predictionError
+      )
+    }
+
+    const fallbackServiceMinutes =
       Number(department?.est_time) || 5
 
-    const estimatedWaitMinutes =
-      peopleAhead > 0
-        ? peopleAhead * averageServiceMinutes
-        : 0
+    const aiEstimatedWait =
+      prediction?.predicted_waiting_time
 
-    // 8. Return tracker information.
+    const estimatedWaitMinutes =
+      aiEstimatedWait !== null &&
+      aiEstimatedWait !== undefined
+        ? Number(aiEstimatedWait)
+        : peopleAhead *
+          fallbackServiceMinutes
+
     return {
       status: ticket.status || 'waiting',
       queueNumber: ticket.queue_number,
@@ -372,11 +435,10 @@ export async function fetchTicketStatus(ticketId) {
         servingTicket?.queue_number || '—',
       peopleAhead,
       estimatedWaitMinutes,
-      totalAheadAtIssue: Math.max(
-        peopleAhead,
-        1
-      )
+      totalAheadAtIssue:
+        Math.max(peopleAhead, 1)
     }
+
   } catch (error) {
     console.error(
       'Ticket status fetch failed:',
@@ -393,7 +455,6 @@ export async function fetchTicketStatus(ticketId) {
 /* ============================================================================
    QUEUE STATE
    ============================================================================ */
-
 export async function fetchQueueState(
   departmentPrefix
 ) {
@@ -414,16 +475,42 @@ export async function fetchQueueState(
   }
 
   try {
-    // 1. Get waiting queue.
+    const now = new Date()
+
+    const startOfDay = new Date(now)
+    startOfDay.setHours(0, 0, 0, 0)
+
+    const endOfDay = new Date(now)
+    endOfDay.setHours(23, 59, 59, 999)
+
     const {
       data: waitingData,
       error: waitingError
     } = await supabase
       .from('queue_ticket')
-      .select('*')
+      .select(`
+        queue_id,
+        queue_number,
+        queue_sequence,
+        department_id,
+        counter_id,
+        status,
+        is_priority,
+        issued_at,
+        called_at
+      `)
       .eq('status', 'waiting')
-      .or(
-        `queue_number.ilike.%${departmentPrefix}-%,queue_number.ilike.%${departmentPrefix}%`
+      .ilike(
+        'queue_number',
+        `${departmentPrefix}-%`
+      )
+      .gte(
+        'issued_at',
+        startOfDay.toISOString()
+      )
+      .lte(
+        'issued_at',
+        endOfDay.toISOString()
       )
       .order('is_priority', {
         ascending: false
@@ -437,19 +524,37 @@ export async function fetchQueueState(
         'Error fetching waiting queue:',
         waitingError
       )
+      throw waitingError
     }
 
-    // 2. Get currently serving patient.
     const {
       data: servingData,
       error: servingError
     } = await supabase
       .from('queue_ticket')
-      .select('*')
+      .select(`
+        queue_id,
+        queue_number,
+        queue_sequence,
+        department_id,
+        counter_id,
+        status,
+        is_priority,
+        issued_at,
+        called_at
+      `)
       .eq('status', 'serving')
       .ilike(
         'queue_number',
-        `%${departmentPrefix}-%`
+        `${departmentPrefix}-%`
+      )
+      .gte(
+        'issued_at',
+        startOfDay.toISOString()
+      )
+      .lte(
+        'issued_at',
+        endOfDay.toISOString()
       )
       .order('called_at', {
         ascending: false
@@ -462,42 +567,75 @@ export async function fetchQueueState(
         'Error fetching serving patient:',
         servingError
       )
+      throw servingError
     }
 
-    // 3. Get completed count.
-    const { count: completedCount } =
-      await supabase
-        .from('queue_ticket')
-        .select('*', {
-          count: 'exact',
-          head: true
-        })
-        .eq('status', 'completed')
-        .ilike(
-          'queue_number',
-          `%${departmentPrefix}-%`
-        )
+    const {
+      count: completedCount,
+      error: completedError
+    } = await supabase
+      .from('queue_ticket')
+      .select('*', {
+        count: 'exact',
+        head: true
+      })
+      .eq('status', 'completed')
+      .ilike(
+        'queue_number',
+        `${departmentPrefix}-%`
+      )
+      .gte(
+        'issued_at',
+        startOfDay.toISOString()
+      )
+      .lte(
+        'issued_at',
+        endOfDay.toISOString()
+      )
 
-    // 4. Get skipped count.
-    const { count: skippedCount } =
-      await supabase
-        .from('queue_ticket')
-        .select('*', {
-          count: 'exact',
-          head: true
-        })
-        .eq('status', 'skipped')
-        .ilike(
-          'queue_number',
-          `%${departmentPrefix}-%`
-        )
+    if (completedError) {
+      console.error(
+        'Error fetching completed count:',
+        completedError
+      )
+    }
+
+    const {
+      count: skippedCount,
+      error: skippedError
+    } = await supabase
+      .from('queue_ticket')
+      .select('*', {
+        count: 'exact',
+        head: true
+      })
+      .eq('status', 'skipped')
+      .ilike(
+        'queue_number',
+        `${departmentPrefix}-%`
+      )
+      .gte(
+        'issued_at',
+        startOfDay.toISOString()
+      )
+      .lte(
+        'issued_at',
+        endOfDay.toISOString()
+      )
+
+    if (skippedError) {
+      console.error(
+        'Error fetching skipped count:',
+        skippedError
+      )
+    }
 
     return {
-      waitingQueue: waitingData
-        ? waitingData.map((row, idx) =>
-            mapQueueItem(row, idx)
-          )
-        : [],
+      waitingQueue:
+        (waitingData || []).map(
+          (row, index) =>
+            mapQueueItem(row, index)
+        ),
 
       currentlyServing:
         mapQueueItem(servingData),
@@ -513,24 +651,16 @@ export async function fetchQueueState(
           skippedCount || 0
       }
     }
-  } catch (err) {
+
+  } catch (error) {
     console.error(
-      'Supabase Fetch Error:',
-      err
+      'Supabase queue state error:',
+      error
     )
 
-    return {
-      waitingQueue: [],
-      currentlyServing: null,
-      stats: {
-        waiting: 0,
-        completed: 0,
-        skipped: 0
-      }
-    }
+    throw error
   }
 }
-
 /* ============================================================================
    STAFF QUEUE ACTIONS
    ============================================================================ */
@@ -1061,21 +1191,17 @@ function getDemoQueueState() {
    ============================================================================ */
 
 const USERS_TABLE = 'user'
-const ROLES_TABLE = 'roles'
+const ROLES_TABLE = 'role'
 
 export async function fetchUsers() {
   if (!supabase) {
     return demoUsers
   }
 
-  const {
-    data,
-    error
-  } = await supabase
+  const { data, error } = await supabase
     .from(USERS_TABLE)
     .select(`
-      id,
-      auth_user_id,
+      user_id,
       first_name,
       last_name,
       email,
@@ -1083,15 +1209,32 @@ export async function fetchUsers() {
       created_at,
       updated_at,
       role_id,
-      roles ( id, name )
+      department,
+      location,
+      contact_info,
+      role:role_id (
+        role_id,
+        role
+      )
     `)
-    .order('created_at', {
-      ascending: false
-    })
+    .order('created_at', { ascending: false })
 
-  if (error) throw error
+  if (error) {
+    console.error('Error fetching users:', error)
+    throw error
+  }
 
-  return data
+  // Keep a frontend-friendly `roles` object so existing UI code
+  // that expects roles.id / roles.name can continue working.
+  return (data || []).map(user => ({
+    ...user,
+    roles: user.role
+      ? {
+          id: user.role.role_id,
+          name: user.role.role
+        }
+      : null
+  }))
 }
 
 export async function fetchRoles() {
@@ -1099,387 +1242,526 @@ export async function fetchRoles() {
     return DEMO_ROLES
   }
 
-  const {
-    data,
-    error
-  } = await supabase
+  const { data, error } = await supabase
     .from(ROLES_TABLE)
-    .select('id, name')
+    .select('role_id, role')
+    .order('role')
 
-  if (error) throw error
+  if (error) {
+    console.error('Error fetching roles:', error)
+    throw error
+  }
 
-  return data
+  // Keep the frontend format as id/name.
+  return (data || []).map(row => ({
+    id: row.role_id,
+    name: row.role
+  }))
 }
 
-export async function createUser(
-  payload
-) {
+export async function createUser(payload) {
   if (!supabase) {
     const created = {
       id: `demo-user-${Date.now()}`,
-      auth_user_id: null,
       status: 'Active',
-      created_at:
-        new Date().toISOString(),
-      updated_at:
-        new Date().toISOString(),
-      ...payload,
-      roles:
-        DEMO_ROLES.find(
-          r => r.id === payload.role_id
-        ) || null
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      ...payload
     }
 
-    demoUsers = [
-      created,
-      ...demoUsers
-    ]
-
+    demoUsers = [created, ...demoUsers]
     return created
   }
 
-  const {
-    data,
-    error
-  } = await supabase
+  // Only send columns that actually exist in the user table.
+  const userPayload = {
+    first_name: payload.first_name || null,
+    last_name: payload.last_name || null,
+    email: payload.email || null,
+    status: payload.status || 'Active',
+    role_id: payload.role_id || null,
+    department: payload.department || null,
+    location: payload.location || null,
+    contact_info: payload.contact_info || null
+  }
+
+  const { data, error } = await supabase
     .from(USERS_TABLE)
-    .insert([
-      {
-        status: 'Active',
-        ...payload
-      }
-    ])
-    .select()
+    .insert([userPayload])
+    .select(`
+      user_id,
+      first_name,
+      last_name,
+      email,
+      status,
+      role_id,
+      department,
+      location,
+      contact_info,
+      created_at,
+      updated_at
+    `)
     .single()
 
-  if (error) throw error
+  if (error) {
+    console.error('Error creating user:', error)
+    throw error
+  }
 
   return data
 }
 
-export async function updateUser(
-  id,
-  payload
-) {
+export async function updateUser(userId, payload) {
   if (!supabase) {
     let updated = null
 
-    demoUsers =
-      demoUsers.map(row => {
-        if (row.id !== id) {
-          return row
-        }
+    demoUsers = demoUsers.map(row => {
+      if (row.id !== userId) return row
 
-        updated = {
-          ...row,
-          ...payload,
-          updated_at:
-            new Date().toISOString()
-        }
+      updated = {
+        ...row,
+        ...payload,
+        updated_at: new Date().toISOString()
+      }
 
-        return updated
-      })
+      return updated
+    })
 
     return updated
   }
 
-  const {
-    data,
-    error
-  } = await supabase
+  const allowedPayload = {
+    first_name: payload.first_name,
+    last_name: payload.last_name,
+    email: payload.email,
+    status: payload.status,
+    role_id: payload.role_id,
+    department: payload.department,
+    location: payload.location,
+    contact_info: payload.contact_info,
+    updated_at: new Date().toISOString()
+  }
+
+  // Remove undefined properties.
+  Object.keys(allowedPayload).forEach(key => {
+    if (allowedPayload[key] === undefined) {
+      delete allowedPayload[key]
+    }
+  })
+
+  const { data, error } = await supabase
     .from(USERS_TABLE)
-    .update({
-      ...payload,
-      updated_at:
-        new Date().toISOString()
-    })
-    .eq('id', id)
-    .select()
+    .update(allowedPayload)
+    .eq('user_id', userId)
+    .select(`
+      user_id,
+      first_name,
+      last_name,
+      email,
+      status,
+      role_id,
+      department,
+      location,
+      contact_info,
+      created_at,
+      updated_at
+    `)
     .single()
 
-  if (error) throw error
+  if (error) {
+    console.error('Error updating user:', error)
+    throw error
+  }
 
   return data
 }
 
-export async function deleteUser(
-  id
-) {
+export async function deleteUser(userId) {
   if (!supabase) {
-    demoUsers =
-      demoUsers.filter(
-        row => row.id !== id
-      )
-
+    demoUsers = demoUsers.filter(row => row.id !== userId)
     return
   }
 
-  const { error } =
-    await supabase
-      .from(USERS_TABLE)
-      .delete()
-      .eq('id', id)
+  const { error } = await supabase
+    .from(USERS_TABLE)
+    .delete()
+    .eq('user_id', userId)
 
-  if (error) throw error
+  if (error) {
+    console.error('Error deleting user:', error)
+    throw error
+  }
 }
 
 /* ============================================================================
    DEPARTMENTS
    ============================================================================ */
 
-const DEPARTMENTS_TABLE =
-  'departments'
+const DEPARTMENTS_TABLE = 'departments'
 
-export async function fetchDepartmentByName(
-  name
-) {
+export async function fetchDepartmentByName(name) {
   if (!name) return null
 
   if (!supabase) {
     return {
-      id: 'demo-department',
+      department_id: 'demo-department',
       name
     }
   }
 
-  const {
-    data,
-    error
-  } = await supabase
+  const { data, error } = await supabase
     .from(DEPARTMENTS_TABLE)
-    .select('id, name')
+    .select(`
+      department_id,
+      name,
+      classification,
+      location,
+      prefix,
+      status,
+      est_time,
+      administrator_id
+    `)
     .eq('name', name)
     .maybeSingle()
 
   if (error) {
-    console.error(
-      'Error fetching department:',
-      error
-    )
-
+    console.error('Error fetching department:', error)
     return null
   }
 
   return data
 }
 
+export async function updateDepartmentName(
+  departmentId,
+  name
+) {
+  if (!supabase) {
+    return {
+      department_id: departmentId,
+      name
+    }
+  }
+
+  const { data, error } = await supabase
+    .from(DEPARTMENTS_TABLE)
+    .update({
+      name,
+      updated_at: new Date().toISOString()
+    })
+    .eq('department_id', departmentId)
+    .select('department_id, name')
+    .single()
+
+  if (error) {
+    console.error('Error updating department:', error)
+    throw error
+  }
+
+  return data
+}
 /* ============================================================================
    COUNTERS
    ============================================================================ */
 
-const COUNTERS_TABLE = 'counters'
+const COUNTERS_TABLE = 'counter'
 
-export async function fetchCounters(
-  departmentId
-) {
+export async function fetchCounters(departmentId) {
   if (!departmentId || !supabase) {
     return []
   }
 
-  const {
-    data,
-    error
-  } = await supabase
+  const { data, error } = await supabase
     .from(COUNTERS_TABLE)
     .select(`
-      id,
+      counter_id,
+      department_id,
       counter_number,
       prefix,
       status,
       assigned_staff_id,
-      assigned:assigned_staff_id (
+      created_at,
+      updated_at
+    `)
+    .eq('department_id', departmentId)
+    .order('counter_number', {
+      ascending: true
+    })
+
+  if (error) {
+    console.error('Error fetching counters:', error)
+    throw error
+  }
+
+  const counters = data || []
+
+  // Fetch assigned staff separately.
+  // This avoids Supabase relationship-name issues.
+  const staffIds = [
+    ...new Set(
+      counters
+        .map(row => row.assigned_staff_id)
+        .filter(Boolean)
+    )
+  ]
+
+  let staffMap = {}
+
+  if (staffIds.length > 0) {
+    const {
+      data: staffData,
+      error: staffError
+    } = await supabase
+      .from('user')
+      .select(`
         user_id,
         first_name,
         last_name,
         email
+      `)
+      .in('user_id', staffIds)
+
+    if (staffError) {
+      console.error(
+        'Error fetching assigned staff:',
+        staffError
       )
-    `)
-    .eq(
-      'department_id',
-      departmentId
-    )
-    .order(
-      'counter_number',
-      {
-        ascending: true
-      }
-    )
-
-  if (error) {
-    console.error(
-      'Error fetching counters:',
-      error
-    )
-
-    return []
+    } else {
+      staffMap = Object.fromEntries(
+        (staffData || []).map(person => [
+          person.user_id,
+          person
+        ])
+      )
+    }
   }
 
-  return data
+  return counters.map(counter => ({
+    ...counter,
+    assigned:
+      counter.assigned_staff_id
+        ? staffMap[counter.assigned_staff_id] || null
+        : null
+  }))
 }
 
-export async function fetchStaffForDepartment(
-  departmentName
-) {
+export async function fetchStaffForDepartment(departmentName) {
   if (!departmentName || !supabase) {
-    return []
+    return [];
   }
 
-  const {
-    data,
-    error
-  } = await supabase
+  console.log('Loading staff for department:', departmentName);
+
+  const { data, error } = await supabase
     .from('user')
-    .select(
-      'user_id, first_name, last_name, email'
-    )
-    .eq(
-      'department',
-      departmentName
-    )
-    .order(
-      'first_name',
-      {
-        ascending: true
-      }
-    )
+    .select(`
+      user_id,
+      first_name,
+      last_name,
+      email,
+      department,
+      role_id,
+      role:role_id (
+        role_id,
+        role
+      )
+    `)
+    .ilike('department', departmentName)
+    .order('first_name', {
+      ascending: true
+    });
 
   if (error) {
-    console.error(
-      'Error fetching department staff:',
-      error
-    )
-
-    return []
+    console.error('Staff query error:', error);
+    throw error;
   }
 
-  return data
+  console.log('All users in department:', data);
+
+  const staff = (data || []).filter(
+    person =>
+      person.role?.role?.trim().toLowerCase() === 'staff'
+  );
+
+  console.log('Filtered staff:', staff);
+
+  return staff;
 }
 
 export async function createCounter({
-  departmentId,
   counterNumber,
   prefix,
   assignedStaffId
 }) {
-  const {
-    data,
-    error
-  } = await supabase
-    .from(COUNTERS_TABLE)
+  if (!supabase) {
+    return {
+      counter_id: `demo-counter-${Date.now()}`,
+      counter_number: counterNumber,
+      prefix,
+      assigned_staff_id: assignedStaffId || null,
+      status: 'inactive'
+    };
+  }
+
+  if (!counterNumber) {
+    throw new Error('Counter number is required.');
+  }
+
+  if (!prefix) {
+    throw new Error('Department prefix is required.');
+  }
+
+  // Example:
+  // IN-1 → IN
+  // BP-1 → BP
+  // CT   → CT
+  const departmentPrefix = prefix
+    .trim()
+    .toUpperCase()
+    .split('-')[0];
+
+  console.log('Department prefix:', departmentPrefix);
+
+  // Find department using prefix
+  const { data: department, error: departmentError } =
+    await supabase
+      .from('departments')
+      .select('department_id, name, prefix')
+      .eq('prefix', departmentPrefix)
+      .maybeSingle();
+
+  if (departmentError) {
+    console.error(
+      'Department lookup error:',
+      departmentError
+    );
+    throw departmentError;
+  }
+
+  if (!department) {
+    throw new Error(
+      `No department found for prefix "${departmentPrefix}".`
+    );
+  }
+
+  console.log('Department found:', department);
+
+  // Create counter
+  const { data, error } = await supabase
+    .from('counter')
     .insert([
       {
-        department_id:
-          departmentId,
-
-        counter_number:
-          counterNumber,
-
-        prefix:
-          prefix || null,
-
-        assigned_staff_id:
-          assignedStaffId || null,
-
-        status: 'offline'
+        department_id: department.department_id,
+        counter_number: Number(counterNumber),
+        prefix: departmentPrefix,
+        assigned_staff_id: assignedStaffId || null,
+        status: 'inactive'
       }
     ])
     .select(`
-      id,
+      counter_id,
+      department_id,
       counter_number,
       prefix,
-      status,
       assigned_staff_id,
-      assigned:assigned_staff_id (
-        user_id,
-        first_name,
-        last_name,
-        email
-      )
+      status,
+      created_at,
+      updated_at
     `)
-    .single()
+    .single();
 
-  if (error) throw error
+  if (error) {
+    console.error(
+      'Counter insert error:',
+      error
+    );
+    throw error;
+  }
 
-  return data
+  return data;
 }
 
+
 export async function updateCounter(
-  id,
+  counterId,
   payload
 ) {
-  const {
-    data,
-    error
-  } = await supabase
+  if (!supabase) {
+    return null
+  }
+
+  const updatePayload = {
+    updated_at: new Date().toISOString()
+  }
+
+  if (
+    payload.assigned_staff_id !== undefined
+  ) {
+    updatePayload.assigned_staff_id =
+      payload.assigned_staff_id || null
+  }
+
+  if (
+    payload.counter_number !== undefined
+  ) {
+    updatePayload.counter_number =
+      Number(payload.counter_number)
+  }
+
+  if (payload.prefix !== undefined) {
+    updatePayload.prefix =
+      payload.prefix
+        ? payload.prefix.trim().toUpperCase()
+        : null
+  }
+
+  if (payload.status !== undefined) {
+    updatePayload.status = payload.status
+  }
+
+  const { data, error } = await supabase
     .from(COUNTERS_TABLE)
-    .update({
-      ...payload,
-      updated_at:
-        new Date().toISOString()
-    })
-    .eq('id', id)
+    .update(updatePayload)
+    .eq('counter_id', counterId)
     .select(`
-      id,
+      counter_id,
+      department_id,
       counter_number,
       prefix,
       status,
       assigned_staff_id,
-      assigned:assigned_staff_id (
-        user_id,
-        first_name,
-        last_name,
-        email
-      )
+      created_at,
+      updated_at
     `)
     .single()
 
-  if (error) throw error
+  if (error) {
+    console.error(
+      'Error updating counter:',
+      error
+    )
+    throw error
+  }
 
   return data
 }
 
 export async function deleteCounter(
-  id
+  counterId
 ) {
-  const { error } =
-    await supabase
-      .from(COUNTERS_TABLE)
-      .delete()
-      .eq('id', id)
+  if (!supabase) return
 
-  if (error) throw error
-}
+  const { error } = await supabase
+    .from(COUNTERS_TABLE)
+    .delete()
+    .eq('counter_id', counterId)
 
-/* ============================================================================
-   DEPARTMENT SETTINGS
-   ============================================================================ */
-
-export async function updateDepartmentName(
-  id,
-  name
-) {
-  if (!supabase) {
-    return {
-      id,
-      name
-    }
+  if (error) {
+    console.error(
+      'Error deleting counter:',
+      error
+    )
+    throw error
   }
-
-  const {
-    data,
-    error
-  } = await supabase
-    .from(DEPARTMENTS_TABLE)
-    .update({
-      name,
-      updated_at:
-        new Date().toISOString()
-    })
-    .eq('id', id)
-    .select('id, name')
-    .single()
-
-  if (error) throw error
-
-  return data
 }
+

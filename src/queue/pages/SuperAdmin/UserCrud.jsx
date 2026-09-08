@@ -13,11 +13,19 @@ const EMPTY_FORM = {
   role: 'Staff', 
   location: 'Select Location',
   department: 'Select Department',
+  status: 'Active',
   password: ''
 };
 
 const ROLE_OPTIONS = ['Admin', 'Staff', 'Superadmin'];
+const STATUS_OPTIONS = ['Active', 'Inactive'];
 const PAGE_SIZE = 5;
+
+function getRoleName(role) {
+  if (typeof role === 'string') return role;
+  const roleRow = Array.isArray(role) ? role[0] : role;
+  return roleRow?.role ?? roleRow?.name ?? '';
+}
 
 // Returns up to 5 page numbers, windowed around the current page.
 function getPageNumbers(currentPage, totalPages) {
@@ -161,6 +169,19 @@ function UserModal({ form, setForm, onSave, onClose, isEditing, saving }) {
             </select>
           </div>
 
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Status</label>
+            <select
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+            >
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </div>
+
           {!isEditing && (
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-slate-600">Password</label>
@@ -214,25 +235,30 @@ export default function UserCrud() {
     setLoading(true);
     setError(null);
     
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select(`
-        user_id,
-        first_name,
-        last_name,
-        email,
-        contact_info,
-        location,
-        department,
-        status,
-        updated_at,
-        role:role_id (role) 
-      `)
-      .order('last_name', { ascending: true }); 
+    const [{ data, error }, { data: roles, error: rolesError }] = await Promise.all([
+      supabase
+        .from(TABLE_NAME)
+        .select(`
+          user_id,
+          first_name,
+          last_name,
+          email,
+          contact_info,
+          location,
+          department,
+          status,
+          updated_at,
+          role_id,
+          role:role_id (role_id, role)
+        `)
+        .order('last_name', { ascending: true }),
+      supabase.from('role').select('role_id, role'),
+    ]);
 
-    if (error) {
-      setError(error.message);
+    if (error || rolesError) {
+      setError(error?.message || rolesError.message);
     } else {
+      const roleById = new Map((roles || []).map((role) => [String(role.role_id), role.role]));
       const formattedUsers = data.map((u) => ({
         id: u.user_id,
         first_name: u.first_name,
@@ -241,8 +267,8 @@ export default function UserCrud() {
         contact_number: u.contact_info,
         location: u.location,
         department: u.department,
-        status: u.status ?? 'ONLINE',
-        role: u.role ? u.role.role : 'Staff',
+        status: u.status?.toUpperCase() === 'ONLINE' ? 'Active' : u.status?.toUpperCase() === 'OFFLINE' ? 'Inactive' : (u.status ?? 'Active'),
+        role: getRoleName(u.role) || roleById.get(String(u.role_id)) || 'Staff',
         updated_at: u.updated_at,
       }));
       setUsers(formattedUsers);
@@ -269,6 +295,7 @@ export default function UserCrud() {
       role: user.role ?? 'Staff',
       location: user.location ?? 'Select Location',
       department: user.department ?? 'Select Department',
+      status: user.status === 'Inactive' ? 'Inactive' : 'Active',
       password: '' 
     });
     setEditingId(user.id);
@@ -327,7 +354,7 @@ export default function UserCrud() {
           location: form.location,
           department: form.department,
           role_id: currentRoleId,
-          status: 'ONLINE'
+          status: form.status
         }]);
         if (dbError) throw dbError;
 
@@ -339,6 +366,7 @@ export default function UserCrud() {
           contact_info: form.contact_number,
           location: form.location,
           department: form.department,
+          status: form.status,
           role_id: currentRoleId,
           updated_at: new Date().toISOString()
         };
@@ -360,10 +388,11 @@ export default function UserCrud() {
   }
 
   // Calculated Summary Metrics based on users state
-  const superAdminCount = users.filter((u) => u.role?.toLowerCase().includes('super')).length;
-  const deptAdminCount = users.filter((u) => u.role?.toLowerCase().includes('admin') && !u.role?.toLowerCase().includes('super')).length;
-  const staffCount = users.filter((u) => u.role?.toLowerCase().includes('staff')).length;
-  const onlineCount = users.filter((u) => u.status?.toUpperCase() === 'ONLINE' || u.status?.toUpperCase() === 'ACTIVE').length;
+  const normalizedRoles = users.map((user) => user.role?.toLowerCase().replace(/[\s_-]+/g, '') ?? '');
+  const superAdminCount = normalizedRoles.filter((role) => role === 'superadmin').length;
+  const deptAdminCount = normalizedRoles.filter((role) => role === 'admin' || role === 'deptadmin' || role === 'departmentadmin').length;
+  const staffCount = normalizedRoles.filter((role) => role === 'staff').length;
+  const activeCount = users.filter((u) => u.status === 'Active').length;
 
   // Filtered Users List
   useEffect(() => {
@@ -461,7 +490,7 @@ export default function UserCrud() {
             <UserCheck size={18} className="text-slate-600" />
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-slate-800">{onlineCount}/128</p>
+            <p className="text-2xl font-bold text-slate-800">{activeCount}/128</p>
             <p className="mt-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">ADMIN/STAFF ON DUTY</p>
           </div>
         </div>
@@ -541,11 +570,11 @@ export default function UserCrud() {
                     <td className="px-6 py-4 text-slate-600 capitalize">{user.role}</td>
                     <td className="px-6 py-4">
                       <span className={`text-[11px] font-semibold ${
-                        user.status?.toUpperCase() === 'ONLINE' || user.status?.toUpperCase() === 'ACTIVE'
+                        user.status === 'Active'
                           ? 'text-slate-700'
                           : 'text-slate-400'
                       }`}>
-                        {user.status?.toUpperCase() || 'OFFLINE'}
+                        {user.status}
                       </span>
                     </td>
                   </tr>
