@@ -428,9 +428,6 @@ useEffect(() => {
         fetchStaffForDepartment(user?.department),
       ]);
 
-      console.log('Admin department:', user?.department);
-      console.log('Staff options:', staffRows);
-
       if (!cancelled) {
         setCounters(counterRows);
         setStaffOptions(staffRows);
@@ -470,18 +467,36 @@ useEffect(() => {
   }
 
   async function saveEdit() {
-    try {
-      const updated = await updateCounter(modal.row.id, {
-        assigned_staff_id: form.assignedStaffId || null,
-        counter_number: Number(form.counterNumber) || modal.row.counter_number,
-        prefix: form.prefix || null,
-      });
-      setCounters((rows) => rows.map((row) => (row.id === updated.id ? updated : row)));
-      setModal(null);
-    } catch (err) {
-      setError(err.message || 'Failed to update terminal.');
-    }
+  try {
+    const updated = await updateCounter(modal.row.counter_id, {
+      assigned_staff_id: form.assignedStaffId || null,
+      counter_number:
+        Number(form.counterNumber) || modal.row.counter_number,
+      prefix: form.prefix || null,
+    });
+
+    // Find the assigned staff member using the returned staff ID
+    const assignedStaff = staffOptions.find(
+      (staff) => staff.user_id === updated.assigned_staff_id
+    );
+
+    // Add the staff information back to the counter object
+    const updatedWithStaff = {
+      ...updated,
+      assigned: assignedStaff || null,
+    };
+
+    setCounters((rows) =>
+      rows.map((row) =>
+        row.counter_id === updated.counter_id ? updatedWithStaff : row
+      )
+    );
+
+    setModal(null);
+  } catch (err) {
+    setError(err.message || 'Failed to update terminal.');
   }
+}
 async function saveAdd() {
   console.log('SAVE ADD STARTED');
   console.log('Form:', form);
@@ -519,7 +534,7 @@ async function saveAdd() {
     event.stopPropagation();
     try {
       // Updated toggle logic
-      const updated = await updateCounter(row.id, { 
+      const updated = await updateCounter(row.counter_id, { 
         status: row.status === 'active' ? 'inactive' : 'active' 
       });
       setCounters((rows) => rows.map((r) => (r.counter_id === updated.counter_id ? updated : r)));
@@ -565,7 +580,7 @@ async function saveAdd() {
               <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">Loading terminals…</td></tr>
             )}
             {!loading && rows.map((row) => (
-              <tr key={row.id} onClick={() => openEdit(row)} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50">
+              <tr key={row.counter_id} onClick={() => openEdit(row)} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3 font-semibold">Terminal {row.counter_number}</td>
                 <td className="px-4 py-3">{row.assigned ? `${row.assigned.first_name} ${row.assigned.last_name}` : 'Unassigned'}</td>
                 <td className="px-4 py-3 text-slate-500">{row.assigned?.email || '--'}</td>
