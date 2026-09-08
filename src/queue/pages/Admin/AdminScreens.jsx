@@ -469,19 +469,32 @@ useEffect(() => {
     setModal('add');
   }
 
-  async function saveEdit() {
-    try {
-      const updated = await updateCounter(modal.row.id, {
+async function saveEdit() {
+  try {
+    const updated = await updateCounter(
+      modal.row.counter_id,
+      {
         assigned_staff_id: form.assignedStaffId || null,
-        counter_number: Number(form.counterNumber) || modal.row.counter_number,
+        counter_number:
+          Number(form.counterNumber) ||
+          modal.row.counter_number,
         prefix: form.prefix || null,
-      });
-      setCounters((rows) => rows.map((row) => (row.id === updated.id ? updated : row)));
-      setModal(null);
-    } catch (err) {
-      setError(err.message || 'Failed to update terminal.');
-    }
+      }
+    );
+
+    // Reload counters so assigned staff/name is immediately updated
+    const freshCounters = await fetchCounters(departmentId);
+
+    setCounters(freshCounters);
+    setModal(null);
+  } catch (err) {
+    console.error('UPDATE COUNTER ERROR:', err);
+    setError(
+      err.message || 'Failed to update terminal.'
+    );
   }
+}
+
 async function saveAdd() {
   console.log('SAVE ADD STARTED');
   console.log('Form:', form);
