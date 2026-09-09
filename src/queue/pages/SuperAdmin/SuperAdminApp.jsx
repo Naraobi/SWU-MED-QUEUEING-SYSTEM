@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Layout from './Layout';
 import Dashboard from './Dashboard';
 import UserCrud from './UserCrud';
+import RoleManagement from './roleManagement';
 import DepartmentManagement from './DepartmentManagement';
 import Reports from './Reports';
 import AdminQueueManagement from './QueueManagement';
@@ -14,6 +15,7 @@ export default function SuperAdminApp() {
     <Layout activePage={activePage} onNavigate={setActivePage}>
       {activePage === 'dashboard' && <Dashboard />}
       {activePage === 'users' && <UserCrud />}
+      {activePage === 'roles' && <RoleManagement />}
       {activePage === 'departments' && <DepartmentManagement />}
       {activePage === 'reports' && <Reports />}
       {activePage === 'queues' && <AdminQueueManagement />}

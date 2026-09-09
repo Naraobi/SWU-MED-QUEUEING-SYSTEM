@@ -1,4 +1,5 @@
 import { useState } from 'react';
+
 import {
   LayoutGrid,
   Users,
@@ -6,36 +7,57 @@ import {
   ClipboardList,
   BarChart3,
   Settings as SettingsIcon,
+  ShieldCheck,
   UserCircle,
   LogOut,
   Upload,
   X,
   User as UserIcon,
 } from 'lucide-react';
+
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../services/Authcontext';
-import { supabase } from '../../../supabase'; // Adjust path if needed
+import { supabase } from '../../../supabase';
 import logo from '../../../assets/logo.png';
+import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';
 
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
   { key: 'users', label: 'User Management', icon: Users },
   { key: 'departments', label: 'Department Management', icon: Building2 },
+  { key: 'roles', label: 'Role Management', icon: ShieldCheck },
   { key: 'queues', label: 'Queue Management', icon: ClipboardList },
   { key: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
 export default function Layout({ activePage, onNavigate, children }) {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
+
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // Moved the logout logic here so the sidebar button can use it
+  // Only show pages this user is allowed to access
+  const visibleNavItems = NAV_ITEMS.filter(({ key }) =>
+    canAccessSuperadminPage(user, key)
+  );
+
+  // Prevent navigation to unauthorized pages
+  function handleNavigate(key) {
+    if (!canAccessSuperadminPage(user, key)) {
+      onNavigate('dashboard');
+      return;
+    }
+
+    onNavigate(key);
+  }
+
+  // Logout logic
   function handleLogout() {
     navigate('/superadmin/login', { replace: true });
+
     signOut().catch((error) => {
       console.error('Logout error:', error);
     });
@@ -53,26 +75,33 @@ export default function Layout({ activePage, onNavigate, children }) {
           <div className="border-b border-slate-100 px-6 py-5">
             <button
               type="button"
-              onClick={() => onNavigate('dashboard')}
+              onClick={() => handleNavigate('dashboard')}
               className="block select-none text-left cursor-pointer focus:outline-none"
               aria-label="Go to Dashboard"
               title="Go to Dashboard"
             >
-              <img src={logo} alt="SWUMed Logo" className="h-8 w-auto object-contain object-left" />
+              <img
+                src={logo}
+                alt="SWUMed Logo"
+                className="h-8 w-auto object-contain object-left"
+              />
             </button>
-            <p className="text-xs text-slate-400">Queuing System</p>
+
+            <p className="text-xs text-slate-400">
+              Queuing System
+            </p>
           </div>
 
           {/* Navigation */}
           <nav className="flex-1 space-y-0.5 px-3 py-4">
-            {NAV_ITEMS.map(({ key, label, icon: Icon }) => {
+            {visibleNavItems.map(({ key, label, icon: Icon }) => {
               const isActive = activePage === key;
 
               return (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => onNavigate(key)}
+                  onClick={() => handleNavigate(key)}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                     isActive
                       ? 'bg-[#00529B] text-white'
@@ -103,7 +132,9 @@ export default function Layout({ activePage, onNavigate, children }) {
         <div className="flex flex-1 flex-col">
           {/* Header */}
           <header className="flex items-center justify-between border-b border-slate-200 bg-white px-8 py-4">
-            <p className="text-[30px] font-medium text-[#5F6368]">Super Admin</p>
+            <p className="text-[30px] font-medium text-[#5F6368]">
+              Super Admin
+            </p>
 
             <div className="flex items-center gap-5">
               {/* Notifications */}
@@ -123,13 +154,17 @@ export default function Layout({ activePage, onNavigate, children }) {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 px-8 py-6">{children}</main>
+          <main className="flex-1 px-8 py-6">
+            {children}
+          </main>
         </div>
       </div>
 
       {/* Profile Modal Popup */}
       {showProfileModal && (
-        <ProfileModal onClose={() => setShowProfileModal(false)} />
+        <ProfileModal
+          onClose={() => setShowProfileModal(false)}
+        />
       )}
 
       {/* Logout Confirmation Modal */}
@@ -148,11 +183,15 @@ function LogoutModal({ onCancel, onConfirm }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
-        <h2 className="text-lg font-bold text-slate-800">Log Out?</h2>
+        <h2 className="text-lg font-bold text-slate-800">
+          Log Out?
+        </h2>
+
         <p className="mt-2 text-sm text-slate-500">
           Are you sure you want to log out? You will need to sign in again to
           access your assigned terminal.
         </p>
+
         <div className="mt-6 flex items-center justify-center gap-3">
           <button
             type="button"
@@ -161,6 +200,7 @@ function LogoutModal({ onCancel, onConfirm }) {
           >
             Cancel
           </button>
+
           <button
             type="button"
             onClick={onConfirm}
@@ -176,10 +216,16 @@ function LogoutModal({ onCancel, onConfirm }) {
 
 // Internal Profile Modal Component
 function ProfileModal({ onClose }) {
-  const { user } = useAuth(); // Removed signOut since it's no longer needed here
+  const { user } = useAuth();
 
-  const [fullName, setFullName] = useState(user?.full_name ?? '');
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url ?? '');
+  const [fullName, setFullName] = useState(
+    user?.full_name ?? ''
+  );
+
+  const [avatarUrl, setAvatarUrl] = useState(
+    user?.avatar_url ?? ''
+  );
+
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
@@ -195,16 +241,23 @@ function ProfileModal({ onClose }) {
         throw new Error('You must select an image to upload.');
       }
 
+      if (!user?.user_id) {
+        throw new Error('User ID could not be found.');
+      }
+
       const file = e.target.files[0];
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+
+      const fileName = `${user.user_id}-${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        throw uploadError;
+      }
 
       const { data: publicURLData } = supabase.storage
         .from('avatars')
@@ -214,10 +267,14 @@ function ProfileModal({ onClose }) {
 
       const { error: updateError } = await supabase
         .from('user')
-        .update({ avatar_url: newAvatarUrl })
-        .eq('id', user.id);
+        .update({
+          avatar_url: newAvatarUrl,
+        })
+        .eq('user_id', user.user_id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
 
       setAvatarUrl(newAvatarUrl);
       setMessage('Avatar updated successfully!');
@@ -233,14 +290,26 @@ function ProfileModal({ onClose }) {
     setMessage(null);
     setError(null);
 
+    if (!user?.user_id) {
+      setError('User ID could not be found.');
+      setSaving(false);
+      return;
+    }
+
     const { error } = await supabase
       .from('user')
-      .update({ full_name: fullName })
-      .eq('id', user.id);
+      .update({
+        full_name: fullName,
+      })
+      .eq('user_id', user.user_id);
 
     setSaving(false);
-    if (error) setError(error.message);
-    else setMessage('Profile updated successfully.');
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setMessage('Profile updated successfully.');
+    }
   }
 
   return (
@@ -248,29 +317,44 @@ function ProfileModal({ onClose }) {
       <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
         {/* Close Button */}
         <button
+          type="button"
           onClick={onClose}
           className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+          aria-label="Close profile"
         >
           <X size={20} />
         </button>
 
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-slate-800">My Profile</h1>
-          {/* Log out button was removed from here */}
+          <h1 className="text-lg font-semibold text-slate-800">
+            My Profile
+          </h1>
         </div>
 
         {/* Avatar Section */}
         <div className="mb-6 flex flex-col items-center">
-          <div className="relative h-20 w-20 flex items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100">
+          <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+              <img
+                src={avatarUrl}
+                alt="Avatar"
+                className="h-full w-full object-cover"
+              />
             ) : (
-              <UserIcon size={32} className="text-slate-400" />
+              <UserIcon
+                size={32}
+                className="text-slate-400"
+              />
             )}
           </div>
+
           <label className="mt-3 flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
             <Upload size={14} />
-            {uploading ? 'Uploading...' : 'Change avatar'}
+
+            {uploading
+              ? 'Uploading...'
+              : 'Change avatar'}
+
             <input
               type="file"
               accept="image/*"
@@ -281,8 +365,12 @@ function ProfileModal({ onClose }) {
           </label>
         </div>
 
+        {/* Email */}
         <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-slate-500">Email</label>
+          <label className="mb-1 block text-xs font-medium text-slate-500">
+            Email
+          </label>
+
           <input
             type="text"
             value={user?.email ?? ''}
@@ -291,18 +379,30 @@ function ProfileModal({ onClose }) {
           />
         </div>
 
+        {/* Role */}
         <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-slate-500">Role</label>
+          <label className="mb-1 block text-xs font-medium text-slate-500">
+            Role
+          </label>
+
           <input
             type="text"
-            value={user?.role ?? 'Super Admin'}
+            value={
+              typeof user?.role === 'object'
+                ? user?.role?.role ?? 'Super Admin'
+                : user?.role ?? 'Super Admin'
+            }
             disabled
             className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
           />
         </div>
 
+        {/* Full Name */}
         <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-slate-500">Full name</label>
+          <label className="mb-1 block text-xs font-medium text-slate-500">
+            Full name
+          </label>
+
           <input
             type="text"
             value={fullName}
@@ -311,9 +411,20 @@ function ProfileModal({ onClose }) {
           />
         </div>
 
-        {message && <p className="mb-3 text-xs text-emerald-600">{message}</p>}
-        {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
+        {/* Messages */}
+        {message && (
+          <p className="mb-3 text-xs text-emerald-600">
+            {message}
+          </p>
+        )}
 
+        {error && (
+          <p className="mb-3 text-xs text-red-600">
+            {error}
+          </p>
+        )}
+
+        {/* Save Button */}
         <button
           type="button"
           onClick={handleSave}

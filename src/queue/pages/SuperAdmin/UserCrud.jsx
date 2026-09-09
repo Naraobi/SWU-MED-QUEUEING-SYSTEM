@@ -1,643 +1,2442 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../../../supabase'; 
-import { Search, User, Users, Contact, UserCheck, Monitor } from 'lucide-react';
+  import { useEffect, useState } from 'react';
+  import { supabase } from '../../../supabase';
+  import {
+    Search,
+    User,
+    Users,
+    Contact,
+    UserCheck,
+    Monitor,
+    Plus,
+    Eye,
+    EyeOff,
+    Trash2,
+    CheckCircle2,
+    Circle,
+  } from 'lucide-react';
 
-const TABLE_NAME = 'user'; 
+  const TABLE_NAME = 'user';
 
-const EMPTY_FORM = { 
-  first_name: '', 
-  last_name: '', 
-  mi: '', 
-  contact_number: '', 
-  email: '', 
-  role: 'Staff', 
-  location: 'Select Location',
-  department: 'Select Department',
-  status: 'Active',
-  password: ''
-};
-
-const ROLE_OPTIONS = ['Admin', 'Staff', 'Superadmin'];
-const STATUS_OPTIONS = ['Active', 'Inactive'];
-const PAGE_SIZE = 5;
-
-function getRoleName(role) {
-  if (typeof role === 'string') return role;
-  const roleRow = Array.isArray(role) ? role[0] : role;
-  return roleRow?.role ?? roleRow?.name ?? '';
-}
-
-// Returns up to 5 page numbers, windowed around the current page.
-function getPageNumbers(currentPage, totalPages) {
-  const MAX_BUTTONS = 5;
-  if (totalPages <= MAX_BUTTONS) {
-    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  // Normalize emails so duplicate checks are case-insensitive and
+  // the same email format is used consistently for Auth and public.user.
+  function normalizeEmail(email) {
+    return email.trim().toLowerCase();
   }
-  let start = Math.max(1, currentPage - Math.floor(MAX_BUTTONS / 2));
-  start = Math.min(start, totalPages - MAX_BUTTONS + 1);
-  return Array.from({ length: MAX_BUTTONS }, (_, i) => start + i);
-}
 
-const LOCATION_OPTIONS = [
-  'Main Lobby',
-  'Laboratory and Radiology',
-  'Out patients',
-  'Medical Arts Building',
-];
-const DEPARTMENT_OPTIONS = [
-  'Information', 'Admission', 'CHAMP', 'Cashier', 'Billing', 'Credit and Collection', 
-  'Medical Social worker', 'Phil Health', 'Lab-Specimen Collection', 'Lab- Results', 'Rad Results', 'X-ray',
-  'CT-Scan', 'Pharmacy', 'Womens Health'
-];
+  const EMPTY_FORM = {
+    first_name: '',
+    last_name: '',
+    mi: '',
+    contact_number: '',
+    email: '',
+    role: 'Staff',
+    position: null,
+    kiosk: 'Select Kiosk',
+    department: 'Select Department',
+    status: 'Active',
+    password: '',
+    confirmPassword: '',
+  };
 
-function UserModal({ form, setForm, onSave, onClose, isEditing, saving }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="text-lg font-bold text-slate-700">
-            {isEditing ? 'Edit User' : 'Add New User'}
-          </h2>
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="font-bold text-slate-400 hover:text-slate-600" 
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
+  const ROLE_OPTIONS = [
+    'Admin',
+    'Staff',
+    'Superadmin',
+  ];
 
-        {/* Form Body */}
-        <div className="space-y-4 px-6 py-5">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">First Name</label>
-              <input
-                type="text"
-                value={form.first_name}
-                onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                placeholder="Enter first name"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Last Name</label>
-              <input
-                type="text"
-                value={form.last_name}
-                onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                placeholder="Enter last name"
-              />
-            </div>
-          </div>
+  const POSITION_OPTIONS = [
+    {
+      value: 'President',
+      label: 'President',
+    },
+    {
+      value: 'Manager',
+      label: 'Manager',
+    },
+    {
+      value: 'Vice President',
+      label: 'Vice President',
+    },
+    {
+      value: null,
+      label: 'Null',
+    },
+  ];
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">M.I.</label>
-              <input
-                type="text"
-                maxLength="2"
-                value={form.mi}
-                onChange={(e) => setForm({ ...form, mi: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                placeholder="Enter M.I."
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Contact Number</label>
-              <input
-                type="text"
-                value={form.contact_number}
-                onChange={(e) => setForm({ ...form, contact_number: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                placeholder="Enter number"
-              />
-            </div>
-          </div>
+  const STATUS_OPTIONS = [
+    'Active',
+    'Inactive',
+  ];
 
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Email Address</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-              placeholder="Enter email"
-            />
-          </div>
+  const PAGE_SIZE = 5;
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Select Role</label>
-              <select
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-              >
-                {ROLE_OPTIONS.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Select Location</label>
-              <select
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-              >
-                {LOCATION_OPTIONS.map((loc) => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+  const KIOSK_OPTIONS = [
+    'Main Lobby',
+    'Out patients',
+    'Laboratory and Radiology',
+    'Medical Arts Building',
+  ];
 
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Select Department</label>
-            <select
-              value={form.department}
-              onChange={(e) => setForm({ ...form, department: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-            >
-              {DEPARTMENT_OPTIONS.map((dept) => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
+  /*
+    Departments are grouped by kiosk.
+  */
+  const DEPARTMENTS_BY_KIOSK = {
+    'Main Lobby': [
+      'Information',
+      'Admission',
+      'CHAMP',
+      'Cashier',
+      'Billing',
+      'Credit and Collection',
+      'Medical Social worker',
+      'Phil Health',
+    ],
 
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Status</label>
-            <select
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-            >
-              {STATUS_OPTIONS.map((status) => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-          </div>
+    'Out patients': [
+      'Pedia',
+      'Surgery',
+      'Internal Medicine',
+      'FAMED',
+    ],
 
-          {!isEditing && (
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Password</label>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                placeholder="Enter password"
-              />
-            </div>
-          )}
-        </div>
+    'Laboratory and Radiology': [
+      'Lab-Specimen Collection',
+      'LAB- Results',
+      'Rad-Results',
+      'CT-Scan',
+      'X-Ray',
+    ],
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving || !form.first_name.trim() || !form.last_name.trim() || !form.email.trim()}
-            className="flex items-center gap-2 rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {saving ? 'Saving...' : (isEditing ? 'Save Changes' : '+ Add User')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+    'Medical Arts Building': [
+      'Pharmacy',
+      "Women's Health (Consultation)",
+      "Women's Health (Ultrasound)",
+      'PT- Rehab (Consultation)',
+      'PT-Rehab(Session)',
+      'Cardiac',
+    ],
+  };
 
-export default function UserCrud() {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [page, setPage] = useState(1);
-
-  const [editingId, setEditingId] = useState(null); 
-  const [form, setForm] = useState(EMPTY_FORM);
-
-  async function fetchUsers() {
-    setLoading(true);
-    setError(null);
-    
-    const [{ data, error }, { data: roles, error: rolesError }] = await Promise.all([
-      supabase
-        .from(TABLE_NAME)
-        .select(`
-          user_id,
-          first_name,
-          last_name,
-          email,
-          contact_info,
-          location,
-          department,
-          status,
-          updated_at,
-          role_id,
-          role:role_id (role_id, role)
-        `)
-        .order('last_name', { ascending: true }),
-      supabase.from('role').select('role_id, role'),
-    ]);
-
-    if (error || rolesError) {
-      setError(error?.message || rolesError.message);
-    } else {
-      const roleById = new Map((roles || []).map((role) => [String(role.role_id), role.role]));
-      const formattedUsers = data.map((u) => ({
-        id: u.user_id,
-        first_name: u.first_name,
-        last_name: u.last_name,
-        email: u.email,
-        contact_number: u.contact_info,
-        location: u.location,
-        department: u.department,
-        status: u.status?.toUpperCase() === 'ONLINE' ? 'Active' : u.status?.toUpperCase() === 'OFFLINE' ? 'Inactive' : (u.status ?? 'Active'),
-        role: getRoleName(u.role) || roleById.get(String(u.role_id)) || 'Staff',
-        updated_at: u.updated_at,
-      }));
-      setUsers(formattedUsers);
+  function getRoleName(role) {
+    if (typeof role === 'string') {
+      return role;
     }
-    setLoading(false);
-  }
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+    const roleRow = Array.isArray(role)
+      ? role[0]
+      : role;
 
-  function openAdd() {
-    setForm(EMPTY_FORM);
-    setEditingId('new');
-  }
-
-  function openEdit(user) {
-    setForm({
-      first_name: user.first_name ?? '',
-      last_name: user.last_name ?? '',
-      mi: '', 
-      contact_number: user.contact_number ?? '',
-      email: user.email ?? '',
-      role: user.role ?? 'Staff',
-      location: user.location ?? 'Select Location',
-      department: user.department ?? 'Select Department',
-      status: user.status === 'Inactive' ? 'Inactive' : 'Active',
-      password: '' 
-    });
-    setEditingId(user.id);
-  }
-
-  function closeModal() {
-    setEditingId(null);
-    setForm(EMPTY_FORM);
-    setError(null);
-  }
-
-  async function handleSave() {
-    if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) return;
-    setSaving(true);
-    setError(null);
-
-    try {
-      let currentRoleId;
-      const { data: roleData, error: roleError } = await supabase
-        .from('role')
-        .select('role_id')
-        .eq('role', form.role)
-        .maybeSingle();
-
-      if (roleError) throw roleError;
-
-      if (roleData) {
-        currentRoleId = roleData.role_id;
-      } else {
-        const { data: newRole, error: newRoleError } = await supabase
-          .from('role')
-          .insert([{ role: form.role }])
-          .select('role_id')
-          .single();
-          
-        if (newRoleError) throw newRoleError;
-        currentRoleId = newRole.role_id;
-      }
-
-      if (editingId === 'new') {
-        if (!form.password) throw new Error("Password is required for new users.");
-
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: form.email,
-          password: form.password,
-        });
-        
-        if (authError) throw authError;
-
-        const { error: dbError } = await supabase.from(TABLE_NAME).insert([{
-          user_id: authData.user.id,
-          first_name: form.first_name,
-          last_name: form.last_name,
-          email: form.email,
-          contact_info: form.contact_number, 
-          location: form.location,
-          department: form.department,
-          role_id: currentRoleId,
-          status: form.status
-        }]);
-        if (dbError) throw dbError;
-
-      } else {
-        const updateData = {
-          first_name: form.first_name,
-          last_name: form.last_name,
-          email: form.email,
-          contact_info: form.contact_number,
-          location: form.location,
-          department: form.department,
-          status: form.status,
-          role_id: currentRoleId,
-          updated_at: new Date().toISOString()
-        };
-
-        const { error: updateError } = await supabase
-          .from(TABLE_NAME)
-          .update(updateData)
-          .eq('user_id', editingId);
-        if (updateError) throw updateError;
-      }
-
-      closeModal();
-      fetchUsers();
-    } catch (err) {
-      setError(err.message || 'An error occurred while saving.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // Calculated Summary Metrics based on users state
-  const normalizedRoles = users.map((user) => user.role?.toLowerCase().replace(/[\s_-]+/g, '') ?? '');
-  const superAdminCount = normalizedRoles.filter((role) => role === 'superadmin').length;
-  const deptAdminCount = normalizedRoles.filter((role) => role === 'admin' || role === 'deptadmin' || role === 'departmentadmin').length;
-  const staffCount = normalizedRoles.filter((role) => role === 'staff').length;
-  const activeCount = users.filter((u) => u.status === 'Active').length;
-
-  // Filtered Users List
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery]);
-
-  const filteredUsers = users.filter((u) => {
-    const fullName = `${u.first_name} ${u.last_name}`.toLowerCase();
-    const query = searchQuery.toLowerCase();
     return (
-      fullName.includes(query) ||
-      u.email?.toLowerCase().includes(query) ||
-      u.department?.toLowerCase().includes(query) ||
-      u.role?.toLowerCase().includes(query)
+      roleRow?.role ??
+      roleRow?.name ??
+      ''
     );
-  });
+  }
 
-  // Pagination. currentPage is clamped so the view never lands past the last
-  // page after a search, a delete, or a refetch shrinks the result set.
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const firstIndex = (currentPage - 1) * PAGE_SIZE;
-  const paginatedUsers = filteredUsers.slice(firstIndex, firstIndex + PAGE_SIZE);
+  // Returns up to 5 page numbers around the current page.
+  function getPageNumbers(
+    currentPage,
+    totalPages
+  ) {
+    const MAX_BUTTONS = 5;
 
-  const isModalOpen = editingId !== null;
-  const isEditing = isModalOpen && editingId !== 'new';
+    if (totalPages <= MAX_BUTTONS) {
+      return Array.from(
+        { length: totalPages },
+        (_, i) => i + 1
+      );
+    }
 
-  return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">User Management</h1>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Manage system users, roles, and department assignments.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={openAdd}
-          className="flex items-center gap-1.5 rounded-md bg-[#00529B] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003F75]"
-        >
-          <span className="text-sm leading-none">+</span> Add User
-        </button>
-      </div>
+    let start = Math.max(
+      1,
+      currentPage -
+        Math.floor(MAX_BUTTONS / 2)
+    );
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+    start = Math.min(
+      start,
+      totalPages -
+        MAX_BUTTONS +
+        1
+    );
 
-      {/* Top 5 Summary Cards Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {/* Card 1: SUPER ADMIN */}
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">SUPER ADMIN</span>
-            <User size={18} className="text-slate-600" />
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-bold text-slate-800">{superAdminCount}</p>
-            <p className="mt-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">TOTAL SUPER ADMIN</p>
-          </div>
-        </div>
+    return Array.from(
+      { length: MAX_BUTTONS },
+      (_, i) => start + i
+    );
+  }
 
-        {/* Card 2: DEPT ADMIN */}
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">DEPT ADMIN</span>
-            <Users size={18} className="text-slate-600" />
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-bold text-slate-800">{deptAdminCount}</p>
-            <p className="mt-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">TOTAL DEPT ADMIN</p>
-          </div>
-        </div>
+  /* =========================================================
+    USER MODAL
+  ========================================================= */
 
-        {/* Card 3: STAFF */}
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">STAFF</span>
-            <Contact size={18} className="text-slate-600" />
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-bold text-slate-800">{staffCount}</p>
-            <p className="mt-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">TOTAL STAFF</p>
-          </div>
-        </div>
+  function UserModal({
+    form,
+    setForm,
+    onSave,
+    onClose,
+    isEditing,
+    saving,
+    onAddDepartment,
+    onDelete,
+    deleting,
+  }) {
+    const [showPassword, setShowPassword] =
+      useState(false);
 
-        {/* Card 4: ACTIVE */}
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ACTIVE</span>
-            <UserCheck size={18} className="text-slate-600" />
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-bold text-slate-800">{activeCount}/128</p>
-            <p className="mt-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">ADMIN/STAFF ON DUTY</p>
-          </div>
-        </div>
+    const [
+      showConfirmPassword,
+      setShowConfirmPassword,
+    ] = useState(false);
 
-        {/* Card 5: TERMINAL */}
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">TERMINAL</span>
-            <Monitor size={18} className="text-slate-600" />
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-bold text-slate-800">42</p>
-            <p className="mt-1 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">ACTIVE TERMINAL</p>
-          </div>
-        </div>
-      </div>
+    const isSuperadmin =
+      form.role?.toLowerCase() ===
+      'superadmin';
 
-      {/* Main Users Table Container */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        {/* Table Title & Search Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="text-base font-bold text-slate-800">Users</h2>
-          
-          <div className="relative w-80">
-            <input
-              type="text"
-              placeholder="Search user"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-full border border-slate-200 bg-slate-50/50 py-2 pl-4 pr-10 text-xs text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none"
-            />
-            <Search size={15} className="absolute right-3.5 top-2.5 text-slate-400" />
-          </div>
-        </div>
+    /*
+      Reset password visibility when
+      switching between Add/Edit.
+    */
+    useEffect(() => {
+      setShowPassword(false);
+      setShowConfirmPassword(false);
+    }, [isEditing]);
 
-        {/* Users Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-100 bg-[#F8FAFC] text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                <th className="px-6 py-3.5">FULL NAME</th>
-                <th className="px-6 py-3.5">EMAIL</th>
-                <th className="px-6 py-3.5">DEPARTMENT</th>
-                <th className="px-6 py-3.5">ROLE</th>
-                <th className="px-6 py-3.5">STATUS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-600">
-              {loading && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                    Loading users...
-                  </td>
-                </tr>
-              )}
+    /*
+      Password requirements.
+    */
+    const passwordChecks = [
+      {
+        label: '8 characters minimum',
+        passed:
+          form.password.length >= 8,
+      },
+      {
+        label: 'a number',
+        passed:
+          /\d/.test(form.password),
+      },
+      {
+        label: 'a symbol',
+        passed:
+          /[^A-Za-z0-9]/.test(
+            form.password
+          ),
+      },
+    ];
 
-              {!loading && filteredUsers.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                    No users found matching your criteria.
-                  </td>
-                </tr>
-              )}
+    const passedPasswordChecks =
+      passwordChecks.filter(
+        (check) => check.passed
+      ).length;
 
-              {!loading &&
-                paginatedUsers.map((user) => (
-                  <tr
-                    key={user.id}
-                    onClick={() => openEdit(user)}
-                    className="cursor-pointer transition-colors hover:bg-slate-50"
-                  >
-                    <td className="px-6 py-4 font-medium text-slate-800">
-                      {user.first_name} {user.last_name}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">{user.email}</td>
-                    <td className="px-6 py-4 text-slate-600">{user.department || 'OPD'}</td>
-                    <td className="px-6 py-4 text-slate-600 capitalize">{user.role}</td>
-                    <td className="px-6 py-4">
-                      <span className={`text-[11px] font-semibold ${
-                        user.status === 'Active'
-                          ? 'text-slate-700'
-                          : 'text-slate-400'
-                      }`}>
-                        {user.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+    const passwordValid =
+      passedPasswordChecks ===
+      passwordChecks.length;
 
-        {/* Table Footer Pagination */}
-        <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 text-xs text-slate-500">
-          <span>
-            {filteredUsers.length === 0
-              ? 'No users to show'
-              : `Showing ${firstIndex + 1} to ${firstIndex + paginatedUsers.length} of ${filteredUsers.length} users`}
-          </span>
-          <div className="flex items-center gap-1.5">
+    const confirmPasswordValid =
+      form.password.length > 0 &&
+      form.confirmPassword.length > 0 &&
+      form.password ===
+        form.confirmPassword;
+
+    const passwordBarColor =
+      passedPasswordChecks <= 1
+        ? 'bg-red-500'
+        : passedPasswordChecks === 2
+          ? 'bg-amber-400'
+          : 'bg-green-500';
+
+    const passwordBarWidth =
+      form.password.length === 0
+        ? '0%'
+        : `${
+            (passedPasswordChecks /
+              passwordChecks.length) *
+            100
+          }%`;
+
+    /*
+      Get the departments that belong
+      to the currently selected kiosk.
+    */
+    const availableDepartments =
+      DEPARTMENTS_BY_KIOSK[
+        form.kiosk
+      ] || [];
+
+    /*
+      Handle role change.
+
+      Superadmin:
+      - Kiosk = Whole
+      - Department = Whole
+    */
+    function handleRoleChange(e) {
+      const selectedRole =
+        e.target.value;
+
+      if (
+        selectedRole === 'Superadmin'
+      ) {
+        setForm({
+          ...form,
+          role: selectedRole,
+          kiosk: 'Whole',
+          department: 'Whole',
+        });
+      } else {
+        setForm({
+          ...form,
+          role: selectedRole,
+          kiosk:
+            form.kiosk === 'Whole'
+              ? 'Select Kiosk'
+              : form.kiosk,
+          department:
+            form.department === 'Whole'
+              ? 'Select Department'
+              : form.department,
+        });
+      }
+    }
+
+    /*
+      Handle kiosk change.
+
+      Whenever the kiosk changes,
+      reset the department.
+    */
+    function handleKioskChange(e) {
+      const selectedKiosk =
+        e.target.value;
+
+      setForm({
+        ...form,
+        kiosk: selectedKiosk,
+        department:
+          'Select Department',
+      });
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+        <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+
+          {/* =================================================
+              HEADER
+          ================================================= */}
+
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+
+            <h2 className="text-lg font-bold text-slate-700">
+              {isEditing
+                ? 'Edit User'
+                : 'Add New User'}
+            </h2>
+
             <button
               type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-50"
+              onClick={onClose}
+              disabled={saving}
+              className="font-bold text-slate-400 hover:text-slate-600 disabled:opacity-40"
+              aria-label="Close"
             >
-              Prev
+              ✕
             </button>
 
-            {getPageNumbers(currentPage, totalPages).map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setPage(n)}
-                aria-current={n === currentPage ? 'page' : undefined}
-                className={`rounded-md border border-slate-200 px-3 py-1 transition ${
-                  n === currentPage
-                    ? 'bg-white font-semibold text-slate-700 shadow-sm'
-                    : 'bg-white text-slate-500 hover:bg-slate-50'
+          </div>
+
+          {/* =================================================
+              FORM BODY
+          ================================================= */}
+
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+
+            {/* FIRST NAME / LAST NAME */}
+
+            <div className="grid grid-cols-2 gap-4">
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  First Name
+                </label>
+
+                <input
+                  type="text"
+                  value={form.first_name}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      first_name:
+                        e.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                  placeholder="Enter first name"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  Last Name
+                </label>
+
+                <input
+                  type="text"
+                  value={form.last_name}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      last_name:
+                        e.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                  placeholder="Enter last name"
+                />
+              </div>
+
+            </div>
+
+            {/* MI / CONTACT */}
+
+            <div className="grid grid-cols-2 gap-4">
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  M.I.
+                </label>
+
+                <input
+                  type="text"
+                  maxLength="2"
+                  value={form.mi}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      mi: e.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                  placeholder="Enter M.I."
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  Contact Number
+                </label>
+
+                <input
+                  type="text"
+                  value={
+                    form.contact_number
+                  }
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      contact_number:
+                        e.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                  placeholder="Enter number"
+                />
+              </div>
+
+            </div>
+
+            {/* EMAIL */}
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                Email Address
+              </label>
+
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    email:
+                      e.target.value,
+                  })
+                }
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                placeholder="Enter email"
+              />
+            </div>
+
+            {/* =================================================
+                ROLE / POSITION
+            ================================================= */}
+
+            <div className="grid grid-cols-2 gap-4">
+
+              {/* SELECT ROLE */}
+
+              <div>
+                <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-600">
+
+                  <span>Select Role</span>
+
+                  <Plus size={12} />
+
+                </label>
+
+                <select
+                  value={form.role}
+                  onChange={
+                    handleRoleChange
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                >
+                  {ROLE_OPTIONS.map(
+                    (role) => (
+                      <option
+                        key={role}
+                        value={role}
+                      >
+                        {role}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              {/* SELECT POSITION */}
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  Select Position
+                </label>
+
+                <select
+                  value={
+                    form.position ?? ''
+                  }
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      position:
+                        e.target.value ===
+                        ''
+                          ? null
+                          : e.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                >
+                  {POSITION_OPTIONS.map(
+                    (position) => (
+                      <option
+                        key={
+                          position.label
+                        }
+                        value={
+                          position.value ??
+                          ''
+                        }
+                      >
+                        {position.label}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+            </div>
+
+            {/* =================================================
+                SELECT KIOSK
+            ================================================= */}
+
+            <div>
+
+              <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-600">
+
+                <span>
+                  Select Kiosk
+                </span>
+
+                <button
+                  type="button"
+                  disabled={isSuperadmin}
+                  className="flex items-center justify-center text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:text-slate-300"
+                  title="Add kiosk"
+                >
+                  <Plus size={12} />
+                </button>
+
+              </label>
+
+              <select
+                value={form.kiosk}
+                disabled={isSuperadmin}
+                onChange={
+                  handleKioskChange
+                }
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition ${
+                  isSuperadmin
+                    ? 'cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500'
+                    : 'border-slate-300 bg-slate-50 text-slate-700 focus:border-blue-500 focus:bg-white'
                 }`}
               >
-                {n}
+
+                {isSuperadmin ? (
+                  <option value="Whole">
+                    Whole
+                  </option>
+                ) : (
+                  <>
+                    <option value="Select Kiosk">
+                      Select Kiosk
+                    </option>
+
+                    {KIOSK_OPTIONS.map(
+                      (kiosk) => (
+                        <option
+                          key={kiosk}
+                          value={kiosk}
+                        >
+                          {kiosk}
+                        </option>
+                      )
+                    )}
+                  </>
+                )}
+
+              </select>
+
+              {isSuperadmin && (
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Superadmin oversees all
+                  kiosks.
+                </p>
+              )}
+
+            </div>
+
+            {/* =================================================
+                SELECT DEPARTMENT
+            ================================================= */}
+
+            <div>
+
+              <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-600">
+
+                <span>
+                  Select Department
+                </span>
+
+                <button
+                  type="button"
+                  onClick={
+                    onAddDepartment
+                  }
+                  disabled={isSuperadmin}
+                  className="flex items-center justify-center text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:text-slate-300"
+                  title="Add department"
+                >
+                  <Plus size={12} />
+                </button>
+
+              </label>
+
+              <select
+                value={form.department}
+                disabled={
+                  isSuperadmin ||
+                  form.kiosk ===
+                    'Select Kiosk'
+                }
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    department:
+                      e.target.value,
+                  })
+                }
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition ${
+                  isSuperadmin ||
+                  form.kiosk ===
+                    'Select Kiosk'
+                    ? 'cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500'
+                    : 'border-slate-300 bg-slate-50 text-slate-700 focus:border-blue-500 focus:bg-white'
+                }`}
+              >
+
+                {isSuperadmin ? (
+                  <option value="Whole">
+                    Whole
+                  </option>
+                ) : (
+                  <>
+                    <option value="Select Department">
+                      Select Department
+                    </option>
+
+                    {availableDepartments.map(
+                      (department) => (
+                        <option
+                          key={department}
+                          value={department}
+                        >
+                          {department}
+                        </option>
+                      )
+                    )}
+                  </>
+                )}
+
+              </select>
+
+              {!isSuperadmin &&
+                form.kiosk ===
+                  'Select Kiosk' && (
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Select a kiosk first to
+                    view its departments.
+                  </p>
+                )}
+
+              {isSuperadmin && (
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Superadmin oversees all
+                  departments.
+                </p>
+              )}
+
+            </div>
+
+            {/* =================================================
+                STATUS
+            ================================================= */}
+
+            <div>
+
+              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                Status
+              </label>
+
+              <select
+                value={form.status}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    status:
+                      e.target.value,
+                  })
+                }
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+              >
+
+                {STATUS_OPTIONS.map(
+                  (status) => (
+                    <option
+                      key={status}
+                      value={status}
+                    >
+                      {status}
+                    </option>
+                  )
+                )}
+
+              </select>
+
+            </div>
+
+            {/* =================================================
+                PASSWORD
+            ================================================= */}
+
+            {!isEditing && (
+              <div>
+
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  Password
+                </label>
+
+                <div className="relative">
+
+                  <input
+                    type={
+                      showPassword
+                        ? 'text'
+                        : 'password'
+                    }
+                    value={
+                      form.password
+                    }
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        password:
+                          e.target.value,
+                      })
+                    }
+                    className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 pr-10 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                    placeholder="Enter password"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowPassword(
+                        (v) => !v
+                      )
+                    }
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    tabIndex={-1}
+                    aria-label={
+                      showPassword
+                        ? 'Hide password'
+                        : 'Show password'
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff size={16} />
+                    ) : (
+                      <Eye size={16} />
+                    )}
+                  </button>
+
+                </div>
+
+                {/* PASSWORD STRENGTH BAR */}
+
+                <div className="mt-2">
+
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${passwordBarColor}`}
+                      style={{
+                        width:
+                          passwordBarWidth,
+                      }}
+                    />
+
+                  </div>
+
+                  {/* PASSWORD REQUIREMENTS */}
+
+                  <ul className="mt-2 space-y-1">
+
+                    {passwordChecks.map(
+                      (check) => (
+                        <li
+                          key={
+                            check.label
+                          }
+                          className="flex items-center gap-1.5 text-xs"
+                        >
+
+                          {check.passed ? (
+                            <CheckCircle2
+                              size={14}
+                              className="shrink-0 text-green-500"
+                            />
+                          ) : (
+                            <Circle
+                              size={14}
+                              className="shrink-0 text-slate-300"
+                            />
+                          )}
+
+                          <span
+                            className={
+                              check.passed
+                                ? 'text-slate-600'
+                                : 'text-slate-400'
+                            }
+                          >
+                            {check.label}
+                          </span>
+
+                        </li>
+                      )
+                    )}
+
+                  </ul>
+
+                </div>
+
+                {/* PASSWORD ERROR */}
+
+                {form.password.length >
+                  0 &&
+                  !passwordValid && (
+                    <p className="mt-2 text-[11px] text-red-500">
+                      Please meet all password
+                      requirements before adding
+                      the user.
+                    </p>
+                  )}
+
+                {/* =================================================
+                    CONFIRM PASSWORD
+                ================================================= */}
+
+                {form.password.length > 0 && (
+                  <div className="mt-4">
+
+                    <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                      Confirm Password
+                    </label>
+
+                    <div className="relative">
+
+                      <input
+                        type={
+                          showConfirmPassword
+                            ? 'text'
+                            : 'password'
+                        }
+                        value={
+                          form.confirmPassword
+                        }
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            confirmPassword:
+                              e.target.value,
+                          })
+                        }
+                        className={`w-full rounded-lg border bg-slate-50 px-3 py-2 pr-10 text-sm focus:bg-white focus:outline-none ${
+                          form.confirmPassword
+                            .length === 0
+                            ? 'border-slate-300 focus:border-blue-500'
+                            : confirmPasswordValid
+                              ? 'border-green-400 focus:border-green-500'
+                              : 'border-red-400 focus:border-red-500'
+                        }`}
+                        placeholder="Confirm password"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword(
+                            (v) => !v
+                          )
+                        }
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        tabIndex={-1}
+                        aria-label={
+                          showConfirmPassword
+                            ? 'Hide confirm password'
+                            : 'Show confirm password'
+                        }
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff size={16} />
+                        ) : (
+                          <Eye size={16} />
+                        )}
+                      </button>
+
+                    </div>
+
+                    {/* MATCH MESSAGE */}
+
+                    {form.confirmPassword
+                      .length > 0 && (
+                      <p
+                        className={`mt-1.5 text-[11px] ${
+                          confirmPasswordValid
+                            ? 'text-green-600'
+                            : 'text-red-500'
+                        }`}
+                      >
+                        {confirmPasswordValid
+                          ? 'Passwords match.'
+                          : 'Passwords do not match.'}
+                      </p>
+                    )}
+
+                  </div>
+                )}
+
+              </div>
+            )}
+
+          </div>
+
+          {/* =================================================
+              FOOTER
+          ================================================= */}
+
+          <div className="sticky bottom-0 flex shrink-0 items-center justify-between gap-3 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-4">
+
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={saving || deleting}
+                className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 size={15} />
+                {deleting ? 'Deleting...' : 'Delete User'}
               </button>
-            ))}
+            ) : (
+              <div />
+            )}
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+              disabled={saving}
+              className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Cancel
+            </button>
 
             <button
               type="button"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-50"
+              onClick={onSave}
+              disabled={
+                saving ||
+                !form.first_name.trim() ||
+                !form.last_name.trim() ||
+                !form.email.trim() ||
+                (!isEditing &&
+                  (!passwordValid ||
+                    !confirmPasswordValid))
+              }
+              className="flex items-center gap-2 rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Next
+              {saving
+                ? 'Saving...'
+                : isEditing
+                  ? 'Save Changes'
+                  : '+ Add User'}
             </button>
+            </div>
+
           </div>
+
         </div>
       </div>
+    );
+  }
 
-      {isModalOpen && (
-        <UserModal
-          form={form}
-          setForm={setForm}
-          onSave={handleSave}
-          onClose={closeModal}
-          isEditing={isEditing}
-          saving={saving}
-        />
-      )}
-    </div>
-  );
-}
+  /* =========================================================
+    MAIN USER CRUD
+  ========================================================= */
+
+  export default function UserCrud({
+    onAddDepartment,
+  }) {
+    const [users, setUsers] =
+      useState([]);
+
+    const [loading, setLoading] =
+      useState(true);
+
+    const [error, setError] =
+      useState(null);
+
+    const [success, setSuccess] =
+      useState(null);
+
+    const [duplicatePopup, setDuplicatePopup] =
+      useState(false);
+
+    const [saving, setSaving] =
+      useState(false);
+
+    const [deleting, setDeleting] =
+      useState(false);
+
+    const [searchQuery, setSearchQuery] =
+      useState('');
+
+    const [page, setPage] =
+      useState(1);
+
+    const [editingId, setEditingId] =
+      useState(null);
+
+    const [deleteConfirmOpen, setDeleteConfirmOpen] =
+      useState(false);
+
+    const [form, setForm] =
+      useState(EMPTY_FORM);
+
+    /* =======================================================
+      FETCH USERS
+    ======================================================= */
+
+    async function fetchUsers() {
+      setLoading(true);
+      setError(null);
+
+      const [
+        {
+          data,
+          error,
+        },
+        {
+          data: roles,
+          error: rolesError,
+        },
+      ] = await Promise.all([
+        supabase
+          .from(TABLE_NAME)
+          .select(`
+            user_id,
+            first_name,
+            last_name,
+            email,
+            contact_info,
+            kiosk,
+            position,
+            department,
+            status,
+            updated_at,
+            role_id,
+            role:role_id (
+              role_id,
+              role
+            )
+          `)
+          .order(
+            'last_name',
+            {
+              ascending: true,
+            }
+          ),
+
+        supabase
+          .from('role')
+          .select(
+            'role_id, role'
+          ),
+      ]);
+
+      if (
+        error ||
+        rolesError
+      ) {
+        setError(
+          error?.message ||
+            rolesError?.message
+        );
+      } else {
+        const roleById =
+          new Map(
+            (roles || []).map(
+              (role) => [
+                String(
+                  role.role_id
+                ),
+                role.role,
+              ]
+            )
+          );
+
+        const formattedUsers =
+          (data || []).map(
+            (u) => ({
+              id: u.user_id,
+
+              first_name:
+                u.first_name,
+
+              last_name:
+                u.last_name,
+
+              email:
+                u.email,
+
+              contact_number:
+                u.contact_info,
+
+              kiosk:
+                u.kiosk,
+
+              position:
+                u.position,
+
+              department:
+                u.department,
+
+              status:
+                u.status
+                  ?.toUpperCase() ===
+                'ONLINE'
+                  ? 'Active'
+                  : u.status
+                      ?.toUpperCase() ===
+                    'OFFLINE'
+                    ? 'Inactive'
+                    : u.status ??
+                      'Active',
+
+              role:
+                getRoleName(
+                  u.role
+                ) ||
+                roleById.get(
+                  String(
+                    u.role_id
+                  )
+                ) ||
+                'Staff',
+
+              updated_at:
+                u.updated_at,
+            })
+          );
+
+        setUsers(
+          formattedUsers
+        );
+      }
+
+      setLoading(false);
+    }
+
+    useEffect(() => {
+      fetchUsers();
+    }, []);
+
+    /* =======================================================
+      ADD USER
+    ======================================================= */
+
+    function openAdd() {
+      setError(null);
+      setSuccess(null);
+      setDuplicatePopup(false);
+      setDeleteConfirmOpen(false);
+
+      setForm({
+        ...EMPTY_FORM,
+      });
+
+      setEditingId('new');
+    }
+
+    /* =======================================================
+      EDIT USER
+    ======================================================= */
+
+    function openEdit(user) {
+      setError(null);
+      setSuccess(null);
+      setDuplicatePopup(false);
+      setDeleteConfirmOpen(false);
+
+      const isSuperadmin =
+        user.role?.toLowerCase() ===
+        'superadmin';
+
+      setForm({
+        first_name:
+          user.first_name ?? '',
+
+        last_name:
+          user.last_name ?? '',
+
+        mi: '',
+
+        contact_number:
+          user.contact_number ?? '',
+
+        email:
+          user.email ?? '',
+
+        role:
+          user.role ?? 'Staff',
+
+        position:
+          user.position ?? null,
+
+        kiosk: isSuperadmin
+          ? 'Whole'
+          : user.kiosk ??
+            'Select Kiosk',
+
+        department:
+          isSuperadmin
+            ? 'Whole'
+            : user.department ??
+              'Select Department',
+
+        status:
+          user.status ===
+          'Inactive'
+            ? 'Inactive'
+            : 'Active',
+
+        password: '',
+        confirmPassword: '',
+      });
+
+      setEditingId(
+        user.id
+      );
+    }
+
+    /* =======================================================
+      CLOSE MODAL
+    ======================================================= */
+
+    function closeModal() {
+      setEditingId(null);
+
+      setForm({
+        ...EMPTY_FORM,
+      });
+
+      setError(null);
+      setSuccess(null);
+      setDuplicatePopup(false);
+      setDeleteConfirmOpen(false);
+    }
+
+    /* =======================================================
+      DELETE USER
+    ======================================================= */
+
+    function requestDelete() {
+      setError(null);
+      setDeleteConfirmOpen(true);
+    }
+
+    async function handleDelete() {
+      if (!editingId || editingId === 'new') {
+        return;
+      }
+
+      setDeleting(true);
+      setError(null);
+
+      try {
+        // Delete the user's public profile/record from Supabase.
+        // The Supabase client used in this frontend cannot safely delete
+        // auth.users directly. If auth cleanup is required too, use a
+        // Supabase Edge Function/RPC with the service-role key server-side.
+        const { error: deleteError } = await supabase
+          .from(TABLE_NAME)
+          .delete()
+          .eq('user_id', editingId);
+
+        if (deleteError) {
+          throw deleteError;
+        }
+
+        setDeleteConfirmOpen(false);
+        setEditingId(null);
+        setForm({ ...EMPTY_FORM });
+        setSuccess('User deleted successfully.');
+        await fetchUsers();
+      } catch (err) {
+        setError(
+          err?.message ||
+            'An error occurred while deleting the user.'
+        );
+      } finally {
+        setDeleting(false);
+      }
+    }
+
+    /* =======================================================
+      SAVE USER
+    ======================================================= */
+
+    async function handleSave() {
+      if (
+        !form.first_name.trim() ||
+        !form.last_name.trim() ||
+        !form.email.trim()
+      ) {
+        return;
+      }
+
+      /*
+        Validate password before
+        creating a new account.
+      */
+
+      if (
+        editingId === 'new'
+      ) {
+        const passwordValid =
+          form.password.length >=
+            8 &&
+          /\d/.test(
+            form.password
+          ) &&
+          /[^A-Za-z0-9]/.test(
+            form.password
+          );
+
+        if (!passwordValid) {
+          setError(
+            'Password must be at least 8 characters and contain a number and a symbol.'
+          );
+
+          return;
+        }
+
+        if (
+          form.password !==
+          form.confirmPassword
+        ) {
+          setError(
+            'Password and confirm password do not match.'
+          );
+
+          return;
+        }
+      }
+
+      /*
+        Prevent saving an invalid
+        department for the selected kiosk.
+      */
+
+      if (
+        editingId === 'new' &&
+        form.kiosk !== 'Select Kiosk' &&
+        form.kiosk !== 'Whole'
+      ) {
+        const allowedDepartments =
+          DEPARTMENTS_BY_KIOSK[
+            form.kiosk
+          ] || [];
+
+        if (
+          form.department !==
+            'Select Department' &&
+          !allowedDepartments.includes(
+            form.department
+          )
+        ) {
+          setError(
+            'Please select a department that belongs to the selected kiosk.'
+          );
+
+          return;
+        }
+      }
+
+      const normalizedEmail = normalizeEmail(form.email);
+
+      // Check the public user table before creating/updating the account.
+      // The database unique index is the final protection against duplicates,
+      // while this check gives the administrator a clear message immediately.
+      try {
+        const {
+          data: existingUser,
+          error: duplicateCheckError,
+        } = await supabase
+          .from(TABLE_NAME)
+          .select('user_id, email')
+          .ilike('email', normalizedEmail)
+          .neq(
+            'user_id',
+            editingId === 'new' ? '00000000-0000-0000-0000-000000000000' : editingId
+          )
+          .limit(1)
+          .maybeSingle();
+
+        if (duplicateCheckError) {
+          throw duplicateCheckError;
+        }
+
+        if (existingUser) {
+          setError(
+            'This email is already registered. Please use a different email address.'
+          );
+          setDuplicatePopup(true);
+          return;
+        }
+      } catch (duplicateError) {
+        setError(
+          duplicateError?.message ||
+            'Unable to check whether this email is already registered.'
+        );
+        return;
+      }
+
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      setDuplicatePopup(false);
+
+      try {
+
+        /* -----------------------------------------------
+          GET ROLE ID
+        ----------------------------------------------- */
+
+        let currentRoleId;
+
+        const {
+          data: roleData,
+          error: roleError,
+        } = await supabase
+          .from('role')
+          .select('role_id')
+          .eq(
+            'role',
+            form.role
+          )
+          .maybeSingle();
+
+        if (roleError) {
+          throw roleError;
+        }
+
+        if (roleData) {
+
+          currentRoleId =
+            roleData.role_id;
+
+        } else {
+
+          const {
+            data: newRole,
+            error:
+              newRoleError,
+          } = await supabase
+            .from('role')
+            .insert([
+              {
+                role: form.role,
+              },
+            ])
+            .select(
+              'role_id'
+            )
+            .single();
+
+          if (newRoleError) {
+            throw newRoleError;
+          }
+
+          currentRoleId =
+            newRole.role_id;
+        }
+
+        /* -----------------------------------------------
+          SUPERADMIN OVERRIDE
+
+          Superadmin always saves:
+          kiosk = Whole
+          department = Whole
+        ----------------------------------------------- */
+
+        const isSuperadmin =
+          form.role
+            ?.toLowerCase() ===
+          'superadmin';
+
+        const finalKiosk =
+          isSuperadmin
+            ? 'Whole'
+            : form.kiosk;
+
+        const finalDepartment =
+          isSuperadmin
+            ? 'Whole'
+            : form.department;
+
+        /* -----------------------------------------------
+          ADD NEW USER
+        ----------------------------------------------- */
+
+        if (
+          editingId === 'new'
+        ) {
+
+          const {
+            data: authData,
+            error: authError,
+          } =
+            await supabase.auth.signUp(
+              {
+                email:
+                  normalizedEmail,
+                password:
+                  form.password,
+              }
+            );
+
+          if (authError) {
+            throw authError;
+          }
+
+          if (
+            !authData?.user?.id
+          ) {
+            throw new Error(
+              'User account was not created.'
+            );
+          }
+
+          // Supabase can return a user with no identities when the email
+          // already belongs to an existing Auth account. Treat that as a
+          // duplicate instead of creating another public user record.
+          if (
+            Array.isArray(authData.user.identities) &&
+            authData.user.identities.length === 0
+          ) {
+            setDuplicatePopup(true);
+            throw new Error(
+              'This email is already registered in the authentication system. Please use a different email address.'
+            );
+          }
+
+          const {
+            error: dbError,
+          } = await supabase
+            .from(TABLE_NAME)
+            .insert([
+              {
+                user_id:
+                  authData.user.id,
+
+                first_name:
+                  form.first_name,
+
+                last_name:
+                  form.last_name,
+
+                email:
+                  normalizedEmail,
+
+                contact_info:
+                  form.contact_number,
+
+                kiosk:
+                  finalKiosk,
+
+                position:
+                  form.position,
+
+                department:
+                  finalDepartment,
+
+                role_id:
+                  currentRoleId,
+
+                status:
+                  form.status,
+              },
+            ]);
+
+          if (dbError) {
+            if (dbError.code === '23505') {
+              setDuplicatePopup(true);
+              setDuplicatePopup(true);
+              throw new Error(
+                'This email is already registered. Please use a different email address.'
+              );
+            }
+
+            throw dbError;
+          }
+
+          setSuccess(
+            'User added successfully. A verification email will be sent to the registered email address when Supabase email confirmation is enabled.'
+          );
+
+        } else {
+
+          /* -----------------------------------------------
+            UPDATE EXISTING USER
+          ----------------------------------------------- */
+
+          const updateData = {
+            first_name:
+              form.first_name,
+
+            last_name:
+              form.last_name,
+
+            email:
+              normalizedEmail,
+
+            contact_info:
+              form.contact_number,
+
+            kiosk:
+              finalKiosk,
+
+            position:
+              form.position,
+
+            department:
+              finalDepartment,
+
+            status:
+              form.status,
+
+            role_id:
+              currentRoleId,
+
+            updated_at:
+              new Date().toISOString(),
+          };
+
+          const {
+            error:
+              updateError,
+          } = await supabase
+            .from(TABLE_NAME)
+            .update(
+              updateData
+            )
+            .eq(
+              'user_id',
+              editingId
+            );
+
+          if (updateError) {
+            if (updateError.code === '23505') {
+              throw new Error(
+                'This email is already registered. Please use a different email address.'
+              );
+            }
+
+            throw updateError;
+          }
+
+          setSuccess('User updated successfully.');
+        }
+
+        /* -----------------------------------------------
+          REFRESH
+        ----------------------------------------------- */
+
+        setEditingId(null);
+        setForm({ ...EMPTY_FORM });
+
+        await fetchUsers();
+
+      } catch (err) {
+        setError(
+          err?.message ||
+            'An error occurred while saving.'
+        );
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    /* =======================================================
+      SUMMARY METRICS
+    ======================================================= */
+
+    const normalizedRoles =
+      users.map(
+        (user) =>
+          user.role
+            ?.toLowerCase()
+            .replace(
+              /[\s\-_]+/g,
+              ''
+            ) ?? ''
+      );
+
+    const superAdminCount =
+      normalizedRoles.filter(
+        (role) =>
+          role ===
+          'superadmin'
+      ).length;
+
+    const deptAdminCount =
+      normalizedRoles.filter(
+        (role) =>
+          role === 'admin' ||
+          role ===
+            'deptadmin' ||
+          role ===
+            'departmentadmin'
+      ).length;
+
+    const staffCount =
+      normalizedRoles.filter(
+        (role) =>
+          role === 'staff'
+      ).length;
+
+    const activeCount =
+      users.filter(
+        (u) =>
+          u.status ===
+          'Active'
+      ).length;
+
+    /* =======================================================
+      SEARCH
+    ======================================================= */
+
+    useEffect(() => {
+      setPage(1);
+    }, [searchQuery]);
+
+    const filteredUsers =
+      users.filter((u) => {
+        const fullName =
+          `${u.first_name} ${u.last_name}`
+            .toLowerCase();
+
+        const query =
+          searchQuery.toLowerCase();
+
+        return (
+          fullName.includes(
+            query
+          ) ||
+          u.email
+            ?.toLowerCase()
+            .includes(query) ||
+          u.department
+            ?.toLowerCase()
+            .includes(query) ||
+          u.kiosk
+            ?.toLowerCase()
+            .includes(query) ||
+          u.role
+            ?.toLowerCase()
+            .includes(query) ||
+          u.position
+            ?.toLowerCase()
+            .includes(query)
+        );
+      });
+
+    /* =======================================================
+      PAGINATION
+    ======================================================= */
+
+    const totalPages =
+      Math.max(
+        1,
+        Math.ceil(
+          filteredUsers.length /
+            PAGE_SIZE
+        )
+      );
+
+    const currentPage =
+      Math.min(
+        page,
+        totalPages
+      );
+
+    const firstIndex =
+      (currentPage - 1) *
+      PAGE_SIZE;
+
+    const paginatedUsers =
+      filteredUsers.slice(
+        firstIndex,
+        firstIndex +
+          PAGE_SIZE
+      );
+
+    const isModalOpen =
+      editingId !== null;
+
+    const isEditing =
+      isModalOpen &&
+      editingId !== 'new';
+
+    /* =======================================================
+      UI
+    ======================================================= */
+
+    return (
+      <div className="space-y-6">
+
+        {/* PAGE HEADER */}
+
+        <div className="flex items-center justify-between">
+
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">
+              User Management
+            </h1>
+
+            <p className="mt-0.5 text-xs text-slate-500">
+              Manage system users,
+              roles, and department
+              assignments.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={openAdd}
+            className="flex items-center gap-1.5 rounded-md bg-[#00529B] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003F75]"
+          >
+            <span className="text-sm leading-none">
+              +
+            </span>
+
+            Add User
+          </button>
+
+        </div>
+
+        {/* ERROR */}
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {success}
+          </div>
+        )}
+
+        {/* =================================================
+            SUMMARY CARDS
+        ================================================= */}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+
+          {/* SUPER ADMIN */}
+
+          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                SUPER ADMIN
+              </span>
+
+              <User
+                size={18}
+                className="text-slate-600"
+              />
+
+            </div>
+
+            <div className="mt-3">
+
+              <p className="text-2xl font-bold text-slate-800">
+                {superAdminCount}
+              </p>
+
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                TOTAL SUPER ADMIN
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* DEPT ADMIN */}
+
+          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                DEPT ADMIN
+              </span>
+
+              <Users
+                size={18}
+                className="text-slate-600"
+              />
+
+            </div>
+
+            <div className="mt-3">
+
+              <p className="text-2xl font-bold text-slate-800">
+                {deptAdminCount}
+              </p>
+
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                TOTAL DEPT ADMIN
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* STAFF */}
+
+          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                STAFF
+              </span>
+
+              <Contact
+                size={18}
+                className="text-slate-600"
+              />
+
+            </div>
+
+            <div className="mt-3">
+
+              <p className="text-2xl font-bold text-slate-800">
+                {staffCount}
+              </p>
+
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                TOTAL STAFF
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* ACTIVE */}
+
+          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                ACTIVE
+              </span>
+
+              <UserCheck
+                size={18}
+                className="text-slate-600"
+              />
+
+            </div>
+
+            <div className="mt-3">
+
+              <p className="text-2xl font-bold text-slate-800">
+                {activeCount}/128
+              </p>
+
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                ADMIN/STAFF ON DUTY
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* TERMINAL */}
+
+          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                TERMINAL
+              </span>
+
+              <Monitor
+                size={18}
+                className="text-slate-600"
+              />
+
+            </div>
+
+            <div className="mt-3">
+
+              <p className="text-2xl font-bold text-slate-800">
+                42
+              </p>
+
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                ACTIVE TERMINAL
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* =================================================
+            USERS TABLE
+        ================================================= */}
+
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+
+          {/* HEADER */}
+
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+
+            <h2 className="text-base font-bold text-slate-800">
+              Users
+            </h2>
+
+            <div className="relative w-80">
+
+              <input
+                type="text"
+                placeholder="Search user"
+                value={
+                  searchQuery
+                }
+                onChange={(e) =>
+                  setSearchQuery(
+                    e.target.value
+                  )
+                }
+                className="w-full rounded-full border border-slate-200 bg-slate-50/50 py-2 pl-4 pr-10 text-xs text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none"
+              />
+
+              <Search
+                size={15}
+                className="absolute right-3.5 top-2.5 text-slate-400"
+              />
+
+            </div>
+
+          </div>
+
+          {/* TABLE */}
+
+          <div className="overflow-x-auto">
+
+            <table className="w-full text-left text-xs">
+
+              <thead>
+
+                <tr className="border-b border-slate-100 bg-[#F8FAFC] text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+
+                  <th className="px-6 py-3.5">
+                    FULL NAME
+                  </th>
+
+                  <th className="px-6 py-3.5">
+                    EMAIL
+                  </th>
+
+                  <th className="px-6 py-3.5">
+                    DEPARTMENT
+                  </th>
+
+                  <th className="px-6 py-3.5">
+                    ROLE
+                  </th>
+
+                  <th className="px-6 py-3.5">
+                    STATUS
+                  </th>
+
+                </tr>
+
+              </thead>
+
+              <tbody className="divide-y divide-slate-100 text-slate-600">
+
+                {/* LOADING */}
+
+                {loading && (
+                  <tr>
+
+                    <td
+                      colSpan={5}
+                      className="px-6 py-8 text-center text-slate-400"
+                    >
+                      Loading users...
+                    </td>
+
+                  </tr>
+                )}
+
+                {/* NO USERS */}
+
+                {!loading &&
+                  filteredUsers.length ===
+                    0 && (
+                    <tr>
+
+                      <td
+                        colSpan={5}
+                        className="px-6 py-8 text-center text-slate-400"
+                      >
+                        No users found
+                        matching your
+                        criteria.
+                      </td>
+
+                    </tr>
+                  )}
+
+                {/* USERS */}
+
+                {!loading &&
+                  paginatedUsers.map(
+                    (user) => (
+                      <tr
+                        key={user.id}
+                        onClick={() =>
+                          openEdit(
+                            user
+                          )
+                        }
+                        className="cursor-pointer transition-colors hover:bg-slate-50"
+                      >
+
+                        <td className="px-6 py-4 font-medium text-slate-800">
+
+                          {
+                            user.first_name
+                          }{' '}
+
+                          {
+                            user.last_name
+                          }
+
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-600">
+                          {user.email}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-600">
+                          {user.department ||
+                            'OPD'}
+                        </td>
+
+                        <td className="px-6 py-4 capitalize text-slate-600">
+                          {user.role}
+                        </td>
+
+                        <td className="px-6 py-4">
+
+                          <span
+                            className={`text-[11px] font-semibold ${
+                              user.status ===
+                              'Active'
+                                ? 'text-slate-700'
+                                : 'text-slate-400'
+                            }`}
+                          >
+                            {
+                              user.status
+                            }
+                          </span>
+
+                        </td>
+
+                      </tr>
+                    )
+                  )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+          {/* =================================================
+              PAGINATION
+          ================================================= */}
+
+          <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 text-xs text-slate-500">
+
+            <span>
+
+              {filteredUsers.length ===
+              0
+                ? 'No users to show'
+                : `Showing ${
+                    firstIndex + 1
+                  } to ${
+                    firstIndex +
+                    paginatedUsers.length
+                  } of ${
+                    filteredUsers.length
+                  } users`}
+
+            </span>
+
+            <div className="flex items-center gap-1.5">
+
+              {/* PREVIOUS */}
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPage(
+                    (p) =>
+                      Math.max(
+                        1,
+                        p - 1
+                      )
+                  )
+                }
+                disabled={
+                  currentPage === 1
+                }
+                className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-50"
+              >
+                Prev
+              </button>
+
+              {/* PAGE NUMBERS */}
+
+              {getPageNumbers(
+                currentPage,
+                totalPages
+              ).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() =>
+                    setPage(n)
+                  }
+                  aria-current={
+                    n ===
+                    currentPage
+                      ? 'page'
+                      : undefined
+                  }
+                  className={`rounded-md border border-slate-200 px-3 py-1 transition ${
+                    n ===
+                    currentPage
+                      ? 'bg-white font-semibold text-slate-700 shadow-sm'
+                      : 'bg-white text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+
+              {/* NEXT */}
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPage(
+                    (p) =>
+                      Math.min(
+                        totalPages,
+                        p + 1
+                      )
+                  )
+                }
+                disabled={
+                  currentPage ===
+                  totalPages
+                }
+                className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-50"
+              >
+                Next
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* =================================================
+            USER MODAL
+        ================================================= */}
+
+        {duplicatePopup && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 px-4">
+            <div className="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-2xl">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+                <span className="text-xl font-bold">!</span>
+              </div>
+
+              <h3 className="mt-4 text-lg font-bold text-slate-800">
+                Duplicate User
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                This email address is already registered. Please use a different email address.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setDuplicatePopup(false)}
+                className="mt-5 w-full rounded-lg bg-[#00529B] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#003F75]"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        )}
+
+        {deleteConfirmOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 px-4">
+            <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600">
+                  <Trash2 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">
+                    Delete User?
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    This action will remove the user record from the database.
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm leading-6 text-slate-600">
+                Are you sure you want to delete{' '}
+                <span className="font-semibold text-slate-800">
+                  {form.first_name} {form.last_name}
+                </span>
+                ? This cannot be undone.
+              </p>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmOpen(false)}
+                  disabled={deleting}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Trash2 size={15} />
+                  {deleting ? 'Deleting...' : 'Delete User'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isModalOpen && (
+          <UserModal
+            form={form}
+            setForm={setForm}
+            onSave={handleSave}
+            onClose={closeModal}
+            isEditing={isEditing}
+            saving={saving}
+            onAddDepartment={onAddDepartment}
+            onDelete={requestDelete}
+            deleting={deleting}
+          />
+        )}
+
+      </div>
+    );
+  }
