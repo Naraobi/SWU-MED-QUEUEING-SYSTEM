@@ -7,6 +7,7 @@ import DepartmentManagement from './DepartmentManagement';
 import Reports from './Reports';
 import AdminQueueManagement from './QueueManagement';
 import Settings from './Settings';
+import KioskManagement from './KioskManagement';
 
 export default function SuperAdminApp() {
   const [activePage, setActivePage] = useState('dashboard');
@@ -17,6 +18,7 @@ export default function SuperAdminApp() {
       {activePage === 'users' && <UserCrud />}
       {activePage === 'roles' && <RoleManagement />}
       {activePage === 'departments' && <DepartmentManagement />}
+      {activePage === 'kiosks' && <KioskManagement />}
       {activePage === 'reports' && <Reports />}
       {activePage === 'queues' && <AdminQueueManagement />}
       {activePage === 'settings' && <Settings />}

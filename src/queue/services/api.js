@@ -1588,6 +1588,137 @@ export async function fetchStaffForDepartment(departmentName) {
   return staff;
 }
 
+export async function createCounterForDepartment({
+  departmentId,
+  status = 'inactive'
+}) {
+  if (!supabase) {
+    return {
+      counter_id: `demo-counter-${Date.now()}`,
+      department_id: departmentId,
+      counter_number: 1,
+      prefix: 'T1',
+      assigned_staff_id: null,
+      status
+    };
+  }
+
+  if (!departmentId) {
+    throw new Error('Department is required.');
+  }
+
+  // Get the department prefix
+  const { data: department, error: departmentError } =
+    await supabase
+      .from('departments')
+      .select('department_id, name, prefix')
+      .eq('department_id', departmentId)
+      .maybeSingle();
+
+  if (departmentError) {
+    console.error(
+      'Department lookup error:',
+      departmentError
+    );
+    throw departmentError;
+  }
+
+  if (!department) {
+    throw new Error('Department not found.');
+  }
+
+  const departmentPrefix = department.prefix
+    ?.trim()
+    .toUpperCase();
+
+  if (!departmentPrefix) {
+    throw new Error(
+      `Department "${department.name}" does not have a prefix.`
+    );
+  }
+
+  // Get existing terminals for this department
+  const { data: existingCounters, error: countersError } =
+    await supabase
+      .from('counter')
+      .select('counter_number')
+      .eq('department_id', departmentId)
+      .order('counter_number', {
+        ascending: true
+      });
+
+  if (countersError) {
+    console.error(
+      'Existing terminal lookup error:',
+      countersError
+    );
+    throw countersError;
+  }
+
+  const counters = existingCounters || [];
+
+  // Find the next available terminal number.
+  // Example:
+  // Existing: 1, 2, 3
+  // New terminal: 4
+  const usedNumbers = counters
+    .map(counter => Number(counter.counter_number))
+    .filter(number => Number.isInteger(number) && number > 0);
+
+  let nextCounterNumber = 1;
+
+  while (usedNumbers.includes(nextCounterNumber)) {
+    nextCounterNumber++;
+  }
+
+  // Automatically create:
+  // CT + 1 = CT-1
+  // CT + 2 = CT-2
+  // CT + 3 = C-3
+const terminalPrefix =
+  `${departmentPrefix}-${nextCounterNumber}`;
+
+  console.log('Creating terminal:', {
+    department: department.name,
+    departmentPrefix,
+    counterNumber: nextCounterNumber,
+    terminalPrefix
+  });
+
+  const { data, error } = await supabase
+    .from('counter')
+    .insert([
+      {
+        department_id: departmentId,
+        counter_number: nextCounterNumber,
+        prefix: terminalPrefix,
+        assigned_staff_id: null,
+        status
+      }
+    ])
+    .select(`
+      counter_id,
+      department_id,
+      counter_number,
+      prefix,
+      assigned_staff_id,
+      status,
+      created_at,
+      updated_at
+    `)
+    .single();
+
+  if (error) {
+    console.error(
+      'Terminal insert error:',
+      error
+    );
+    throw error;
+  }
+
+  return data;
+}
+
 export async function createCounter({
   counterNumber,
   prefix,

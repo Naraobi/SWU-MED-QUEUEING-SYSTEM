@@ -2,16 +2,17 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../../supabase'; 
 import { Search, Building2, Users, Clock, Monitor, Plus, X } from 'lucide-react';
 
-const TABLE_NAME = 'department';
+const TABLE_NAME = 'departments';
 
 const EMPTY_FORM = {
   department_name: '',
-  location: '',
+  kiosk_id: '',
   prefix: '',
-  status: 'Normal',
+  status: 'active',
 };
 
-const STATUS_OPTIONS = ['Normal', 'Busy', 'Offline'];
+const STATUS_OPTIONS = ['active', 'deactivated'];
+
 const PAGE_SIZE = 5;
 
 // Returns up to 5 page numbers, windowed around the current page.
@@ -26,7 +27,17 @@ function getPageNumbers(currentPage, totalPages) {
 }
 
 
-function DepartmentModal({ form, setForm, onSave, onClose, isEditing, saving }) {
+function DepartmentModal({
+  open,
+  onClose,
+  onSave,
+  form,
+  setForm,
+  editingId,
+  saving,
+  kiosks,
+  isEditing,
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
@@ -59,14 +70,21 @@ function DepartmentModal({ form, setForm, onSave, onClose, isEditing, saving }) 
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Location / Floor</label>
-            <input
-              type="text"
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-              placeholder="e.g. Floor 2 Wing A"
-            />
+            <label>Kiosk</label>
+<select
+  value={form.kiosk_id}
+  onChange={(e) =>
+    setForm({ ...form, kiosk_id: e.target.value })
+  }
+>
+  <option value="">Select kiosk</option>
+
+  {kiosks.map((kiosk) => (
+    <option key={kiosk.kiosk_id} value={kiosk.kiosk_id}>
+      {kiosk.name}
+    </option>
+  ))}
+</select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -119,8 +137,90 @@ function DepartmentModal({ form, setForm, onSave, onClose, isEditing, saving }) 
   );
 }
 
+function ResetPinModal({
+  open,
+  onClose,
+  onConfirm,
+  pinInput,
+  setPinInput,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <h2 className="text-lg font-bold text-slate-700">
+            Reset Department
+          </h2>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="space-y-4 px-6 py-5">
+          <div>
+            <p className="text-sm text-slate-600">
+              Enter the administrator PIN to reset this department.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              This action only resets the frontend state.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+              Admin PIN
+            </label>
+
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+              placeholder="Enter 4-digit PIN"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="flex items-center justify-end gap-3 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={pinInput.length !== 4}
+            className="rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Verify PIN
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DepartmentCrud() {
   const [departments, setDepartments] = useState([]);
+  const [kiosks, setKiosks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -130,53 +230,94 @@ export default function DepartmentCrud() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
+  const RESET_PIN = '2402';
+  const [resettingId, setResettingId] = useState(null);
+  const [pinInput, setPinInput] = useState('');
+  const [showResetPin, setShowResetPin] = useState(false);
+
   // Initial Mock Sample Data to guarantee UI visuals matching screenshot when Supabase is empty
   const defaultDepartments = [
-    { id: '1', department_name: 'Laboratory', location: 'Floor 2 Wing A', waiting: 24, current_queue: 'L-0025', active_terminals: '3/4', avg_wait: '24m', status: 'Busy' },
-    { id: '2', department_name: 'Pharmacy', location: 'Ground Floor', waiting: 12, current_queue: 'P-0016', active_terminals: '5/5', avg_wait: '8m', status: 'Normal' },
-    { id: '3', department_name: 'Radiology', location: 'Basement 1', waiting: 24, current_queue: 'L-025', active_terminals: '3/4', avg_wait: '24m', status: 'Busy' },
-    { id: '4', department_name: 'Internal Medical', location: 'Ground Floor', waiting: 12, current_queue: 'P-0016', active_terminals: '5/5', avg_wait: '8m', status: 'Normal' },
-    { id: '5', department_name: 'Billing/Payment', location: 'Basement 1', waiting: 24, current_queue: 'L-025', active_terminals: '3/4', avg_wait: '24m', status: 'Busy' },
+    { id: '1', department_name: 'Laboratory', location: 'Floor 2 Wing A', waiting: 24, current_queue: 'L-0025', active_terminals: '3/4', avg_wait: '24m', status: 'active' },
+    { id: '2', department_name: 'Pharmacy', location: 'Ground Floor', waiting: 12, current_queue: 'P-0016', active_terminals: '5/5', avg_wait: '8m', status: 'active' },
+    { id: '3', department_name: 'Radiology', location: 'Basement 1', waiting: 24, current_queue: 'L-025', active_terminals: '3/4', avg_wait: '24m', status: 'active' },
+    { id: '4', department_name: 'Internal Medical', location: 'Ground Floor', waiting: 12, current_queue: 'P-0016', active_terminals: '5/5', avg_wait: '8m', status: 'active' },
+    { id: '5', department_name: 'Billing/Payment', location: 'Basement 1', waiting: 24, current_queue: 'L-025', active_terminals: '3/4', avg_wait: '24m', status: 'active' },
   ];
 
-  async function fetchDepartments() {
-    setLoading(true);
-    setError(null);
+  async function fetchKiosks() {
+  const { data, error } = await supabase
+  .from('kiosk')
+  .select('kiosk_id, name, status')
+  .order('name', { ascending: true });
 
-    try {
-      const { data, error } = await supabase
-        .from(TABLE_NAME)
-        .select('*')
-        .order('department_name', { ascending: true });
+  if (error) {
+    console.error('FETCH KIOSKS ERROR:', error);
+    return [];
+  }
+console.log('KIOSKS FROM SUPABASE:', data);
 
-      if (error) {
-        // Fallback to visual defaults if table doesn't exist yet
-        setDepartments(defaultDepartments);
-      } else if (data && data.length > 0) {
-        const formatted = data.map((d) => ({
-          id: d.id || d.department_id,
-          department_name: d.department_name || d.name,
-          location: d.location || 'Ground Floor',
-          waiting: d.waiting ?? 12,
-          current_queue: d.current_queue || `${(d.department_name || 'D').charAt(0).toUpperCase()}-0010`,
-          active_terminals: d.active_terminals || '3/4',
-          avg_wait: d.avg_wait || '15m',
-          status: d.status || 'Normal',
-        }));
-        setDepartments(formatted);
-      } else {
-        setDepartments(defaultDepartments);
-      }
-    } catch (err) {
-      setDepartments(defaultDepartments);
-    } finally {
-      setLoading(false);
+setKiosks(data || []);
+return data || [];
+}
+async function fetchDepartments(kioskData = []) {
+  setLoading(true);
+  setError(null);
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select(`
+        department_id,
+        name,
+        classification,
+        location,
+        prefix,
+        status,
+        est_time,
+        kiosk_id
+      `)
+      .order('name', { ascending: true });
+
+    if (error) {
+      throw error;
     }
+
+    const formatted = (data || []).map((d) => ({
+      id: d.department_id,
+      department_name: d.name,
+      kiosk_id: d.kiosk_id,
+      kiosk_name:
+        kioskData.find((k) => k.kiosk_id === d.kiosk_id)?.name ||
+        'Unassigned',
+      location: d.location || '',
+      prefix: d.prefix || '',
+      waiting: 0,
+      current_queue: d.prefix
+        ? `${d.prefix}-0010`
+        : `${(d.name || 'D').charAt(0).toUpperCase()}-0010`,
+      active_terminals: '3/4',
+      avg_wait: d.est_time ? `${d.est_time}m` : '15m',
+      status: d.status || 'active',
+    }));
+
+    setDepartments(formatted);
+  } catch (err) {
+    console.error('FETCH DEPARTMENTS ERROR:', err);
+    setError(err.message || 'Failed to fetch departments.');
+    setDepartments([]);
+  } finally {
+    setLoading(false);
+  }
+}
+
+useEffect(() => {
+  async function loadData() {
+    const kioskData = await fetchKiosks();
+    await fetchDepartments(kioskData);
   }
 
-  useEffect(() => {
-    fetchDepartments();
-  }, []);
+  loadData();
+}, []);
 
   function openAdd() {
     setForm(EMPTY_FORM);
@@ -184,14 +325,15 @@ export default function DepartmentCrud() {
   }
 
   function openEdit(dept) {
-    setForm({
-      department_name: dept.department_name ?? '',
-      location: dept.location ?? '',
-      prefix: dept.current_queue ? dept.current_queue.split('-')[0] : '',
-      status: dept.status ?? 'Normal',
-    });
-    setEditingId(dept.id);
-  }
+  setForm({
+    department_name: dept.department_name ?? '',
+    kiosk_id: dept.kiosk_id ?? '',
+    prefix: dept.prefix ?? '',
+    status: dept.status ?? 'active',
+  });
+
+  setEditingId(dept.id);
+}
 
   function closeModal() {
     setEditingId(null);
@@ -200,60 +342,102 @@ export default function DepartmentCrud() {
   }
 
   async function handleSave() {
-    if (!form.department_name.trim()) return;
-    setSaving(true);
-    setError(null);
-
-    try {
-      if (editingId === 'new') {
-        const { error: insertError } = await supabase.from(TABLE_NAME).insert([{
-          department_name: form.department_name,
-          location: form.location,
-          status: form.status,
-        }]);
-        if (insertError) throw insertError;
-      } else {
-        const { error: updateError } = await supabase
-          .from(TABLE_NAME)
-          .update({
-            department_name: form.department_name,
-            location: form.location,
-            status: form.status,
-          })
-          .eq('id', editingId);
-        if (updateError) throw updateError;
-      }
-
-      closeModal();
-      fetchDepartments();
-    } catch (err) {
-      // Local fallback state update for demonstration if table is non-existent
-      if (editingId === 'new') {
-        const newDept = {
-          id: String(Date.now()),
-          department_name: form.department_name,
-          location: form.location || 'Ground Floor',
-          waiting: 0,
-          current_queue: `${(form.prefix || form.department_name.charAt(0)).toUpperCase()}-0001`,
-          active_terminals: '1/1',
-          avg_wait: '5m',
-          status: form.status,
-        };
-        setDepartments((prev) => [...prev, newDept]);
-      } else {
-        setDepartments((prev) =>
-          prev.map((d) => (d.id === editingId ? { ...d, ...form } : d))
-        );
-      }
-      closeModal();
-    } finally {
-      setSaving(false);
-    }
+  if (!form.department_name.trim()) {
+    setError('Department name is required.');
+    return;
   }
+
+  if (!form.kiosk_id) {
+    setError('Please select a kiosk.');
+    return;
+  }
+
+  setSaving(true);
+  setError(null);
+
+  try {
+    if (editingId === 'new') {
+      const { error: insertError } = await supabase
+        .from(TABLE_NAME)
+        .insert([
+          {
+            name: form.department_name.trim(),
+            kiosk_id: form.kiosk_id,
+            prefix: form.prefix.trim() || null,
+            status: form.status,
+          },
+        ]);
+
+      if (insertError) throw insertError;
+    } else {
+      const { error: updateError } = await supabase
+        .from(TABLE_NAME)
+        .update({
+          name: form.department_name.trim(),
+          kiosk_id: form.kiosk_id,
+          prefix: form.prefix.trim() || null,
+          status: form.status,
+        })
+        .eq('department_id', editingId);
+
+      if (updateError) throw updateError;
+    }
+
+    closeModal();
+await fetchDepartments(kiosks);
+  } catch (err) {
+    console.error('SAVE DEPARTMENT ERROR:', err);
+    setError(err.message || 'Failed to save department.');
+  } finally {
+    setSaving(false);
+  }
+}
+
+async function handleReset() {
+  if (!resettingId) return;
+
+  const department = departments.find(
+    (dept) => dept.id === resettingId
+  );
+
+  if (!department) {
+    setError('Department not found.');
+    return;
+  }
+
+  // Reset frontend-only operational values.
+  // No Supabase update/delete is performed here.
+  setDepartments((currentDepartments) =>
+    currentDepartments.map((dept) => {
+      if (dept.id !== resettingId) {
+        return dept;
+      }
+
+      return {
+        ...dept,
+        waiting: 0,
+        current_queue: dept.prefix
+          ? `${dept.prefix}-0010`
+          : `${(dept.department_name || 'D')
+              .charAt(0)
+              .toUpperCase()}-0010`,
+        active_terminals: '3/4',
+        avg_wait: '15m',
+      };
+    })
+  );
+
+  setShowResetPin(false);
+  setResettingId(null);
+  setPinInput('');
+  setError(null);
+}
 
   // Summary Metrics calculations
   const totalWaiting = departments.reduce((acc, curr) => acc + (Number(curr.waiting) || 0), 0);
-  const activeDepts = departments.filter((d) => d.status?.toLowerCase() !== 'offline').length;
+  const activeDepts = departments.filter(
+  (d) => d.status?.toLowerCase() === 'active'
+).length;
   const totalDepts = departments.length;
 
   useEffect(() => {
@@ -261,13 +445,14 @@ export default function DepartmentCrud() {
   }, [searchQuery]);
 
   const filteredDepartments = departments.filter((d) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      d.department_name.toLowerCase().includes(query) ||
-      d.location.toLowerCase().includes(query) ||
-      d.status.toLowerCase().includes(query)
-    );
-  });
+  const query = searchQuery.toLowerCase();
+
+  return (
+    d.department_name.toLowerCase().includes(query) ||
+    (d.kiosk_name || '').toLowerCase().includes(query) ||
+    d.status.toLowerCase().includes(query)
+  );
+});
 
   // Pagination. currentPage is clamped so the view never lands past the last
   // page after a search, a delete, or a refetch shrinks the result set.
@@ -379,18 +564,19 @@ export default function DepartmentCrud() {
             <thead>
               <tr className="border-b border-slate-100 bg-[#F8FAFC] text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                 <th className="px-6 py-3.5">DEPARTMENT</th>
-                <th className="px-6 py-3.5">LOCATION</th>
+                <th className="px-6 py-3.5">KIOSK</th>
                 <th className="px-6 py-3.5 text-center">WAITING</th>
                 <th className="px-6 py-3.5 text-center">CURRENT QUEUE</th>
                 <th className="px-6 py-3.5 text-center">ACTIVE TERMINALS</th>
                 <th className="px-6 py-3.5 text-center">AVG WAIT</th>
                 <th className="px-6 py-3.5 text-right">STATUS</th>
+                <th className="px-6 py-3.5 text-right">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-600">
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
+                  <td colSpan={8} className="px-6 py-8 text-center text-slate-400">
                     Loading departments...
                   </td>
                 </tr>
@@ -414,17 +600,33 @@ export default function DepartmentCrud() {
                     <td className="px-6 py-4 font-semibold text-slate-800">
                       {dept.department_name}
                     </td>
-                    <td className="px-6 py-4 text-slate-600">{dept.location}</td>
+                    <td className="px-6 py-4 text-slate-600">{dept.kiosk_name}</td>
                     <td className="px-6 py-4 text-center text-slate-700">{dept.waiting}</td>
                     <td className="px-6 py-4 text-center font-medium text-slate-700">{dept.current_queue}</td>
                     <td className="px-6 py-4 text-center text-slate-600">{dept.active_terminals}</td>
                     <td className="px-6 py-4 text-center text-slate-600">{dept.avg_wait}</td>
                     <td className="px-6 py-4 text-right">
-                      <span className={`text-[11px] font-semibold ${
-                        dept.status === 'Busy' ? 'text-slate-800' : 'text-slate-500'
-                      }`}>
+                      <span className={
+                          dept.status === 'active'
+                            ? 'text-slate-800'
+                            : 'text-slate-500'
+                        }>
                         {dept.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setResettingId(dept.id);
+                          setPinInput('');
+                          setShowResetPin(true);
+                        }}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                      >
+                        Reset
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -494,8 +696,26 @@ export default function DepartmentCrud() {
           onClose={closeModal}
           isEditing={isEditing}
           saving={saving}
+          kiosks={kiosks}
         />
       )}
+      <ResetPinModal
+  open={showResetPin}
+  onClose={() => {
+    setShowResetPin(false);
+    setResettingId(null);
+    setPinInput('');
+  }}
+  onConfirm={() => {
+  if (pinInput === RESET_PIN) {
+    handleReset();
+  } else {
+    setError('Incorrect PIN.');
+  }
+}}
+  pinInput={pinInput}
+  setPinInput={setPinInput}
+/>
     </div>
   );
 }
