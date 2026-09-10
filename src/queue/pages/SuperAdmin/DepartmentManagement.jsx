@@ -26,7 +26,6 @@ function getPageNumbers(currentPage, totalPages) {
   return Array.from({ length: MAX_BUTTONS }, (_, i) => start + i);
 }
 
-
 function DepartmentModal({
   open,
   onClose,
@@ -43,13 +42,21 @@ function DepartmentModal({
       <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <h2 className="text-lg font-bold text-slate-700">
-            {isEditing ? 'Edit Department' : 'Add New Department'}
-          </h2>
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="text-slate-400 hover:text-slate-600"
+          <div>
+            <h2 className="text-lg font-bold text-slate-700">
+              {isEditing ? 'Edit Department' : 'Add New Department'}
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              {isEditing
+                ? 'Update the department configuration below.'
+                : 'Select a kiosk before configuring the department.'}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 transition hover:text-slate-600"
             aria-label="Close"
           >
             <X size={18} />
@@ -57,60 +64,141 @@ function DepartmentModal({
         </div>
 
         {/* Modal Body */}
-        <div className="space-y-4 px-6 py-5">
+        <div className="space-y-5 px-6 py-5">
+
+          {/* STEP 1 — KIOSK */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">Department Name</label>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+              Kiosk
+            </label>
+
+            <div className="relative">
+              <Monitor
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+
+              <select
+                value={form.kiosk_id}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    kiosk_id: e.target.value,
+                  })
+                }
+                className="w-full appearance-none rounded-lg border border-slate-300 bg-slate-50 py-2.5 pl-9 pr-10 text-sm text-slate-700 transition focus:border-[#00529B] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00529B]"
+              >
+                <option value="">Select a kiosk</option>
+
+                {kiosks.map((kiosk) => (
+                  <option
+                    key={kiosk.kiosk_id}
+                    value={kiosk.kiosk_id}
+                  >
+                    {kiosk.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Custom dropdown arrow */}
+              <svg
+                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+
+            {!form.kiosk_id && !isEditing && (
+              <p className="mt-1.5 text-[11px] text-slate-400">
+                Select the kiosk where this department will be assigned.
+              </p>
+            )}
+          </div>
+
+          {/* STEP 2 — DEPARTMENT NAME */}
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+              Department Name
+            </label>
+
             <input
               type="text"
               value={form.department_name}
-              onChange={(e) => setForm({ ...form, department_name: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-              placeholder="e.g. Laboratory"
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  department_name: e.target.value,
+                })
+              }
+              disabled={!form.kiosk_id}
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition placeholder:text-slate-400 focus:border-[#00529B] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00529B] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+              placeholder={
+                form.kiosk_id
+                  ? 'e.g. Laboratory'
+                  : 'Select a kiosk first'
+              }
             />
+
+            {!form.kiosk_id && !isEditing && (
+              <p className="mt-1.5 text-[11px] text-slate-400">
+                Department name becomes available after selecting a kiosk.
+              </p>
+            )}
           </div>
 
-          <div>
-            <label>Kiosk</label>
-<select
-  value={form.kiosk_id}
-  onChange={(e) =>
-    setForm({ ...form, kiosk_id: e.target.value })
-  }
->
-  <option value="">Select kiosk</option>
-
-  {kiosks.map((kiosk) => (
-    <option key={kiosk.kiosk_id} value={kiosk.kiosk_id}>
-      {kiosk.name}
-    </option>
-  ))}
-</select>
-          </div>
-
+          {/* STEP 3 — PREFIX + STATUS */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Queue Prefix Code</label>
+              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                Queue Prefix Code
+              </label>
+
               <input
                 type="text"
                 value={form.prefix}
-                onChange={(e) => setForm({ ...form, prefix: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    prefix: e.target.value,
+                  })
+                }
+                disabled={!form.kiosk_id}
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition placeholder:text-slate-400 focus:border-[#00529B] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00529B] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                 placeholder="e.g. L or P"
               />
             </div>
+
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">Status</label>
+              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                Status
+              </label>
+
               <select
                 value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    status: e.target.value,
+                  })
+                }
+                disabled={!form.kiosk_id}
+                className="w-full appearance-none rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-[#00529B] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00529B] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
               >
                 {STATUS_OPTIONS.map((st) => (
-                  <option key={st} value={st}>{st}</option>
+                  <option key={st} value={st}>
+                    {st.charAt(0).toUpperCase() + st.slice(1)}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
+
         </div>
 
         {/* Modal Footer */}
@@ -119,17 +207,26 @@ function DepartmentModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+            className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
           >
             Cancel
           </button>
+
           <button
             type="button"
             onClick={onSave}
-            disabled={saving || !form.department_name.trim()}
-            className="flex items-center gap-2 rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={
+              saving ||
+              !form.kiosk_id ||
+              !form.department_name.trim()
+            }
+            className="flex items-center gap-2 rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {saving ? 'Saving...' : (isEditing ? 'Save Changes' : '+ Add Department')}
+            {saving
+              ? 'Saving...'
+              : isEditing
+                ? 'Save Changes'
+                : '+ Add Department'}
           </button>
         </div>
       </div>
