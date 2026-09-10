@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   MapPin,
   ClipboardList,
+  Lock,
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
@@ -49,260 +50,179 @@ const QUEUE_TYPES = [
 ];
 
 /* =========================================================
-   HOSPITAL LOCATIONS
+   KIOSKS / DEPARTMENTS
 ========================================================= */
 
-const LOCATIONS = [
-  {
-    key: 'main-lobby',
-    name: 'Main Lobby',
-    description: 'Information, Admission, Billing.',
-    icon: Building2,
-  },
-  {
-    key: 'lab-radiology',
-    name: 'Laboratory & Radiology',
-    description: 'Laboratory and radiology services.',
-    icon: FlaskConical,
-  },
-  {
-    key: 'opd-clinic',
-    name: 'OPD / University Clinic',
-    description: 'Outpatient and clinic services.',
-    icon: Stethoscope,
-  },
-  {
-    key: 'medical-arts',
-    name: 'Medical Arts Building',
-    description: 'Pharmacy, Clinics, Other services.',
-    icon: Building,
-  },
-];
+/*
+  Kiosks and departments are intentionally NOT hard-coded here.
+
+  The patient side gets both lists from Supabase:
+    - `kiosk` contains the available kiosks.
+    - `departments.kiosk_id` determines which departments belong
+      to each kiosk.
+
+  This keeps Supabase as the single source of truth. Adding,
+  activating, deactivating, or removing a kiosk/department will
+  therefore be reflected on the patient side.
+*/
+
+function getKioskIcon(name = '') {
+  const value = name.toLowerCase();
+
+  if (value.includes('laboratory') || value.includes('radiology') || value.includes('lab')) {
+    return FlaskConical;
+  }
+
+  if (value.includes('clinic') || value.includes('opd') || value.includes('outpatient')) {
+    return Stethoscope;
+  }
+
+  if (value.includes('medical arts') || value.includes('pharmacy')) {
+    return Building;
+  }
+
+  return Building2;
+}
+
+function getDepartmentIcon(name = '', classification = '') {
+  const value = `${name} ${classification}`.toLowerCase();
+
+  if (value.includes('lab') || value.includes('radiology') || value.includes('x-ray') || value.includes('ultrasound') || value.includes('scan')) {
+    return FlaskConical;
+  }
+
+  if (value.includes('clinic') || value.includes('medicine') || value.includes('surgery') || value.includes('health') || value.includes('pedia') || value.includes('therapy') || value.includes('cardiac')) {
+    return Stethoscope;
+  }
+
+  if (value.includes('billing') || value.includes('cashier') || value.includes('payment') || value.includes('pharmacy')) {
+    return Wallet;
+  }
+
+  if (value.includes('admission')) {
+    return BedDouble;
+  }
+
+  if (value.includes('social') || value.includes('champ') || value.includes('phil')) {
+    return ShieldCheck;
+  }
+
+  if (value.includes('information')) {
+    return Info;
+  }
+
+  return ClipboardList;
+}
+
+function getDepartmentDescription(department) {
+  if (department?.classification) {
+    return department.classification;
+  }
+
+  if (department?.location) {
+    return department.location;
+  }
+
+  return 'Department services and assistance.';
+}
 
 /* =========================================================
-   SERVICES BY LOCATION
+   KIOSK DAILY UNLOCK HELPERS
 ========================================================= */
 
-const SERVICES_BY_LOCATION = {
-  'main-lobby': [
-    {
-      queuePrefix: 'IN',
-      name: 'Information',
-      description:
-        'General hospital inquiries and assistance.',
-      waiting: 5,
-      estMin: 32,
-      icon: Info,
-    },
-    {
-      queuePrefix: 'AD',
-      name: 'Admission',
-      description:
-        'Patient admission and related services.',
-      waiting: 2,
-      estMin: 12,
-      icon: BedDouble,
-    },
-    {
-      queuePrefix: 'CH',
-      name: 'CHAMP',
-      description:
-        'CHAMP assistance and HMO concerns.',
-      waiting: 3,
-      estMin: 18,
-      icon: ShieldCheck,
-    },
-    {
-      queuePrefix: 'CS',
-      name: 'Cashier',
-      description:
-        'Cashier and payment transactions.',
-      waiting: 4,
-      estMin: 25,
-      icon: Wallet,
-    },
-    {
-      queuePrefix: 'BL',
-      name: 'Billing',
-      description:
-        'Billing-related concerns and assistance.',
-      waiting: 7,
-      estMin: 36,
-      icon: CreditCard,
-    },
-    {
-      queuePrefix: 'CC',
-      name: 'Credit and Collection',
-      description:
-        'Credit and collection assistance.',
-      waiting: 2,
-      estMin: 15,
-      icon: ClipboardList,
-    },
-    {
-      queuePrefix: 'MS',
-      name: 'Medical Social Worker',
-      description:
-        'Medical social work assistance.',
-      waiting: 2,
-      estMin: 15,
-      icon: Users,
-    },
-    {
-      queuePrefix: 'PH',
-      name: 'Phil Health',
-      description:
-        'PhilHealth assistance and processing.',
-      waiting: 3,
-      estMin: 20,
-      icon: ShieldCheck,
-    },
-  ],
+/*
+  The kiosk is unlocked PER DAY.
 
-  'opd-clinic': [
-    {
-      queuePrefix: 'PD',
-      name: 'Pedia',
-      description:
-        'Pediatric outpatient services.',
-      waiting: 4,
-      estMin: 28,
-      icon: User,
-    },
-    {
-      queuePrefix: 'SU',
-      name: 'Surgery',
-      description:
-        'Surgery outpatient services.',
-      waiting: 2,
-      estMin: 22,
-      icon: ClipboardList,
-    },
-    {
-      queuePrefix: 'IM',
-      name: 'Internal Medicine',
-      description:
-        'Internal medicine outpatient services.',
-      waiting: 5,
-      estMin: 35,
-      icon: Stethoscope,
-    },
-    {
-      queuePrefix: 'FM',
-      name: 'FAMED',
-      description:
-        'Family medicine outpatient services.',
-      waiting: 3,
-      estMin: 24,
-      icon: Stethoscope,
-    },
-  ],
+  The database `kiosk_id` is used instead of a hard-coded
+  React kiosk key. This means newly-created kiosks work
+  automatically without changing Patient.jsx.
 
-  'lab-radiology': [
-    {
-      queuePrefix: 'LS',
-      name: 'Lab-Specimen Collection',
-      description:
-        'Laboratory specimen collection.',
-      waiting: 4,
-      estMin: 25,
-      icon: FlaskConical,
-    },
-    {
-      queuePrefix: 'LR',
-      name: 'LAB- Results',
-      description:
-        'Laboratory results and releasing.',
-      waiting: 3,
-      estMin: 18,
-      icon: ClipboardList,
-    },
-    {
-      queuePrefix: 'RR',
-      name: 'Rad-Results',
-      description:
-        'Radiology results and releasing.',
-      waiting: 2,
-      estMin: 15,
-      icon: FlaskConical,
-    },
-    {
-      queuePrefix: 'CT',
-      name: 'CT-Scan',
-      description:
-        'CT scan services.',
-      waiting: 2,
-      estMin: 30,
-      icon: FlaskConical,
-    },
-    {
-      queuePrefix: 'XR',
-      name: 'X-Ray',
-      description:
-        'X-ray services.',
-      waiting: 3,
-      estMin: 25,
-      icon: FlaskConical,
-    },
-  ],
+  Example:
+    swu_kiosk_unlocked_<kiosk_id>_2026-09-10
 
-  'medical-arts': [
-    {
-      queuePrefix: 'PH',
-      name: 'Pharmacy',
-      description:
-        'Pharmacy services and assistance.',
-      waiting: 5,
-      estMin: 20,
-      icon: Wallet,
-    },
-    {
-      queuePrefix: 'WC',
-      name: "Women's Health (Consultation)",
-      description:
-        "Women's health consultation services.",
-      waiting: 2,
-      estMin: 30,
-      icon: Stethoscope,
-    },
-    {
-      queuePrefix: 'WU',
-      name: "Women's Health (Ultrasound)",
-      description:
-        "Women's health ultrasound services.",
-      waiting: 2,
-      estMin: 35,
-      icon: FlaskConical,
-    },
-    {
-      queuePrefix: 'PC',
-      name: 'PT- Rehab (Consultation)',
-      description:
-        'Physical therapy consultation services.',
-      waiting: 2,
-      estMin: 25,
-      icon: Stethoscope,
-    },
-    {
-      queuePrefix: 'PS',
-      name: 'PT-Rehab (Session)',
-      description:
-        'Physical therapy session services.',
-      waiting: 3,
-      estMin: 30,
-      icon: Stethoscope,
-    },
-    {
-      queuePrefix: 'CA',
-      name: 'Cardiac',
-      description:
-        'Cardiac services and assistance.',
-      waiting: 2,
-      estMin: 30,
-      icon: Stethoscope,
-    },
-  ],
-};
+  Because the date is part of the localStorage key, a kiosk
+  automatically becomes locked again on the next calendar day.
+*/
+
+function getTodayKey() {
+  const now = new Date();
+
+  return `${now.getFullYear()}-${String(
+    now.getMonth() + 1
+  ).padStart(2, '0')}-${String(
+    now.getDate()
+  ).padStart(2, '0')}`;
+}
+
+function getKioskUnlockKey(kioskId) {
+  return `swu_kiosk_unlocked_${kioskId}_${getTodayKey()}`;
+}
+
+function getActiveKioskKeyForToday() {
+  return `swu_active_kiosk_${getTodayKey()}`;
+}
+
+function isKioskUnlocked(kioskId) {
+  if (!kioskId) {
+    return false;
+  }
+
+  return (
+    localStorage.getItem(
+      getKioskUnlockKey(kioskId)
+    ) === 'true'
+  );
+}
+
+function unlockKioskForToday(kioskId) {
+  if (!kioskId) {
+    return;
+  }
+
+  localStorage.setItem(
+    getKioskUnlockKey(kioskId),
+    'true'
+  );
+
+  localStorage.setItem(
+    getActiveKioskKeyForToday(),
+    kioskId
+  );
+}
+
+function setActiveKioskForToday(kioskId) {
+  if (!kioskId) {
+    return;
+  }
+
+  localStorage.setItem(
+    getActiveKioskKeyForToday(),
+    kioskId
+  );
+}
+
+function getActiveKioskForToday(kiosks) {
+  const activeKioskId = localStorage.getItem(
+    getActiveKioskKeyForToday()
+  );
+
+  if (!activeKioskId) {
+    return null;
+  }
+
+  const activeKiosk = kiosks.find(
+    (item) => item.kiosk_id === activeKioskId
+  );
+
+  if (
+    !activeKiosk ||
+    !isKioskUnlocked(activeKiosk.kiosk_id)
+  ) {
+    return null;
+  }
+
+  return activeKiosk;
+}
 
 /* =========================================================
    KIOSK HEADER
@@ -441,6 +361,272 @@ function WelcomeScreen({ onStart }) {
 }
 
 /* =========================================================
+   SELECT KIOSK SCREEN
+========================================================= */
+
+function SelectKioskScreen({
+  kiosks,
+  selected,
+  onSelect,
+  onBack,
+  onContinue,
+  loading,
+}) {
+  return (
+    <Screen>
+      <KioskHeader />
+
+      <div className="mb-6 text-center">
+        <h1 className="text-lg font-bold text-slate-900">
+          Select Your Kiosk
+        </h1>
+
+        <p className="text-sm text-slate-500">
+          Please select the kiosk where you are getting your service.
+        </p>
+      </div>
+
+      <div className="mb-8 space-y-3">
+        {loading && (
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-400">
+            Loading kiosks...
+          </div>
+        )}
+
+        {!loading && kiosks.length === 0 && (
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
+            <p className="text-sm font-semibold text-slate-700">
+              No kiosks are currently available.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Please contact the hospital administrator.
+            </p>
+          </div>
+        )}
+
+        {!loading &&
+          kiosks.map((currentKiosk) => {
+            const Icon = getKioskIcon(
+              currentKiosk.name
+            );
+
+            const isSelected =
+              selected?.kiosk_id ===
+              currentKiosk.kiosk_id;
+
+            const isUnlocked =
+              isKioskUnlocked(
+                currentKiosk.kiosk_id
+              );
+
+            return (
+              <button
+                key={currentKiosk.kiosk_id}
+                type="button"
+                onClick={() => onSelect(currentKiosk)}
+                className={`relative flex w-full items-center gap-3 rounded-xl border p-4 text-left transition ${
+                  isSelected
+                    ? 'border-[#123C73] bg-blue-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                {isSelected && (
+                  <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#123C73] text-white">
+                    <CheckCircle2 size={12} />
+                  </span>
+                )}
+
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                  <Icon
+                    size={16}
+                    className="text-[#123C73]"
+                  />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p
+                      className={`text-sm font-bold uppercase tracking-wide ${
+                        isSelected
+                          ? 'text-[#123C73]'
+                          : 'text-slate-800'
+                      }`}
+                    >
+                      {currentKiosk.name}
+                    </p>
+
+                    {isUnlocked && (
+                      <span className="shrink-0 rounded-full bg-green-100 px-2 py-1 text-[9px] font-semibold text-green-700">
+                        UNLOCKED
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-400">
+                    Select this kiosk to continue.
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+      </div>
+
+      <NavButtons
+        onBack={onBack}
+        onContinue={onContinue}
+        disabled={!selected || loading}
+      />
+    </Screen>
+  );
+}
+
+/* =========================================================
+   KIOSK PIN SCREEN
+========================================================= */
+
+function KioskPinScreen({
+  kiosk,
+  onBack,
+  onSuccess,
+}) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+
+  function handleSubmit(event) {
+    event.preventDefault();
+
+    setError('');
+
+    /*
+      TEMPORARY ADMIN PIN
+      -------------------
+
+      Current PIN:
+      0000
+
+      This should eventually be validated
+      through your backend/Supabase.
+    */
+
+    if (pin === '0000') {
+      /*
+        IMPORTANT:
+
+        This permanently unlocks the selected kiosk
+        FOR TODAY.
+
+        It also remembers this kiosk as the
+        active kiosk for TODAY.
+      */
+
+      unlockKioskForToday(
+        kiosk.kiosk_id
+      );
+
+      /*
+        Tell PatientView that the PIN
+        was successfully entered.
+      */
+
+      onSuccess();
+
+      return;
+    }
+
+    setError(
+      'Incorrect PIN. Please try again.'
+    );
+
+    setPin('');
+  }
+
+  return (
+    <Screen>
+      <KioskHeader />
+
+      <div className="mb-6 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+          <Lock
+            size={22}
+            className="text-[#123C73]"
+          />
+        </div>
+
+        <h1 className="text-lg font-bold text-slate-900">
+          Kiosk Access
+        </h1>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Enter the admin PIN to unlock
+        </p>
+
+        <p className="mt-2 text-sm font-bold text-[#123C73]">
+          {kiosk.name}
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <label
+            htmlFor="kiosk-pin"
+            className="mb-2 block text-xs font-medium text-slate-500"
+          >
+            Admin PIN
+          </label>
+
+          <input
+            id="kiosk-pin"
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            value={pin}
+            onChange={(event) => {
+              const value =
+                event.target.value.replace(
+                  /\D/g,
+                  ''
+                );
+
+              setPin(value);
+              setError('');
+            }}
+            placeholder="Enter 4-digit PIN"
+            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-lg tracking-[0.5em] outline-none focus:border-[#123C73] focus:ring-1 focus:ring-[#123C73]"
+            autoFocus
+          />
+
+          {error && (
+            <p className="mt-3 text-center text-xs font-medium text-red-500">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="flex justify-between">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 hover:border-slate-300"
+          >
+            <ArrowLeft size={14} />
+            Back
+          </button>
+
+          <button
+            type="submit"
+            disabled={pin.length !== 4}
+            className="flex items-center gap-1.5 rounded-full bg-[#123C73] px-5 py-2 text-xs font-semibold text-white hover:bg-[#0d2c56] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Unlock Kiosk
+            <ArrowRight size={14} />
+          </button>
+        </div>
+      </form>
+    </Screen>
+  );
+}
+
+/* =========================================================
    QUEUE TYPE SCREEN
 ========================================================= */
 
@@ -449,6 +635,7 @@ function QueueTypeScreen({
   onSelect,
   onBack,
   onContinue,
+  kiosk,
 }) {
   return (
     <Screen>
@@ -462,6 +649,13 @@ function QueueTypeScreen({
         <p className="text-sm text-slate-500">
           Please select the queue type that applies to you.
         </p>
+
+        {kiosk && (
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#123C73]">
+            <MapPin size={11} />
+            {kiosk.name}
+          </div>
+        )}
       </div>
 
       <div className="mb-8 space-y-3">
@@ -523,103 +717,18 @@ function QueueTypeScreen({
 }
 
 /* =========================================================
-   LOCATION SCREEN
+   DEPARTMENT SCREEN
 ========================================================= */
 
-function SelectLocationScreen({
+function SelectDepartmentScreen({
+  kiosk,
+  departments,
   selected,
   onSelect,
   onBack,
   onContinue,
+  loading,
 }) {
-  return (
-    <Screen>
-      <KioskHeader />
-
-      <div className="mb-6 text-center">
-        <h1 className="text-lg font-bold text-slate-900">
-          Select Your Location
-        </h1>
-
-        <p className="text-sm text-slate-500">
-          Please select the hospital area where you need service.
-        </p>
-      </div>
-
-      <div className="mb-8 space-y-3">
-        {LOCATIONS.map((loc) => {
-          const Icon = loc.icon;
-
-          const isSelected =
-            selected?.key === loc.key;
-
-          return (
-            <button
-              key={loc.key}
-              type="button"
-              onClick={() => onSelect(loc)}
-              className={`relative flex w-full items-center gap-3 rounded-xl border p-4 text-left transition ${
-                isSelected
-                  ? 'border-[#123C73] bg-blue-50 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
-              }`}
-            >
-              {isSelected && (
-                <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#123C73] text-white">
-                  <CheckCircle2 size={12} />
-                </span>
-              )}
-
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                <Icon
-                  size={16}
-                  className="text-[#123C73]"
-                />
-              </div>
-
-              <div>
-                <p
-                  className={`text-sm font-bold uppercase tracking-wide ${
-                    isSelected
-                      ? 'text-[#123C73]'
-                      : 'text-slate-800'
-                  }`}
-                >
-                  {loc.name}
-                </p>
-
-                <p className="text-xs text-slate-400">
-                  {loc.description}
-                </p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <NavButtons
-        onBack={onBack}
-        onContinue={onContinue}
-        disabled={!selected}
-      />
-    </Screen>
-  );
-}
-
-/* =========================================================
-   SERVICE SCREEN
-========================================================= */
-
-function SelectServiceScreen({
-  location,
-  selected,
-  onSelect,
-  onBack,
-  onContinue,
-}) {
-  const services =
-    SERVICES_BY_LOCATION[location.key] ?? [];
-
   return (
     <Screen>
       <KioskHeader />
@@ -630,8 +739,15 @@ function SelectServiceScreen({
         </h1>
 
         <p className="text-sm text-slate-500">
-          Please select a service to get your queue number.
+          Please select a department to get your queue number.
         </p>
+
+        {kiosk && (
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#123C73]">
+            <MapPin size={11} />
+            {kiosk.name}
+          </div>
+        )}
       </div>
 
       <div
@@ -641,77 +757,111 @@ function SelectServiceScreen({
           msOverflowStyle: 'none',
         }}
       >
-        {services.map((service) => {
-          const Icon = service.icon;
+        {loading && (
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-400">
+            Loading departments...
+          </div>
+        )}
 
-          const isSelected =
-            selected?.name === service.name;
+        {!loading && departments.length === 0 && (
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
+            <p className="text-sm font-semibold text-slate-700">
+              No departments are currently available.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              Please contact the hospital administrator.
+            </p>
+          </div>
+        )}
 
-          return (
-            <button
-              key={service.name}
-              type="button"
-              onClick={() => onSelect(service)}
-              className={`relative flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${
-                isSelected
-                  ? 'border-[#123C73] bg-blue-50 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
-              }`}
-            >
-              {isSelected && (
-                <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#123C73] text-white">
-                  <CheckCircle2 size={12} />
-                </span>
-              )}
+        {!loading &&
+          departments.map((department) => {
+            const Icon = getDepartmentIcon(
+              department.name,
+              department.classification
+            );
 
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                <Icon
-                  size={16}
-                  className="text-[#123C73]"
-                />
-              </div>
+            const isSelected =
+              selected?.department_id ===
+              department.department_id;
 
-              <div className="flex-1">
-                <p
-                  className={`text-sm font-bold ${
-                    isSelected
-                      ? 'text-[#123C73]'
-                      : 'text-slate-800'
-                  }`}
-                >
-                  {service.name}
-                </p>
-
-                <p className="mb-1 text-xs text-slate-400">
-                  {service.description}
-                </p>
-
-                <p className="flex items-center gap-3 text-[11px] text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <Users size={10} />
-                    {service.waiting} waiting
+            return (
+              <button
+                key={department.department_id}
+                type="button"
+                onClick={() => onSelect(department)}
+                className={`relative flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${
+                  isSelected
+                    ? 'border-[#123C73] bg-blue-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                {isSelected && (
+                  <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#123C73] text-white">
+                    <CheckCircle2 size={12} />
                   </span>
+                )}
 
-                  <span className="flex items-center gap-1">
-                    <Clock size={10} />
-                    ~{service.estMin} min
-                  </span>
-                </p>
-              </div>
-            </button>
-          );
-        })}
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                  <Icon
+                    size={16}
+                    className="text-[#123C73]"
+                  />
+                </div>
+
+                <div className="flex-1">
+                  <p
+                    className={`text-sm font-bold ${
+                      isSelected
+                        ? 'text-[#123C73]'
+                        : 'text-slate-800'
+                    }`}
+                  >
+                    {department.name}
+                  </p>
+
+                  <p className="mb-1 text-xs text-slate-400">
+                    {getDepartmentDescription(
+                      department
+                    )}
+                  </p>
+
+                  <p className="flex items-center gap-3 text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Users size={10} />
+                      {department.waiting ?? 0} waiting
+                    </span>
+
+                    <span className="flex items-center gap-1">
+                      <Clock size={10} />
+                      ~{department.estMin ?? 0} min
+                    </span>
+                  </p>
+                </div>
+              </button>
+            );
+          })}
       </div>
 
-      <p className="mb-6 text-center text-[11px] text-slate-400">
-        &darr; Swipe up for more
-      </p>
+      {!loading && departments.length > 0 && (
+        <p className="mb-6 text-center text-[11px] text-slate-400">
+          &darr; Swipe up for more
+        </p>
+      )}
 
-      <NavButtons
-        onBack={onBack}
-        onContinue={onContinue}
-        disabled={!selected}
-      />
+      {loading || departments.length === 0 ? (
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          disabled
+        />
+      ) : (
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          disabled={!selected}
+        />
+      )}
     </Screen>
   );
 }
@@ -722,13 +872,16 @@ function SelectServiceScreen({
 
 function ConfirmScreen({
   queueType,
-  location,
+  kiosk,
   service,
   waitingAhead,
   isGenerating,
   onBack,
   onConfirm,
 }) {
+  const ServiceIcon =
+    service?.icon;
+
   return (
     <Screen>
       <KioskHeader />
@@ -745,7 +898,9 @@ function ConfirmScreen({
 
       <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 space-y-3 text-sm">
+
           {/* QUEUE TYPE */}
+
           <div className="flex items-center gap-3">
             <Accessibility
               size={16}
@@ -758,12 +913,13 @@ function ConfirmScreen({
               </p>
 
               <p className="font-semibold text-slate-800">
-                {queueType.name}
+                {queueType?.name}
               </p>
             </div>
           </div>
 
-          {/* LOCATION */}
+          {/* KIOSK */}
+
           <div className="flex items-center gap-3">
             <MapPin
               size={16}
@@ -772,29 +928,32 @@ function ConfirmScreen({
 
             <div>
               <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                Location
+                Kiosk
               </p>
 
               <p className="font-semibold text-slate-800">
-                {location.name}
+                {kiosk?.name}
               </p>
             </div>
           </div>
 
-          {/* SERVICE */}
+          {/* DEPARTMENT */}
+
           <div className="flex items-center gap-3">
-            <service.icon
-              size={16}
-              className="text-slate-400"
-            />
+            {ServiceIcon && (
+              <ServiceIcon
+                size={16}
+                className="text-slate-400"
+              />
+            )}
 
             <div>
               <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                Service
+                Department
               </p>
 
               <p className="font-semibold text-slate-800">
-                {service.name}
+                {service?.name}
               </p>
             </div>
           </div>
@@ -821,7 +980,7 @@ function ConfirmScreen({
             </p>
 
             <p className="text-xl font-bold text-[#123C73]">
-              ~{service.estMin}
+              ~{service?.estMin}
             </p>
 
             <p className="text-[10px] text-slate-400">
@@ -875,7 +1034,8 @@ function TicketScreen({
           className="px-6 py-6 text-center"
           style={{
             backgroundColor:
-              queueType.key === 'priority'
+              queueType.key ===
+              'priority'
                 ? '#800000'
                 : '#123C73',
           }}
@@ -904,7 +1064,8 @@ function TicketScreen({
                 </p>
 
                 <p className="text-xs font-semibold text-slate-700">
-                  {service.waiting} people waiting
+                  {service.waiting}{' '}
+                  people waiting
                 </p>
               </div>
             </div>
@@ -921,13 +1082,13 @@ function TicketScreen({
                 </p>
 
                 <p className="text-xs font-semibold text-slate-700">
-                  {service.estMin} minutes
+                  {service.estMin}{' '}
+                  minutes
                 </p>
               </div>
             </div>
           </div>
 
-          {/* QR CODE */}
           <div className="flex flex-col items-center justify-center">
             <QRCodeSVG
               value={`${service.name}-${queueNumber}`}
@@ -972,7 +1133,9 @@ function TicketScreen({
    PRINTING SCREEN
 ========================================================= */
 
-function PrintingScreen({ queueNumber }) {
+function PrintingScreen({
+  queueNumber,
+}) {
   return (
     <Screen>
       <KioskHeader />
@@ -1015,7 +1178,9 @@ function PrintingScreen({ queueNumber }) {
    SUCCESS SCREEN
 ========================================================= */
 
-function SuccessScreen({ queueNumber }) {
+function SuccessScreen({
+  queueNumber,
+}) {
   return (
     <Screen>
       <KioskHeader />
@@ -1058,24 +1223,30 @@ function SuccessScreen({ queueNumber }) {
    MAIN PATIENT VIEW
 ========================================================= */
 
-export default function PatientView() {
-  const [step, setStep] = useState('welcome');
+/*
+  `kioskId` is optional.
 
-  /*
-    welcome
-    queueType
-    location
-    select
-    confirm
-    ticket
-    printing
-    success
-  */
+  If this component is deployed to a specific physical kiosk,
+  you can pass the database kiosk_id:
+
+    <PatientView kioskId="DATABASE-KIOSK-UUID" />
+
+  If no kioskId is supplied, the patient app uses the kiosk
+  activated today in localStorage. This keeps the current
+  development setup working while still allowing each physical
+  kiosk to be fixed to its own database record.
+*/
+
+export default function PatientView({
+  kioskId = null,
+}) {
+  const [step, setStep] =
+    useState('welcome');
 
   const [queueType, setQueueType] =
     useState(null);
 
-  const [location, setLocation] =
+  const [kiosk, setKiosk] =
     useState(null);
 
   const [service, setService] =
@@ -1087,16 +1258,390 @@ export default function PatientView() {
   const [isGenerating, setIsGenerating] =
     useState(false);
 
+  const [
+    requiresKioskSelection,
+    setRequiresKioskSelection,
+  ] = useState(false);
+
   /* =======================================================
-     RESET
+     SUPABASE KIOSKS
+  ======================================================= */
+
+  const [kiosks, setKiosks] =
+    useState([]);
+
+  const [kiosksLoading, setKiosksLoading] =
+    useState(true);
+
+  const [kiosksError, setKiosksError] =
+    useState('');
+
+  async function fetchKiosksFromSupabase() {
+    setKiosksLoading(true);
+    setKiosksError('');
+
+    try {
+      const {
+        data,
+        error,
+      } = await supabase
+        .from('kiosk')
+        .select(
+          'kiosk_id, name, status'
+        )
+        .order('name', {
+          ascending: true,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      // IMPORTANT:
+      // Use the kiosk rows returned by Supabase directly.
+      // Do not filter them by status on the patient side.
+      // This prevents the kiosk list from appearing empty when
+      // the database uses a different status value/capitalization.
+      setKiosks(data || []);
+    } catch (error) {
+      console.error(
+        'Error fetching kiosks:',
+        error
+      );
+
+      setKiosks([]);
+      setKiosksError(
+        error?.message ||
+          'Unable to load kiosks from the database.'
+      );
+    } finally {
+      setKiosksLoading(false);
+    }
+  }
+
+  // Initial kiosk load.
+  useEffect(() => {
+    fetchKiosksFromSupabase();
+  }, []);
+
+  // Refresh the kiosk list whenever the kiosk-selection screen opens.
+  // This makes newly-added kiosks appear without requiring a full reload.
+  useEffect(() => {
+    if (step === 'kiosk') {
+      fetchKiosksFromSupabase();
+    }
+  }, [step]);
+
+  /* =======================================================
+     SUPABASE DEPARTMENTS
+  ======================================================= */
+
+  const [departments, setDepartments] =
+    useState([]);
+
+  const [
+    departmentsLoading,
+    setDepartmentsLoading,
+  ] = useState(false);
+
+  const [
+    departmentsError,
+    setDepartmentsError,
+  ] = useState('');
+
+  async function fetchDepartmentsFromSupabase(
+    kioskRecord
+  ) {
+    if (!kioskRecord?.kiosk_id) {
+      setDepartments([]);
+      return;
+    }
+
+    setDepartmentsLoading(true);
+    setDepartmentsError('');
+
+    try {
+      const {
+        data,
+        error,
+      } = await supabase
+        .from('departments')
+        .select(`
+          department_id,
+          name,
+          classification,
+          location,
+          prefix,
+          status,
+          est_time,
+          kiosk_id
+        `)
+        .eq(
+          'kiosk_id',
+          kioskRecord.kiosk_id
+        )
+        .order('name', {
+          ascending: true,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      // Use the departments returned for this kiosk directly.
+      // The kiosk_id filter above already limits the results to
+      // the selected kiosk.
+      const activeDepartments = data || [];
+
+      /*
+        Fetch the current waiting count for each department.
+
+        This replaces the old hard-coded `waiting` values.
+      */
+      const departmentsWithWaiting =
+        await Promise.all(
+          activeDepartments.map(
+            async (department) => {
+              const {
+                count,
+                error: countError,
+              } = await supabase
+                .from('queue_ticket')
+                .select('*', {
+                  count: 'exact',
+                  head: true,
+                })
+                .eq(
+                  'department_id',
+                  department.department_id
+                )
+                .eq(
+                  'status',
+                  'waiting'
+                );
+
+              if (countError) {
+                console.warn(
+                  `Unable to get waiting count for ${department.name}:`,
+                  countError
+                );
+              }
+
+              return {
+                ...department,
+
+                /*
+                  Map the database field to the names
+                  already used by the patient UI.
+                */
+                queuePrefix:
+                  department.prefix || '',
+                estMin:
+                  Number(
+                    department.est_time
+                  ) || 0,
+                waiting:
+                  countError
+                    ? 0
+                    : count || 0,
+
+                // Keep the icon available for ConfirmScreen.
+                icon: getDepartmentIcon(
+                  department.name,
+                  department.classification
+                ),
+              };
+            }
+          )
+        );
+
+      setDepartments(
+        departmentsWithWaiting
+      );
+    } catch (error) {
+      console.error(
+        'Error fetching departments:',
+        error
+      );
+
+      setDepartments([]);
+      setDepartmentsError(
+        error?.message ||
+          'Unable to load departments from the database.'
+      );
+    } finally {
+      setDepartmentsLoading(false);
+    }
+  }
+
+  /*
+    Whenever the selected kiosk changes, fetch ONLY the
+    departments assigned to that kiosk through departments.kiosk_id.
+  */
+
+  useEffect(() => {
+    if (!kiosk) {
+      setDepartments([]);
+      setDepartmentsError('');
+      return;
+    }
+
+    fetchDepartmentsFromSupabase(
+      kiosk
+    );
+  }, [kiosk?.kiosk_id]);
+
+  /* =======================================================
+     GET STARTED
+  ======================================================= */
+
+  function handleStart() {
+    /*
+      If this PatientView is assigned to a physical kiosk,
+      that configured database kiosk takes priority.
+
+      Otherwise use the kiosk activated today on this browser.
+    */
+
+    const configuredKiosk =
+      kioskId
+        ? kiosks.find(
+            (item) =>
+              item.kiosk_id === kioskId
+          )
+        : null;
+
+    /*
+      When a specific physical kiosk is configured, NEVER fall
+      back to another kiosk that may be stored in localStorage.
+      That keeps each physical kiosk independent.
+    */
+
+    const activeKiosk = configuredKiosk
+      ? isKioskUnlocked(
+          configuredKiosk.kiosk_id
+        )
+        ? configuredKiosk
+        : null
+      : getActiveKioskForToday(
+          kiosks
+        );
+
+    if (activeKiosk) {
+      setKiosk(activeKiosk);
+      setQueueType(null);
+      setService(null);
+      setRequiresKioskSelection(
+        false
+      );
+      setStep('queueType');
+      return;
+    }
+
+    /*
+      No kiosk has been activated today.
+      The patient must select a kiosk and enter the admin PIN.
+    */
+
+    setKiosk(null);
+    setQueueType(null);
+    setService(null);
+    setRequiresKioskSelection(
+      true
+    );
+    setStep('kiosk');
+  }
+
+  /* =======================================================
+     KIOSK SELECTION
+  ======================================================= */
+
+  function handleKioskSelect(
+    selectedKiosk
+  ) {
+    setKiosk(selectedKiosk);
+    setQueueType(null);
+    setService(null);
+
+    /*
+      If this particular kiosk was already unlocked today,
+      do not ask for the PIN again.
+    */
+
+    if (
+      isKioskUnlocked(
+        selectedKiosk.kiosk_id
+      )
+    ) {
+      setActiveKioskForToday(
+        selectedKiosk.kiosk_id
+      );
+
+      setStep('queueType');
+      return;
+    }
+
+    /*
+      First activation of this kiosk today.
+    */
+
+    setStep('kioskPin');
+  }
+
+  /* =======================================================
+     KIOSK PIN SUCCESS
+  ======================================================= */
+
+  function handleKioskPinSuccess() {
+    if (!kiosk?.kiosk_id) {
+      return;
+    }
+
+    /*
+      unlockKioskForToday() already stores both:
+        1. today's unlock flag
+        2. today's active kiosk
+
+      Keep this explicit as well so the selected database
+      kiosk is always the one used after the PIN.
+    */
+
+    setActiveKioskForToday(
+      kiosk.kiosk_id
+    );
+
+    setRequiresKioskSelection(
+      true
+    );
+
+    setQueueType(null);
+    setService(null);
+
+    setStep('queueType');
+  }
+
+  /* =======================================================
+     RESET PATIENT FLOW
   ======================================================= */
 
   function handleReset() {
+    /*
+      IMPORTANT:
+      Do NOT clear the daily kiosk unlock.
+
+      The patient session resets, but the kiosk remains
+      activated until the calendar day changes.
+    */
+
     setQueueType(null);
-    setLocation(null);
+    setKiosk(null);
     setService(null);
     setQueueNumber('');
     setIsGenerating(false);
+    setRequiresKioskSelection(
+      false
+    );
+
     setStep('welcome');
   }
 
@@ -1118,42 +1663,66 @@ export default function PatientView() {
         );
       }
 
-      if (!location) {
+      if (!kiosk) {
         throw new Error(
-          'Please select a location.'
+          'Please select a kiosk.'
         );
       }
 
       if (!service) {
         throw new Error(
-          'Please select a service.'
+          'Please select a department.'
         );
       }
 
       /* ---------------------------------------------------
-         1. GET DEPARTMENT INFORMATION
+         1. USE THE SELECTED DEPARTMENT FROM SUPABASE
       --------------------------------------------------- */
 
-      const cleanedServiceName =
-        service.name.trim();
+      const departmentId =
+        service.department_id;
+
+      if (!departmentId) {
+        throw new Error(
+          'The selected department does not have a valid department ID.'
+        );
+      }
+
+      /*
+        Extra safety check:
+        make sure the selected department still belongs
+        to the selected kiosk.
+      */
+
+      if (
+        service.kiosk_id !==
+        kiosk.kiosk_id
+      ) {
+        throw new Error(
+          'The selected department does not belong to the selected kiosk.'
+        );
+      }
 
       const {
         data: deptData,
         error: deptError,
       } = await supabase
         .from('departments')
-        .select('department_id, prefix')
-        .ilike(
-          'name',
-          cleanedServiceName
+        .select(
+          'department_id, prefix, est_time, kiosk_id'
+        )
+        .eq(
+          'department_id',
+          departmentId
+        )
+        .eq(
+          'kiosk_id',
+          kiosk.kiosk_id
         )
         .maybeSingle();
 
       if (deptError) {
-        console.warn(
-          'Issue fetching department info:',
-          deptError
-        );
+        throw deptError;
       }
 
       if (
@@ -1161,7 +1730,7 @@ export default function PatientView() {
         !deptData.department_id
       ) {
         throw new Error(
-          `Could not find the department ID for "${cleanedServiceName}" in the database. Please check your Supabase "departments" table and make sure the name matches.`
+          `Could not find the selected department in the database. It may have been removed or deactivated.`
         );
       }
 
@@ -1169,12 +1738,14 @@ export default function PatientView() {
          2. DETERMINE QUEUE PREFIX
       --------------------------------------------------- */
 
-      let finalPrefix =
+      const finalPrefix =
+        deptData.prefix ||
         service.queuePrefix;
 
-      if (deptData.prefix) {
-        finalPrefix =
-          deptData.prefix;
+      if (!finalPrefix) {
+        throw new Error(
+          `The department "${service.name}" does not have a queue prefix. Please configure its prefix in Supabase.`
+        );
       }
 
       /* ---------------------------------------------------
@@ -1225,7 +1796,8 @@ export default function PatientView() {
         (count || 0) + 1;
 
       const isPriority =
-        queueType.key === 'priority';
+        queueType.key ===
+        'priority';
 
       const paddedNumber =
         `${finalPrefix}-${String(
@@ -1243,8 +1815,8 @@ export default function PatientView() {
       /* ---------------------------------------------------
          6. INSERT INTO PATIENT TABLE
 
-         IMPORTANT:
-         patient primary key is now transaction_id.
+         patient primary key:
+         transaction_id
       --------------------------------------------------- */
 
       const {
@@ -1255,7 +1827,7 @@ export default function PatientView() {
         .insert([
           {
             location:
-              location.name,
+              kiosk.name,
 
             department:
               service.name,
@@ -1284,10 +1856,6 @@ export default function PatientView() {
         );
       }
 
-      /* ---------------------------------------------------
-         MAKE SURE TRANSACTION ID WAS CREATED
-      --------------------------------------------------- */
-
       if (
         !newPatient?.transaction_id
       ) {
@@ -1299,10 +1867,8 @@ export default function PatientView() {
       /* ---------------------------------------------------
          7. INSERT INTO QUEUE TICKET
 
-         queue_ticket.patient_id remains the FK column.
-
-         It should reference:
-         patient.transaction_id
+         queue_ticket.patient_id
+         references patient.transaction_id
       --------------------------------------------------- */
 
       const {
@@ -1331,7 +1897,9 @@ export default function PatientView() {
               isPriority,
           },
         ])
-        .select('queue_id')
+        .select(
+          'queue_id'
+        )
         .single();
 
       if (ticketError) {
@@ -1349,10 +1917,6 @@ export default function PatientView() {
         );
       }
 
-      /* ---------------------------------------------------
-         8. VERIFY QUEUE TICKET
-      --------------------------------------------------- */
-
       if (!newTicket?.queue_id) {
         throw new Error(
           'Queue ticket was created, but no queue ID was returned.'
@@ -1360,7 +1924,7 @@ export default function PatientView() {
       }
 
       /* ---------------------------------------------------
-         9. SUCCESS
+         SHOW TICKET
       --------------------------------------------------- */
 
       setQueueNumber(
@@ -1381,7 +1945,6 @@ export default function PatientView() {
           'Unable to generate queue number.'
         }`
       );
-
     } finally {
       setIsGenerating(false);
     }
@@ -1400,7 +1963,9 @@ export default function PatientView() {
   ======================================================= */
 
   useEffect(() => {
-    if (step !== 'printing') {
+    if (
+      step !== 'printing'
+    ) {
       return;
     }
 
@@ -1409,7 +1974,8 @@ export default function PatientView() {
         setStep('success');
       }, 2200);
 
-    return () => clearTimeout(timer);
+    return () =>
+      clearTimeout(timer);
   }, [step]);
 
   /* =======================================================
@@ -1417,7 +1983,9 @@ export default function PatientView() {
   ======================================================= */
 
   useEffect(() => {
-    if (step !== 'success') {
+    if (
+      step !== 'success'
+    ) {
       return;
     }
 
@@ -1426,18 +1994,95 @@ export default function PatientView() {
         handleReset();
       }, 4000);
 
-    return () => clearTimeout(timer);
+    return () =>
+      clearTimeout(timer);
   }, [step]);
 
   /* =======================================================
      WELCOME
   ======================================================= */
 
-  if (step === 'welcome') {
+  if (
+    step === 'welcome'
+  ) {
     return (
       <WelcomeScreen
-        onStart={() =>
-          setStep('queueType')
+        onStart={
+          handleStart
+        }
+      />
+    );
+  }
+
+  /* =======================================================
+     KIOSK
+  ======================================================= */
+
+  if (
+    step === 'kiosk'
+  ) {
+    return (
+      <>
+        <SelectKioskScreen
+          kiosks={kiosks}
+          selected={kiosk}
+          loading={kiosksLoading}
+          onSelect={
+            handleKioskSelect
+          }
+          onBack={
+            handleReset
+          }
+          onContinue={() => {
+            if (!kiosk) {
+              return;
+            }
+
+            if (
+              isKioskUnlocked(
+                kiosk.kiosk_id
+              )
+            ) {
+              setActiveKioskForToday(
+                kiosk.kiosk_id
+              );
+
+              setStep(
+                'queueType'
+              );
+            } else {
+              setStep(
+                'kioskPin'
+              );
+            }
+          }}
+        />
+
+        {kiosksError && (
+          <p className="fixed bottom-3 left-1/2 w-[90%] max-w-sm -translate-x-1/2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-[10px] font-medium text-red-600 shadow-sm">
+            {kiosksError}
+          </p>
+        )}
+      </>
+    );
+  }
+
+  /* =======================================================
+     KIOSK PIN
+  ======================================================= */
+
+  if (
+    step === 'kioskPin' &&
+    kiosk
+  ) {
+    return (
+      <KioskPinScreen
+        kiosk={kiosk}
+        onBack={() =>
+          setStep('kiosk')
+        }
+        onSuccess={
+          handleKioskPinSuccess
         }
       />
     );
@@ -1447,55 +2092,103 @@ export default function PatientView() {
      QUEUE TYPE
   ======================================================= */
 
-  if (step === 'queueType') {
+  if (
+    step === 'queueType'
+  ) {
     return (
       <QueueTypeScreen
         selected={queueType}
-        onSelect={setQueueType}
-        onBack={handleReset}
-        onContinue={() =>
-          setStep('location')
-        }
+        kiosk={kiosk}
+        onSelect={(type) => {
+          setQueueType(type);
+          setService(null);
+        }}
+        onBack={() => {
+          /*
+            If the patient just completed the initial
+            kiosk-selection/PIN flow, Back returns to
+            kiosk selection.
+
+            If the kiosk was already activated and this
+            patient started directly at Queue Type, Back
+            returns to Welcome.
+          */
+
+          if (
+            requiresKioskSelection
+          ) {
+            setStep('kiosk');
+          } else {
+            handleReset();
+          }
+        }}
+        onContinue={() => {
+          if (!queueType) {
+            return;
+          }
+
+          /*
+            Refresh the departments before showing the
+            department screen. This helps ensure that a
+            department added/removed while the app is open
+            is reflected without using hard-coded data.
+          */
+
+          if (kiosk) {
+            fetchDepartmentsFromSupabase(
+              kiosk
+            );
+          }
+
+          setStep(
+            'department'
+          );
+        }}
       />
     );
   }
 
   /* =======================================================
-     LOCATION
+     DEPARTMENT
   ======================================================= */
 
-  if (step === 'location') {
+  if (
+    step === 'department'
+  ) {
     return (
-      <SelectLocationScreen
-        selected={location}
-        onSelect={setLocation}
-        onBack={() =>
-          setStep('queueType')
-        }
-        onContinue={() =>
-          setStep('select')
-        }
-      />
-    );
-  }
+      <>
+        <SelectDepartmentScreen
+          kiosk={kiosk}
+          departments={departments}
+          loading={
+            departmentsLoading
+          }
+          selected={service}
+          onSelect={
+            setService
+          }
+          onBack={() =>
+            setStep(
+              'queueType'
+            )
+          }
+          onContinue={() => {
+            if (!service) {
+              return;
+            }
 
-  /* =======================================================
-     SERVICE
-  ======================================================= */
+            setStep(
+              'confirm'
+            );
+          }}
+        />
 
-  if (step === 'select') {
-    return (
-      <SelectServiceScreen
-        location={location}
-        selected={service}
-        onSelect={setService}
-        onBack={() =>
-          setStep('location')
-        }
-        onContinue={() =>
-          setStep('confirm')
-        }
-      />
+        {departmentsError && (
+          <p className="fixed bottom-3 left-1/2 w-[90%] max-w-sm -translate-x-1/2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-[10px] font-medium text-red-600 shadow-sm">
+            {departmentsError}
+          </p>
+        )}
+      </>
     );
   }
 
@@ -1503,31 +2196,29 @@ export default function PatientView() {
      CONFIRM
   ======================================================= */
 
-  if (step === 'confirm') {
+  if (
+    step === 'confirm'
+  ) {
     return (
       <ConfirmScreen
-        queueType={queueType}
-        location={location}
-        service={service}
-
-        /*
-          Temporary display value.
-
-          Replace this later with your real
-          database / AI waiting-time calculation.
-        */
-        waitingAhead={
-          service.waiting * 5 + 2
+        queueType={
+          queueType
         }
-
+        kiosk={kiosk}
+        service={
+          service
+        }
+        waitingAhead={
+          service?.waiting ?? 0
+        }
         isGenerating={
           isGenerating
         }
-
         onBack={() =>
-          setStep('select')
+          setStep(
+            'department'
+          )
         }
-
         onConfirm={
           handleGenerateNumber
         }
@@ -1539,14 +2230,26 @@ export default function PatientView() {
      TICKET
   ======================================================= */
 
-  if (step === 'ticket') {
+  if (
+    step === 'ticket'
+  ) {
     return (
       <TicketScreen
-        queueType={queueType}
-        service={service}
-        queueNumber={queueNumber}
-        onPrint={handlePrint}
-        onSkipPrint={handleReset}
+        queueType={
+          queueType
+        }
+        service={
+          service
+        }
+        queueNumber={
+          queueNumber
+        }
+        onPrint={
+          handlePrint
+        }
+        onSkipPrint={() =>
+          handleReset()
+        }
       />
     );
   }
@@ -1555,10 +2258,14 @@ export default function PatientView() {
      PRINTING
   ======================================================= */
 
-  if (step === 'printing') {
+  if (
+    step === 'printing'
+  ) {
     return (
       <PrintingScreen
-        queueNumber={queueNumber}
+        queueNumber={
+          queueNumber
+        }
       />
     );
   }
@@ -1569,7 +2276,9 @@ export default function PatientView() {
 
   return (
     <SuccessScreen
-      queueNumber={queueNumber}
+      queueNumber={
+        queueNumber
+      }
     />
   );
 }

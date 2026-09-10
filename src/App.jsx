@@ -7,25 +7,29 @@ import AdminApp from './queue/pages/Admin/AdminApp';
 import PatientView from './queue/pages/Patient/PatientView';
 import TvDisplay from './queue/pages/TV/TvDisplay';
 import TrackerPage from './queue/pages/WebTracker/TrackerPage';
-import StaffApp from './queue/pages/Staff/StaffApp'; 
+import StaffApp from './queue/pages/Staff/StaffApp';
 import { QueueProvider } from './queue/context/QueueContext';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   if (user && user.role) {
     const roleName = user.role.role;
+
     if (roleName === 'Superadmin') {
       return <Navigate to="/superadmin/Dashboard" replace />;
     } else if (roleName === 'Admin') {
-      return <Navigate to="/admin" replace />; 
+      return <Navigate to="/admin" replace />;
     } else if (roleName === 'Staff') {
-      // FIX: Redirect to the base /staff route
-      return <Navigate to="/staff" replace />; 
+      return <Navigate to="/staff" replace />;
     }
   }
 
@@ -37,48 +41,70 @@ function App() {
     <AuthProvider>
       <QueueProvider>
         <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<RootRedirect />} />
-          
-          <Route path="/patient" element={<PatientView />} />
-          <Route path="/display" element={<TvDisplay />} />
-          <Route path="/tracker" element={<TrackerPage />} />
-          <Route path="/track" element={<TrackerPage />} />
+          <Routes>
+            <Route path="/" element={<RootRedirect />} />
 
-          <Route path="/superadmin/login" element={<Login />} />
-          <Route path="/superadmin" element={<Navigate to="/superadmin/Dashboard" replace />} />
-          <Route path="/__preview_superadmin" element={<SuperAdminApp />} />
+            <Route path="/patient" element={<PatientView />} />
+            <Route path="/display" element={<TvDisplay />} />
+            <Route path="/tracker" element={<TrackerPage />} />
+            <Route path="/track" element={<TrackerPage />} />
 
-          <Route
-            path="/superadmin/Dashboard"
-            element={
-              <ProtectedRoute>
-                <SuperAdminApp />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* 2. USE STAFF APP FOR ALL /staff/* ROUTES */}
-          <Route
-            path="/staff/*"
-            element={
-              <ProtectedRoute>
-                <StaffApp />
-              </ProtectedRoute>
-            }
-          />
+            {/* Login */}
+            <Route path="/superadmin/login" element={<Login />} />
 
-          <Route
-            path="/admin/*"
-            element={
-              <ProtectedRoute>
-                <AdminApp />
-              </ProtectedRoute>
-            }
-          />
+            {/* Superadmin base route */}
+            <Route
+              path="/superadmin"
+              element={
+                <Navigate
+                  to="/superadmin/Dashboard"
+                  replace
+                />
+              }
+            />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            {/* Preview route - intentionally not protected */}
+            <Route
+              path="/__preview_superadmin"
+              element={<SuperAdminApp />}
+            />
+
+            {/* SUPERADMIN ONLY */}
+            <Route
+              path="/superadmin/Dashboard"
+              element={
+                <ProtectedRoute allowedRole="superadmin">
+                  <SuperAdminApp />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* STAFF ONLY */}
+            <Route
+              path="/staff/*"
+              element={
+                <ProtectedRoute allowedRole="staff">
+                  <StaffApp />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ADMIN ONLY */}
+            <Route
+              path="/admin/*"
+              element={
+                <ProtectedRoute allowedRole="admin">
+                  <AdminApp />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Unknown routes */}
+            <Route
+              path="*"
+              element={<Navigate to="/" replace />}
+            />
+          </Routes>
         </BrowserRouter>
       </QueueProvider>
     </AuthProvider>
