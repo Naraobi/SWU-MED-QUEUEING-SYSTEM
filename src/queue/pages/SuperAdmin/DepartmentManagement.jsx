@@ -3,6 +3,7 @@ import { supabase } from '../../../supabase';
 import { Search, Building2, Users, Clock, Monitor, Plus, X } from 'lucide-react';
 
 const TABLE_NAME = 'departments';
+const RESET_STATE_TABLE = 'department_management_state';
 
 const EMPTY_FORM = {
   department_name: '',
@@ -249,7 +250,7 @@ function ResetPinModal({
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-bold text-slate-700">
-            Reset Department
+            Reset Department Management
           </h2>
 
           <button
@@ -266,10 +267,11 @@ function ResetPinModal({
         <div className="space-y-4 px-6 py-5">
           <div>
             <p className="text-sm text-slate-600">
-              Enter the administrator PIN to reset this department.
+              Enter the administrator PIN to reset the Department Management table.
             </p>
+
             <p className="mt-1 text-xs text-slate-400">
-              This action only resets the frontend state.
+              This will clear the currently configured departments from the frontend. No department data will be deleted or modified in Supabase.
             </p>
           </div>
 
@@ -328,7 +330,6 @@ export default function DepartmentCrud() {
   const [form, setForm] = useState(EMPTY_FORM);
 
   const RESET_PIN = '2402';
-  const [resettingId, setResettingId] = useState(null);
   const [pinInput, setPinInput] = useState('');
   const [showResetPin, setShowResetPin] = useState(false);
 
@@ -361,7 +362,20 @@ async function fetchDepartments(kioskData = []) {
   setError(null);
 
   try {
-    const { data, error } = await supabase
+    // Get the shared reset timestamp.
+    const { data: resetState, error: resetStateError } = await supabase
+    .from(RESET_STATE_TABLE)
+    .select('reset_at')
+    .eq('id', 1)
+    .maybeSingle();
+
+    if (resetStateError) {
+      throw resetStateError;
+    }
+
+    const resetAt = resetState?.reset_at || null;
+
+    let departmentQuery = supabase
       .from(TABLE_NAME)
       .select(`
         department_id,
@@ -371,9 +385,18 @@ async function fetchDepartments(kioskData = []) {
         prefix,
         status,
         est_time,
-        kiosk_id
+        kiosk_id,
+        created_at
       `)
       .order('name', { ascending: true });
+
+    // If a reset has happened, only show departments
+    // created after that reset.
+    if (resetAt) {
+      departmentQuery = departmentQuery.gt('created_at', resetAt);
+    }
+
+    const { data, error } = await departmentQuery;
 
     if (error) {
       throw error;
@@ -438,7 +461,7 @@ useEffect(() => {
     setError(null);
   }
 
-  async function handleSave() {
+async function handleSave() {
   if (!form.department_name.trim()) {
     setError('Department name is required.');
     return;
@@ -453,35 +476,40 @@ useEffect(() => {
   setError(null);
 
   try {
+    // Find the selected kiosk so its name can be saved as the department location.
+    const selectedKiosk = kiosks.find(
+      (kiosk) => kiosk.kiosk_id === form.kiosk_id
+    );
+
+    if (!selectedKiosk) {
+      throw new Error('Selected kiosk could not be found.');
+    }
+
+    const departmentData = {
+      name: form.department_name.trim(),
+      kiosk_id: form.kiosk_id,
+      location: selectedKiosk.name,
+      prefix: form.prefix.trim() || null,
+      status: form.status,
+    };
+
     if (editingId === 'new') {
       const { error: insertError } = await supabase
         .from(TABLE_NAME)
-        .insert([
-          {
-            name: form.department_name.trim(),
-            kiosk_id: form.kiosk_id,
-            prefix: form.prefix.trim() || null,
-            status: form.status,
-          },
-        ]);
+        .insert([departmentData]);
 
       if (insertError) throw insertError;
     } else {
       const { error: updateError } = await supabase
         .from(TABLE_NAME)
-        .update({
-          name: form.department_name.trim(),
-          kiosk_id: form.kiosk_id,
-          prefix: form.prefix.trim() || null,
-          status: form.status,
-        })
+        .update(departmentData)
         .eq('department_id', editingId);
 
       if (updateError) throw updateError;
     }
 
     closeModal();
-await fetchDepartments(kiosks);
+    await fetchDepartments(kiosks);
   } catch (err) {
     console.error('SAVE DEPARTMENT ERROR:', err);
     setError(err.message || 'Failed to save department.');
@@ -491,43 +519,36 @@ await fetchDepartments(kiosks);
 }
 
 async function handleReset() {
-  if (!resettingId) return;
-
-  const department = departments.find(
-    (dept) => dept.id === resettingId
-  );
-
-  if (!department) {
-    setError('Department not found.');
-    return;
-  }
-
-  // Reset frontend-only operational values.
-  // No Supabase update/delete is performed here.
-  setDepartments((currentDepartments) =>
-    currentDepartments.map((dept) => {
-      if (dept.id !== resettingId) {
-        return dept;
-      }
-
-      return {
-        ...dept,
-        waiting: 0,
-        current_queue: dept.prefix
-          ? `${dept.prefix}-0010`
-          : `${(dept.department_name || 'D')
-              .charAt(0)
-              .toUpperCase()}-0010`,
-        active_terminals: '3/4',
-        avg_wait: '15m',
-      };
-    })
-  );
-
-  setShowResetPin(false);
-  setResettingId(null);
-  setPinInput('');
   setError(null);
+
+  try {
+    // Store the reset timestamp in the shared reset-state table.
+    // This does NOT modify or delete any department records.
+    const { error: resetError } = await supabase
+      .from(RESET_STATE_TABLE)
+      .update({
+        reset_at: new Date().toISOString(),
+      })
+      .eq('id', 1);
+
+    if (resetError) {
+      throw resetError;
+    }
+
+    // Immediately clear the current frontend table.
+    setDepartments([]);
+
+    // Reset frontend UI state.
+    setSearchQuery('');
+    setPage(1);
+
+    // Close PIN modal.
+    setShowResetPin(false);
+    setPinInput('');
+  } catch (err) {
+    console.error('RESET DEPARTMENT MANAGEMENT ERROR:', err);
+    setError(err.message || 'Failed to reset Department Management.');
+  }
 }
 
   // Summary Metrics calculations
@@ -565,20 +586,36 @@ async function handleReset() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Department Management</h1>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Configure Structural nodes and associate operational counters.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={openAdd}
-          className="flex items-center gap-1.5 rounded-md bg-[#00529B] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003F75]"
-        >
-          <Plus size={15} /> Add Department
-        </button>
-      </div>
+  <div>
+    <h1 className="text-2xl font-bold text-slate-800">
+      Department Management
+    </h1>
+    <p className="mt-0.5 text-xs text-slate-500">
+      Configure Structural nodes and associate operational counters.
+    </p>
+  </div>
+
+  <div className="flex items-center gap-2">
+    <button
+      type="button"
+      onClick={() => {
+        setPinInput('');
+        setShowResetPin(true);
+      }}
+      className="flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+    >
+      Reset
+    </button>
+
+    <button
+      type="button"
+      onClick={openAdd}
+      className="flex items-center gap-1.5 rounded-md bg-[#00529B] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003F75]"
+    >
+      <Plus size={15} /> Add Department
+    </button>
+  </div>
+</div>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -667,13 +704,12 @@ async function handleReset() {
                 <th className="px-6 py-3.5 text-center">ACTIVE TERMINALS</th>
                 <th className="px-6 py-3.5 text-center">AVG WAIT</th>
                 <th className="px-6 py-3.5 text-right">STATUS</th>
-                <th className="px-6 py-3.5 text-right">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-600">
               {loading && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-slate-400">
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
                     Loading departments...
                   </td>
                 </tr>
@@ -710,20 +746,6 @@ async function handleReset() {
                         }>
                         {dept.status}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setResettingId(dept.id);
-                          setPinInput('');
-                          setShowResetPin(true);
-                        }}
-                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                      >
-                        Reset
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -800,16 +822,15 @@ async function handleReset() {
   open={showResetPin}
   onClose={() => {
     setShowResetPin(false);
-    setResettingId(null);
     setPinInput('');
   }}
   onConfirm={() => {
-  if (pinInput === RESET_PIN) {
-    handleReset();
-  } else {
-    setError('Incorrect PIN.');
-  }
-}}
+    if (pinInput === RESET_PIN) {
+      handleReset();
+    } else {
+      setError('Incorrect PIN.');
+    }
+  }}
   pinInput={pinInput}
   setPinInput={setPinInput}
 />
