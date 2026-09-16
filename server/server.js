@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 
 const pool = require("./config/mysql");
-const db = require("./config/firebase");
+const { db } = require("./config/firebase");
 
 const {
   getDatabaseMode,
