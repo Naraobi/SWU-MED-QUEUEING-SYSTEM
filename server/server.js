@@ -196,6 +196,41 @@ app.get(
   }
 );
 
+app.get("/api/test/email", async (req, res) => {
+  try {
+    const nodemailer = require("nodemailer");
+
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
+    });
+
+    await transporter.verify();
+
+    res.json({
+      success: true,
+      message: "SMTP connection is working.",
+    });
+  } catch (error) {
+    console.error("SMTP TEST ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      code: error.code || null,
+      command: error.command || null,
+    });
+  }
+});
+
 /*
 |--------------------------------------------------------------------------
 | MANUAL DATABASE SYNCHRONIZATION
