@@ -1258,8 +1258,8 @@ async function createUser(userData) {
     emailError.message
   );
 
-  throw new Error(
-    `User account was created, but the temporary password email could not be sent: ${emailError.message}`
+  console.warn(
+    `User account was created, but the temporary password email could not be sent to ${profile.email}.`
   );
 }
 
