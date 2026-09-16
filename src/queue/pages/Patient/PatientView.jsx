@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../../../supabase';
+import { useEffect, useRef, useState } from 'react';
 
+import {
+  getKiosks,
+  getPatientDepartments,
+  getWaitingCount,
+  createPatientQueue,
+  verifyKioskPin,
+} from '../../services/backendApi';
 import {
   ArrowRight,
   ArrowLeft,
@@ -12,7 +18,6 @@ import {
   Building,
   Info,
   BedDouble,
-  CreditCard,
   Wallet,
   ShieldCheck,
   Users,
@@ -27,6 +32,29 @@ import {
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
+
+/* =========================================================
+   QR TRACKER URL
+========================================================= */
+
+const TRACKER_BASE_URL =
+  'https://swu-med-queueing-system-1.onrender.com/tracker';
+
+function getTrackerUrl(queueId) {
+  if (!queueId) {
+    return TRACKER_BASE_URL;
+  }
+
+  const cleanQueueId = String(queueId).trim();
+
+  if (!cleanQueueId) {
+    return TRACKER_BASE_URL;
+  }
+
+  return `${TRACKER_BASE_URL}?ticket=${encodeURIComponent(
+    cleanQueueId
+  )}`;
+}
 
 /* =========================================================
    QUEUE TYPES
@@ -50,52 +78,73 @@ const QUEUE_TYPES = [
 ];
 
 /* =========================================================
-   KIOSKS / DEPARTMENTS
+   KIOSK / DEPARTMENT ICONS
 ========================================================= */
-
-/*
-  Kiosks and departments are intentionally NOT hard-coded here.
-
-  The patient side gets both lists from Supabase:
-    - `kiosk` contains the available kiosks.
-    - `departments.kiosk_id` determines which departments belong
-      to each kiosk.
-
-  This keeps Supabase as the single source of truth. Adding,
-  activating, deactivating, or removing a kiosk/department will
-  therefore be reflected on the patient side.
-*/
 
 function getKioskIcon(name = '') {
   const value = name.toLowerCase();
 
-  if (value.includes('laboratory') || value.includes('radiology') || value.includes('lab')) {
+  if (
+    value.includes('laboratory') ||
+    value.includes('radiology') ||
+    value.includes('lab')
+  ) {
     return FlaskConical;
   }
 
-  if (value.includes('clinic') || value.includes('opd') || value.includes('outpatient')) {
+  if (
+    value.includes('clinic') ||
+    value.includes('opd') ||
+    value.includes('outpatient')
+  ) {
     return Stethoscope;
   }
 
-  if (value.includes('medical arts') || value.includes('pharmacy')) {
+  if (
+    value.includes('medical arts') ||
+    value.includes('pharmacy')
+  ) {
     return Building;
   }
 
   return Building2;
 }
 
-function getDepartmentIcon(name = '', classification = '') {
-  const value = `${name} ${classification}`.toLowerCase();
+function getDepartmentIcon(
+  name = '',
+  classification = ''
+) {
+  const value =
+    `${name} ${classification}`.toLowerCase();
 
-  if (value.includes('lab') || value.includes('radiology') || value.includes('x-ray') || value.includes('ultrasound') || value.includes('scan')) {
+  if (
+    value.includes('lab') ||
+    value.includes('radiology') ||
+    value.includes('x-ray') ||
+    value.includes('ultrasound') ||
+    value.includes('scan')
+  ) {
     return FlaskConical;
   }
 
-  if (value.includes('clinic') || value.includes('medicine') || value.includes('surgery') || value.includes('health') || value.includes('pedia') || value.includes('therapy') || value.includes('cardiac')) {
+  if (
+    value.includes('clinic') ||
+    value.includes('medicine') ||
+    value.includes('surgery') ||
+    value.includes('health') ||
+    value.includes('pedia') ||
+    value.includes('therapy') ||
+    value.includes('cardiac')
+  ) {
     return Stethoscope;
   }
 
-  if (value.includes('billing') || value.includes('cashier') || value.includes('payment') || value.includes('pharmacy')) {
+  if (
+    value.includes('billing') ||
+    value.includes('cashier') ||
+    value.includes('payment') ||
+    value.includes('pharmacy')
+  ) {
     return Wallet;
   }
 
@@ -103,7 +152,11 @@ function getDepartmentIcon(name = '', classification = '') {
     return BedDouble;
   }
 
-  if (value.includes('social') || value.includes('champ') || value.includes('phil')) {
+  if (
+    value.includes('social') ||
+    value.includes('champ') ||
+    value.includes('phil')
+  ) {
     return ShieldCheck;
   }
 
@@ -133,15 +186,11 @@ function getDepartmentDescription(department) {
 /*
   The kiosk is unlocked PER DAY.
 
-  The database `kiosk_id` is used instead of a hard-coded
-  React kiosk key. This means newly-created kiosks work
-  automatically without changing Patient.jsx.
-
   Example:
-    swu_kiosk_unlocked_<kiosk_id>_2026-09-10
+    swu_kiosk_unlocked_<kiosk_id>_2026-09-14
 
-  Because the date is part of the localStorage key, a kiosk
-  automatically becomes locked again on the next calendar day.
+  The kiosk automatically becomes locked again
+  on the next calendar day.
 */
 
 function getTodayKey() {
@@ -202,21 +251,26 @@ function setActiveKioskForToday(kioskId) {
 }
 
 function getActiveKioskForToday(kiosks) {
-  const activeKioskId = localStorage.getItem(
-    getActiveKioskKeyForToday()
-  );
+  const activeKioskId =
+    localStorage.getItem(
+      getActiveKioskKeyForToday()
+    );
 
   if (!activeKioskId) {
     return null;
   }
 
   const activeKiosk = kiosks.find(
-    (item) => item.kiosk_id === activeKioskId
+    (item) =>
+      String(item.kiosk_id) ===
+      String(activeKioskId)
   );
 
   if (
     !activeKiosk ||
-    !isKioskUnlocked(activeKiosk.kiosk_id)
+    !isKioskUnlocked(
+      activeKiosk.kiosk_id
+    )
   ) {
     return null;
   }
@@ -236,11 +290,14 @@ function KioskHeader() {
     minute: '2-digit',
   });
 
-  const date = now.toLocaleDateString(undefined, {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  });
+  const date = now.toLocaleDateString(
+    undefined,
+    {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+    }
+  );
 
   return (
     <div className="mb-6 flex items-center justify-between">
@@ -398,6 +455,7 @@ function SelectKioskScreen({
             <p className="text-sm font-semibold text-slate-700">
               No kiosks are currently available.
             </p>
+
             <p className="mt-1 text-xs text-slate-400">
               Please contact the hospital administrator.
             </p>
@@ -423,7 +481,9 @@ function SelectKioskScreen({
               <button
                 key={currentKiosk.kiosk_id}
                 type="button"
-                onClick={() => onSelect(currentKiosk)}
+                onClick={() =>
+                  onSelect(currentKiosk)
+                }
                 className={`relative flex w-full items-center gap-3 rounded-xl border p-4 text-left transition ${
                   isSelected
                     ? 'border-[#123C73] bg-blue-50 shadow-sm'
@@ -492,41 +552,26 @@ function KioskPinScreen({
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
 
-  function handleSubmit(event) {
-    event.preventDefault();
+ async function handleSubmit(event) {
+  event.preventDefault();
 
-    setError('');
+  setError('');
 
-    /*
-      TEMPORARY ADMIN PIN
-      -------------------
+  if (!kiosk?.kiosk_id) {
+    setError('Invalid kiosk.');
+    return;
+  }
 
-      Current PIN:
-      0000
+  try {
+    const result = await verifyKioskPin(
+      kiosk.kiosk_id,
+      pin
+    );
 
-      This should eventually be validated
-      through your backend/Supabase.
-    */
-
-    if (pin === '0000') {
-      /*
-        IMPORTANT:
-
-        This permanently unlocks the selected kiosk
-        FOR TODAY.
-
-        It also remembers this kiosk as the
-        active kiosk for TODAY.
-      */
-
+    if (result?.valid) {
       unlockKioskForToday(
         kiosk.kiosk_id
       );
-
-      /*
-        Tell PatientView that the PIN
-        was successfully entered.
-      */
 
       onSuccess();
 
@@ -538,8 +583,20 @@ function KioskPinScreen({
     );
 
     setPin('');
-  }
+  } catch (error) {
+    console.error(
+      'Kiosk PIN verification error:',
+      error
+    );
 
+    setError(
+      error?.message ||
+        'Unable to verify kiosk PIN.'
+    );
+
+    setPin('');
+  }
+}
   return (
     <Screen>
       <KioskHeader />
@@ -763,23 +820,26 @@ function SelectDepartmentScreen({
           </div>
         )}
 
-        {!loading && departments.length === 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
-            <p className="text-sm font-semibold text-slate-700">
-              No departments are currently available.
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Please contact the hospital administrator.
-            </p>
-          </div>
-        )}
+        {!loading &&
+          departments.length === 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
+              <p className="text-sm font-semibold text-slate-700">
+                No departments are currently available.
+              </p>
+
+              <p className="mt-1 text-xs text-slate-400">
+                Please contact the hospital administrator.
+              </p>
+            </div>
+          )}
 
         {!loading &&
           departments.map((department) => {
-            const Icon = getDepartmentIcon(
-              department.name,
-              department.classification
-            );
+            const Icon =
+              getDepartmentIcon(
+                department.name,
+                department.classification
+              );
 
             const isSelected =
               selected?.department_id ===
@@ -789,7 +849,9 @@ function SelectDepartmentScreen({
               <button
                 key={department.department_id}
                 type="button"
-                onClick={() => onSelect(department)}
+                onClick={() =>
+                  onSelect(department)
+                }
                 className={`relative flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${
                   isSelected
                     ? 'border-[#123C73] bg-blue-50 shadow-sm'
@@ -829,12 +891,14 @@ function SelectDepartmentScreen({
                   <p className="flex items-center gap-3 text-[11px] text-slate-400">
                     <span className="flex items-center gap-1">
                       <Users size={10} />
-                      {department.waiting ?? 0} waiting
+                      {department.waiting ?? 0}{' '}
+                      waiting
                     </span>
 
                     <span className="flex items-center gap-1">
                       <Clock size={10} />
-                      ~{department.estMin ?? 0} min
+                      ~{department.estMin ?? 0}{' '}
+                      min
                     </span>
                   </p>
                 </div>
@@ -843,25 +907,22 @@ function SelectDepartmentScreen({
           })}
       </div>
 
-      {!loading && departments.length > 0 && (
-        <p className="mb-6 text-center text-[11px] text-slate-400">
-          &darr; Swipe up for more
-        </p>
-      )}
+      {!loading &&
+        departments.length > 0 && (
+          <p className="mb-6 text-center text-[11px] text-slate-400">
+            &darr; Swipe up for more
+          </p>
+        )}
 
-      {loading || departments.length === 0 ? (
-        <NavButtons
-          onBack={onBack}
-          onContinue={onContinue}
-          disabled
-        />
-      ) : (
-        <NavButtons
-          onBack={onBack}
-          onContinue={onContinue}
-          disabled={!selected}
-        />
-      )}
+      <NavButtons
+        onBack={onBack}
+        onContinue={onContinue}
+        disabled={
+          loading ||
+          departments.length === 0 ||
+          !selected
+        }
+      />
     </Screen>
   );
 }
@@ -879,8 +940,7 @@ function ConfirmScreen({
   onBack,
   onConfirm,
 }) {
-  const ServiceIcon =
-    service?.icon;
+  const ServiceIcon = service?.icon;
 
   return (
     <Screen>
@@ -898,7 +958,6 @@ function ConfirmScreen({
 
       <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 space-y-3 text-sm">
-
           {/* QUEUE TYPE */}
 
           <div className="flex items-center gap-3">
@@ -980,7 +1039,7 @@ function ConfirmScreen({
             </p>
 
             <p className="text-xl font-bold text-[#123C73]">
-              ~{service?.estMin}
+              ~{service?.estMin ?? 0}
             </p>
 
             <p className="text-[10px] text-slate-400">
@@ -1012,6 +1071,7 @@ function TicketScreen({
   queueType,
   service,
   queueNumber,
+  queueId,
   onPrint,
   onSkipPrint,
 }) {
@@ -1064,7 +1124,7 @@ function TicketScreen({
                 </p>
 
                 <p className="text-xs font-semibold text-slate-700">
-                  {service.waiting}{' '}
+                  {service.waiting ?? 0}{' '}
                   people waiting
                 </p>
               </div>
@@ -1082,7 +1142,7 @@ function TicketScreen({
                 </p>
 
                 <p className="text-xs font-semibold text-slate-700">
-                  {service.estMin}{' '}
+                  {service.estMin ?? 0}{' '}
                   minutes
                 </p>
               </div>
@@ -1091,8 +1151,10 @@ function TicketScreen({
 
           <div className="flex flex-col items-center justify-center">
             <QRCodeSVG
-              value={`${service.name}-${queueNumber}`}
+              value={getTrackerUrl(queueId)}
               size={90}
+              level="M"
+              includeMargin={true}
             />
 
             <p className="mt-1 max-w-[90px] text-center text-[9px] text-slate-400">
@@ -1223,20 +1285,6 @@ function SuccessScreen({
    MAIN PATIENT VIEW
 ========================================================= */
 
-/*
-  `kioskId` is optional.
-
-  If this component is deployed to a specific physical kiosk,
-  you can pass the database kiosk_id:
-
-    <PatientView kioskId="DATABASE-KIOSK-UUID" />
-
-  If no kioskId is supplied, the patient app uses the kiosk
-  activated today in localStorage. This keeps the current
-  development setup working while still allowing each physical
-  kiosk to be fixed to its own database record.
-*/
-
 export default function PatientView({
   kioskId = null,
 }) {
@@ -1255,6 +1303,9 @@ export default function PatientView({
   const [queueNumber, setQueueNumber] =
     useState('');
 
+  const [queueId, setQueueId] =
+    useState('');
+
   const [isGenerating, setIsGenerating] =
     useState(false);
 
@@ -1264,7 +1315,7 @@ export default function PatientView({
   ] = useState(false);
 
   /* =======================================================
-     SUPABASE KIOSKS
+     KIOSKS
   ======================================================= */
 
   const [kiosks, setKiosks] =
@@ -1276,64 +1327,120 @@ export default function PatientView({
   const [kiosksError, setKiosksError] =
     useState('');
 
-  async function fetchKiosksFromSupabase() {
-    setKiosksLoading(true);
-    setKiosksError('');
+  const kioskFetchRef =
+    useRef(null);
+
+  /*
+    Kiosks are now retrieved through:
+
+      Patient.jsx
+          ↓
+      backendApi.js
+          ↓
+      Node.js
+          ↓
+      MySQL / Firebase backend logic
+
+    Patient.jsx no longer talks directly to
+    Supabase or Firebase.
+  */
+
+  async function fetchKiosks() {
+    if (kioskFetchRef.current) {
+      return kioskFetchRef.current;
+    }
+
+    const fetchPromise =
+      (async () => {
+        setKiosksLoading(true);
+        setKiosksError('');
+
+        try {
+          const data =
+            await getKiosks();
+
+          const normalizedKiosks =
+            (data || [])
+              .map((item) => ({
+                kiosk_id:
+                  item?.kiosk_id ||
+                  item?.id ||
+                  '',
+                name:
+                  item?.name || '',
+                status:
+                  item?.status ??
+                  null,
+              }))
+              .filter(
+                (item) =>
+                  item.kiosk_id &&
+                  item.name
+              )
+              .filter(
+                (item) =>
+                  !item.status ||
+                  String(
+                    item.status
+                  ).toLowerCase() ===
+                    'active'
+              )
+              .sort((a, b) =>
+                a.name.localeCompare(
+                  b.name
+                )
+              );
+
+          setKiosks(
+            normalizedKiosks
+          );
+        } catch (error) {
+          console.error(
+            'Error fetching kiosks:',
+            error
+          );
+
+          setKiosks([]);
+
+          setKiosksError(
+            error?.message ||
+              'Unable to load kiosks.'
+          );
+        } finally {
+          setKiosksLoading(false);
+        }
+      })();
+
+    kioskFetchRef.current =
+      fetchPromise;
 
     try {
-      const {
-        data,
-        error,
-      } = await supabase
-        .from('kiosk')
-        .select(
-          'kiosk_id, name, status'
-        )
-        .order('name', {
-          ascending: true,
-        });
-
-      if (error) {
-        throw error;
-      }
-
-      // IMPORTANT:
-      // Use the kiosk rows returned by Supabase directly.
-      // Do not filter them by status on the patient side.
-      // This prevents the kiosk list from appearing empty when
-      // the database uses a different status value/capitalization.
-      setKiosks(data || []);
-    } catch (error) {
-      console.error(
-        'Error fetching kiosks:',
-        error
-      );
-
-      setKiosks([]);
-      setKiosksError(
-        error?.message ||
-          'Unable to load kiosks from the database.'
-      );
+      return await fetchPromise;
     } finally {
-      setKiosksLoading(false);
+      kioskFetchRef.current = null;
     }
   }
 
-  // Initial kiosk load.
+  /* =======================================================
+     INITIAL KIOSK LOAD
+  ======================================================= */
+
   useEffect(() => {
-    fetchKiosksFromSupabase();
+    fetchKiosks();
   }, []);
 
-  // Refresh the kiosk list whenever the kiosk-selection screen opens.
-  // This makes newly-added kiosks appear without requiring a full reload.
+  /* =======================================================
+     REFRESH KIOSKS WHEN KIOSK SCREEN OPENS
+  ======================================================= */
+
   useEffect(() => {
     if (step === 'kiosk') {
-      fetchKiosksFromSupabase();
+      fetchKiosks();
     }
   }, [step]);
 
   /* =======================================================
-     SUPABASE DEPARTMENTS
+     DEPARTMENTS
   ======================================================= */
 
   const [departments, setDepartments] =
@@ -1349,7 +1456,19 @@ export default function PatientView({
     setDepartmentsError,
   ] = useState('');
 
-  async function fetchDepartmentsFromSupabase(
+  /*
+    Loads departments for the selected kiosk through:
+
+      Patient.jsx
+          ↓
+      backendApi.js
+          ↓
+      Node.js
+          ↓
+      MySQL
+  */
+
+  async function fetchDepartments(
     kioskRecord
   ) {
     if (!kioskRecord?.kiosk_id) {
@@ -1361,95 +1480,74 @@ export default function PatientView({
     setDepartmentsError('');
 
     try {
-      const {
-        data,
-        error,
-      } = await supabase
-        .from('departments')
-        .select(`
-          department_id,
-          name,
-          classification,
-          location,
-          prefix,
-          status,
-          est_time,
-          kiosk_id
-        `)
-        .eq(
-          'kiosk_id',
+      /*
+        Get only departments assigned to this kiosk.
+      */
+
+      const data =
+        await getPatientDepartments(
           kioskRecord.kiosk_id
-        )
-        .order('name', {
-          ascending: true,
-        });
+        );
 
-      if (error) {
-        throw error;
-      }
-
-      // Use the departments returned for this kiosk directly.
-      // The kiosk_id filter above already limits the results to
-      // the selected kiosk.
-      const activeDepartments = data || [];
+      const activeDepartments =
+        (data || []).filter(
+          (department) =>
+            !department.status ||
+            String(
+              department.status
+            ).toLowerCase() ===
+              'active'
+        );
 
       /*
-        Fetch the current waiting count for each department.
-
-        This replaces the old hard-coded `waiting` values.
+        Get current waiting count for
+        each department.
       */
+
       const departmentsWithWaiting =
         await Promise.all(
           activeDepartments.map(
             async (department) => {
-              const {
-                count,
-                error: countError,
-              } = await supabase
-                .from('queue_ticket')
-                .select('*', {
-                  count: 'exact',
-                  head: true,
-                })
-                .eq(
-                  'department_id',
-                  department.department_id
-                )
-                .eq(
-                  'status',
-                  'waiting'
-                );
+              let waiting = 0;
 
-              if (countError) {
+              try {
+                const waitingData =
+                  await getWaitingCount(
+                    department.department_id
+                  );
+
+                waiting =
+                  Number(
+                    waitingData?.waiting_count
+                  ) || 0;
+              } catch (error) {
                 console.warn(
                   `Unable to get waiting count for ${department.name}:`,
-                  countError
+                  error
                 );
+
+                waiting = 0;
               }
 
               return {
                 ...department,
 
-                /*
-                  Map the database field to the names
-                  already used by the patient UI.
-                */
                 queuePrefix:
-                  department.prefix || '',
+                  department.prefix ||
+                  '',
+
                 estMin:
                   Number(
                     department.est_time
                   ) || 0,
-                waiting:
-                  countError
-                    ? 0
-                    : count || 0,
 
-                // Keep the icon available for ConfirmScreen.
-                icon: getDepartmentIcon(
-                  department.name,
-                  department.classification
-                ),
+                waiting,
+
+                icon:
+                  getDepartmentIcon(
+                    department.name,
+                    department.classification
+                  ),
               };
             }
           )
@@ -1465,19 +1563,19 @@ export default function PatientView({
       );
 
       setDepartments([]);
+
       setDepartmentsError(
         error?.message ||
-          'Unable to load departments from the database.'
+          'Unable to load departments.'
       );
     } finally {
       setDepartmentsLoading(false);
     }
   }
 
-  /*
-    Whenever the selected kiosk changes, fetch ONLY the
-    departments assigned to that kiosk through departments.kiosk_id.
-  */
+  /* =======================================================
+     FETCH DEPARTMENTS WHEN KIOSK CHANGES
+  ======================================================= */
 
   useEffect(() => {
     if (!kiosk) {
@@ -1486,9 +1584,7 @@ export default function PatientView({
       return;
     }
 
-    fetchDepartmentsFromSupabase(
-      kiosk
-    );
+    fetchDepartments(kiosk);
   }, [kiosk?.kiosk_id]);
 
   /* =======================================================
@@ -1497,58 +1593,64 @@ export default function PatientView({
 
   function handleStart() {
     /*
-      If this PatientView is assigned to a physical kiosk,
-      that configured database kiosk takes priority.
-
-      Otherwise use the kiosk activated today on this browser.
+      If PatientView is configured for a specific
+      physical kiosk, use that kiosk.
     */
 
     const configuredKiosk =
       kioskId
         ? kiosks.find(
             (item) =>
-              item.kiosk_id === kioskId
+              String(
+                item.kiosk_id
+              ) ===
+              String(kioskId)
           )
         : null;
 
     /*
-      When a specific physical kiosk is configured, NEVER fall
-      back to another kiosk that may be stored in localStorage.
-      That keeps each physical kiosk independent.
+      If the configured kiosk is already
+      unlocked today, go directly to Queue Type.
     */
 
-    const activeKiosk = configuredKiosk
-      ? isKioskUnlocked(
-          configuredKiosk.kiosk_id
-        )
-        ? configuredKiosk
-        : null
-      : getActiveKioskForToday(
-          kiosks
-        );
+    const activeKiosk =
+      configuredKiosk
+        ? isKioskUnlocked(
+            configuredKiosk.kiosk_id
+          )
+          ? configuredKiosk
+          : null
+        : getActiveKioskForToday(
+            kiosks
+          );
 
     if (activeKiosk) {
       setKiosk(activeKiosk);
       setQueueType(null);
       setService(null);
+
       setRequiresKioskSelection(
         false
       );
+
       setStep('queueType');
+
       return;
     }
 
     /*
-      No kiosk has been activated today.
-      The patient must select a kiosk and enter the admin PIN.
+      No active kiosk has been unlocked today.
+      Patient must select a kiosk.
     */
 
     setKiosk(null);
     setQueueType(null);
     setService(null);
+
     setRequiresKioskSelection(
       true
     );
+
     setStep('kiosk');
   }
 
@@ -1564,8 +1666,8 @@ export default function PatientView({
     setService(null);
 
     /*
-      If this particular kiosk was already unlocked today,
-      do not ask for the PIN again.
+      If this kiosk was already unlocked today,
+      skip PIN.
     */
 
     if (
@@ -1578,11 +1680,13 @@ export default function PatientView({
       );
 
       setStep('queueType');
+
       return;
     }
 
     /*
-      First activation of this kiosk today.
+      First use of this kiosk today.
+      Require PIN.
     */
 
     setStep('kioskPin');
@@ -1596,15 +1700,6 @@ export default function PatientView({
     if (!kiosk?.kiosk_id) {
       return;
     }
-
-    /*
-      unlockKioskForToday() already stores both:
-        1. today's unlock flag
-        2. today's active kiosk
-
-      Keep this explicit as well so the selected database
-      kiosk is always the one used after the PIN.
-    */
 
     setActiveKioskForToday(
       kiosk.kiosk_id
@@ -1627,20 +1722,24 @@ export default function PatientView({
   function handleReset() {
     /*
       IMPORTANT:
-      Do NOT clear the daily kiosk unlock.
+      The daily kiosk unlock is NOT cleared.
 
-      The patient session resets, but the kiosk remains
-      activated until the calendar day changes.
+      This only resets the current patient session.
     */
 
     setQueueType(null);
     setKiosk(null);
     setService(null);
     setQueueNumber('');
+    setQueueId('');
     setIsGenerating(false);
+
     setRequiresKioskSelection(
       false
     );
+
+    setDepartments([]);
+    setDepartmentsError('');
 
     setStep('welcome');
   }
@@ -1650,11 +1749,15 @@ export default function PatientView({
   ======================================================= */
 
   async function handleGenerateNumber() {
+    if (isGenerating) {
+      return;
+    }
+
     try {
       setIsGenerating(true);
 
       /* ---------------------------------------------------
-         VALIDATE SELECTIONS
+         VALIDATE
       --------------------------------------------------- */
 
       if (!queueType) {
@@ -1675,264 +1778,126 @@ export default function PatientView({
         );
       }
 
-      /* ---------------------------------------------------
-         1. USE THE SELECTED DEPARTMENT FROM SUPABASE
-      --------------------------------------------------- */
-
-      const departmentId =
-        service.department_id;
-
-      if (!departmentId) {
+      if (!service.department_id) {
         throw new Error(
           'The selected department does not have a valid department ID.'
         );
       }
 
       /*
-        Extra safety check:
-        make sure the selected department still belongs
-        to the selected kiosk.
+        Extra safety check.
       */
 
       if (
-        service.kiosk_id !==
-        kiosk.kiosk_id
+        String(
+          service.kiosk_id
+        ) !==
+        String(
+          kiosk.kiosk_id
+        )
       ) {
         throw new Error(
           'The selected department does not belong to the selected kiosk.'
         );
       }
 
-      const {
-        data: deptData,
-        error: deptError,
-      } = await supabase
-        .from('departments')
-        .select(
-          'department_id, prefix, est_time, kiosk_id'
-        )
-        .eq(
-          'department_id',
-          departmentId
-        )
-        .eq(
-          'kiosk_id',
-          kiosk.kiosk_id
-        )
-        .maybeSingle();
+      /* ---------------------------------------------------
+         CREATE QUEUE THROUGH NODE.JS
+      --------------------------------------------------- */
 
-      if (deptError) {
-        throw deptError;
+      const result =
+        await createPatientQueue({
+          kiosk_id:
+            kiosk.kiosk_id,
+
+          kiosk_name:
+            kiosk.name,
+
+          department_id:
+            service.department_id,
+
+          department_name:
+            service.name,
+
+          queue_type:
+            queueType.key ===
+            'priority'
+              ? 'Priority'
+              : 'Regular',
+        });
+
+      /*
+        Node.js returns:
+
+        transaction_id
+        queue_id
+        queue_number
+        queue_sequence
+        patient_number
+        department_id
+        department
+        kiosk_id
+        kiosk
+        queue_type
+        is_priority
+        status
+        est_time
+      */
+
+      if (!result) {
+        throw new Error(
+          'The server did not return queue information.'
+        );
       }
 
-      if (
-        !deptData ||
-        !deptData.department_id
-      ) {
+      if (!result.queue_id) {
         throw new Error(
-          `Could not find the selected department in the database. It may have been removed or deactivated.`
+          'Queue was created, but no queue ID was returned.'
+        );
+      }
+
+      if (!result.queue_number) {
+        throw new Error(
+          'Queue was created, but no queue number was returned.'
         );
       }
 
       /* ---------------------------------------------------
-         2. DETERMINE QUEUE PREFIX
+         SAVE QUEUE INFORMATION
       --------------------------------------------------- */
 
-      const finalPrefix =
-        deptData.prefix ||
-        service.queuePrefix;
-
-      if (!finalPrefix) {
-        throw new Error(
-          `The department "${service.name}" does not have a queue prefix. Please configure its prefix in Supabase.`
-        );
-      }
-
-      /* ---------------------------------------------------
-         3. GET START OF TODAY
-      --------------------------------------------------- */
-
-      const startOfDay =
-        new Date();
-
-      startOfDay.setHours(
-        0,
-        0,
-        0,
-        0
+      setQueueId(
+        String(result.queue_id)
       );
 
-      /* ---------------------------------------------------
-         4. COUNT TODAY'S QUEUE
-      --------------------------------------------------- */
+      setQueueNumber(
+        result.queue_number
+      );
 
-      const {
-        count,
-        error: countError,
-      } = await supabase
-        .from('queue_ticket')
-        .select('*', {
-          count: 'exact',
-          head: true,
-        })
-        .eq(
-          'department_id',
-          deptData.department_id
-        )
-        .gte(
-          'issued_at',
-          startOfDay.toISOString()
-        );
+      /*
+        Update the selected service with
+        the latest values returned by Node.
+      */
 
-      if (countError) {
-        throw countError;
-      }
+      setService((current) => ({
+        ...current,
 
-      /* ---------------------------------------------------
-         5. GENERATE NEXT QUEUE NUMBER
-      --------------------------------------------------- */
+        waiting:
+          current?.waiting ?? 0,
 
-      const nextSequence =
-        (count || 0) + 1;
-
-      const isPriority =
-        queueType.key ===
-        'priority';
-
-      const paddedNumber =
-        `${finalPrefix}-${String(
-          nextSequence
-        ).padStart(3, '0')}`;
-
-      let formattedNumber =
-        paddedNumber;
-
-      if (isPriority) {
-        formattedNumber =
-          `P-${paddedNumber}`;
-      }
-
-      /* ---------------------------------------------------
-         6. INSERT INTO PATIENT TABLE
-
-         patient primary key:
-         transaction_id
-      --------------------------------------------------- */
-
-      const {
-        data: newPatient,
-        error: patientError,
-      } = await supabase
-        .from('patient')
-        .insert([
-          {
-            location:
-              kiosk.name,
-
-            department:
-              service.name,
-
-            patient_number:
-              formattedNumber,
-          },
-        ])
-        .select(
-          'transaction_id'
-        )
-        .single();
-
-      if (patientError) {
-        console.error(
-          'Patient Insert Error:',
-          JSON.stringify(
-            patientError,
-            null,
-            2
-          )
-        );
-
-        throw new Error(
-          `Patient table error: ${patientError.message}`
-        );
-      }
-
-      if (
-        !newPatient?.transaction_id
-      ) {
-        throw new Error(
-          'Patient was created, but no transaction ID was returned.'
-        );
-      }
-
-      /* ---------------------------------------------------
-         7. INSERT INTO QUEUE TICKET
-
-         queue_ticket.patient_id
-         references patient.transaction_id
-      --------------------------------------------------- */
-
-      const {
-        data: newTicket,
-        error: ticketError,
-      } = await supabase
-        .from('queue_ticket')
-        .insert([
-          {
-            queue_number:
-              formattedNumber,
-
-            queue_sequence:
-              nextSequence,
-
-            patient_id:
-              newPatient.transaction_id,
-
-            department_id:
-              deptData.department_id,
-
-            status:
-              'waiting',
-
-            is_priority:
-              isPriority,
-          },
-        ])
-        .select(
-          'queue_id'
-        )
-        .single();
-
-      if (ticketError) {
-        console.error(
-          'Ticket Insert Error:',
-          JSON.stringify(
-            ticketError,
-            null,
-            2
-          )
-        );
-
-        throw new Error(
-          `Queue ticket table error: ${ticketError.message}`
-        );
-      }
-
-      if (!newTicket?.queue_id) {
-        throw new Error(
-          'Queue ticket was created, but no queue ID was returned.'
-        );
-      }
+        estMin:
+          Number(
+            result.est_time
+          ) ||
+          current?.estMin ||
+          0,
+      }));
 
       /* ---------------------------------------------------
          SHOW TICKET
       --------------------------------------------------- */
 
-      setQueueNumber(
-        formattedNumber
-      );
-
       setStep('ticket');
-
     } catch (error) {
       console.error(
         'Queue generation error:',
@@ -2026,7 +1991,9 @@ export default function PatientView({
         <SelectKioskScreen
           kiosks={kiosks}
           selected={kiosk}
-          loading={kiosksLoading}
+          loading={
+            kiosksLoading
+          }
           onSelect={
             handleKioskSelect
           }
@@ -2097,7 +2064,9 @@ export default function PatientView({
   ) {
     return (
       <QueueTypeScreen
-        selected={queueType}
+        selected={
+          queueType
+        }
         kiosk={kiosk}
         onSelect={(type) => {
           setQueueType(type);
@@ -2105,13 +2074,11 @@ export default function PatientView({
         }}
         onBack={() => {
           /*
-            If the patient just completed the initial
-            kiosk-selection/PIN flow, Back returns to
-            kiosk selection.
+            If the patient entered through kiosk
+            selection, return to kiosk selection.
 
-            If the kiosk was already activated and this
-            patient started directly at Queue Type, Back
-            returns to Welcome.
+            If a physical kiosk was already unlocked,
+            return to welcome.
           */
 
           if (
@@ -2127,18 +2094,16 @@ export default function PatientView({
             return;
           }
 
+          if (!kiosk) {
+            return;
+          }
+
           /*
-            Refresh the departments before showing the
-            department screen. This helps ensure that a
-            department added/removed while the app is open
-            is reflected without using hard-coded data.
+            Refresh departments before moving
+            to department selection.
           */
 
-          if (kiosk) {
-            fetchDepartmentsFromSupabase(
-              kiosk
-            );
-          }
+          fetchDepartments(kiosk);
 
           setStep(
             'department'
@@ -2159,14 +2124,20 @@ export default function PatientView({
       <>
         <SelectDepartmentScreen
           kiosk={kiosk}
-          departments={departments}
+          departments={
+            departments
+          }
           loading={
             departmentsLoading
           }
-          selected={service}
-          onSelect={
-            setService
+          selected={
+            service
           }
+          onSelect={(department) => {
+            setService(
+              department
+            );
+          }}
           onBack={() =>
             setStep(
               'queueType'
@@ -2243,6 +2214,9 @@ export default function PatientView({
         }
         queueNumber={
           queueNumber
+        }
+        queueId={
+          queueId
         }
         onPrint={
           handlePrint

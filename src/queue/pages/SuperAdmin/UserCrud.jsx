@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../../../supabase';
+import { useEffect, useMemo, useState } from 'react';
+
 import {
   Search,
   User,
@@ -8,32 +8,71 @@ import {
   UserCheck,
   Monitor,
   Plus,
-  Eye,
-  EyeOff,
-  Trash2,
-  CheckCircle2,
-  Circle,
 } from 'lucide-react';
 
-const TABLE_NAME = 'user';
+import {
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  getRoles,
+  getKiosks,
+  getDepartments,
+} from '../../services/backendApi';
+
 
 /* =========================================================
    HELPERS
 ========================================================= */
 
 function normalizeEmail(email) {
-  return email.trim().toLowerCase();
+  return String(email ?? '')
+    .trim()
+    .toLowerCase();
 }
 
-function getRoleName(role) {
-  if (typeof role === 'string') {
-    return role;
+
+function normalizeRole(role) {
+  if (typeof role === 'object' && role !== null) {
+    return String(
+      role.role ??
+      role.name ??
+      ''
+    ).trim();
   }
 
-  const roleRow = Array.isArray(role) ? role[0] : role;
-
-  return roleRow?.role ?? roleRow?.name ?? '';
+  return String(role ?? '').trim();
 }
+
+
+function normalizeStatus(status) {
+  const value = String(status ?? '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    value === 'inactive' ||
+    value === 'offline'
+  ) {
+    return 'Inactive';
+  }
+
+  return 'Active';
+}
+
+
+function normalizeId(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return null;
+  }
+
+  return String(value);
+}
+
 
 /* =========================================================
    DEFAULT FORM
@@ -45,24 +84,36 @@ const EMPTY_FORM = {
   mi: '',
   contact_number: '',
   email: '',
-  role: 'Staff',
+
+  role: '',
+  role_id: null,
+
   position: null,
+
   kiosk: 'Select Kiosk',
+  kiosk_id: null,
+
   department: 'Select Department',
+  department_id: null,
+
   status: 'Active',
-  password: '',
-  confirmPassword: '',
 };
 
+
 /* =========================================================
-   OPTIONS
+   DEFAULT ROLES
 ========================================================= */
 
-const ROLE_OPTIONS = [
+const DEFAULT_ROLE_OPTIONS = [
   'Admin',
   'Staff',
   'Superadmin',
 ];
+
+
+/* =========================================================
+   POSITION OPTIONS
+========================================================= */
 
 const POSITION_OPTIONS = [
   {
@@ -83,90 +134,60 @@ const POSITION_OPTIONS = [
   },
 ];
 
+
+/* =========================================================
+   STATUS OPTIONS
+========================================================= */
+
 const STATUS_OPTIONS = [
   'Active',
   'Inactive',
 ];
 
-const PAGE_SIZE = 5;
-
-const KIOSK_OPTIONS = [
-  'Main Lobby',
-  'Out patients',
-  'Laboratory and Radiology',
-  'Medical Arts Building',
-];
 
 /* =========================================================
-   DEPARTMENTS BY KIOSK
+   PAGE SIZE
 ========================================================= */
 
-const DEPARTMENTS_BY_KIOSK = {
-  'Main Lobby': [
-    'Information',
-    'Admission',
-    'CHAMP',
-    'Cashier',
-    'Billing',
-    'Credit and Collection',
-    'Medical Social worker',
-    'Phil Health',
-  ],
+const PAGE_SIZE = 5;
 
-  'Out patients': [
-    'Pedia',
-    'Surgery',
-    'Internal Medicine',
-    'FAMED',
-  ],
-
-  'Laboratory and Radiology': [
-    'Lab-Specimen Collection',
-    'LAB- Results',
-    'Rad-Results',
-    'CT-Scan',
-    'X-Ray',
-  ],
-
-  'Medical Arts Building': [
-    'Pharmacy',
-    "Women's Health (Consultation)",
-    "Women's Health (Ultrasound)",
-    'PT- Rehab (Consultation)',
-    'PT-Rehab(Session)',
-    'Cardiac',
-  ],
-};
 
 /* =========================================================
    PAGE NUMBERS
 ========================================================= */
 
-function getPageNumbers(currentPage, totalPages) {
+function getPageNumbers(
+  currentPage,
+  totalPages
+) {
   const MAX_BUTTONS = 5;
 
   if (totalPages <= MAX_BUTTONS) {
     return Array.from(
       { length: totalPages },
-      (_, i) => i + 1
+      (_, index) => index + 1
     );
   }
 
   let start = Math.max(
     1,
-    currentPage - Math.floor(MAX_BUTTONS / 2)
+    currentPage -
+      Math.floor(MAX_BUTTONS / 2)
   );
 
   start = Math.min(
     start,
-    totalPages - MAX_BUTTONS + 1
+    totalPages -
+      MAX_BUTTONS +
+      1
   );
 
   return Array.from(
     { length: MAX_BUTTONS },
-    (_, i) => start + i
+    (_, index) => start + index
   );
 }
+
 
 /* =========================================================
    USER MODAL
@@ -180,137 +201,179 @@ function UserModal({
   isEditing,
   saving,
   onAddDepartment,
-  onDelete,
-  deleting,
+  kioskOptions,
+  departmentOptions,
+  roleOptions,
+  deleteReason,
+  setDeleteReason,
+  showDeletePrompt,
+  setShowDeletePrompt,
+  onDeleteUser,
 }) {
-  const [showPassword, setShowPassword] =
-    useState(false);
-
-  const [
-    showConfirmPassword,
-    setShowConfirmPassword,
-  ] = useState(false);
-
   const isSuperadmin =
-    form.role?.toLowerCase() === 'superadmin';
+    normalizeRole(form.role).toLowerCase() ===
+    'superadmin';
 
-  /*
-    Reset password visibility when switching
-    between Add and Edit.
-  */
-  useEffect(() => {
-    setShowPassword(false);
-    setShowConfirmPassword(false);
-  }, [isEditing]);
-
-  /* =======================================================
-     PASSWORD REQUIREMENTS
-  ======================================================= */
-
-  const passwordChecks = [
-    {
-      label: '8 characters minimum',
-      passed: form.password.length >= 8,
-    },
-    {
-      label: 'a number',
-      passed: /\d/.test(form.password),
-    },
-    {
-      label: 'a symbol',
-      passed: /[^A-Za-z0-9]/.test(form.password),
-    },
-  ];
-
-  const passedPasswordChecks =
-    passwordChecks.filter(
-      (check) => check.passed
-    ).length;
-
-  const passwordValid =
-    passedPasswordChecks ===
-    passwordChecks.length;
-
-  const confirmPasswordValid =
-    form.password.length > 0 &&
-    form.confirmPassword.length > 0 &&
-    form.password === form.confirmPassword;
-
-  const passwordBarColor =
-    passedPasswordChecks <= 1
-      ? 'bg-red-500'
-      : passedPasswordChecks === 2
-        ? 'bg-amber-400'
-        : 'bg-green-500';
-
-  const passwordBarWidth =
-    form.password.length === 0
-      ? '0%'
-      : `${
-          (passedPasswordChecks /
-            passwordChecks.length) *
-          100
-        }%`;
-
-  /* =======================================================
-     DEPARTMENTS
-  ======================================================= */
-
-  const availableDepartments =
-    DEPARTMENTS_BY_KIOSK[form.kiosk] || [];
 
   /* =======================================================
      ROLE CHANGE
+     IMPORTANT:
+     ROLE ID IS UPDATED TO MATCH THE SELECTED ROLE.
   ======================================================= */
 
-  function handleRoleChange(e) {
-    const selectedRole = e.target.value;
+  function handleRoleChange(event) {
+    const selectedRoleName =
+      event.target.value;
 
-    if (selectedRole === 'Superadmin') {
+    const selectedRole =
+      roleOptions.find(
+        (role) =>
+          normalizeRole(role.name).toLowerCase() ===
+          selectedRoleName.toLowerCase()
+      );
+
+    const selectedRoleId =
+      selectedRole?.id ?? null;
+
+    const isSelectedSuperadmin =
+      selectedRoleName.toLowerCase() ===
+      'superadmin';
+
+    /*
+     * IMPORTANT:
+     * We replace role_id here.
+     *
+     * We do NOT keep the previous role_id.
+     */
+
+    if (isSelectedSuperadmin) {
       setForm({
         ...form,
-        role: selectedRole,
-        kiosk: 'Whole',
-        department: 'Whole',
-      });
-    } else {
-      setForm({
-        ...form,
-        role: selectedRole,
+
+        role:
+          selectedRoleName,
+
+        role_id:
+          selectedRoleId,
+
         kiosk:
-          form.kiosk === 'Whole'
-            ? 'Select Kiosk'
-            : form.kiosk,
+          'Whole',
+
+        kiosk_id:
+          null,
+
         department:
-          form.department === 'Whole'
-            ? 'Select Department'
-            : form.department,
+          'Whole',
+
+        department_id:
+          null,
       });
+
+      return;
     }
+
+    setForm({
+      ...form,
+
+      role:
+        selectedRoleName,
+
+      role_id:
+        selectedRoleId,
+
+      kiosk:
+        form.kiosk === 'Whole'
+          ? 'Select Kiosk'
+          : form.kiosk,
+
+      kiosk_id:
+        form.kiosk === 'Whole'
+          ? null
+          : form.kiosk_id,
+
+      department:
+        form.department === 'Whole'
+          ? 'Select Department'
+          : form.department,
+
+      department_id:
+        form.department === 'Whole'
+          ? null
+          : form.department_id,
+    });
   }
+
 
   /* =======================================================
      KIOSK CHANGE
   ======================================================= */
 
-  function handleKioskChange(e) {
-    const selectedKiosk = e.target.value;
+  function handleKioskChange(event) {
+    const selectedKioskId =
+      event.target.value;
+
+    const selectedKiosk =
+      kioskOptions.find(
+        (kiosk) =>
+          String(kiosk.id) ===
+          String(selectedKioskId)
+      );
 
     setForm({
       ...form,
-      kiosk: selectedKiosk,
-      department: 'Select Department',
+
+      kiosk:
+        selectedKiosk?.name ??
+        'Select Kiosk',
+
+      kiosk_id:
+        selectedKiosk?.id ??
+        null,
+
+      department:
+        'Select Department',
+
+      department_id:
+        null,
     });
   }
+
+
+  /* =======================================================
+     DEPARTMENT CHANGE
+  ======================================================= */
+
+  function handleDepartmentChange(event) {
+    const selectedDepartmentId =
+      event.target.value;
+
+    const selectedDepartment =
+      departmentOptions.find(
+        (department) =>
+          String(department.id) ===
+          String(selectedDepartmentId)
+      );
+
+    setForm({
+      ...form,
+
+      department:
+        selectedDepartment?.name ??
+        'Select Department',
+
+      department_id:
+        selectedDepartment?.id ??
+        null,
+    });
+  }
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
 
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
 
-        {/* =================================================
-            HEADER
-        ================================================= */}
+        {/* HEADER */}
 
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
 
@@ -323,7 +386,7 @@ function UserModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={saving || deleting}
+            disabled={saving}
             className="font-bold text-slate-400 hover:text-slate-600 disabled:opacity-40"
             aria-label="Close"
           >
@@ -332,13 +395,12 @@ function UserModal({
 
         </div>
 
-        {/* =================================================
-            FORM BODY
-        ================================================= */}
+
+        {/* FORM */}
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 
-          {/* FIRST NAME / LAST NAME */}
+          {/* NAME */}
 
           <div className="grid grid-cols-2 gap-4">
 
@@ -350,17 +412,18 @@ function UserModal({
               <input
                 type="text"
                 value={form.first_name}
-                onChange={(e) =>
+                onChange={(event) =>
                   setForm({
                     ...form,
                     first_name:
-                      e.target.value,
+                      event.target.value,
                   })
                 }
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
                 placeholder="Enter first name"
               />
             </div>
+
 
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-slate-600">
@@ -370,11 +433,11 @@ function UserModal({
               <input
                 type="text"
                 value={form.last_name}
-                onChange={(e) =>
+                onChange={(event) =>
                   setForm({
                     ...form,
                     last_name:
-                      e.target.value,
+                      event.target.value,
                   })
                 }
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
@@ -383,6 +446,7 @@ function UserModal({
             </div>
 
           </div>
+
 
           {/* MI / CONTACT */}
 
@@ -397,16 +461,17 @@ function UserModal({
                 type="text"
                 maxLength="2"
                 value={form.mi}
-                onChange={(e) =>
+                onChange={(event) =>
                   setForm({
                     ...form,
-                    mi: e.target.value,
+                    mi: event.target.value,
                   })
                 }
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
                 placeholder="Enter M.I."
               />
             </div>
+
 
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-slate-600">
@@ -416,11 +481,11 @@ function UserModal({
               <input
                 type="text"
                 value={form.contact_number}
-                onChange={(e) =>
+                onChange={(event) =>
                   setForm({
                     ...form,
                     contact_number:
-                      e.target.value,
+                      event.target.value,
                   })
                 }
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
@@ -429,6 +494,7 @@ function UserModal({
             </div>
 
           </div>
+
 
           {/* EMAIL */}
 
@@ -440,10 +506,11 @@ function UserModal({
             <input
               type="email"
               value={form.email}
-              onChange={(e) =>
+              onChange={(event) =>
                 setForm({
                   ...form,
-                  email: e.target.value,
+                  email:
+                    event.target.value,
                 })
               }
               className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
@@ -451,21 +518,15 @@ function UserModal({
             />
           </div>
 
-          {/* =================================================
-              ROLE / POSITION
-          ================================================= */}
+
+          {/* ROLE / POSITION */}
 
           <div className="grid grid-cols-2 gap-4">
 
-            {/* ROLE */}
-
             <div>
               <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-600">
-
                 <span>Select Role</span>
-
                 <Plus size={12} />
-
               </label>
 
               <select
@@ -473,18 +534,24 @@ function UserModal({
                 onChange={handleRoleChange}
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
               >
-                {ROLE_OPTIONS.map((role) => (
+                <option value="" disabled>
+                  Select role
+                </option>
+
+                {roleOptions.map((role) => (
                   <option
-                    key={role}
-                    value={role}
+                    key={
+                      role.id ??
+                      role.name
+                    }
+                    value={role.name}
                   >
-                    {role}
+                    {role.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* POSITION */}
 
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-slate-600">
@@ -493,13 +560,13 @@ function UserModal({
 
               <select
                 value={form.position ?? ''}
-                onChange={(e) =>
+                onChange={(event) =>
                   setForm({
                     ...form,
                     position:
-                      e.target.value === ''
+                      event.target.value === ''
                         ? null
-                        : e.target.value,
+                        : event.target.value,
                   })
                 }
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
@@ -521,17 +588,13 @@ function UserModal({
 
           </div>
 
-          {/* =================================================
-              KIOSK
-          ================================================= */}
+
+          {/* KIOSK */}
 
           <div>
-
             <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-600">
 
-              <span>
-                Select Kiosk
-              </span>
+              <span>Select Kiosk</span>
 
               <button
                 type="button"
@@ -544,8 +607,14 @@ function UserModal({
 
             </label>
 
+
             <select
-              value={form.kiosk}
+              value={
+                isSuperadmin
+                  ? 'Whole'
+                  : form.kiosk_id ??
+                    'Select Kiosk'
+              }
               disabled={isSuperadmin}
               onChange={handleKioskChange}
               className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition ${
@@ -565,13 +634,13 @@ function UserModal({
                     Select Kiosk
                   </option>
 
-                  {KIOSK_OPTIONS.map(
+                  {kioskOptions.map(
                     (kiosk) => (
                       <option
-                        key={kiosk}
-                        value={kiosk}
+                        key={kiosk.id}
+                        value={kiosk.id}
                       >
-                        {kiosk}
+                        {kiosk.name}
                       </option>
                     )
                   )}
@@ -580,26 +649,23 @@ function UserModal({
 
             </select>
 
+
             {isSuperadmin && (
               <p className="mt-1 text-[10px] text-slate-400">
-                Superadmin oversees all
-                kiosks.
+                Superadmin oversees all kiosks.
               </p>
             )}
 
           </div>
 
-          {/* =================================================
-              DEPARTMENT
-          ================================================= */}
+
+          {/* DEPARTMENT */}
 
           <div>
 
             <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-600">
 
-              <span>
-                Select Department
-              </span>
+              <span>Select Department</span>
 
               <button
                 type="button"
@@ -613,24 +679,22 @@ function UserModal({
 
             </label>
 
+
             <select
-              value={form.department}
+              value={
+                isSuperadmin
+                  ? 'Whole'
+                  : form.department_id ??
+                    'Select Department'
+              }
               disabled={
                 isSuperadmin ||
-                form.kiosk ===
-                  'Select Kiosk'
+                !form.kiosk_id
               }
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  department:
-                    e.target.value,
-                })
-              }
+              onChange={handleDepartmentChange}
               className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition ${
                 isSuperadmin ||
-                form.kiosk ===
-                  'Select Kiosk'
+                !form.kiosk_id
                   ? 'cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500'
                   : 'border-slate-300 bg-slate-50 text-slate-700 focus:border-blue-500 focus:bg-white'
               }`}
@@ -646,13 +710,13 @@ function UserModal({
                     Select Department
                   </option>
 
-                  {availableDepartments.map(
+                  {departmentOptions.map(
                     (department) => (
                       <option
-                        key={department}
-                        value={department}
+                        key={department.id}
+                        value={department.id}
                       >
-                        {department}
+                        {department.name}
                       </option>
                     )
                   )}
@@ -661,27 +725,25 @@ function UserModal({
 
             </select>
 
+
             {!isSuperadmin &&
-              form.kiosk ===
-                'Select Kiosk' && (
+              !form.kiosk_id && (
                 <p className="mt-1 text-[10px] text-slate-400">
-                  Select a kiosk first to
-                  view its departments.
+                  Select a kiosk first to view its departments.
                 </p>
               )}
 
+
             {isSuperadmin && (
               <p className="mt-1 text-[10px] text-slate-400">
-                Superadmin oversees all
-                departments.
+                Superadmin oversees all departments.
               </p>
             )}
 
           </div>
 
-          {/* =================================================
-              STATUS
-          ================================================= */}
+
+          {/* STATUS */}
 
           <div>
 
@@ -691,16 +753,15 @@ function UserModal({
 
             <select
               value={form.status}
-              onChange={(e) =>
+              onChange={(event) =>
                 setForm({
                   ...form,
                   status:
-                    e.target.value,
+                    event.target.value,
                 })
               }
               className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
             >
-
               {STATUS_OPTIONS.map(
                 (status) => (
                   <option
@@ -711,282 +772,122 @@ function UserModal({
                   </option>
                 )
               )}
-
             </select>
 
           </div>
 
-          {/* =================================================
-              PASSWORD
-          ================================================= */}
 
-          {!isEditing && (
-            <div>
+        </div>
 
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                Password
-              </label>
 
-              <div className="relative">
+        {/* DELETE SECTION */}
 
-                <input
-                  type={
-                    showPassword
-                      ? 'text'
-                      : 'password'
+        {isEditing && (
+          <div className="border-t border-slate-100 bg-red-50/40 px-6 py-4">
+
+            {showDeletePrompt ? (
+
+              <div className="space-y-3">
+
+                <label className="block text-xs font-semibold text-red-700">
+                  Reason for deletion
+                </label>
+
+                <textarea
+                  value={deleteReason}
+                  onChange={(event) =>
+                    setDeleteReason(
+                      event.target.value
+                    )
                   }
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      password:
-                        e.target.value,
-                    })
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 pr-10 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                  placeholder="Enter password"
+                  rows={3}
+                  placeholder="Enter the reason this user is being deleted..."
+                  className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-red-400 focus:outline-none"
                 />
+
+                <div className="flex items-center justify-end gap-3">
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDeletePrompt(false);
+                      setDeleteReason('');
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onDeleteUser}
+                    disabled={
+                      saving ||
+                      !deleteReason.trim()
+                    }
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {saving
+                      ? 'Deleting...'
+                      : 'Final Delete'}
+                  </button>
+
+                </div>
+
+              </div>
+
+            ) : (
+
+              <div className="flex items-center justify-end">
 
                 <button
                   type="button"
                   onClick={() =>
-                    setShowPassword(
-                      (v) => !v
-                    )
+                    setShowDeletePrompt(true)
                   }
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  tabIndex={-1}
-                  aria-label={
-                    showPassword
-                      ? 'Hide password'
-                      : 'Show password'
-                  }
+                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
                 >
-                  {showPassword ? (
-                    <EyeOff size={16} />
-                  ) : (
-                    <Eye size={16} />
-                  )}
+                  Delete User
                 </button>
 
               </div>
 
-              {/* PASSWORD STRENGTH BAR */}
-
-              <div className="mt-2">
-
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${passwordBarColor}`}
-                    style={{
-                      width:
-                        passwordBarWidth,
-                    }}
-                  />
-
-                </div>
-
-                {/* PASSWORD REQUIREMENTS */}
-
-                <ul className="mt-2 space-y-1">
-
-                  {passwordChecks.map(
-                    (check) => (
-                      <li
-                        key={check.label}
-                        className="flex items-center gap-1.5 text-xs"
-                      >
-
-                        {check.passed ? (
-                          <CheckCircle2
-                            size={14}
-                            className="shrink-0 text-green-500"
-                          />
-                        ) : (
-                          <Circle
-                            size={14}
-                            className="shrink-0 text-slate-300"
-                          />
-                        )}
-
-                        <span
-                          className={
-                            check.passed
-                              ? 'text-slate-600'
-                              : 'text-slate-400'
-                          }
-                        >
-                          {check.label}
-                        </span>
-
-                      </li>
-                    )
-                  )}
-
-                </ul>
-
-              </div>
-
-              {/* PASSWORD ERROR */}
-
-              {form.password.length > 0 &&
-                !passwordValid && (
-                  <p className="mt-2 text-[11px] text-red-500">
-                    Please meet all password
-                    requirements before adding
-                    the user.
-                  </p>
-                )}
-
-              {/* =================================================
-                  CONFIRM PASSWORD
-              ================================================= */}
-
-              {form.password.length > 0 && (
-                <div className="mt-4">
-
-                  <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    Confirm Password
-                  </label>
-
-                  <div className="relative">
-
-                    <input
-                      type={
-                        showConfirmPassword
-                          ? 'text'
-                          : 'password'
-                      }
-                      value={
-                        form.confirmPassword
-                      }
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          confirmPassword:
-                            e.target.value,
-                        })
-                      }
-                      className={`w-full rounded-lg border bg-slate-50 px-3 py-2 pr-10 text-sm focus:bg-white focus:outline-none ${
-                        form.confirmPassword
-                          .length === 0
-                          ? 'border-slate-300 focus:border-blue-500'
-                          : confirmPasswordValid
-                            ? 'border-green-400 focus:border-green-500'
-                            : 'border-red-400 focus:border-red-500'
-                      }`}
-                      placeholder="Confirm password"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowConfirmPassword(
-                          (v) => !v
-                        )
-                      }
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      tabIndex={-1}
-                      aria-label={
-                        showConfirmPassword
-                          ? 'Hide confirm password'
-                          : 'Show confirm password'
-                      }
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff size={16} />
-                      ) : (
-                        <Eye size={16} />
-                      )}
-                    </button>
-
-                  </div>
-
-                  {form.confirmPassword
-                    .length > 0 && (
-                    <p
-                      className={`mt-1.5 text-[11px] ${
-                        confirmPasswordValid
-                          ? 'text-green-600'
-                          : 'text-red-500'
-                      }`}
-                    >
-                      {confirmPasswordValid
-                        ? 'Passwords match.'
-                        : 'Passwords do not match.'}
-                    </p>
-                  )}
-
-                </div>
-              )}
-
-            </div>
-          )}
-
-        </div>
-
-        {/* =================================================
-            FOOTER
-        ================================================= */}
-
-        <div className="sticky bottom-0 flex shrink-0 items-center justify-between gap-3 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-4">
-
-          {/* DELETE */}
-
-          {isEditing ? (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={saving || deleting}
-              className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Trash2 size={15} />
-
-              {deleting
-                ? 'Deleting...'
-                : 'Delete User'}
-            </button>
-          ) : (
-            <div />
-          )}
-
-          {/* SAVE / CANCEL */}
-
-          <div className="flex items-center gap-3">
-
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving || deleting}
-              className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={
-                saving ||
-                deleting ||
-                !form.first_name.trim() ||
-                !form.last_name.trim() ||
-                !form.email.trim() ||
-                (!isEditing &&
-                  (!passwordValid ||
-                    !confirmPasswordValid))
-              }
-              className="flex items-center gap-2 rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {saving
-                ? 'Saving...'
-                : isEditing
-                  ? 'Save Changes'
-                  : '+ Add User'}
-            </button>
+            )}
 
           </div>
+        )}
+
+
+        {/* FOOTER */}
+
+        <div className="sticky bottom-0 flex shrink-0 items-center justify-end gap-3 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-4">
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+          >
+            Cancel
+          </button>
+
+
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={
+              saving ||
+              !form.first_name.trim() ||
+              !form.last_name.trim() ||
+              !form.email.trim()  }
+            className="flex items-center gap-2 rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saving
+              ? 'Saving...'
+              : isEditing
+                ? 'Save Changes'
+                : '+ Add User'}
+          </button>
 
         </div>
 
@@ -994,6 +895,7 @@ function UserModal({
     </div>
   );
 }
+
 
 /* =========================================================
    MAIN USER CRUD
@@ -1003,204 +905,628 @@ export default function UserCrud({
   onAddDepartment,
 }) {
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [kiosks, setKiosks] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
-  const [error, setError] =
-    useState(null);
-
-  const [success, setSuccess] =
-    useState(null);
-
-  const [duplicatePopup, setDuplicatePopup] =
-    useState(false);
-
-  const [saving, setSaving] =
-    useState(false);
-
-  const [deleting, setDeleting] =
-    useState(false);
-
-  const [searchQuery, setSearchQuery] =
-    useState('');
-
-  const [page, setPage] =
-    useState(1);
-
-  const [editingId, setEditingId] =
-    useState(null);
-
-  /*
-    Controls the SECONDARY delete confirmation modal.
-  */
   const [
-    deleteConfirmOpen,
-    setDeleteConfirmOpen,
+    duplicatePopup,
+    setDuplicatePopup,
   ] = useState(false);
 
-  /*
-    Required reason for deletion.
-    This belongs to UserCrud, NOT UserModal.
-  */
-  const [deleteReason, setDeleteReason] =
-    useState('');
+  const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [editingId, setEditingId] = useState(null);
 
-  const [form, setForm] =
-    useState(EMPTY_FORM);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [showDeletePrompt, setShowDeletePrompt] = useState(false);
+
+  const [form, setForm] = useState({
+    ...EMPTY_FORM,
+  });
+
+
+  /* =======================================================
+     FETCH ROLES
+     NODE.JS → MYSQL / FIREBASE
+  ======================================================= */
+
+  async function fetchRoles() {
+    const response =
+      await getRoles();
+
+    const roleRows =
+      response?.data ??
+      response ??
+      [];
+
+    const formattedRoles =
+      (Array.isArray(roleRows)
+        ? roleRows
+        : []
+      )
+        .map((role) => ({
+          id:
+            role.role_id ??
+            role.id,
+
+          name:
+            role.role ??
+            role.name ??
+            '',
+        }))
+        .filter(
+          (role) =>
+            role.name
+        );
+
+    formattedRoles.sort(
+      (a, b) =>
+        a.name.localeCompare(
+          b.name
+        )
+    );
+
+    if (
+      formattedRoles.length === 0
+    ) {
+      return DEFAULT_ROLE_OPTIONS.map(
+        (role) => ({
+          id: null,
+          name: role,
+        })
+      );
+    }
+
+    return formattedRoles;
+  }
+
+
+  /* =======================================================
+     FETCH KIOSKS
+     NODE.JS → MYSQL / FIREBASE
+  ======================================================= */
+
+  async function fetchKiosks() {
+    const response =
+      await getKiosks();
+
+    const kioskRows =
+      response?.data ??
+      response ??
+      [];
+
+    return (
+      Array.isArray(kioskRows)
+        ? kioskRows
+        : []
+    )
+      .map((kiosk) => ({
+        id:
+          kiosk.kiosk_id ??
+          kiosk.id,
+
+        name:
+          kiosk.name ??
+          kiosk.kiosk ??
+          '',
+
+        status:
+          kiosk.status ??
+          'Active',
+      }))
+      .filter(
+        (kiosk) =>
+          kiosk.name &&
+          String(
+            kiosk.status
+          ).toLowerCase() !==
+            'inactive'
+      )
+      .sort((a, b) =>
+        a.name.localeCompare(
+          b.name
+        )
+      );
+  }
+
+
+  /* =======================================================
+     FETCH DEPARTMENTS
+     NODE.JS → MYSQL / FIREBASE
+  ======================================================= */
+
+  async function fetchDepartments() {
+    const response =
+      await getDepartments();
+
+    const departmentRows =
+      response?.data ??
+      response ??
+      [];
+
+    return (
+      Array.isArray(
+        departmentRows
+      )
+        ? departmentRows
+        : []
+    )
+      .map((department) => ({
+        id:
+          department.department_id ??
+          department.id,
+
+        name:
+          department.name ??
+          department.department_name ??
+          '',
+
+        kiosk_id:
+          normalizeId(
+            department.kiosk_id
+          ),
+
+        kiosk:
+          department.kiosk ??
+          department.kiosk_name ??
+          null,
+
+        status:
+          department.status ??
+          'Active',
+      }))
+      .filter(
+        (department) =>
+          department.name &&
+          String(
+            department.status
+          ).toLowerCase() !==
+            'inactive'
+      )
+      .sort((a, b) =>
+        a.name.localeCompare(
+          b.name
+        )
+      );
+  }
+
 
   /* =======================================================
      FETCH USERS
+     NODE.JS → MYSQL / FIREBASE
   ======================================================= */
 
   async function fetchUsers() {
     setLoading(true);
     setError(null);
 
-    const [
-      {
-        data,
-        error,
-      },
-      {
-        data: roles,
-        error: rolesError,
-      },
-    ] = await Promise.all([
-      supabase
-        .from(TABLE_NAME)
-        .select(`
-          user_id,
-          first_name,
-          last_name,
-          email,
-          contact_info,
-          kiosk,
-          position,
-          department,
-          status,
-          updated_at,
-          role_id,
-          role:role_id (
-            role_id,
-            role
-          )
-        `)
-        .order('last_name', {
-          ascending: true,
-        }),
+    try {
+      const userRows =
+        await getUsers();
 
-      supabase
-        .from('role')
-        .select('role_id, role'),
-    ]);
-
-    if (error || rolesError) {
-      setError(
-        error?.message ||
-          rolesError?.message ||
-          'Unable to fetch users.'
-      );
-    } else {
-      const roleById =
-        new Map(
-          (roles || []).map(
-            (role) => [
-              String(role.role_id),
-              role.role,
-            ]
-          )
-        );
+      const rows =
+        userRows?.data ??
+        userRows ??
+        [];
 
       const formattedUsers =
-        (data || []).map((u) => ({
-          id: u.user_id,
+        (
+          Array.isArray(rows)
+            ? rows
+            : []
+        ).map(
+          (data) => {
+            /*
+             * Firebase normally gives us role + role_id.
+             *
+             * MySQL may give us role_id.
+             *
+             * Therefore first try the role name,
+             * then derive the role name from the loaded
+             * roles array.
+             */
 
-          first_name:
-            u.first_name,
+            const roleFromData =
+              normalizeRole(
+                data.role
+              );
 
-          last_name:
-            u.last_name,
+            const matchingRole =
+              roles.find(
+                (role) =>
+                  normalizeId(
+                    role.id
+                  ) ===
+                  normalizeId(
+                    data.role_id
+                  )
+              );
 
-          email:
-            u.email,
+            const roleName =
+              roleFromData ||
+              normalizeRole(
+                matchingRole?.name
+              );
 
-          contact_number:
-            u.contact_info,
+            return {
+              id:
+                data.user_id,
 
-          kiosk:
-            u.kiosk,
+              user_id:
+                data.user_id,
 
-          position:
-            u.position,
+              first_name:
+                data.first_name ??
+                '',
 
-          department:
-            u.department,
+              last_name:
+                data.last_name ??
+                '',
 
-          status:
-            u.status
-              ?.toUpperCase() ===
-            'ONLINE'
-              ? 'Active'
-              : u.status
-                  ?.toUpperCase() ===
-                'OFFLINE'
-                ? 'Inactive'
-                : u.status ??
-                  'Active',
+              mi:
+                data.mi ??
+                '',
 
-          role:
-            getRoleName(u.role) ||
-            roleById.get(
-              String(u.role_id)
-            ) ||
-            'Staff',
+              email:
+                data.email ??
+                '',
 
-          updated_at:
-            u.updated_at,
-        }));
+              contact_number:
+                data.contact_number ??
+                data.contact_info ??
+                '',
 
-      setUsers(formattedUsers);
+              kiosk:
+                data.kiosk ??
+                'Whole',
+
+              kiosk_id:
+                normalizeId(
+                  data.kiosk_id
+                ),
+
+              position:
+                data.position ??
+                null,
+
+              department:
+                data.department ??
+                'Whole',
+
+              department_id:
+                normalizeId(
+                  data.department_id
+                ),
+
+              status:
+                normalizeStatus(
+                  data.status
+                ),
+
+              role:
+                roleName ||
+                'Staff',
+
+              role_id:
+                normalizeId(
+                  data.role_id
+                ),
+
+              created_at:
+                data.created_at ??
+                null,
+
+              updated_at:
+                data.updated_at ??
+                null,
+            };
+          }
+        );
+
+      setUsers(
+        formattedUsers
+      );
+
+    } catch (err) {
+      console.error(
+        'FETCH USERS ERROR:',
+        err
+      );
+
+      setError(
+        err?.message ||
+        'Unable to retrieve users.'
+      );
+
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
 
   /* =======================================================
-     ADD USER
+     LOAD ALL DATA
+  ======================================================= */
+
+  async function loadData() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [
+        roleData,
+        kioskData,
+        departmentData,
+      ] = await Promise.all([
+        fetchRoles(),
+        fetchKiosks(),
+        fetchDepartments(),
+      ]);
+
+      setRoles(roleData);
+      setKiosks(kioskData);
+      setDepartments(
+        departmentData
+      );
+
+      /*
+       * Pass roleData directly through the user formatting
+       * logic instead of relying on the asynchronous
+       * React state update.
+       */
+
+      const userRows =
+        await getUsers();
+
+      const rows =
+        userRows?.data ??
+        userRows ??
+        [];
+
+      const formattedUsers =
+        (
+          Array.isArray(rows)
+            ? rows
+            : []
+        ).map(
+          (data) => {
+            const roleFromData =
+              normalizeRole(
+                data.role
+              );
+
+            const matchingRole =
+              roleData.find(
+                (role) =>
+                  normalizeId(
+                    role.id
+                  ) ===
+                  normalizeId(
+                    data.role_id
+                  )
+              );
+
+            const roleName =
+              roleFromData ||
+              normalizeRole(
+                matchingRole?.name
+              );
+
+            return {
+              id:
+                data.user_id,
+
+              user_id:
+                data.user_id,
+
+              first_name:
+                data.first_name ??
+                '',
+
+              last_name:
+                data.last_name ??
+                '',
+
+              mi:
+                data.mi ??
+                '',
+
+              email:
+                data.email ??
+                '',
+
+              contact_number:
+                data.contact_number ??
+                data.contact_info ??
+                '',
+
+              kiosk:
+                data.kiosk ??
+                'Whole',
+
+              kiosk_id:
+                normalizeId(
+                  data.kiosk_id
+                ),
+
+              position:
+                data.position ??
+                null,
+
+              department:
+                data.department ??
+                'Whole',
+
+              department_id:
+                normalizeId(
+                  data.department_id
+                ),
+
+              status:
+                normalizeStatus(
+                  data.status
+                ),
+
+              role:
+                roleName ||
+                'Staff',
+
+              role_id:
+                normalizeId(
+                  data.role_id
+                ),
+
+              created_at:
+                data.created_at ??
+                null,
+
+              updated_at:
+                data.updated_at ??
+                null,
+            };
+          }
+        );
+
+      setUsers(
+        formattedUsers
+      );
+
+    } catch (err) {
+      console.error(
+        'LOAD USER MANAGEMENT DATA ERROR:',
+        err
+      );
+
+      setError(
+        err?.message ||
+        'Unable to load user management data.'
+      );
+
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  /* =======================================================
+     INITIAL LOAD
+  ======================================================= */
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+
+  /* =======================================================
+     DEPARTMENTS FOR SELECTED KIOSK
+  ======================================================= */
+
+  const availableDepartments =
+    useMemo(() => {
+      if (!form.kiosk_id) {
+        return [];
+      }
+
+      return departments.filter(
+        (department) =>
+          String(
+            department.kiosk_id
+          ) ===
+          String(
+            form.kiosk_id
+          )
+      );
+    }, [
+      departments,
+      form.kiosk_id,
+    ]);
+
+
+  /* =======================================================
+     OPEN ADD
   ======================================================= */
 
   function openAdd() {
     setError(null);
     setSuccess(null);
     setDuplicatePopup(false);
-    setDeleteConfirmOpen(false);
-    setDeleteReason('');
 
     setForm({
       ...EMPTY_FORM,
     });
 
+    setDeleteReason('');
+    setShowDeletePrompt(false);
+
     setEditingId('new');
   }
 
+
   /* =======================================================
-     EDIT USER
+     OPEN EDIT
+     IMPORTANT:
+     ROLE ID IS RESOLVED FROM THE ACTUAL ROLE.
   ======================================================= */
 
   function openEdit(user) {
     setError(null);
     setSuccess(null);
     setDuplicatePopup(false);
-    setDeleteConfirmOpen(false);
-    setDeleteReason('');
+
+    /*
+     * First try to resolve the role by role_id.
+     */
+
+    let selectedRole =
+      roles.find(
+        (role) =>
+          normalizeId(
+            role.id
+          ) ===
+          normalizeId(
+            user.role_id
+          )
+      );
+
+    /*
+     * If role_id is missing or stale,
+     * fall back to the role name.
+     */
+
+    if (!selectedRole) {
+      selectedRole =
+        roles.find(
+          (role) =>
+            normalizeRole(
+              role.name
+            ).toLowerCase() ===
+            normalizeRole(
+              user.role
+            ).toLowerCase()
+        );
+    }
+
+    const roleName =
+      selectedRole?.name ||
+      normalizeRole(
+        user.role
+      ) ||
+      'Staff';
+
+    const roleId =
+      selectedRole?.id ??
+      normalizeId(
+        user.role_id
+      );
 
     const isSuperadmin =
-      user.role?.toLowerCase() ===
+      roleName.toLowerCase() ===
       'superadmin';
 
     setForm({
@@ -1210,7 +1536,8 @@ export default function UserCrud({
       last_name:
         user.last_name ?? '',
 
-      mi: '',
+      mi:
+        user.mi ?? '',
 
       contact_number:
         user.contact_number ?? '',
@@ -1219,7 +1546,15 @@ export default function UserCrud({
         user.email ?? '',
 
       role:
-        user.role ?? 'Staff',
+        roleName,
+
+      /*
+       * IMPORTANT:
+       * Store the role ID that actually belongs
+       * to the selected role.
+       */
+      role_id:
+        roleId,
 
       position:
         user.position ?? null,
@@ -1230,23 +1565,42 @@ export default function UserCrud({
           : user.kiosk ??
             'Select Kiosk',
 
+      kiosk_id:
+        isSuperadmin
+          ? null
+          : normalizeId(
+              user.kiosk_id
+            ),
+
       department:
         isSuperadmin
           ? 'Whole'
           : user.department ??
             'Select Department',
 
-      status:
-        user.status === 'Inactive'
-          ? 'Inactive'
-          : 'Active',
+      department_id:
+        isSuperadmin
+          ? null
+          : normalizeId(
+              user.department_id
+            ),
 
-      password: '',
-      confirmPassword: '',
+      status:
+        normalizeStatus(
+          user.status
+        ),
+
     });
 
-    setEditingId(user.id);
+    setDeleteReason('');
+    setShowDeletePrompt(false);
+
+    setEditingId(
+      user.user_id ||
+      user.id
+    );
   }
+
 
   /* =======================================================
      CLOSE MODAL
@@ -1255,6 +1609,9 @@ export default function UserCrud({
   function closeModal() {
     setEditingId(null);
 
+    setDeleteReason('');
+    setShowDeletePrompt(false);
+
     setForm({
       ...EMPTY_FORM,
     });
@@ -1262,234 +1619,134 @@ export default function UserCrud({
     setError(null);
     setSuccess(null);
     setDuplicatePopup(false);
-    setDeleteConfirmOpen(false);
-    setDeleteReason('');
   }
 
+
   /* =======================================================
-     REQUEST DELETE
-     
-     IMPORTANT:
-     Clicking Delete User does NOT delete immediately.
-     It opens the confirmation modal and requires a reason.
+     VALIDATE DEPARTMENT
   ======================================================= */
 
-  function requestDelete() {
-    if (!editingId || editingId === 'new') {
+  function validateDepartment() {
+    if (
+      normalizeRole(
+        form.role
+      ).toLowerCase() ===
+      'superadmin'
+    ) {
+      return true;
+    }
+
+    if (!form.kiosk_id) {
+      setError(
+        'Please select a kiosk.'
+      );
+
+      return false;
+    }
+
+    if (!form.department_id) {
+      setError(
+        'Please select a department.'
+      );
+
+      return false;
+    }
+
+    const selectedDepartment =
+      departments.find(
+        (department) =>
+          String(
+            department.id
+          ) ===
+          String(
+            form.department_id
+          )
+      );
+
+    if (!selectedDepartment) {
+      setError(
+        'The selected department could not be found.'
+      );
+
+      return false;
+    }
+
+    if (
+      String(
+        selectedDepartment.kiosk_id
+      ) !==
+      String(
+        form.kiosk_id
+      )
+    ) {
+      setError(
+        'Please select a department that belongs to the selected kiosk.'
+      );
+
+      return false;
+    }
+
+    return true;
+  }
+
+
+  /* =======================================================
+     DELETE USER
+     NODE.JS → MYSQL / FIREBASE
+  ======================================================= */
+
+  async function handleDeleteUser() {
+    if (
+      !editingId ||
+      editingId === 'new'
+    ) {
       return;
     }
 
-    setError(null);
-    setSuccess(null);
-
-    /*
-      Always start with a blank reason.
-    */
-    setDeleteReason('');
-
-    /*
-      Open the confirmation modal.
-    */
-    setDeleteConfirmOpen(true);
-  }
-
-  /* =======================================================
-     CANCEL DELETE
-  ======================================================= */
-
-  function cancelDelete() {
-    if (deleting) {
-      return;
-    }
-
-    setDeleteConfirmOpen(false);
-    setDeleteReason('');
-  }
-
-  /* =======================================================
-     ACTUAL DELETE
-     
-     Flow:
-     1. Validate reason
-     2. Get target user
-     3. Get current logged-in user
-     4. Save audit log
-     5. Delete public.user
-     6. Refresh
-  ======================================================= */
-
-  async function handleDelete() {
-    if (!editingId || editingId === 'new') {
-      return;
-    }
-
-    const reason =
+    const trimmedReason =
       deleteReason.trim();
 
-    /*
-      Reason is mandatory.
-    */
-    if (!reason) {
+    if (!trimmedReason) {
       setError(
-        'Please provide a reason for deleting this user.'
+        'Please enter a reason before deleting this user.'
       );
+
       return;
     }
 
-    setDeleting(true);
-    setError(null);
-    setSuccess(null);
-
     try {
-      /* -----------------------------------------------
-         GET TARGET USER BEFORE DELETING
-      ----------------------------------------------- */
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
 
-      const {
-        data: targetUser,
-        error: targetError,
-      } = await supabase
-        .from(TABLE_NAME)
-        .select(`
-          user_id,
-          first_name,
-          last_name,
-          email
-        `)
-        .eq('user_id', editingId)
-        .single();
+      await deleteUser(
+        editingId,
+        trimmedReason,
+        'superadmin'
+      );
 
-      if (targetError) {
-        throw targetError;
-      }
+      setUsers((currentUsers) =>
+        currentUsers.filter(
+          (user) =>
+            String(
+              user.user_id ??
+              user.id
+            ) !==
+            String(editingId)
+        )
+      );
 
-      if (!targetUser) {
-        throw new Error(
-          'The user could not be found.'
-        );
-      }
-
-      /* -----------------------------------------------
-         GET CURRENT LOGGED-IN USER
-      ----------------------------------------------- */
-
-      const {
-        data: {
-          user: currentUser,
-        },
-        error: currentUserError,
-      } = await supabase.auth.getUser();
-
-      if (currentUserError) {
-        throw currentUserError;
-      }
-
-      if (!currentUser) {
-        throw new Error(
-          'You must be signed in to delete a user.'
-        );
-      }
-
-      /* -----------------------------------------------
-         STEP 1
-         SAVE AUDIT LOG FIRST
-      ----------------------------------------------- */
-
-      const {
-        data: logData,
-        error: logError,
-      } = await supabase
-        .from('user_deletion_logs')
-        .insert({
-          user_id:
-            targetUser.user_id,
-
-          first_name:
-            targetUser.first_name,
-
-          last_name:
-            targetUser.last_name,
-
-          email:
-            targetUser.email,
-
-          reason,
-
-          deleted_by:
-            currentUser.id,
-        })
-        .select('deletion_id')
-        .single();
-
-      if (logError) {
-        console.error(
-          'DELETION LOG INSERT ERROR:',
-          logError
-        );
-
-        throw new Error(
-          `The deletion log could not be saved. The user was NOT deleted. ${logError.message}`
-        );
-      }
-
-      if (!logData?.deletion_id) {
-        throw new Error(
-          'The deletion log was not confirmed. The user was NOT deleted.'
-        );
-      }
-
-      /* -----------------------------------------------
-         STEP 2
-         DELETE PUBLIC USER
-      ----------------------------------------------- */
-
-      const {
-        error: deleteError,
-        count,
-      } = await supabase
-        .from(TABLE_NAME)
-        .delete({
-          count: 'exact',
-        })
-        .eq(
-          'user_id',
-          editingId
-        );
-
-      if (deleteError) {
-        console.error(
-          'USER DELETE ERROR:',
-          deleteError
-        );
-
-        throw new Error(
-          `The user could not be deleted. The audit record was saved. ${deleteError.message}`
-        );
-      }
-
-      if (count !== 1) {
-        throw new Error(
-          'The user was not deleted. Check the DELETE policy on the user table.'
-        );
-      }
-
-      /* -----------------------------------------------
-         STEP 3
-         EVERYTHING SUCCEEDED
-      ----------------------------------------------- */
-
-      setDeleteConfirmOpen(false);
       setDeleteReason('');
+      setShowDeletePrompt(false);
       setEditingId(null);
+
       setForm({
         ...EMPTY_FORM,
       });
 
       setSuccess(
-        'User deleted successfully and the deletion was recorded in the audit log.'
+        'User deleted successfully.'
       );
-
-      await fetchUsers();
 
     } catch (err) {
       console.error(
@@ -1499,16 +1756,18 @@ export default function UserCrud({
 
       setError(
         err?.message ||
-          'An error occurred while deleting the user.'
+        'Unable to delete this user.'
       );
+
     } finally {
-      setDeleting(false);
+      setSaving(false);
     }
   }
 
+
   /* =======================================================
      SAVE USER
-  ======================================================= */
+========================================================= */
 
   async function handleSave() {
     if (
@@ -1516,183 +1775,97 @@ export default function UserCrud({
       !form.last_name.trim() ||
       !form.email.trim()
     ) {
-      return;
-    }
-
-    /* -----------------------------------------------
-       PASSWORD VALIDATION FOR NEW USER
-    ----------------------------------------------- */
-
-    if (editingId === 'new') {
-      const passwordValid =
-        form.password.length >= 8 &&
-        /\d/.test(form.password) &&
-        /[^A-Za-z0-9]/.test(
-          form.password
-        );
-
-      if (!passwordValid) {
-        setError(
-          'Password must be at least 8 characters and contain a number and a symbol.'
-        );
-
-        return;
-      }
-
-      if (
-        form.password !==
-        form.confirmPassword
-      ) {
-        setError(
-          'Password and confirm password do not match.'
-        );
-
-        return;
-      }
-    }
-
-    /* -----------------------------------------------
-       VALIDATE DEPARTMENT
-    ----------------------------------------------- */
-
-    if (
-      editingId === 'new' &&
-      form.kiosk !== 'Select Kiosk' &&
-      form.kiosk !== 'Whole'
-    ) {
-      const allowedDepartments =
-        DEPARTMENTS_BY_KIOSK[
-          form.kiosk
-        ] || [];
-
-      if (
-        form.department !==
-          'Select Department' &&
-        !allowedDepartments.includes(
-          form.department
-        )
-      ) {
-        setError(
-          'Please select a department that belongs to the selected kiosk.'
-        );
-
-        return;
-      }
-    }
-
-    const normalizedEmail =
-      normalizeEmail(form.email);
-
-    /* -----------------------------------------------
-       DUPLICATE EMAIL CHECK
-    ----------------------------------------------- */
-
-    try {
-      const {
-        data: existingUser,
-        error: duplicateCheckError,
-      } = await supabase
-        .from(TABLE_NAME)
-        .select(
-          'user_id, email'
-        )
-        .ilike(
-          'email',
-          normalizedEmail
-        )
-        .neq(
-          'user_id',
-          editingId === 'new'
-            ? '00000000-0000-0000-0000-000000000000'
-            : editingId
-        )
-        .limit(1)
-        .maybeSingle();
-
-      if (duplicateCheckError) {
-        throw duplicateCheckError;
-      }
-
-      if (existingUser) {
-        setError(
-          'This email is already registered. Please use a different email address.'
-        );
-
-        setDuplicatePopup(true);
-
-        return;
-      }
-
-    } catch (duplicateError) {
       setError(
-        duplicateError?.message ||
-          'Unable to check whether this email is already registered.'
+        'First name, last name, and email are required.'
       );
 
       return;
     }
 
-    setSaving(true);
     setError(null);
     setSuccess(null);
     setDuplicatePopup(false);
 
+
+    /* =====================================================
+       DEPARTMENT VALIDATION
+    ===================================================== */
+
+    if (!validateDepartment()) {
+      return;
+    }
+
+
+    const normalizedEmail =
+      normalizeEmail(
+        form.email
+      );
+
+    setSaving(true);
+
+
     try {
-      /* -----------------------------------------------
-         GET ROLE ID
-      ----------------------------------------------- */
 
-      let currentRoleId;
+      /* ===================================================
+         ROLE RESOLUTION
+         IMPORTANT:
+         NEVER use the existing form.role_id as the
+         primary source here.
+      =================================================== */
 
-      const {
-        data: roleData,
-        error: roleError,
-      } = await supabase
-        .from('role')
-        .select('role_id')
-        .eq(
-          'role',
-          form.role
-        )
-        .maybeSingle();
+      const selectedRole =
+        roles.find(
+          (role) =>
+            normalizeRole(
+              role.name
+            ).toLowerCase() ===
+            normalizeRole(
+              form.role
+            ).toLowerCase()
+        );
 
-      if (roleError) {
-        throw roleError;
+      if (!selectedRole) {
+        throw new Error(
+          'Unable to find the selected role.'
+        );
       }
 
-      if (roleData) {
-        currentRoleId =
-          roleData.role_id;
-      } else {
-        const {
-          data: newRole,
-          error: newRoleError,
-        } = await supabase
-          .from('role')
-          .insert([
-            {
-              role: form.role,
-            },
-          ])
-          .select(
-            'role_id'
-          )
-          .single();
+      const selectedRoleId =
+        normalizeId(
+          selectedRole.id
+        );
 
-        if (newRoleError) {
-          throw newRoleError;
-        }
-
-        currentRoleId =
-          newRole.role_id;
+      if (!selectedRoleId) {
+        throw new Error(
+          'The selected role does not have a valid role ID.'
+        );
       }
 
-      /* -----------------------------------------------
-         SUPERADMIN OVERRIDE
-      ----------------------------------------------- */
+      /*
+       * THIS IS THE IMPORTANT FIX.
+       *
+       * The selected role determines the role_id.
+       *
+       * We intentionally DO NOT do:
+       *
+       * form.role_id || selectedRole.id
+       *
+       * because form.role_id may contain the OLD role.
+       */
+
+      const roleId =
+        selectedRoleId;
+
+      const roleName =
+        selectedRole.name;
+
+
+      /* ===================================================
+         SUPERADMIN
+      =================================================== */
 
       const isSuperadmin =
-        form.role?.toLowerCase() ===
+        roleName.toLowerCase() ===
         'superadmin';
 
       const finalKiosk =
@@ -1700,192 +1873,130 @@ export default function UserCrud({
           ? 'Whole'
           : form.kiosk;
 
+      const finalKioskId =
+        isSuperadmin
+          ? null
+          : form.kiosk_id;
+
       const finalDepartment =
         isSuperadmin
           ? 'Whole'
           : form.department;
 
-      /* -----------------------------------------------
-         ADD NEW USER
-      ----------------------------------------------- */
+      const finalDepartmentId =
+        isSuperadmin
+          ? null
+          : form.department_id;
+
+
+      /* ===================================================
+         USER PROFILE
+      =================================================== */
+
+      const profile = {
+        first_name:
+          form.first_name.trim(),
+
+        last_name:
+          form.last_name.trim(),
+
+        mi:
+          form.mi.trim() ||
+          null,
+
+        contact_number:
+          form.contact_number.trim() ||
+          null,
+
+        email:
+          normalizedEmail,
+
+        /*
+         * Role name and role ID now come from
+         * the SAME selected role record.
+         */
+        role:
+          roleName,
+
+        role_id:
+          roleId,
+
+        position:
+          form.position,
+
+        kiosk:
+          finalKiosk,
+
+        kiosk_id:
+          finalKioskId,
+
+        department:
+          finalDepartment,
+
+        department_id:
+          finalDepartmentId,
+
+        status:
+          form.status,
+      };
+
+
+      /* ===================================================
+         DEBUG
+         This lets you verify the exact values being sent.
+      =================================================== */
+
+      console.log(
+        'USER SAVE ROLE:',
+        {
+          selectedRole: roleName,
+          selectedRoleId: roleId,
+          previousFormRoleId:
+            form.role_id,
+        }
+      );
+
+
+      /* ===================================================
+         CREATE USER
+         REACT → NODE → MYSQL / FIREBASE
+      =================================================== */
 
       if (editingId === 'new') {
 
-        const {
-          data: authData,
-          error: authError,
-        } =
-          await supabase.auth.signUp({
-            email:
-              normalizedEmail,
-
-            password:
-              form.password,
-          });
-
-        if (authError) {
-          throw authError;
-        }
-
-        if (
-          !authData?.user?.id
-        ) {
-          throw new Error(
-            'User account was not created.'
-          );
-        }
-
-        /*
-          Supabase can return a user with no
-          identities when the email already exists.
-        */
-
-        if (
-          Array.isArray(
-            authData.user.identities
-          ) &&
-          authData.user.identities
-            .length === 0
-        ) {
-          setDuplicatePopup(true);
-
-          throw new Error(
-            'This email is already registered in the authentication system. Please use a different email address.'
-          );
-        }
-
-        /* ---------------------------------------------
-           INSERT PUBLIC USER
-        --------------------------------------------- */
-
-        const {
-          error: dbError,
-        } = await supabase
-          .from(TABLE_NAME)
-          .insert([
-            {
-              user_id:
-                authData.user.id,
-
-              first_name:
-                form.first_name,
-
-              last_name:
-                form.last_name,
-
-              email:
-                normalizedEmail,
-
-              contact_info:
-                form.contact_number,
-
-              kiosk:
-                finalKiosk,
-
-              position:
-                form.position,
-
-              department:
-                finalDepartment,
-
-              role_id:
-                currentRoleId,
-
-              status:
-                form.status,
-            },
-          ]);
-
-        if (dbError) {
-
-          if (
-            dbError.code ===
-            '23505'
-          ) {
-            setDuplicatePopup(true);
-
-            throw new Error(
-              'This email is already registered. Please use a different email address.'
-            );
-          }
-
-          throw dbError;
-        }
-
-        setSuccess(
-          'User added successfully. A verification email will be sent to the registered email address when Supabase email confirmation is enabled.'
+        await createUser(
+          profile
         );
 
-      } else {
 
-        /* ---------------------------------------------
-           UPDATE EXISTING USER
-        --------------------------------------------- */
+        setSuccess(
+          'User added successfully.'
+        );
+      }
 
-        const updateData = {
-          first_name:
-            form.first_name,
 
-          last_name:
-            form.last_name,
+      /* ===================================================
+         UPDATE USER
+         REACT → NODE → MYSQL / FIREBASE
+      =================================================== */
 
-          email:
-            normalizedEmail,
+      else {
 
-          contact_info:
-            form.contact_number,
+        await updateUser(
+          editingId,
+          profile
+        );
 
-          kiosk:
-            finalKiosk,
-
-          position:
-            form.position,
-
-          department:
-            finalDepartment,
-
-          status:
-            form.status,
-
-          role_id:
-            currentRoleId,
-
-          updated_at:
-            new Date().toISOString(),
-        };
-
-        const {
-          error: updateError,
-        } = await supabase
-          .from(TABLE_NAME)
-          .update(updateData)
-          .eq(
-            'user_id',
-            editingId
-          );
-
-        if (updateError) {
-
-          if (
-            updateError.code ===
-            '23505'
-          ) {
-            throw new Error(
-              'This email is already registered. Please use a different email address.'
-            );
-          }
-
-          throw updateError;
-        }
 
         setSuccess(
           'User updated successfully.'
         );
       }
 
-      /* ---------------------------------------------
-         REFRESH
-      --------------------------------------------- */
+
+      /* ===================================================
+         CLEAN UP
+      =================================================== */
 
       setEditingId(null);
 
@@ -1893,36 +2004,85 @@ export default function UserCrud({
         ...EMPTY_FORM,
       });
 
+      setDeleteReason('');
+      setShowDeletePrompt(false);
+
+      /*
+       * Refresh users through Node.
+       */
       await fetchUsers();
 
     } catch (err) {
+
       console.error(
         'SAVE USER ERROR:',
         err
       );
 
-      setError(
+      const errorMessage =
         err?.message ||
-          'An error occurred while saving.'
-      );
+        'Unable to save user.';
+
+      const normalizedError =
+        String(
+          errorMessage
+        ).toLowerCase();
+
+      if (
+        normalizedError.includes(
+          'already exists'
+        ) ||
+        normalizedError.includes(
+          'already registered'
+        ) ||
+        normalizedError.includes(
+          'already-exists'
+        ) ||
+        normalizedError.includes(
+          'email-already-in-use'
+        ) ||
+        normalizedError.includes(
+          'email already'
+        ) ||
+        normalizedError.includes(
+          'duplicate'
+        )
+      ) {
+
+        setDuplicatePopup(true);
+
+        setError(
+          'This email is already registered. Please use a different email address.'
+        );
+
+      } else {
+
+        setError(
+          errorMessage
+        );
+      }
+
     } finally {
       setSaving(false);
     }
   }
 
-  /* =======================================================
-     SUMMARY METRICS
-  ======================================================= */
+
+  /* =========================================================
+     SUMMARY
+  ========================================================= */
 
   const normalizedRoles =
     users.map(
       (user) =>
-        user.role
-          ?.toLowerCase()
+        normalizeRole(
+          user.role
+        )
+          .toLowerCase()
           .replace(
             /[\s\-_]+/g,
             ''
-          ) ?? ''
+          )
     );
 
   const superAdminCount =
@@ -1936,8 +2096,7 @@ export default function UserCrud({
       (role) =>
         role === 'admin' ||
         role === 'deptadmin' ||
-        role ===
-          'departmentadmin'
+        role === 'departmentadmin'
     ).length;
 
   const staffCount =
@@ -1948,53 +2107,74 @@ export default function UserCrud({
 
   const activeCount =
     users.filter(
-      (u) =>
-        u.status === 'Active'
+      (user) =>
+        user.status === 'Active'
     ).length;
 
-  /* =======================================================
+
+  /* =========================================================
      SEARCH
-  ======================================================= */
+  ========================================================= */
 
   useEffect(() => {
     setPage(1);
   }, [searchQuery]);
 
+
   const filteredUsers =
-    users.filter((u) => {
+    users.filter((user) => {
       const fullName =
-        `${u.first_name} ${u.last_name}`
+        `${user.first_name} ${user.last_name}`
           .toLowerCase();
 
-      const query =
-        searchQuery.toLowerCase();
+      const queryText =
+        searchQuery
+          .trim()
+          .toLowerCase();
 
       return (
-        fullName.includes(query) ||
-        u.email
+        fullName.includes(
+          queryText
+        ) ||
+        user.email
           ?.toLowerCase()
-          .includes(query) ||
-        u.contact_number
+          .includes(
+            queryText
+          ) ||
+        user.contact_number
           ?.toLowerCase()
-          .includes(query) ||
-        u.department
+          .includes(
+            queryText
+          ) ||
+        user.department
           ?.toLowerCase()
-          .includes(query) ||
-        u.kiosk
+          .includes(
+            queryText
+          ) ||
+        user.kiosk
           ?.toLowerCase()
-          .includes(query) ||
-        u.role
+          .includes(
+            queryText
+          ) ||
+        normalizeRole(
+          user.role
+        )
+          .toLowerCase()
+          .includes(
+            queryText
+          ) ||
+        user.position
           ?.toLowerCase()
-          .includes(query) ||
-        u.position
-          ?.toLowerCase()
-          .includes(query)
+          .includes(
+            queryText
+          )
       );
     });
 
-  /* =======================================================
+
+  /* =========================================================
      PAGINATION
-  ======================================================= */
+  ========================================================= */
 
   const totalPages =
     Math.max(
@@ -2018,8 +2198,14 @@ export default function UserCrud({
   const paginatedUsers =
     filteredUsers.slice(
       firstIndex,
-      firstIndex + PAGE_SIZE
+      firstIndex +
+        PAGE_SIZE
     );
+
+
+  /* =========================================================
+     MODAL
+  ========================================================= */
 
   const isModalOpen =
     editingId !== null;
@@ -2028,30 +2214,30 @@ export default function UserCrud({
     isModalOpen &&
     editingId !== 'new';
 
-  /* =======================================================
-     UI
-  ======================================================= */
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
   return (
     <div className="space-y-6">
 
-      {/* =================================================
-          PAGE HEADER
-      ================================================= */}
+      {/* HEADER */}
 
       <div className="flex items-center justify-between">
 
         <div>
+
           <h1 className="text-2xl font-bold text-slate-800">
             User Management
           </h1>
 
           <p className="mt-0.5 text-xs text-slate-500">
-            Manage system users,
-            roles, and department
-            assignments.
+            Manage system users, roles, and department assignments.
           </p>
+
         </div>
+
 
         <button
           type="button"
@@ -2067,9 +2253,8 @@ export default function UserCrud({
 
       </div>
 
-      {/* =================================================
-          ERROR
-      ================================================= */}
+
+      {/* ERROR */}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -2077,9 +2262,8 @@ export default function UserCrud({
         </div>
       )}
 
-      {/* =================================================
-          SUCCESS
-      ================================================= */}
+
+      {/* SUCCESS */}
 
       {success && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -2087,176 +2271,52 @@ export default function UserCrud({
         </div>
       )}
 
-      {/* =================================================
-          SUMMARY CARDS
-      ================================================= */}
+
+      {/* SUMMARY CARDS */}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
 
-        {/* SUPER ADMIN */}
+        <SummaryCard
+          title="SUPER ADMIN"
+          count={superAdminCount}
+          subtitle="TOTAL SUPER ADMIN"
+          icon={<User size={18} />}
+        />
 
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <SummaryCard
+          title="DEPT ADMIN"
+          count={deptAdminCount}
+          subtitle="TOTAL DEPT ADMIN"
+          icon={<Users size={18} />}
+        />
 
-          <div className="flex items-center justify-between">
+        <SummaryCard
+          title="STAFF"
+          count={staffCount}
+          subtitle="TOTAL STAFF"
+          icon={<Contact size={18} />}
+        />
 
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              SUPER ADMIN
-            </span>
+        <SummaryCard
+          title="ACTIVE"
+          count={activeCount}
+          subtitle="ADMIN/STAFF ON DUTY"
+          icon={<UserCheck size={18} />}
+        />
 
-            <User
-              size={18}
-              className="text-slate-600"
-            />
-
-          </div>
-
-          <div className="mt-3">
-
-            <p className="text-2xl font-bold text-slate-800">
-              {superAdminCount}
-            </p>
-
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              TOTAL SUPER ADMIN
-            </p>
-
-          </div>
-
-        </div>
-
-        {/* DEPT ADMIN */}
-
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-
-          <div className="flex items-center justify-between">
-
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              DEPT ADMIN
-            </span>
-
-            <Users
-              size={18}
-              className="text-slate-600"
-            />
-
-          </div>
-
-          <div className="mt-3">
-
-            <p className="text-2xl font-bold text-slate-800">
-              {deptAdminCount}
-            </p>
-
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              TOTAL DEPT ADMIN
-            </p>
-
-          </div>
-
-        </div>
-
-        {/* STAFF */}
-
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-
-          <div className="flex items-center justify-between">
-
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              STAFF
-            </span>
-
-            <Contact
-              size={18}
-              className="text-slate-600"
-            />
-
-          </div>
-
-          <div className="mt-3">
-
-            <p className="text-2xl font-bold text-slate-800">
-              {staffCount}
-            </p>
-
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              TOTAL STAFF
-            </p>
-
-          </div>
-
-        </div>
-
-        {/* ACTIVE */}
-
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-
-          <div className="flex items-center justify-between">
-
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              ACTIVE
-            </span>
-
-            <UserCheck
-              size={18}
-              className="text-slate-600"
-            />
-
-          </div>
-
-          <div className="mt-3">
-
-            <p className="text-2xl font-bold text-slate-800">
-              {activeCount}/128
-            </p>
-
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              ADMIN/STAFF ON DUTY
-            </p>
-
-          </div>
-
-        </div>
-
-        {/* TERMINAL */}
-
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-
-          <div className="flex items-center justify-between">
-
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              TERMINAL
-            </span>
-
-            <Monitor
-              size={18}
-              className="text-slate-600"
-            />
-
-          </div>
-
-          <div className="mt-3">
-
-            <p className="text-2xl font-bold text-slate-800">
-              42
-            </p>
-
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              ACTIVE TERMINAL
-            </p>
-
-          </div>
-
-        </div>
+        <SummaryCard
+          title="TERMINAL"
+          count={42}
+          subtitle="ACTIVE TERMINAL"
+          icon={<Monitor size={18} />}
+        />
 
       </div>
 
-      {/* =================================================
-          USERS TABLE
-      ================================================= */}
+
+      {/* USERS */}
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-
-        {/* HEADER */}
 
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
 
@@ -2264,15 +2324,16 @@ export default function UserCrud({
             Users
           </h2>
 
+
           <div className="relative w-80">
 
             <input
               type="text"
               placeholder="Search user"
               value={searchQuery}
-              onChange={(e) =>
+              onChange={(event) =>
                 setSearchQuery(
-                  e.target.value
+                  event.target.value
                 )
               }
               className="w-full rounded-full border border-slate-200 bg-slate-50/50 py-2 pl-4 pr-10 text-xs text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none"
@@ -2287,7 +2348,6 @@ export default function UserCrud({
 
         </div>
 
-        {/* TABLE */}
 
         <div className="overflow-x-auto">
 
@@ -2321,12 +2381,11 @@ export default function UserCrud({
 
             </thead>
 
+
             <tbody className="divide-y divide-slate-100 text-slate-600">
 
-              {/* LOADING */}
-
               {loading && (
-                <tr key="loading-row">
+                <tr>
 
                   <td
                     colSpan={5}
@@ -2338,32 +2397,27 @@ export default function UserCrud({
                 </tr>
               )}
 
-              {/* NO USERS */}
 
               {!loading &&
-                filteredUsers.length ===
-                  0 && (
-                  <tr key="empty-row">
+                filteredUsers.length === 0 && (
+                  <tr>
 
                     <td
                       colSpan={5}
                       className="px-6 py-8 text-center text-slate-400"
                     >
-                      No users found
-                      matching your
-                      criteria.
+                      No users found matching your criteria.
                     </td>
 
                   </tr>
                 )}
 
-              {/* USERS */}
 
               {!loading &&
                 paginatedUsers.map(
                   (user) => (
                     <tr
-                      key={user.id}
+                      key={user.user_id}
                       onClick={() =>
                         openEdit(user)
                       }
@@ -2371,11 +2425,8 @@ export default function UserCrud({
                     >
 
                       <td className="px-6 py-4 font-medium text-slate-800">
-
                         {user.first_name}{' '}
-
                         {user.last_name}
-
                       </td>
 
                       <td className="px-6 py-4 text-slate-600">
@@ -2384,11 +2435,13 @@ export default function UserCrud({
 
                       <td className="px-6 py-4 text-slate-600">
                         {user.department ||
-                          'OPD'}
+                          'Whole'}
                       </td>
 
                       <td className="px-6 py-4 capitalize text-slate-600">
-                        {user.role}
+                        {normalizeRole(
+                          user.role
+                        )}
                       </td>
 
                       <td className="px-6 py-4">
@@ -2416,16 +2469,13 @@ export default function UserCrud({
 
         </div>
 
-        {/* =================================================
-            PAGINATION
-        ================================================= */}
+
+        {/* PAGINATION */}
 
         <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 text-xs text-slate-500">
 
           <span>
-
-            {filteredUsers.length ===
-            0
+            {filteredUsers.length === 0
               ? 'No users to show'
               : `Showing ${
                   firstIndex + 1
@@ -2435,21 +2485,19 @@ export default function UserCrud({
                 } of ${
                   filteredUsers.length
                 } users`}
-
           </span>
 
-          <div className="flex items-center gap-1.5">
 
-            {/* PREVIOUS */}
+          <div className="flex items-center gap-1.5">
 
             <button
               type="button"
               onClick={() =>
                 setPage(
-                  (p) =>
+                  (value) =>
                     Math.max(
                       1,
-                      p - 1
+                      value - 1
                     )
                 )
               }
@@ -2461,43 +2509,43 @@ export default function UserCrud({
               Prev
             </button>
 
-            {/* PAGE NUMBERS */}
 
             {getPageNumbers(
               currentPage,
               totalPages
-            ).map((n) => (
+            ).map((number) => (
               <button
-                key={n}
+                key={number}
                 type="button"
                 onClick={() =>
-                  setPage(n)
+                  setPage(number)
                 }
                 aria-current={
-                  n === currentPage
+                  number ===
+                  currentPage
                     ? 'page'
                     : undefined
                 }
                 className={`rounded-md border border-slate-200 px-3 py-1 transition ${
-                  n === currentPage
+                  number ===
+                  currentPage
                     ? 'bg-white font-semibold text-slate-700 shadow-sm'
                     : 'bg-white text-slate-500 hover:bg-slate-50'
                 }`}
               >
-                {n}
+                {number}
               </button>
             ))}
 
-            {/* NEXT */}
 
             <button
               type="button"
               onClick={() =>
                 setPage(
-                  (p) =>
+                  (value) =>
                     Math.min(
                       totalPages,
-                      p + 1
+                      value + 1
                     )
                 )
               }
@@ -2516,9 +2564,8 @@ export default function UserCrud({
 
       </div>
 
-      {/* =================================================
-          DUPLICATE USER POPUP
-      ================================================= */}
+
+      {/* DUPLICATE POPUP */}
 
       {duplicatePopup && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 px-4">
@@ -2533,23 +2580,21 @@ export default function UserCrud({
 
             </div>
 
+
             <h3 className="mt-4 text-lg font-bold text-slate-800">
               Duplicate User
             </h3>
 
+
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              This email address is
-              already registered.
-              Please use a different
-              email address.
+              This email address is already registered. Please use a different email address.
             </p>
+
 
             <button
               type="button"
               onClick={() =>
-                setDuplicatePopup(
-                  false
-                )
+                setDuplicatePopup(false)
               }
               className="mt-5 w-full rounded-lg bg-[#00529B] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#003F75]"
             >
@@ -2561,154 +2606,8 @@ export default function UserCrud({
         </div>
       )}
 
-      {/* =================================================
-          DELETE CONFIRMATION MODAL
 
-          IMPORTANT:
-          This is the ONLY place where the deletion
-          reason is requested.
-      ================================================= */}
-
-      {deleteConfirmOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 px-4">
-
-          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
-
-            {/* HEADER */}
-
-            <div className="mb-4 flex items-center gap-3">
-
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600">
-                <Trash2 size={18} />
-              </div>
-
-              <div>
-
-                <h3 className="text-base font-bold text-slate-800">
-                  Delete User?
-                </h3>
-
-                <p className="text-xs text-slate-500">
-                  A reason is required
-                  before the user can be
-                  deleted.
-                </p>
-
-              </div>
-
-            </div>
-
-            {/* WARNING */}
-
-            <p className="text-sm leading-6 text-slate-600">
-
-              Are you sure you want to
-              delete{' '}
-
-              <span className="font-semibold text-slate-800">
-                {form.first_name}{' '}
-                {form.last_name}
-              </span>
-
-              ? This cannot be
-              undone.
-
-            </p>
-
-            {/* =================================================
-                DELETE REASON
-            ================================================= */}
-
-            <div className="mt-4">
-
-              <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-
-                Reason for deletion
-
-                <span className="text-red-500">
-                  {' '}*
-                </span>
-
-              </label>
-
-              <textarea
-                value={deleteReason}
-                onChange={(e) =>
-                  setDeleteReason(
-                    e.target.value
-                  )
-                }
-                disabled={deleting}
-                required
-                rows={4}
-                maxLength={500}
-                placeholder="Enter the reason for deleting this user..."
-                className="w-full resize-none rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 placeholder-slate-400 focus:border-red-400 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-              />
-
-              <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
-
-                <span>
-                  A deletion record will
-                  be saved in the audit
-                  log.
-                </span>
-
-                <span>
-                  {deleteReason.length}/500
-                </span>
-
-              </div>
-
-            </div>
-
-            {/* =================================================
-                DELETE BUTTONS
-            ================================================= */}
-
-            <div className="mt-6 flex justify-end gap-3">
-
-              {/* CANCEL */}
-
-              <button
-                type="button"
-                onClick={cancelDelete}
-                disabled={deleting}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Cancel
-              </button>
-
-              {/* DELETE */}
-
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={
-                  deleting ||
-                  !deleteReason.trim()
-                }
-                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-
-                <Trash2 size={15} />
-
-                {deleting
-                  ? 'Deleting...'
-                  : 'Delete User'}
-
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
-      {/* =================================================
-          USER MODAL
-      ================================================= */}
+      {/* USER MODAL */}
 
       {isModalOpen && (
         <UserModal
@@ -2721,10 +2620,61 @@ export default function UserCrud({
           onAddDepartment={
             onAddDepartment
           }
-          onDelete={requestDelete}
-          deleting={deleting}
+          kioskOptions={kiosks}
+          departmentOptions={
+            availableDepartments
+          }
+          roleOptions={roles}
+          deleteReason={deleteReason}
+          setDeleteReason={setDeleteReason}
+          showDeletePrompt={showDeletePrompt}
+          setShowDeletePrompt={setShowDeletePrompt}
+          onDeleteUser={handleDeleteUser}
         />
       )}
+
+    </div>
+  );
+}
+
+
+/* =========================================================
+   SUMMARY CARD
+========================================================= */
+
+function SummaryCard({
+  title,
+  count,
+  subtitle,
+  icon,
+}) {
+  return (
+    <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+
+      <div className="flex items-center justify-between">
+
+        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          {title}
+        </span>
+
+        <span className="text-slate-600">
+          {icon}
+        </span>
+
+      </div>
+
+
+      <div className="mt-3">
+
+        <p className="text-2xl font-bold text-slate-800">
+          {count}
+        </p>
+
+        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+          {subtitle}
+        </p>
+
+      </div>
 
     </div>
   );

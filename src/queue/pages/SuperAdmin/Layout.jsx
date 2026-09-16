@@ -18,7 +18,6 @@ import {
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../services/Authcontext';
-import { supabase } from '../../../supabase';
 import logo from '../../../assets/logo.png';
 import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';

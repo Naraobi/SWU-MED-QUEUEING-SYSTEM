@@ -1,85 +1,172 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { isSupabaseConfigured, supabase } from '../../supabase';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+} from "firebase/auth";
+
+import { auth } from "../../firebase";
+
+import {
+  getCurrentUserProfile,
+} from "./backendApi";
 
 const AuthContext = createContext(null);
-const STORAGE_KEY = 'swumed_user';
 
-// Only these roles are allowed to access the system.
-const ALLOWED_ROLES = new Set(['superadmin', 'admin', 'staff']);
+const STORAGE_KEY = "swumed_user";
+
+const ALLOWED_ROLES = new Set([
+  "superadmin",
+  "admin",
+  "staff",
+]);
+
+/*
+|--------------------------------------------------------------------------
+| NORMALIZE ROLE
+|--------------------------------------------------------------------------
+*/
 
 function normalizeRole(role) {
-  if (typeof role === 'object' && role?.role) {
+  if (
+    typeof role === "object" &&
+    role?.role
+  ) {
     role = role.role;
   }
 
-  return String(role ?? '').trim().toLowerCase();
+  return String(role ?? "")
+    .trim()
+    .toLowerCase();
 }
 
-function normalizeDepartment(department) {
-  const value = String(department ?? '').trim();
+/*
+|--------------------------------------------------------------------------
+| NORMALIZE DEPARTMENT
+|--------------------------------------------------------------------------
+*/
 
-  if (!value || value.toLowerCase() === 'null') {
+function normalizeDepartment(department) {
+  const value = String(
+    department ?? ""
+  ).trim();
+
+  if (
+    !value ||
+    value.toLowerCase() === "null"
+  ) {
     return null;
   }
 
   return value;
 }
 
-/**
- * Checks whether the user profile has a valid role and
- * whether the role has the required department assignment.
- *
- * Rules:
- * - Superadmin: department is NOT required.
- * - Admin: department IS required.
- * - Staff: department IS required.
- */
+/*
+|--------------------------------------------------------------------------
+| NORMALIZE DEPARTMENT PREFIX
+|--------------------------------------------------------------------------
+|
+| The department prefix comes from the department data.
+|
+| Examples:
+|
+| Information -> IN
+| Admission   -> AD
+| Laboratory  -> LAB
+|
+|--------------------------------------------------------------------------
+*/
+
+function normalizeDepartmentPrefix(prefix) {
+  const value = String(
+    prefix ?? ""
+  ).trim();
+
+  if (
+    !value ||
+    value.toLowerCase() === "null"
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
+/*
+|--------------------------------------------------------------------------
+| VALIDATE USER ACCESS
+|--------------------------------------------------------------------------
+*/
+
 function validateUserAccess(userData) {
   if (!userData) {
     return {
       valid: false,
-      message: 'User profile could not be found.',
+      message:
+        "User profile could not be found.",
     };
   }
 
-  const roleName = normalizeRole(userData.role?.role);
+  const roleName = normalizeRole(
+    userData.role
+  );
 
-  // Reject accounts with no role.
   if (!roleName) {
     return {
       valid: false,
-      message: 'No role has been assigned to this account.',
+      message:
+        "No role has been assigned to this account.",
     };
   }
 
-  // Reject roles that are not part of the system.
   if (!ALLOWED_ROLES.has(roleName)) {
     return {
       valid: false,
-      message: 'Your account does not have a valid role.',
+      message:
+        "Your account does not have a valid role.",
     };
   }
 
-  const department = normalizeDepartment(userData.department);
+  const department =
+    normalizeDepartment(
+      userData.department
+    );
 
-  // Superadmin does not need a department.
-  if (roleName === 'superadmin') {
+  /*
+  |--------------------------------------------------------------------------
+  | SUPERADMIN
+  |--------------------------------------------------------------------------
+  */
+
+  if (roleName === "superadmin") {
     return {
       valid: true,
       role: roleName,
     };
   }
 
-  // Admin and Staff must have a department.
+  /*
+  |--------------------------------------------------------------------------
+  | ADMIN / STAFF
+  |--------------------------------------------------------------------------
+  */
+
   if (!department) {
     const roleLabel =
-      roleName === 'admin'
-        ? 'Admin'
-        : 'Staff';
+      roleName === "admin"
+        ? "Admin"
+        : "Staff";
 
     return {
       valid: false,
-      message: `${roleLabel} accounts must be assigned to a department before they can log in.`,
+      message:
+        `${roleLabel} accounts must be assigned to a department before they can log in.`,
     };
   }
 
@@ -89,447 +176,955 @@ function validateUserAccess(userData) {
   };
 }
 
-async function fetchUserProfile(authUserId) {
-  if (!authUserId) {
-    return {
-      data: null,
-      error: new Error('Authentication user ID is missing.'),
-    };
-  }
+/*
+|--------------------------------------------------------------------------
+| BUILD FINAL USER
+|--------------------------------------------------------------------------
+|
+| Firebase Authentication is responsible for identity.
+|
+| The application profile comes from the backend/database.
+|
+| Firebase UID is preserved as:
+|
+| - firebase_uid
+| - uid
+|
+|--------------------------------------------------------------------------
+*/
 
-  const { data, error } = await supabase
-    .from('user')
-    .select(`
-      user_id,
-      email,
-      first_name,
-      last_name,
-      position,
-      department,
-      role_id,
-      role:role_id (
-        role_id,
-        role
-      )
-    `)
-    .eq('user_id', authUserId)
-    .maybeSingle();
+function buildFinalUser(
+  userData,
+  firebaseUser = null
+) {
+  const normalizedRole =
+    normalizeRole(userData?.role);
+
+  /*
+  |--------------------------------------------------------------------------
+  | DEPARTMENT PREFIX
+  |--------------------------------------------------------------------------
+  */
+
+  const departmentPrefix =
+    normalizeDepartmentPrefix(
+      userData?.department_prefix ??
+      userData?.departmentPrefix ??
+      userData?.prefix
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | FIREBASE UID
+  |--------------------------------------------------------------------------
+  */
+
+  const firebaseUid =
+    firebaseUser?.uid ??
+    userData?.firebase_uid ??
+    userData?.firebaseUid ??
+    userData?.uid ??
+    null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | EMAIL
+  |--------------------------------------------------------------------------
+  */
+
+  const firebaseEmail =
+    firebaseUser?.email ??
+    null;
 
   return {
-    data,
-    error,
+    ...userData,
+
+    /*
+    |--------------------------------------------------------------------------
+    | USER IDENTIFIERS
+    |--------------------------------------------------------------------------
+    */
+
+    user_id:
+      userData?.user_id ??
+      null,
+
+    firebase_uid:
+      firebaseUid,
+
+    firebaseUid:
+      firebaseUid,
+
+    uid:
+      firebaseUid ??
+      userData?.user_id ??
+      null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | EMAIL
+    |--------------------------------------------------------------------------
+    */
+
+    email:
+      firebaseEmail ??
+      userData?.email ??
+      null,
+
+    emailVerified:
+      firebaseUser?.emailVerified ??
+      userData?.emailVerified ??
+      true,
+
+    /*
+    |--------------------------------------------------------------------------
+    | DEPARTMENT
+    |--------------------------------------------------------------------------
+    */
+
+    department:
+      normalizeDepartment(
+        userData?.department
+      ),
+
+    department_id:
+      userData?.department_id ??
+      null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | DEPARTMENT PREFIX
+    |--------------------------------------------------------------------------
+    */
+
+    department_prefix:
+      departmentPrefix,
+
+    departmentPrefix:
+      departmentPrefix,
+
+    /*
+    |--------------------------------------------------------------------------
+    | ROLE
+    |--------------------------------------------------------------------------
+    */
+
+    role:
+      normalizedRole,
+
+    role_id:
+      userData?.role_id ??
+      null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | POSITION
+    |--------------------------------------------------------------------------
+    */
+
+    position:
+      userData?.position ??
+      null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | KIOSK
+    |--------------------------------------------------------------------------
+    */
+
+    kiosk:
+      userData?.kiosk ??
+      null,
+
+    kiosk_id:
+      userData?.kiosk_id ??
+      null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACCOUNT STATUS
+    |--------------------------------------------------------------------------
+    */
+
+ status:
+  userData?.status ??
+  "Active",
+
+must_change_password:
+  Number(
+    userData?.must_change_password
+  ) === 1,
+
+password_changed_at:
+  userData?.password_changed_at ??
+  null,
   };
 }
 
-async function fetchDepartmentPrefix(department) {
-  if (!department) {
-    return '';
-  }
+/*
+|--------------------------------------------------------------------------
+| SAVE USER LOCALLY
+|--------------------------------------------------------------------------
+*/
 
-  const { data, error } = await supabase
-    .from('departments')
-    .select('prefix')
-    .eq('name', department)
-    .maybeSingle();
-
-  if (error) {
-    console.error('Error loading department prefix:', error);
-    return '';
-  }
-
-  return data?.prefix ?? '';
+function saveUserLocally(userData) {
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(userData)
+  );
 }
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+/*
+|--------------------------------------------------------------------------
+| CLEAR USER LOCALLY
+|--------------------------------------------------------------------------
+*/
 
-  useEffect(() => {
-    const restoreUser = async () => {
-      // ---------------------------------------------------------
-      // DEMO MODE
-      // ---------------------------------------------------------
-      if (!isSupabaseConfigured) {
-        const demoUser = {
-          user_id: 'demo-staff',
-          email: 'staff.demo@swu.local',
-          first_name: 'Ruth',
-          last_name: 'Abella',
-          position: null,
-          department: 'Billing Department',
-          department_prefix: 'BP',
-          role: {
-            role: 'Staff',
-          },
-        };
+function clearLocalUser() {
+  localStorage.removeItem(
+    STORAGE_KEY
+  );
 
-        setUser(demoUser);
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(demoUser)
-        );
+  localStorage.removeItem(
+    "swumed_staff_terminal"
+  );
+}
 
-        setLoading(false);
-        return;
-      }
+/*
+|--------------------------------------------------------------------------
+| LOAD SAVED USER
+|--------------------------------------------------------------------------
+*/
 
-      // ---------------------------------------------------------
-      // SUPABASE SESSION RESTORATION
-      // ---------------------------------------------------------
-      try {
-        const {
-          data: { user: authUser },
-          error: authError,
-        } = await supabase.auth.getUser();
-
-        if (authError) {
-          console.error(
-            'Error getting authenticated user:',
-            authError
-          );
-        }
-
-        // No authenticated Supabase user.
-        if (!authUser) {
-          setUser(null);
-          localStorage.removeItem(STORAGE_KEY);
-          setLoading(false);
-          return;
-        }
-
-        // -------------------------------------------------------
-        // GET USER PROFILE FROM PUBLIC "user" TABLE
-        // -------------------------------------------------------
-        const {
-          data: userData,
-          error: userError,
-        } = await fetchUserProfile(authUser.id);
-
-        if (userError || !userData) {
-          console.error(
-            'Error loading user profile:',
-            userError
-          );
-
-          await supabase.auth.signOut();
-
-          setUser(null);
-          localStorage.removeItem(STORAGE_KEY);
-          setLoading(false);
-          return;
-        }
-
-        // -------------------------------------------------------
-        // VALIDATE ROLE + DEPARTMENT
-        // -------------------------------------------------------
-        const accessValidation =
-          validateUserAccess(userData);
-
-        if (!accessValidation.valid) {
-          console.error(
-            'User access validation failed:',
-            accessValidation.message
-          );
-
-          await supabase.auth.signOut();
-
-          setUser(null);
-          localStorage.removeItem(STORAGE_KEY);
-          setLoading(false);
-          return;
-        }
-
-        // -------------------------------------------------------
-        // GET DEPARTMENT PREFIX
-        // -------------------------------------------------------
-        const fetchedPrefix =
-          await fetchDepartmentPrefix(
-            userData.department
-          );
-
-        const finalUser = {
-          ...userData,
-          department_prefix: fetchedPrefix,
-        };
-
-        setUser(finalUser);
-
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(finalUser)
-        );
-      } catch (error) {
-        console.error(
-          'Error restoring user:',
-          error
-        );
-
-        try {
-          await supabase.auth.signOut();
-        } catch (signOutError) {
-          console.error(
-            'Error signing out invalid session:',
-            signOutError
-          );
-        }
-
-        setUser(null);
-        localStorage.removeItem(STORAGE_KEY);
-      }
-
-      setLoading(false);
-    };
-
-    restoreUser();
-  }, []);
-
-  // ===========================================================
-  // SIGN IN
-  // ===========================================================
-  async function signIn(email, password) {
-    // ---------------------------------------------------------
-    // DEMO MODE
-    // ---------------------------------------------------------
-    if (!isSupabaseConfigured) {
-      const demoUser = {
-        user_id: 'demo-staff',
-        email:
-          email || 'staff.demo@swu.local',
-        first_name: 'Ruth',
-        last_name: 'Abella',
-        position: null,
-        department: 'Billing Department',
-        department_prefix: 'BP',
-        role: {
-          role: 'Staff',
-        },
-      };
-
-      setUser(demoUser);
-
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(demoUser)
+function loadSavedUser() {
+  try {
+    const stored =
+      localStorage.getItem(
+        STORAGE_KEY
       );
 
-      return {
-        error: null,
-        user: demoUser,
-        role: 'Staff',
-        position: null,
-      };
+    if (!stored) {
+      return null;
     }
 
+    const parsed =
+      JSON.parse(stored);
+
+    if (!parsed) {
+      return null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHECK STATUS
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      String(
+        parsed.status ?? ""
+      ).toLowerCase() ===
+      "inactive"
+    ) {
+      clearLocalUser();
+      return null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHECK ROLE / ACCESS
+    |--------------------------------------------------------------------------
+    */
+
+    const validation =
+      validateUserAccess(
+        parsed
+      );
+
+    if (!validation.valid) {
+      console.warn(
+        "Saved user failed access validation:",
+        validation.message
+      );
+
+      clearLocalUser();
+      return null;
+    }
+
+    return buildFinalUser(
+      parsed,
+      null
+    );
+  } catch (error) {
+    console.error(
+      "Error loading saved user:",
+      error
+    );
+
+    clearLocalUser();
+
+    return null;
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| AUTH PROVIDER
+|--------------------------------------------------------------------------
+*/
+
+export function AuthProvider({
+  children,
+}) {
+  const [user, setUser] =
+    useState(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  /*
+  |--------------------------------------------------------------------------
+  | FIREBASE AUTH SESSION
+  |--------------------------------------------------------------------------
+  |
+  | Firebase is now responsible for maintaining the authentication
+  | session.
+  |
+  | MySQL is NOT required for Firebase authentication.
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  useEffect(() => {
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        async (firebaseUser) => {
+          /*
+          |--------------------------------------------------------------------------
+          | NO FIREBASE USER
+          |--------------------------------------------------------------------------
+          */
+
+          if (!firebaseUser) {
+            setUser(null);
+            clearLocalUser();
+            setLoading(false);
+            return;
+          }
+
+          try {
+            /*
+            |--------------------------------------------------------------------------
+            | GET APPLICATION USER PROFILE
+            |--------------------------------------------------------------------------
+            |
+            | Firebase has already authenticated the user.
+            |
+            | Now we retrieve application information such as:
+            |
+            | - role
+            | - department
+            | - department_id
+            | - department_prefix
+            | - kiosk
+            | - position
+            | - status
+            |
+            |--------------------------------------------------------------------------
+            */
+
+            const userData =
+              await getCurrentUserProfile(
+                firebaseUser
+              );
+
+            if (!userData) {
+              console.error(
+                "Firebase user authenticated, but application profile was not found."
+              );
+
+              await firebaseSignOut(
+                auth
+              );
+
+              clearLocalUser();
+              setUser(null);
+              setLoading(false);
+
+              return;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | CHECK ACCOUNT STATUS
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+              String(
+                userData.status ?? ""
+              ).toLowerCase() ===
+              "inactive"
+            ) {
+              await firebaseSignOut(
+                auth
+              );
+
+              clearLocalUser();
+              setUser(null);
+              setLoading(false);
+
+              return;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | CHECK ROLE / DEPARTMENT
+            |--------------------------------------------------------------------------
+            */
+
+            const accessValidation =
+              validateUserAccess(
+                userData
+              );
+
+            if (
+              !accessValidation.valid
+            ) {
+              console.warn(
+                "Firebase-authenticated user failed access validation:",
+                accessValidation.message
+              );
+
+              await firebaseSignOut(
+                auth
+              );
+
+              clearLocalUser();
+              setUser(null);
+              setLoading(false);
+
+              return;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | BUILD FINAL USER
+            |--------------------------------------------------------------------------
+            */
+
+            const finalUser =
+              buildFinalUser(
+                userData,
+                firebaseUser
+              );
+
+            /*
+            |--------------------------------------------------------------------------
+            | SAVE USER
+            |--------------------------------------------------------------------------
+            */
+
+            setUser(finalUser);
+
+            saveUserLocally(
+              finalUser
+            );
+
+            console.log(
+              "Firebase authenticated user:",
+              {
+                firebase_uid:
+                  finalUser.firebase_uid,
+
+                email:
+                  finalUser.email,
+
+                role:
+                  finalUser.role,
+
+                department:
+                  finalUser.department,
+
+                department_id:
+                  finalUser.department_id,
+
+                department_prefix:
+                  finalUser.department_prefix,
+
+                kiosk:
+                  finalUser.kiosk,
+              }
+            );
+          } catch (error) {
+            console.error(
+              "Error loading authenticated user profile:",
+              error
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | IMPORTANT
+            |--------------------------------------------------------------------------
+            |
+            | Firebase authentication succeeded, but the application
+            | profile could not be loaded.
+            |
+            | Do not allow an incomplete user profile into the dashboard.
+            |
+            |--------------------------------------------------------------------------
+            */
+
+            setUser(null);
+            clearLocalUser();
+          } finally {
+            setLoading(false);
+          }
+        }
+      );
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  /*
+  |--------------------------------------------------------------------------
+  | SIGN IN
+  |--------------------------------------------------------------------------
+  |
+  | React
+  |   ↓
+  | Firebase Authentication
+  |   ↓
+  | Firebase verifies email/password
+  |   ↓
+  | Firebase UID
+  |   ↓
+  | Application profile
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  async function signIn(
+    email,
+    password
+  ) {
     try {
-      // -------------------------------------------------------
-      // STEP 1: SUPABASE AUTHENTICATION
-      // -------------------------------------------------------
-      const {
-        data: authData,
-        error: authError,
-      } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      /*
+      |--------------------------------------------------------------------------
+      | NORMALIZE EMAIL
+      |--------------------------------------------------------------------------
+      */
 
-      if (authError) {
-        console.error(
-          'Authentication error:',
-          authError
-        );
+      const normalizedEmail =
+        String(email ?? "")
+          .trim()
+          .toLowerCase();
 
+      if (!normalizedEmail) {
         return {
           error: {
-            message: 'Invalid email or password.',
+            message:
+              "Email is required.",
           },
         };
       }
 
-      const authUser = authData?.user;
-
-      if (!authUser) {
+      if (!password) {
         return {
           error: {
-            message: 'Authentication failed. Please try again.',
+            message:
+              "Password is required.",
           },
         };
       }
 
-      // -------------------------------------------------------
-      // STEP 2: GET USER PROFILE FROM SUPABASE
-      // -------------------------------------------------------
-      const {
-        data: userData,
-        error: userError,
-      } = await fetchUserProfile(authUser.id);
+      /*
+      |--------------------------------------------------------------------------
+      | STEP 1
+      | FIREBASE AUTHENTICATION
+      |--------------------------------------------------------------------------
+      |
+      | MySQL is NOT contacted here.
+      |
+      |--------------------------------------------------------------------------
+      */
 
-      if (userError || !userData) {
-        console.error(
-          'User profile error:',
-          userError
+      const credential =
+        await signInWithEmailAndPassword(
+          auth,
+          normalizedEmail,
+          password
         );
 
-        await supabase.auth.signOut();
+      const firebaseUser =
+        credential.user;
+
+      if (!firebaseUser) {
+        return {
+          error: {
+            message:
+              "Firebase authentication failed.",
+          },
+        };
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | STEP 2
+      | GET APPLICATION PROFILE
+      |--------------------------------------------------------------------------
+      |
+      | Firebase has verified the credentials.
+      |
+      | The backend now provides the user's application information.
+      |
+      |--------------------------------------------------------------------------
+      */
+
+      let userData;
+
+      try {
+        userData =
+          await getCurrentUserProfile(
+            firebaseUser
+          );
+      } catch (profileError) {
+        console.error(
+          "Failed to retrieve application user profile:",
+          profileError
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | SIGN OUT FIREBASE IF PROFILE CANNOT BE LOADED
+        |--------------------------------------------------------------------------
+        */
+
+        await firebaseSignOut(
+          auth
+        );
+
+        clearLocalUser();
 
         return {
           error: {
             message:
-              'User profile could not be found. Please contact the administrator.',
+              profileError?.message ||
+              "Login succeeded, but your user profile could not be loaded.",
           },
         };
       }
 
-      // -------------------------------------------------------
-      // STEP 3: CHECK ROLE + DEPARTMENT ASSIGNMENT
-      // -------------------------------------------------------
-      const accessValidation =
-        validateUserAccess(userData);
-
-      if (!accessValidation.valid) {
-        console.error(
-          'Login access validation failed:',
-          accessValidation.message
+      if (!userData) {
+        await firebaseSignOut(
+          auth
         );
 
-        // Very important:
-        // Authentication succeeded, but the user's
-        // application-level access requirements failed.
-        // Therefore immediately terminate the Supabase session.
-        await supabase.auth.signOut();
+        clearLocalUser();
 
         return {
           error: {
-            message: accessValidation.message,
+            message:
+              "Login succeeded, but your application user profile could not be found.",
           },
         };
       }
 
-      const roleName =
-        accessValidation.role;
+      /*
+      |--------------------------------------------------------------------------
+      | STEP 3
+      | STATUS CHECK
+      |--------------------------------------------------------------------------
+      */
 
-      // -------------------------------------------------------
-      // STEP 4: GET DEPARTMENT PREFIX
-      // -------------------------------------------------------
-      const fetchedPrefix =
-        await fetchDepartmentPrefix(
-          userData.department
+      if (
+        String(
+          userData.status ?? ""
+        ).toLowerCase() ===
+        "inactive"
+      ) {
+        await firebaseSignOut(
+          auth
         );
 
-      const finalUser = {
-        ...userData,
-        department_prefix: fetchedPrefix,
-      };
+        clearLocalUser();
+        setUser(null);
 
-      // -------------------------------------------------------
-      // STEP 5: UPDATE USER STATUS
-      // -------------------------------------------------------
-      try {
-        await supabase
-          .from('user')
-          .update({
-            status: 'Active',
-          })
-          .eq(
-            'user_id',
-            authUser.id
-          );
-      } catch (updateError) {
-        console.error(
-          'Failed to update status to Active:',
-          updateError
-        );
+        return {
+          error: {
+            message:
+              "This account has been disabled.",
+          },
+        };
       }
 
-      // -------------------------------------------------------
-      // STEP 6: SAVE USER TO CONTEXT + LOCAL STORAGE
-      // -------------------------------------------------------
+      /*
+      |--------------------------------------------------------------------------
+      | STEP 4
+      | ROLE / DEPARTMENT CHECK
+      |--------------------------------------------------------------------------
+      */
+
+      const accessValidation =
+        validateUserAccess(
+          userData
+        );
+
+      if (
+        !accessValidation.valid
+      ) {
+        await firebaseSignOut(
+          auth
+        );
+
+        clearLocalUser();
+        setUser(null);
+
+        return {
+          error: {
+            message:
+              accessValidation.message,
+          },
+        };
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | STEP 5
+      | BUILD FINAL USER
+      |--------------------------------------------------------------------------
+      */
+
+      const finalUser =
+        buildFinalUser(
+          userData,
+          firebaseUser
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | STEP 6
+      | SAVE SESSION
+      |--------------------------------------------------------------------------
+      */
+
       setUser(finalUser);
 
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(finalUser)
+      saveUserLocally(
+        finalUser
       );
+
+      /*
+      |--------------------------------------------------------------------------
+      | DEBUG
+      |--------------------------------------------------------------------------
+      */
+
+      console.log(
+        "Authenticated user:",
+        {
+          firebase_uid:
+            finalUser.firebase_uid,
+
+          email:
+            finalUser.email,
+
+          role:
+            finalUser.role,
+
+          department:
+            finalUser.department,
+
+          department_id:
+            finalUser.department_id,
+
+          department_prefix:
+            finalUser.department_prefix,
+
+          kiosk:
+            finalUser.kiosk,
+        }
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | RETURN RESULT
+      |--------------------------------------------------------------------------
+      */
 
       return {
         error: null,
-        user: finalUser,
-        role: roleName,
-        position: finalUser.position,
+
+        user:
+          finalUser,
+
+        role:
+          accessValidation.role,
+
+        position:
+          finalUser.position ??
+          null,
       };
     } catch (error) {
       console.error(
-        'Unexpected login error:',
+        "Firebase authentication error:",
         error
       );
 
+      /*
+      |--------------------------------------------------------------------------
+      | FIREBASE ERROR MESSAGES
+      |--------------------------------------------------------------------------
+      |
+      | Convert Firebase's technical error codes into messages that
+      | make sense on the login page.
+      |
+      |--------------------------------------------------------------------------
+      */
+
+      let message =
+        "Something went wrong while logging in.";
+
+      switch (error?.code) {
+        case "auth/invalid-credential":
+          message =
+            "Invalid email or password.";
+          break;
+
+        case "auth/invalid-email":
+          message =
+            "Please enter a valid email address.";
+          break;
+
+        case "auth/user-disabled":
+          message =
+            "This account has been disabled.";
+          break;
+
+        case "auth/user-not-found":
+          message =
+            "Invalid email or password.";
+          break;
+
+        case "auth/wrong-password":
+          message =
+            "Invalid email or password.";
+          break;
+
+        case "auth/too-many-requests":
+          message =
+            "Too many login attempts. Please try again later.";
+          break;
+
+        case "auth/network-request-failed":
+          message =
+            "Unable to connect to Firebase. Please check your internet connection.";
+          break;
+
+        default:
+          message =
+            error?.message ||
+            message;
+      }
+
       return {
         error: {
-          message:
-            'Something went wrong while logging in.',
+          message,
         },
       };
     }
   }
 
-  // ===========================================================
-  // SIGN OUT
-  // ===========================================================
+  /*
+  |--------------------------------------------------------------------------
+  | SIGN OUT
+  |--------------------------------------------------------------------------
+  |
+  | Firebase is responsible for ending the authentication session.
+  |
+  |--------------------------------------------------------------------------
+  */
+
   async function signOut() {
-    if (
-      isSupabaseConfigured &&
-      user?.user_id
-    ) {
-      try {
-        await supabase
-          .from('user')
-          .update({
-            status: 'Inactive',
-          })
-          .eq(
-            'user_id',
-            user.user_id
-          );
-      } catch (err) {
-        console.error(
-          'Failed to update status to Inactive:',
-          err
-        );
-      }
-    }
+    try {
+      await firebaseSignOut(
+        auth
+      );
 
-    if (isSupabaseConfigured) {
-      await supabase.auth.signOut();
-    }
+      setUser(null);
 
-    setUser(null);
-    localStorage.removeItem(STORAGE_KEY);
+      clearLocalUser();
+    } catch (error) {
+      console.error(
+        "Sign-out error:",
+        error
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | EVEN IF FIREBASE SIGN-OUT FAILS
+      | CLEAR THE LOCAL APPLICATION SESSION
+      |--------------------------------------------------------------------------
+      */
+
+      setUser(null);
+
+      clearLocalUser();
+    }
   }
 
-  // ===========================================================
-  // AUTH CONTEXT VALUE
-  // ===========================================================
+  /*
+  |--------------------------------------------------------------------------
+  | CONTEXT VALUE
+  |--------------------------------------------------------------------------
+  */
+
   const value = {
     user,
-    role: user?.role?.role ?? null,
-    position: user?.position ?? null,
+
+    role:
+      normalizeRole(
+        user?.role
+      ) || null,
+
+    position:
+      user?.position ??
+      null,
+
     loading,
+
     signIn,
+
     signOut,
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={value}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
+/*
+|--------------------------------------------------------------------------
+| USE AUTH
+|--------------------------------------------------------------------------
+*/
+
 export function useAuth() {
-  const ctx = useContext(AuthContext);
+  const ctx =
+    useContext(
+      AuthContext
+    );
 
   if (!ctx) {
     throw new Error(
-      'useAuth must be used inside <AuthProvider>'
+      "useAuth must be used inside <AuthProvider>"
     );
   }
 

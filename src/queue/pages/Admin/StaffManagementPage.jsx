@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Briefcase,
-  Eye,
-  EyeOff,
   Monitor,
   Plus,
   Trash2,
@@ -11,9 +9,15 @@ import {
   X,
 } from 'lucide-react';
 
-import { supabase } from '../../../supabase';
-
-const TABLE_NAME = 'user';
+import {
+  getUsers,
+  getRoles,
+  getDepartments,
+  getKiosks,
+  createUser,
+  updateUser,
+  deleteUser,
+} from '../../services/backendApi';
 
 const fieldClass =
   'mt-1 w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#075b9f]';
@@ -32,10 +36,10 @@ const EMPTY_FORM = {
   position: 'Null',
   kiosk: '',
   kiosk_name: '',
+  kiosk_id: '',
   department: '',
+  department_id: '',
   status: 'Active',
-  password: '',
-  confirmPassword: '',
 };
 
 const STATS_META = [
@@ -71,6 +75,12 @@ const STATS_META = [
   },
 ];
 
+/*
+|--------------------------------------------------------------------------
+| STAT CARD
+|--------------------------------------------------------------------------
+*/
+
 function StatCard({
   label,
   value,
@@ -101,21 +111,11 @@ function StatCard({
   );
 }
 
-function getRoleName(user) {
-  if (user?.role?.role) {
-    return user.role.role;
-  }
-
-  if (user?.role_name) {
-    return user.role_name;
-  }
-
-  if (user?.roles?.name) {
-    return user.roles.name;
-  }
-
-  return '';
-}
+/*
+|--------------------------------------------------------------------------
+| HELPERS
+|--------------------------------------------------------------------------
+*/
 
 function normalizeRole(role) {
   return String(role || '')
@@ -136,13 +136,162 @@ function displayValue(value) {
   return String(value);
 }
 
-function passwordRequirements(password) {
-  return {
-    length: password.length >= 8,
-    number: /\d/.test(password),
-    symbol: /[^A-Za-z0-9]/.test(password),
-  };
+function getRoleName(user) {
+  if (user?.role?.role) {
+    return user.role.role;
+  }
+
+  if (user?.role_name) {
+    return user.role_name;
+  }
+
+  if (typeof user?.role === 'string') {
+    return user.role;
+  }
+
+  if (user?.roles?.name) {
+    return user.roles.name;
+  }
+
+  if (user?.roles?.role) {
+    return user.roles.role;
+  }
+
+  return '';
 }
+
+/*
+|--------------------------------------------------------------------------
+| GET LOGGED-IN USER
+|--------------------------------------------------------------------------
+*/
+
+function getLoggedInUser() {
+  const possibleKeys = [
+    'swumed_user',
+    'currentUser',
+    'user',
+    'loggedInUser',
+  ];
+
+  for (const key of possibleKeys) {
+    const storedUser = localStorage.getItem(key);
+
+    if (!storedUser) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(storedUser);
+
+      if (
+        parsed &&
+        typeof parsed === 'object'
+      ) {
+        return parsed;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/*
+|--------------------------------------------------------------------------
+| FIND DEPARTMENT
+|--------------------------------------------------------------------------
+*/
+
+function findDepartment(
+  departments,
+  user
+) {
+  if (!Array.isArray(departments)) {
+    return null;
+  }
+
+  if (user?.department_id) {
+    const byId = departments.find(
+      (department) =>
+        String(
+          department.department_id
+        ) ===
+        String(
+          user.department_id
+        )
+    );
+
+    if (byId) {
+      return byId;
+    }
+  }
+
+  const departmentName = String(
+    user?.department || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!departmentName) {
+    return null;
+  }
+
+  return (
+    departments.find(
+      (department) =>
+        String(
+          department.name || ''
+        )
+          .trim()
+          .toLowerCase() ===
+        departmentName
+    ) || null
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| FIND KIOSK
+|--------------------------------------------------------------------------
+*/
+
+function findKiosk(
+  kiosks,
+  department
+) {
+  if (
+    !Array.isArray(kiosks) ||
+    !department
+  ) {
+    return null;
+  }
+
+  if (department.kiosk_id) {
+    const byId = kiosks.find(
+      (kiosk) =>
+        String(
+          kiosk.kiosk_id
+        ) ===
+        String(
+          department.kiosk_id
+        )
+    );
+
+    if (byId) {
+      return byId;
+    }
+  }
+
+  return null;
+}
+
+/*
+|--------------------------------------------------------------------------
+| MAIN COMPONENT
+|--------------------------------------------------------------------------
+*/
 
 export default function StaffManagementPage() {
   /*
@@ -154,351 +303,354 @@ export default function StaffManagementPage() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [kiosks, setKiosks] = useState([]);
+  const [departments, setDepartments] = useState([]);
+
+  const [loggedInUser, setLoggedInUser] =
+    useState(null);
 
   const [adminDepartment, setAdminDepartment] =
     useState('');
 
-  const [adminDepartmentRecord, setAdminDepartmentRecord] =
-    useState(null);
+  const [
+    adminDepartmentRecord,
+    setAdminDepartmentRecord,
+  ] = useState(null);
 
   const [staffRoleId, setStaffRoleId] =
     useState('');
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [error, setError] = useState(null);
-
-  const [query, setQuery] = useState('');
-  const [modal, setModal] = useState(null);
-  const [page, setPage] = useState(1);
-
-  const [showPassword, setShowPassword] =
+  const [saving, setSaving] =
     useState(false);
 
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
+  const [error, setError] =
+    useState(null);
 
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [query, setQuery] =
+    useState('');
+
+  const [modal, setModal] =
+    useState(null);
+
+  const [page, setPage] =
+    useState(1);
+
+  const [form, setForm] =
+    useState(EMPTY_FORM);
 
   /*
   |--------------------------------------------------------------------------
-  | LOAD ADMIN + STAFF
+  | LOAD STAFF DATA
+  |--------------------------------------------------------------------------
+  */
+
+  async function loadStaffManagement(
+    showLoading = true
+  ) {
+    if (showLoading) {
+      setLoading(true);
+    }
+
+    setError(null);
+
+    try {
+      /*
+      |--------------------------------------------------------------------------
+      | 1. GET LOGGED-IN USER
+      |--------------------------------------------------------------------------
+      */
+
+      const currentUser =
+        getLoggedInUser();
+
+      if (!currentUser) {
+        throw new Error(
+          'You must be logged in.'
+        );
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | 2. LOAD DATA THROUGH NODE
+      |--------------------------------------------------------------------------
+      */
+
+      const [
+        allUsers,
+        roleData,
+        departmentData,
+        kioskData,
+      ] = await Promise.all([
+        getUsers(),
+        getRoles(),
+        getDepartments(),
+        getKiosks(),
+      ]);
+
+      /*
+      |--------------------------------------------------------------------------
+      | 3. FIND COMPLETE ADMIN PROFILE
+      |--------------------------------------------------------------------------
+      */
+
+      let adminProfile =
+        currentUser;
+
+      if (currentUser.user_id) {
+        const matchingUser =
+          allUsers.find(
+            (user) =>
+              String(
+                user.user_id
+              ) ===
+              String(
+                currentUser.user_id
+              )
+          );
+
+        if (matchingUser) {
+          adminProfile =
+            matchingUser;
+        }
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | 4. RESOLVE ADMIN ROLE
+      |--------------------------------------------------------------------------
+      */
+
+      let resolvedAdminRole =
+        getRoleName(
+          adminProfile
+        );
+
+      if (
+        !resolvedAdminRole &&
+        adminProfile.role_id
+      ) {
+        const matchingRole =
+          roleData.find(
+            (role) =>
+              String(
+                role.role_id
+              ) ===
+              String(
+                adminProfile.role_id
+              )
+          );
+
+        resolvedAdminRole =
+          matchingRole?.role ||
+          '';
+      }
+
+      const normalizedAdminRole =
+        normalizeRole(
+          resolvedAdminRole
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | 5. VERIFY DEPARTMENT ADMIN
+      |--------------------------------------------------------------------------
+      */
+
+      const isDepartmentAdmin =
+        normalizedAdminRole ===
+          'admin' ||
+        normalizedAdminRole ===
+          'deptadmin' ||
+        normalizedAdminRole ===
+          'departmentadmin';
+
+      if (!isDepartmentAdmin) {
+        throw new Error(
+          'You do not have permission to manage staff.'
+        );
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | 6. FIND ADMIN DEPARTMENT
+      |--------------------------------------------------------------------------
+      */
+
+      const departmentRecord =
+        findDepartment(
+          departmentData,
+          adminProfile
+        );
+
+      if (!departmentRecord) {
+        throw new Error(
+          'Your account is not assigned to a valid department.'
+        );
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | 7. FIND STAFF ROLE
+      |--------------------------------------------------------------------------
+      */
+
+      const staffRoleData =
+        roleData.find(
+          (role) =>
+            normalizeRole(
+              role.role
+            ) === 'staff'
+        );
+
+      if (!staffRoleData) {
+        throw new Error(
+          'Staff role was not found.'
+        );
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | 8. FIND DEPARTMENT KIOSK
+      |--------------------------------------------------------------------------
+      */
+
+      const departmentKiosk =
+        findKiosk(
+          kioskData,
+          departmentRecord
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | 9. FILTER STAFF BY DEPARTMENT
+      |--------------------------------------------------------------------------
+      */
+
+      const departmentStaff =
+        allUsers.filter(
+          (user) => {
+            const sameRole =
+              String(
+                user.role_id || ''
+              ) ===
+              String(
+                staffRoleData.role_id
+              );
+
+            const sameDepartmentId =
+              departmentRecord.department_id &&
+              user.department_id &&
+              String(
+                user.department_id
+              ) ===
+              String(
+                departmentRecord.department_id
+              );
+
+            const sameDepartmentName =
+              String(
+                user.department || ''
+              )
+                .trim()
+                .toLowerCase() ===
+              String(
+                departmentRecord.name ||
+                  ''
+              )
+                .trim()
+                .toLowerCase();
+
+            const sameDepartment =
+              sameDepartmentId ||
+              sameDepartmentName;
+
+            return (
+              sameRole &&
+              sameDepartment
+            );
+          }
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | 10. SAVE STATE
+      |--------------------------------------------------------------------------
+      */
+
+      setLoggedInUser(
+        adminProfile
+      );
+
+      setAdminDepartment(
+        departmentRecord.name ||
+          adminProfile.department ||
+          ''
+      );
+
+      setAdminDepartmentRecord(
+        departmentRecord
+      );
+
+      setUsers(
+        departmentStaff
+      );
+
+      setRoles(
+        roleData
+      );
+
+      setStaffRoleId(
+        staffRoleData.role_id
+      );
+
+      setKiosks(
+        departmentKiosk
+          ? [departmentKiosk]
+          : []
+      );
+
+      setDepartments(
+        departmentData
+      );
+    } catch (err) {
+      console.error(
+        'Failed to load department staff:',
+        err
+      );
+
+      setError(
+        err?.message ||
+          'Failed to load department staff.'
+      );
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | INITIAL LOAD
   |--------------------------------------------------------------------------
   */
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadStaffManagement() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        /*
-        |--------------------------------------------------------------------------
-        | 1. CURRENT AUTH USER
-        |--------------------------------------------------------------------------
-        */
-
-        const {
-          data: { user: authUser },
-          error: authError,
-        } = await supabase.auth.getUser();
-
-        if (authError) {
-          throw authError;
-        }
-
-        if (!authUser?.id) {
-          throw new Error(
-            'You must be logged in.'
-          );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 2. CURRENT ADMIN PROFILE
-        |--------------------------------------------------------------------------
-        */
-
-        const {
-          data: adminProfile,
-          error: adminProfileError,
-        } = await supabase
-          .from(TABLE_NAME)
-          .select(`
-            user_id,
-            first_name,
-            last_name,
-            email,
-            department,
-            role_id,
-            role:role_id (
-              role_id,
-              role
-            )
-          `)
-          .eq('user_id', authUser.id)
-          .single();
-
-        if (adminProfileError) {
-          throw adminProfileError;
-        }
-
-        if (!adminProfile) {
-          throw new Error(
-            'Your user profile could not be found.'
-          );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 3. VERIFY DEPARTMENT ADMIN
-        |--------------------------------------------------------------------------
-        */
-
-        const adminRole = normalizeRole(
-          getRoleName(adminProfile)
-        );
-
-        const isDepartmentAdmin =
-          adminRole === 'admin' ||
-          adminRole === 'deptadmin' ||
-          adminRole === 'departmentadmin';
-
-        if (!isDepartmentAdmin) {
-          throw new Error(
-            'You do not have permission to manage staff.'
-          );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 4. GET ADMIN DEPARTMENT
-        |--------------------------------------------------------------------------
-        */
-
-        if (!adminProfile.department) {
-          throw new Error(
-            'Your account is not assigned to a department.'
-          );
-        }
-
-        const departmentName =
-          String(
-            adminProfile.department
-          ).trim();
-
-        /*
-        |--------------------------------------------------------------------------
-        | 5. GET DEPARTMENT RECORD
-        |--------------------------------------------------------------------------
-        */
-
-        const {
-          data: departmentRecord,
-          error: departmentError,
-        } = await supabase
-          .from('departments')
-          .select(`
-            department_id,
-            kiosk_id,
-            name,
-            classification,
-            location,
-            prefix,
-            status,
-            est_time
-          `)
-          .ilike(
-            'name',
-            departmentName
-          )
-          .maybeSingle();
-
-        if (departmentError) {
-          throw departmentError;
-        }
-
-        if (!departmentRecord) {
-          throw new Error(
-            `The department "${departmentName}" could not be found.`
-          );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 6. GET STAFF ROLE
-        |--------------------------------------------------------------------------
-        */
-
-        const {
-          data: staffRoleData,
-          error: staffRoleError,
-        } = await supabase
-          .from('role')
-          .select(
-            'role_id, role'
-          )
-          .ilike(
-            'role',
-            'Staff'
-          )
-          .single();
-
-        if (staffRoleError) {
-          throw staffRoleError;
-        }
-
-        if (!staffRoleData) {
-          throw new Error(
-            'Staff role was not found.'
-          );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 7. GET ONLY STAFF IN ADMIN DEPARTMENT
-        |
-        | Super Admin-assigned staff will also appear here automatically
-        | as long as:
-        |
-        | role_id = Staff
-        | AND
-        | department = Admin's department
-        |--------------------------------------------------------------------------
-        */
-
-        const {
-          data: staffUsers,
-          error: staffError,
-        } = await supabase
-          .from(TABLE_NAME)
-          .select(`
-            user_id,
-            first_name,
-            last_name,
-            email,
-            contact_info,
-            kiosk,
-            department,
-            position,
-            status,
-            created_at,
-            updated_at,
-            role_id,
-            role:role_id (
-              role_id,
-              role
-            )
-          `)
-          .eq(
-            'role_id',
-            staffRoleData.role_id
-          )
-          .eq(
-            'department',
-            departmentName
-          )
-          .order(
-            'created_at',
-            {
-              ascending: false,
-            }
-          );
-
-        if (staffError) {
-          throw staffError;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 8. GET DEPARTMENT KIOSK
-        |--------------------------------------------------------------------------
-        */
-
-        let kioskData = [];
-
-        if (departmentRecord.kiosk_id) {
-          const {
-            data: departmentKiosk,
-            error: kioskError,
-          } = await supabase
-            .from('kiosk')
-            .select(
-              'kiosk_id, name, status'
-            )
-            .eq(
-              'kiosk_id',
-              departmentRecord.kiosk_id
-            )
-            .maybeSingle();
-
-          if (kioskError) {
-            throw kioskError;
-          }
-
-          if (departmentKiosk) {
-            kioskData = [
-              departmentKiosk,
-            ];
-          }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 9. SAVE STATE
-        |--------------------------------------------------------------------------
-        */
-
-        if (cancelled) {
-          return;
-        }
-
-        setAdminDepartment(
-          departmentName
-        );
-
-        setAdminDepartmentRecord(
-          departmentRecord
-        );
-
-        setUsers(
-          staffUsers || []
-        );
-
-        setRoles([
-          staffRoleData,
-        ]);
-
-        setStaffRoleId(
-          staffRoleData.role_id
-        );
-
-        setKiosks(
-          kioskData
-        );
-      } catch (err) {
-        if (!cancelled) {
-          console.error(
-            'Failed to load department staff:',
-            err
-          );
-
-          setError(
-            err?.message ||
-              'Failed to load department staff.'
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+    async function initialLoad() {
+      if (cancelled) {
+        return;
       }
+
+      await loadStaffManagement(
+        true
+      );
     }
 
-    loadStaffManagement();
+    initialLoad();
 
     return () => {
       cancelled = true;
@@ -522,61 +674,113 @@ export default function StaffManagementPage() {
 
   /*
   |--------------------------------------------------------------------------
+  | ADD ROLE NAME TO USERS
+  |--------------------------------------------------------------------------
+  */
+
+  const usersWithRoleNames =
+    useMemo(() => {
+      return users.map((user) => {
+        const role =
+          roles.find(
+            (item) =>
+              String(
+                item.role_id
+              ) ===
+              String(
+                user.role_id
+              )
+          );
+
+        return {
+          ...user,
+
+          role: role
+            ? {
+                role_id:
+                  role.role_id,
+
+                role:
+                  role.role,
+              }
+            : user.role,
+        };
+      });
+    }, [users, roles]);
+
+  /*
+  |--------------------------------------------------------------------------
   | FILTER STAFF
   |--------------------------------------------------------------------------
   */
 
-  const filteredUsers = useMemo(() => {
-    const searchValue =
-      query.trim().toLowerCase();
+  const filteredUsers =
+    useMemo(() => {
+      const searchValue =
+        query.trim().toLowerCase();
 
-    if (!searchValue) {
-      return users;
-    }
-
-    return users.filter(
-      (user) => {
-        const fullName =
-          `${user.first_name || ''} ${
-            user.last_name || ''
-          }`.toLowerCase();
-
-        const email =
-          String(
-            user.email || ''
-          ).toLowerCase();
-
-        const contact =
-          String(
-            user.contact_info || ''
-          ).toLowerCase();
-
-        const position =
-          String(
-            user.position ?? 'Null'
-          ).toLowerCase();
-
-        const department =
-          String(
-            user.department || ''
-          ).toLowerCase();
-
-        const kiosk =
-          String(
-            user.kiosk || ''
-          ).toLowerCase();
-
-        return (
-          fullName.includes(searchValue) ||
-          email.includes(searchValue) ||
-          contact.includes(searchValue) ||
-          position.includes(searchValue) ||
-          department.includes(searchValue) ||
-          kiosk.includes(searchValue)
-        );
+      if (!searchValue) {
+        return usersWithRoleNames;
       }
-    );
-  }, [query, users]);
+
+      return usersWithRoleNames.filter(
+        (user) => {
+          const fullName =
+            `${user.first_name || ''} ${
+              user.last_name || ''
+            }`.toLowerCase();
+
+          const email =
+            String(
+              user.email || ''
+            ).toLowerCase();
+
+          const contact =
+            String(
+              user.contact_number || ''
+            ).toLowerCase();
+
+          const position =
+            String(
+              user.position ?? 'Null'
+            ).toLowerCase();
+
+          const department =
+            String(
+              user.department || ''
+            ).toLowerCase();
+
+          const kiosk =
+            String(
+              user.kiosk || ''
+            ).toLowerCase();
+
+          return (
+            fullName.includes(
+              searchValue
+            ) ||
+            email.includes(
+              searchValue
+            ) ||
+            contact.includes(
+              searchValue
+            ) ||
+            position.includes(
+              searchValue
+            ) ||
+            department.includes(
+              searchValue
+            ) ||
+            kiosk.includes(
+              searchValue
+            )
+          );
+        }
+      );
+    }, [
+      query,
+      usersWithRoleNames,
+    ]);
 
   /*
   |--------------------------------------------------------------------------
@@ -586,10 +790,11 @@ export default function StaffManagementPage() {
 
   const stats = useMemo(() => {
     const normalizedRoles =
-      users.map((user) =>
-        normalizeRole(
-          getRoleName(user)
-        )
+      usersWithRoleNames.map(
+        (user) =>
+          normalizeRole(
+            getRoleName(user)
+          )
       );
 
     const superAdminCount =
@@ -613,7 +818,7 @@ export default function StaffManagementPage() {
       ).length;
 
     const activeCount =
-      users.filter(
+      usersWithRoleNames.filter(
         (user) =>
           String(
             user.status || ''
@@ -632,35 +837,39 @@ export default function StaffManagementPage() {
         staffCount,
 
       active:
-        `${activeCount}/${users.length}`,
+        `${activeCount}/${usersWithRoleNames.length}`,
 
       terminal:
-        kiosks.length > 0
-          ? kiosks.filter(
-              (kiosk) =>
-                String(
-                  kiosk.status || ''
-                ).toLowerCase() ===
-                'active'
-            ).length
-          : 0,
+        kiosks.filter(
+          (kiosk) =>
+            String(
+              kiosk.status || ''
+            ).toLowerCase() ===
+            'active'
+        ).length,
     };
-  }, [users, kiosks]);
+  }, [
+    usersWithRoleNames,
+    kiosks,
+  ]);
 
   /*
   |--------------------------------------------------------------------------
-  | OPEN STAFF
+  | OPEN USER
   |--------------------------------------------------------------------------
   */
 
   function openUser(user) {
-    /*
-    |--------------------------------------------------------------------------
-    | KIOSK IS STORED DIRECTLY IN user.kiosk
-    |--------------------------------------------------------------------------
-    */
-
     const matchingKiosk =
+      kiosks.find(
+        (kiosk) =>
+          String(
+            kiosk.kiosk_id
+          ) ===
+          String(
+            user.kiosk_id
+          )
+      ) ||
       kiosks.find(
         (kiosk) =>
           String(
@@ -674,12 +883,6 @@ export default function StaffManagementPage() {
             .trim()
             .toLowerCase()
       );
-
-    /*
-    |--------------------------------------------------------------------------
-    | POSITION NULL MUST DISPLAY AS "Null"
-    |--------------------------------------------------------------------------
-    */
 
     const storedPosition =
       user.position === null ||
@@ -699,13 +902,22 @@ export default function StaffManagementPage() {
       last_name:
         user.last_name || '',
 
-      mi: '',
+      mi:
+        user.mi || '',
 
       contact_number:
-        user.contact_info || '',
+        user.contact_number || '',
 
       email:
         user.email || '',
+
+      /*
+      |--------------------------------------------------------------------------
+      | SECURITY
+      |--------------------------------------------------------------------------
+      | Never load an existing password into the form.
+      |--------------------------------------------------------------------------
+      */
 
       role:
         'Staff',
@@ -719,24 +931,34 @@ export default function StaffManagementPage() {
         storedPosition,
 
       kiosk:
-        matchingKiosk?.kiosk_id || '',
+        matchingKiosk?.kiosk_id ||
+        user.kiosk_id ||
+        '',
 
       kiosk_name:
-        user.kiosk || 'Null',
+        matchingKiosk?.name ||
+        user.kiosk ||
+        'Null',
+
+      kiosk_id:
+        matchingKiosk?.kiosk_id ||
+        user.kiosk_id ||
+        '',
 
       department:
         user.department ||
         adminDepartment,
 
-      status:
-        user.status || 'Inactive',
+      department_id:
+        user.department_id ||
+        adminDepartmentRecord?.department_id ||
+        '',
 
-      password: '',
-      confirmPassword: '',
+      status:
+        user.status ||
+        'Inactive',
     });
 
-    setShowPassword(false);
-    setShowConfirmPassword(false);
     setError(null);
 
     setModal({
@@ -752,46 +974,61 @@ export default function StaffManagementPage() {
   */
 
   function openAdd() {
+    if (
+      !adminDepartmentRecord
+    ) {
+      setError(
+        'Your department could not be determined.'
+      );
+      return;
+    }
+
     const departmentKiosk =
-      adminDepartmentRecord?.kiosk_id
-        ? kiosks.find(
-            (kiosk) =>
-              String(
-                kiosk.kiosk_id
-              ) ===
-              String(
-                adminDepartmentRecord.kiosk_id
-              )
+      kiosks.find(
+        (kiosk) =>
+          String(
+            kiosk.kiosk_id
+          ) ===
+          String(
+            adminDepartmentRecord.kiosk_id
           )
-        : kiosks[0];
+      );
+
+    if (!departmentKiosk) {
+      setError(
+        'No kiosk is assigned to your department.'
+      );
+      return;
+    }
 
     setForm({
       ...EMPTY_FORM,
 
-      role:
-        'Staff',
+      role: 'Staff',
 
       role_id:
         staffRoleId,
 
-      position:
-        'Null',
+      position: 'Null',
 
       kiosk:
-        departmentKiosk?.kiosk_id || '',
+        departmentKiosk.kiosk_id,
 
       kiosk_name:
-        departmentKiosk?.name || 'Null',
+        departmentKiosk.name,
+
+      kiosk_id:
+        departmentKiosk.kiosk_id,
 
       department:
         adminDepartment,
 
-      status:
-        'Active',
+      department_id:
+        adminDepartmentRecord.department_id,
+
+      status: 'Active',
     });
 
-    setShowPassword(false);
-    setShowConfirmPassword(false);
     setError(null);
 
     setModal('add');
@@ -808,12 +1045,10 @@ export default function StaffManagementPage() {
 
     setForm({
       ...EMPTY_FORM,
+
     });
 
     setError(null);
-
-    setShowPassword(false);
-    setShowConfirmPassword(false);
   }
 
   /*
@@ -834,7 +1069,7 @@ export default function StaffManagementPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | VALIDATE ADD FORM
+  | VALIDATE STAFF FORM
   |--------------------------------------------------------------------------
   */
 
@@ -857,12 +1092,9 @@ export default function StaffManagementPage() {
       return 'Email address is required.';
     }
 
-    const email =
-      form.email.trim();
-
     if (
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-        email
+        form.email.trim()
       )
     ) {
       return 'Please enter a valid email address.';
@@ -890,32 +1122,8 @@ export default function StaffManagementPage() {
       return 'No kiosk is assigned to your department.';
     }
 
-    if (!form.password) {
-      return 'Password is required for a new staff account.';
-    }
-
-    const requirements =
-      passwordRequirements(
-        form.password
-      );
-
-    if (!requirements.length) {
-      return 'Password must be at least 8 characters.';
-    }
-
-    if (!requirements.number) {
-      return 'Password must contain at least one number.';
-    }
-
-    if (!requirements.symbol) {
-      return 'Password must contain at least one symbol.';
-    }
-
-    if (
-      form.password !==
-      form.confirmPassword
-    ) {
-      return 'Passwords do not match.';
+    if (!staffRoleId) {
+      return 'Staff role could not be determined.';
     }
 
     return null;
@@ -923,49 +1131,7 @@ export default function StaffManagementPage() {
 
   /*
   |--------------------------------------------------------------------------
-  | DUPLICATE EMAIL
-  |--------------------------------------------------------------------------
-  */
-
-  async function checkDuplicateEmail() {
-    const normalizedEmail =
-      form.email
-        .trim()
-        .toLowerCase();
-
-    const {
-      data,
-      error,
-    } = await supabase
-      .from(TABLE_NAME)
-      .select(
-        'user_id'
-      )
-      .ilike(
-        'email',
-        normalizedEmail
-      )
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
-
-    return Boolean(data);
-  }
-
-  /*
-  |--------------------------------------------------------------------------
   | ADD STAFF
-  |
-  | IMPORTANT:
-  | Auth account creation is handled by:
-  |
-  | Supabase Edge Function:
-  | create-staff-user
-  |
-  | This prevents the Admin's browser session from being replaced
-  | by the newly-created Staff account.
   |--------------------------------------------------------------------------
   */
 
@@ -986,12 +1152,34 @@ export default function StaffManagementPage() {
     try {
       /*
       |--------------------------------------------------------------------------
-      | CHECK EMAIL IN PUBLIC USER TABLE
+      | 1. GET CURRENT USERS
       |--------------------------------------------------------------------------
       */
 
+      const allUsers =
+        await getUsers();
+
+      /*
+      |--------------------------------------------------------------------------
+      | 2. CHECK DUPLICATE EMAIL
+      |--------------------------------------------------------------------------
+      */
+
+      const normalizedEmail =
+        form.email
+          .trim()
+          .toLowerCase();
+
       const duplicate =
-        await checkDuplicateEmail();
+        allUsers.some(
+          (user) =>
+            String(
+              user.email || ''
+            )
+              .trim()
+              .toLowerCase() ===
+            normalizedEmail
+        );
 
       if (duplicate) {
         throw new Error(
@@ -1001,61 +1189,51 @@ export default function StaffManagementPage() {
 
       /*
       |--------------------------------------------------------------------------
-      | GET DEPARTMENT KIOSK FROM SUPABASE
+      | 3. GET ADMIN DEPARTMENT
       |--------------------------------------------------------------------------
       */
 
-      const {
-        data: departmentData,
-        error: departmentError,
-      } = await supabase
-        .from('departments')
-        .select(`
-          department_id,
-          kiosk_id,
-          name
-        `)
-        .eq(
-          'department_id',
-          adminDepartmentRecord.department_id
-        )
-        .single();
+      const departmentData =
+        departments.find(
+          (department) =>
+            String(
+              department.department_id
+            ) ===
+            String(
+              adminDepartmentRecord.department_id
+            )
+        );
 
-      if (departmentError) {
-        throw departmentError;
+      if (!departmentData) {
+        throw new Error(
+          'Your department could not be found.'
+        );
       }
 
+      /*
+      |--------------------------------------------------------------------------
+      | 4. VERIFY DEPARTMENT KIOSK
+      |--------------------------------------------------------------------------
+      */
+
       if (
-        !departmentData?.kiosk_id
+        !departmentData.kiosk_id
       ) {
         throw new Error(
           'Your department does not have a kiosk assigned.'
         );
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | GET KIOSK FROM SUPABASE
-      |--------------------------------------------------------------------------
-      */
-
-      const {
-        data: selectedKiosk,
-        error: kioskError,
-      } = await supabase
-        .from('kiosk')
-        .select(
-          'kiosk_id, name, status'
-        )
-        .eq(
-          'kiosk_id',
-          departmentData.kiosk_id
-        )
-        .single();
-
-      if (kioskError) {
-        throw kioskError;
-      }
+      const selectedKiosk =
+        kiosks.find(
+          (kiosk) =>
+            String(
+              kiosk.kiosk_id
+            ) ===
+            String(
+              departmentData.kiosk_id
+            )
+        );
 
       if (!selectedKiosk) {
         throw new Error(
@@ -1063,159 +1241,74 @@ export default function StaffManagementPage() {
         );
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | CREATE SUPABASE AUTH ACCOUNT
-      |
-      | Email + password are sent to Supabase Auth through the
-      | Edge Function.
-      |--------------------------------------------------------------------------
-      */
+      const createdUser =
+        await createUser({
+          first_name:
+            form.first_name.trim(),
 
-      const {
-        data: authResult,
-        error: authFunctionError,
-      } = await supabase.functions.invoke(
-        'create-staff-user',
-        {
-          body: {
-            email:
-              form.email
-                .trim()
-                .toLowerCase(),
+          last_name:
+            form.last_name.trim(),
 
-            password:
-              form.password,
+          mi:
+            form.mi.trim() ||
+            null,
 
-            first_name:
-              form.first_name.trim(),
+          contact_number:
+            form.contact_number.trim(),
 
-            last_name:
-              form.last_name.trim(),
+          email:
+            normalizedEmail,
 
-            contact_info:
-              form.contact_number.trim(),
+          role_id:
+            staffRoleId,
 
-            role_id:
-              staffRoleId,
+          role:
+            'Staff',
 
-            role:
-              'Staff',
+          position:
+            form.position === 'Null'
+              ? null
+              : form.position,
 
-            department:
-              departmentData.name,
+          kiosk_id:
+            selectedKiosk.kiosk_id,
 
-            kiosk:
-              selectedKiosk.name,
+          kiosk:
+            selectedKiosk.name,
 
-            position:
-              null,
+          department_id:
+            departmentData.department_id,
 
-            status:
-              form.status,
-          },
-        }
-      );
+          department:
+            departmentData.name,
 
-      if (authFunctionError) {
-        throw authFunctionError;
-      }
+          status:
+            form.status,
+        });
 
-      if (
-        !authResult?.user_id
-      ) {
+      if (!createdUser) {
         throw new Error(
-          'Supabase Auth account could not be created.'
+          'Staff account could not be created.'
         );
       }
 
       /*
       |--------------------------------------------------------------------------
-      | INSERT PUBLIC USER PROFILE
-      |
-      | Role / kiosk / department / position are NOT taken from
-      | editable dropdowns.
-      |
-      | They come directly from Supabase / Admin assignment.
+      | 6. CLOSE MODAL
       |--------------------------------------------------------------------------
       */
 
-      const {
-        data: createdUser,
-        error: dbError,
-      } = await supabase
-        .from(TABLE_NAME)
-        .insert([
-          {
-            user_id:
-              authResult.user_id,
-
-            first_name:
-              form.first_name.trim(),
-
-            last_name:
-              form.last_name.trim(),
-
-            email:
-              form.email
-                .trim()
-                .toLowerCase(),
-
-            contact_info:
-              form.contact_number.trim(),
-
-            kiosk:
-              selectedKiosk.name,
-
-            department:
-              departmentData.name,
-
-            position:
-              null,
-
-            role_id:
-              staffRoleId,
-
-            status:
-              form.status,
-          },
-        ])
-        .select(`
-          user_id,
-          first_name,
-          last_name,
-          email,
-          contact_info,
-          kiosk,
-          department,
-          position,
-          status,
-          created_at,
-          updated_at,
-          role_id,
-          role:role_id (
-            role_id,
-            role
-          )
-        `)
-        .single();
-
-      if (dbError) {
-        throw dbError;
-      }
+      closeModal();
 
       /*
       |--------------------------------------------------------------------------
-      | ADD TO LOCAL TABLE
+      | 7. REFRESH
       |--------------------------------------------------------------------------
       */
 
-      setUsers((rows) => [
-        createdUser,
-        ...rows,
-      ]);
-
-      closeModal();
+      await loadStaffManagement(
+        false
+      );
     } catch (err) {
       console.error(
         'Failed to add staff:',
@@ -1244,63 +1337,38 @@ export default function StaffManagementPage() {
       return;
     }
 
-    if (
-      !form.first_name.trim()
-    ) {
-      setError(
-        'First name is required.'
-      );
-      return;
-    }
+    const validationError =
+      validateStaffForm();
 
-    if (
-      !form.last_name.trim()
-    ) {
+    if (validationError) {
       setError(
-        'Last name is required.'
-      );
-      return;
-    }
-
-    if (
-      !form.email.trim()
-    ) {
-      setError(
-        'Email address is required.'
-      );
-      return;
-    }
-
-    if (
-      !form.contact_number.trim()
-    ) {
-      setError(
-        'Contact number is required.'
-      );
-      return;
-    }
-
-    if (!adminDepartment) {
-      setError(
-        'Your department could not be determined.'
+        validationError
       );
       return;
     }
 
     /*
     |--------------------------------------------------------------------------
-    | VERIFY STAFF BELONGS TO ADMIN DEPARTMENT
+    | VERIFY EXISTING STAFF DEPARTMENT
     |--------------------------------------------------------------------------
     */
 
-    const existingDepartment =
+    const sameDepartmentId =
+      modal.user.department_id &&
+      adminDepartmentRecord?.department_id &&
+      String(
+        modal.user.department_id
+      ) ===
+      String(
+        adminDepartmentRecord.department_id
+      );
+
+    const sameDepartmentName =
       String(
         modal.user.department || ''
       )
         .trim()
-        .toLowerCase();
-
-    const currentAdminDepartment =
+        .toLowerCase() ===
       String(
         adminDepartment || ''
       )
@@ -1308,8 +1376,8 @@ export default function StaffManagementPage() {
         .toLowerCase();
 
     if (
-      existingDepartment !==
-      currentAdminDepartment
+      !sameDepartmentId &&
+      !sameDepartmentName
     ) {
       setError(
         'You can only edit staff belonging to your own department.'
@@ -1319,9 +1387,55 @@ export default function StaffManagementPage() {
 
     /*
     |--------------------------------------------------------------------------
+    | GET ADMIN DEPARTMENT
+    |--------------------------------------------------------------------------
+    */
+
+    const departmentData =
+      departments.find(
+        (department) =>
+          String(
+            department.department_id
+          ) ===
+          String(
+            adminDepartmentRecord?.department_id
+          )
+      );
+
+    if (!departmentData) {
+      setError(
+        'Your department could not be found.'
+      );
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET DEPARTMENT KIOSK
+    |--------------------------------------------------------------------------
+    */
+
+    const selectedKiosk =
+      kiosks.find(
+        (kiosk) =>
+          String(
+            kiosk.kiosk_id
+          ) ===
+          String(
+            departmentData.kiosk_id
+          )
+      );
+
+    if (!selectedKiosk) {
+      setError(
+        'Your department kiosk could not be found.'
+      );
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | POSITION
-    |
-    | NULL remains NULL.
     |--------------------------------------------------------------------------
     */
 
@@ -1339,153 +1453,57 @@ export default function StaffManagementPage() {
     try {
       /*
       |--------------------------------------------------------------------------
-      | FETCH DEPARTMENT AGAIN FROM SUPABASE
+      | UPDATE STAFF THROUGH NODE
       |--------------------------------------------------------------------------
       */
 
-      const {
-        data: departmentData,
-        error: departmentError,
-      } = await supabase
-        .from('departments')
-        .select(`
-          department_id,
-          kiosk_id,
-          name
-        `)
-        .eq(
-          'department_id',
-          adminDepartmentRecord.department_id
-        )
-        .single();
+      const updatedUser =
+        await updateUser(
+          modal.user.user_id,
+          {
+            first_name:
+              form.first_name.trim(),
 
-      if (departmentError) {
-        throw departmentError;
-      }
+            last_name:
+              form.last_name.trim(),
 
-      /*
-      |--------------------------------------------------------------------------
-      | FETCH KIOSK AGAIN FROM SUPABASE
-      |--------------------------------------------------------------------------
-      */
+            mi:
+              form.mi.trim() ||
+              null,
 
-      let kioskName =
-        modal.user.kiosk || null;
+            contact_number:
+              form.contact_number.trim(),
 
-      if (
-        departmentData?.kiosk_id
-      ) {
-        const {
-          data: kioskData,
-          error: kioskError,
-        } = await supabase
-          .from('kiosk')
-          .select(
-            'kiosk_id, name'
-          )
-          .eq(
-            'kiosk_id',
-            departmentData.kiosk_id
-          )
-          .single();
+            email:
+              form.email
+                .trim()
+                .toLowerCase(),
 
-        if (kioskError) {
-          throw kioskError;
-        }
+            role_id:
+              staffRoleId,
 
-        kioskName =
-          kioskData?.name ||
-          kioskName;
-      }
+            role:
+              'Staff',
 
-      /*
-      |--------------------------------------------------------------------------
-      | UPDATE STAFF
-      |
-      | Department, role and kiosk are fetched from Supabase.
-      | They are NOT trusted from the form.
-      |--------------------------------------------------------------------------
-      */
+            position:
+              positionToSave,
 
-      const updateData = {
-        first_name:
-          form.first_name.trim(),
+            kiosk_id:
+              selectedKiosk.kiosk_id,
 
-        last_name:
-          form.last_name.trim(),
+            kiosk:
+              selectedKiosk.name,
 
-        email:
-          form.email
-            .trim()
-            .toLowerCase(),
+            department_id:
+              departmentData.department_id,
 
-        contact_info:
-          form.contact_number.trim(),
+            department:
+              departmentData.name,
 
-        kiosk:
-          kioskName,
-
-        department:
-          departmentData?.name ||
-          adminDepartment,
-
-        position:
-          positionToSave,
-
-        status:
-          form.status,
-
-        updated_at:
-          new Date().toISOString(),
-      };
-
-      /*
-      |--------------------------------------------------------------------------
-      | UPDATE ONLY STAFF IN ADMIN DEPARTMENT
-      |--------------------------------------------------------------------------
-      */
-
-      const {
-        data: updatedUser,
-        error: updateError,
-      } = await supabase
-        .from(TABLE_NAME)
-        .update(updateData)
-        .eq(
-          'user_id',
-          modal.user.user_id
-        )
-        .eq(
-          'department',
-          adminDepartment
-        )
-        .eq(
-          'role_id',
-          staffRoleId
-        )
-        .select(`
-          user_id,
-          first_name,
-          last_name,
-          email,
-          contact_info,
-          kiosk,
-          department,
-          position,
-          status,
-          created_at,
-          updated_at,
-          role_id,
-          role:role_id (
-            role_id,
-            role
-          )
-        `)
-        .single();
-
-      if (updateError) {
-        throw updateError;
-      }
+            status:
+              form.status,
+          }
+        );
 
       if (!updatedUser) {
         throw new Error(
@@ -1495,20 +1513,21 @@ export default function StaffManagementPage() {
 
       /*
       |--------------------------------------------------------------------------
-      | UPDATE LOCAL STATE
+      | CLOSE MODAL
       |--------------------------------------------------------------------------
       */
 
-      setUsers((rows) =>
-        rows.map((row) =>
-          row.user_id ===
-          updatedUser.user_id
-            ? updatedUser
-            : row
-        )
-      );
-
       closeModal();
+
+      /*
+      |--------------------------------------------------------------------------
+      | REFRESH
+      |--------------------------------------------------------------------------
+      */
+
+      await loadStaffManagement(
+        false
+      );
     } catch (err) {
       console.error(
         'Failed to save staff:',
@@ -1537,14 +1556,28 @@ export default function StaffManagementPage() {
       return;
     }
 
-    const existingDepartment =
+    /*
+    |--------------------------------------------------------------------------
+    | VERIFY DEPARTMENT
+    |--------------------------------------------------------------------------
+    */
+
+    const sameDepartmentId =
+      modal.user.department_id &&
+      adminDepartmentRecord?.department_id &&
+      String(
+        modal.user.department_id
+      ) ===
+      String(
+        adminDepartmentRecord.department_id
+      );
+
+    const sameDepartmentName =
       String(
         modal.user.department || ''
       )
         .trim()
-        .toLowerCase();
-
-    const currentAdminDepartment =
+        .toLowerCase() ===
       String(
         adminDepartment || ''
       )
@@ -1552,14 +1585,20 @@ export default function StaffManagementPage() {
         .toLowerCase();
 
     if (
-      existingDepartment !==
-      currentAdminDepartment
+      !sameDepartmentId &&
+      !sameDepartmentName
     ) {
       setError(
         'You can only delete staff belonging to your own department.'
       );
       return;
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CONFIRM DELETE
+    |--------------------------------------------------------------------------
+    */
 
     const confirmed =
       window.confirm(
@@ -1570,41 +1609,46 @@ export default function StaffManagementPage() {
       return;
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | GET DELETION REASON
+    |--------------------------------------------------------------------------
+    */
+
+    const deletionReason =
+      window.prompt(
+        'Please enter the reason for deleting this staff account:'
+      );
+
+    if (
+      deletionReason === null
+    ) {
+      return;
+    }
+
+    if (
+      !deletionReason.trim()
+    ) {
+      setError(
+        'A deletion reason is required.'
+      );
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
     try {
-      const {
-        error: deleteError,
-      } = await supabase
-        .from(TABLE_NAME)
-        .delete()
-        .eq(
-          'user_id',
-          modal.user.user_id
-        )
-        .eq(
-          'department',
-          adminDepartment
-        )
-        .eq(
-          'role_id',
-          staffRoleId
-        );
-
-      if (deleteError) {
-        throw deleteError;
-      }
-
-      setUsers((rows) =>
-        rows.filter(
-          (row) =>
-            row.user_id !==
-            modal.user.user_id
-        )
+      await deleteUser(
+        modal.user.user_id,
+        deletionReason.trim()
       );
 
       closeModal();
+
+      await loadStaffManagement(
+        false
+      );
     } catch (err) {
       console.error(
         'Failed to delete staff:',
@@ -1619,17 +1663,6 @@ export default function StaffManagementPage() {
       setSaving(false);
     }
   }
-
-  /*
-  |--------------------------------------------------------------------------
-  | PASSWORD CHECKS
-  |--------------------------------------------------------------------------
-  */
-
-  const passwordChecks =
-    passwordRequirements(
-      form.password
-    );
 
   /*
   |--------------------------------------------------------------------------
@@ -1662,7 +1695,12 @@ export default function StaffManagementPage() {
         <button
           type="button"
           onClick={openAdd}
-          disabled={!adminDepartment}
+          disabled={
+            !adminDepartment ||
+            !adminDepartmentRecord ||
+            !staffRoleId ||
+            loading
+          }
           className="inline-flex items-center gap-2 rounded-lg bg-[#00549A] px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#004880] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus size={15} />
@@ -1714,7 +1752,7 @@ export default function StaffManagementPage() {
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
 
-        <div className="border-b border-slate-200 px-5 py-4 flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-sm font-semibold text-slate-700">
               {adminDepartment
@@ -1723,7 +1761,7 @@ export default function StaffManagementPage() {
             </h2>
 
             <p className="mt-1 text-[10px] text-slate-400">
-              Staff assigned to this department are fetched from Supabase.
+              Staff assigned to this department are retrieved through Node.js.
             </p>
           </div>
 
@@ -1731,7 +1769,9 @@ export default function StaffManagementPage() {
             type="text"
             value={query}
             onChange={(e) => {
-              setQuery(e.target.value);
+              setQuery(
+                e.target.value
+              );
               setPage(1);
             }}
             placeholder="Search staff..."
@@ -1822,7 +1862,7 @@ export default function StaffManagementPage() {
 
                       <td className="px-5 py-3 text-slate-600">
                         {displayValue(
-                          user.contact_info
+                          user.contact_number
                         )}
                       </td>
 
@@ -2104,6 +2144,18 @@ export default function StaffManagementPage() {
                   />
                 </label>
 
+                {/* PASSWORD NOTE */}
+
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] font-medium text-slate-500">
+                    Password
+                  </p>
+
+                  <p className="mt-0.5 text-[10px] text-slate-400">
+                    The existing password is hidden for security. Password changes can be handled separately.
+                  </p>
+                </div>
+
                 {/* ROLE / POSITION */}
 
                 <div className="grid grid-cols-2 gap-3">
@@ -2115,11 +2167,7 @@ export default function StaffManagementPage() {
                       className={
                         fieldClass
                       }
-                      value={
-                        displayValue(
-                          form.role
-                        )
-                      }
+                      value="Staff"
                       disabled
                     />
                   </label>
@@ -2132,7 +2180,8 @@ export default function StaffManagementPage() {
                         fieldClass
                       }
                       value={
-                        form.position || 'Null'
+                        form.position ||
+                        'Null'
                       }
                       onChange={(e) =>
                         updateField(
@@ -2179,7 +2228,7 @@ export default function StaffManagementPage() {
                   />
 
                   <p className="mt-1 text-[10px] text-slate-400">
-                    Kiosk is fetched from Supabase.
+                    Kiosk is automatically assigned from your department.
                   </p>
                 </label>
 
@@ -2201,7 +2250,7 @@ export default function StaffManagementPage() {
                   />
 
                   <p className="mt-1 text-[10px] text-slate-400">
-                    Department is fetched from Supabase.
+                    Department is automatically assigned from your Admin account.
                   </p>
                 </label>
 
@@ -2261,7 +2310,10 @@ export default function StaffManagementPage() {
                     onClick={
                       closeModal
                     }
-                    className="rounded-md border px-4 py-2 text-xs font-semibold"
+                    disabled={
+                      saving
+                    }
+                    className="rounded-md border px-4 py-2 text-xs font-semibold disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -2443,7 +2495,7 @@ export default function StaffManagementPage() {
                 />
 
                 <p className="mt-1 text-[10px] text-slate-400">
-                  This email will be used for Supabase authentication.
+                  This email is stored in the existing user account.
                 </p>
               </label>
 
@@ -2461,7 +2513,7 @@ export default function StaffManagementPage() {
                 />
 
                 <p className="mt-1 text-[10px] text-slate-400">
-                  Role is automatically fetched from Supabase.
+                  Staff role is automatically assigned.
                 </p>
               </label>
 
@@ -2475,7 +2527,8 @@ export default function StaffManagementPage() {
                     fieldClass
                   }
                   value={
-                    form.position || 'Null'
+                    form.position ||
+                    'Null'
                   }
                   onChange={(e) =>
                     updateField(
@@ -2520,7 +2573,7 @@ export default function StaffManagementPage() {
                 />
 
                 <p className="mt-1 text-[10px] text-slate-400">
-                  Kiosk is automatically fetched from your department.
+                  Kiosk is automatically assigned from your department.
                 </p>
               </label>
 
@@ -2542,7 +2595,7 @@ export default function StaffManagementPage() {
                 />
 
                 <p className="mt-1 text-[10px] text-slate-400">
-                  Department is automatically fetched from your Admin account.
+                  Department is automatically assigned from your Admin account.
                 </p>
               </label>
 
@@ -2575,168 +2628,9 @@ export default function StaffManagementPage() {
                 </select>
               </label>
 
-              {/* PASSWORD */}
-
-              <label className={labelClass}>
-                Password
-
-                <div className="relative mt-1">
-
-                  <input
-                    type={
-                      showPassword
-                        ? 'text'
-                        : 'password'
-                    }
-                    className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 pr-9 text-xs text-slate-700 outline-none focus:border-[#075b9f]"
-                    value={
-                      form.password
-                    }
-                    onChange={(e) =>
-                      updateField(
-                        'password',
-                        e.target.value
-                      )
-                    }
-                    placeholder="Enter password"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowPassword(
-                        (value) =>
-                          !value
-                      )
-                    }
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showPassword ? (
-                      <EyeOff
-                        size={15}
-                      />
-                    ) : (
-                      <Eye
-                        size={15}
-                      />
-                    )}
-                  </button>
-
-                </div>
-
-                <div className="mt-2 space-y-1 text-[10px]">
-
-                  <p
-                    className={
-                      passwordChecks.length
-                        ? 'text-emerald-600'
-                        : 'text-slate-400'
-                    }
-                  >
-                    {passwordChecks.length
-                      ? '✓'
-                      : '○'}{' '}
-                    8 characters minimum
-                  </p>
-
-                  <p
-                    className={
-                      passwordChecks.number
-                        ? 'text-emerald-600'
-                        : 'text-slate-400'
-                    }
-                  >
-                    {passwordChecks.number
-                      ? '✓'
-                      : '○'}{' '}
-                    At least one number
-                  </p>
-
-                  <p
-                    className={
-                      passwordChecks.symbol
-                        ? 'text-emerald-600'
-                        : 'text-slate-400'
-                    }
-                  >
-                    {passwordChecks.symbol
-                      ? '✓'
-                      : '○'}{' '}
-                    At least one symbol
-                  </p>
-
-                </div>
-
-              </label>
-
-              {/* CONFIRM PASSWORD */}
-
-              <label className={labelClass}>
-                Confirm Password
-
-                <div className="relative mt-1">
-
-                  <input
-                    type={
-                      showConfirmPassword
-                        ? 'text'
-                        : 'password'
-                    }
-                    className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 pr-9 text-xs text-slate-700 outline-none focus:border-[#075b9f]"
-                    value={
-                      form.confirmPassword
-                    }
-                    onChange={(e) =>
-                      updateField(
-                        'confirmPassword',
-                        e.target.value
-                      )
-                    }
-                    placeholder="Confirm password"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowConfirmPassword(
-                        (value) =>
-                          !value
-                      )
-                    }
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff
-                        size={15}
-                      />
-                    ) : (
-                      <Eye
-                        size={15}
-                      />
-                    )}
-                  </button>
-
-                </div>
-
-                {form.confirmPassword &&
-                  form.password !==
-                    form.confirmPassword && (
-                    <p className="mt-1 text-[10px] text-red-500">
-                      Passwords do not match.
-                    </p>
-                  )}
-
-                {form.confirmPassword &&
-                  form.password ===
-                    form.confirmPassword && (
-                    <p className="mt-1 text-[10px] text-emerald-600">
-                      ✓ Passwords match.
-                    </p>
-                  )}
-
-              </label>
-
             </div>
+
+            {/* FOOTER */}
 
             <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-[#f5faff] px-5 py-3">
 
@@ -2760,7 +2654,9 @@ export default function StaffManagementPage() {
                 }
                 disabled={
                   saving ||
-                  !adminDepartment
+                  !adminDepartment ||
+                  !adminDepartmentRecord ||
+                  !staffRoleId
                 }
                 className="inline-flex items-center gap-1.5 rounded-md bg-[#075b9f] px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >

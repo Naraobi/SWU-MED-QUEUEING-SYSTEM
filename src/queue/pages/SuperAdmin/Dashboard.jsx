@@ -14,8 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { supabase } from '../../../supabase';
-
 const INSIGHTS = [
   { icon: Info, text: 'Laboratory has a high number of waiting patients (24).' },
   { icon: TrendingUp, text: 'Cashier 4 (Pharmacy) is 15% faster than average.' },

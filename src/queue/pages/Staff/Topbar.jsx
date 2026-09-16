@@ -1,15 +1,33 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import NotificationsPanel from '../../components/modals/NotificationsPanel.jsx'
 import { useQueue } from '../../context/QueueContext.jsx'
 import ToastContainer from '../../components/ui/Toast.jsx'
 import { useAuth } from '../../services/Authcontext.jsx'
 
+const STAFF_TERMINAL_KEY = 'swumed_staff_terminal';
+
 export default function Topbar({ title, subtitle }) {
   const [online, setOnline] = useState(true)
   const [showPanel, setShowPanel] = useState(false)
+  const [selectedTerminal, setSelectedTerminal] = useState(null)
 
   const { unreadCount } = useQueue()
   const { user } = useAuth()
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STAFF_TERMINAL_KEY);
+      if (!raw) {
+        setSelectedTerminal(null);
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+      setSelectedTerminal(parsed ?? null);
+    } catch {
+      setSelectedTerminal(null);
+    }
+  }, [])
 
   const staffName = `${user?.first_name || 'Ruth'} ${
     user?.last_name || 'Abella'
@@ -66,7 +84,7 @@ export default function Topbar({ title, subtitle }) {
 
         {/* Terminal */}
         <div className="hidden items-center gap-1 rounded-full border border-slate-300 px-2 py-1 text-[9px] text-slate-500 sm:flex">
-          <span>Terminal 2</span>
+          <span>{selectedTerminal?.name || 'Select terminal'}</span>
 
           <span className="h-1.5 w-1.5 rounded-full bg-[#0067a8]" />
 

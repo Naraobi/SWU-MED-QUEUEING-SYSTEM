@@ -4,11 +4,12 @@ import Topbar from './Topbar.jsx'
 import SkipQueueModal from '../../components/modals/SkipQueueModal.jsx'
 import { useQueue } from '../../context/QueueContext.jsx'
 import { useAuth } from '../../services/Authcontext.jsx'
-import { isSupabaseConfigured, supabase } from '../../../supabase'
 
 function formatSeconds(totalSeconds) {
-  const m = Math.floor(totalSeconds / 60)
-  const s = totalSeconds % 60
+  const seconds = Number(totalSeconds) || 0
+
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
 
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
@@ -16,9 +17,9 @@ function formatSeconds(totalSeconds) {
 function matchesStaffDepartment(patientId, staffPrefix) {
   if (!patientId || !staffPrefix) return false
 
-  const cleanId = patientId.startsWith('P-')
-    ? patientId.slice(2)
-    : patientId
+  const cleanId = String(patientId).startsWith('P-')
+    ? String(patientId).slice(2)
+    : String(patientId)
 
   return cleanId.startsWith(`${staffPrefix}-`)
 }
@@ -32,6 +33,7 @@ export default function DashboardPage() {
     refresh,
     callNextPatient,
     markPatientArrived,
+    startService,
     recallCurrentPatient,
     completeCurrentPatient,
     skipCurrentPatient,
@@ -41,83 +43,187 @@ export default function DashboardPage() {
 
   const [staffPrefix, setStaffPrefix] = useState('')
   const [showSkip, setShowSkip] = useState(false)
+  const [startingService, setStartingService] = useState(false)
+  const [departmentLoading, setDepartmentLoading] = useState(true)
 
   // --------------------------------------------------
-  // GET DEPARTMENT PREFIX
+  // GET STAFF DEPARTMENT PREFIX
   // --------------------------------------------------
 
   useEffect(() => {
-    async function getDepartmentPrefix() {
-      if (!user?.department) return
+    let cancelled = false
 
-      if (!isSupabaseConfigured) {
-        setStaffPrefix(user.department_prefix || 'BP')
+    async function getDepartmentPrefix() {
+      if (!user) {
+        if (!cancelled) {
+          setStaffPrefix('')
+          setDepartmentLoading(false)
+        }
         return
       }
 
-      const { data, error } = await supabase
-        .from('departments')
-        .select('prefix')
-        .eq('name', user.department)
-        .maybeSingle()
+      setDepartmentLoading(true)
 
-      if (data?.prefix) {
-        setStaffPrefix(data.prefix)
-      } else {
+      // ------------------------------------------------
+      // BEST OPTION:
+      // Use the department_id stored on the logged-in user.
+      // ------------------------------------------------
+
+      if (user.department_id && isSupabaseConfigured) {
+        const { data, error } = await supabase
+          .from('departments')
+          .select('department_id, name, prefix')
+          .eq('department_id', user.department_id)
+          .maybeSingle()
+
+        if (cancelled) return
+
+        if (error) {
+          console.error(
+            'Failed to retrieve staff department:',
+            error
+          )
+        }
+
+        if (data?.prefix) {
+          setStaffPrefix(String(data.prefix).trim())
+          setDepartmentLoading(false)
+          return
+        }
+
         console.error(
-          'Could not find prefix for department:',
-          user.department,
-          error
+          'Could not find department prefix for department ID:',
+          user.department_id
         )
+
+        setStaffPrefix('')
+        setDepartmentLoading(false)
+        return
+      }
+
+      // ------------------------------------------------
+      // FALLBACK:
+      // If Supabase is not configured, use the prefix
+      // already stored on the authenticated user.
+      // ------------------------------------------------
+
+      if (user.department_prefix) {
+        if (!cancelled) {
+          setStaffPrefix(
+            String(user.department_prefix).trim()
+          )
+          setDepartmentLoading(false)
+        }
+
+        return
+      }
+
+      // ------------------------------------------------
+      // LEGACY FALLBACK:
+      // Use department name only if department_id is
+      // unavailable.
+      // ------------------------------------------------
+
+      if (
+        user.department &&
+        isSupabaseConfigured
+      ) {
+        const { data, error } = await supabase
+          .from('departments')
+          .select('prefix')
+          .eq('name', user.department)
+          .maybeSingle()
+
+        if (cancelled) return
+
+        if (error) {
+          console.error(
+            'Failed to retrieve department prefix:',
+            error
+          )
+        }
+
+        if (data?.prefix) {
+          setStaffPrefix(
+            String(data.prefix).trim()
+          )
+        } else {
+          console.error(
+            'Could not find prefix for department:',
+            user.department
+          )
+
+          setStaffPrefix('')
+        }
+
+        setDepartmentLoading(false)
+        return
+      }
+
+      if (!cancelled) {
+        setStaffPrefix('')
+        setDepartmentLoading(false)
       }
     }
 
     getDepartmentPrefix()
-  }, [user])
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    user?.department_id,
+    user?.department,
+    user?.department_prefix,
+  ])
 
   // --------------------------------------------------
-  // REFRESH QUEUE
+  // INITIAL QUEUE LOAD
   // --------------------------------------------------
 
   useEffect(() => {
-    if (staffPrefix) {
-      refresh(staffPrefix)
-    }
+    if (!staffPrefix) return
+
+    refresh(staffPrefix)
   }, [staffPrefix, refresh])
 
   // --------------------------------------------------
-  // REALTIME QUEUE UPDATES
+  // AUTOMATIC QUEUE REFRESH
+  //
+  // Queue data is now handled by Node.js.
+  // Therefore, do not depend on Supabase Realtime here.
+  //
+  // Poll every 5 seconds so newly issued tickets appear
+  // on the staff dashboard.
   // --------------------------------------------------
 
   useEffect(() => {
-    if (!staffPrefix || !isSupabaseConfigured) return
+    if (!staffPrefix) return
 
-    const channel = supabase
-      .channel('public:queue_ticket')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'queue_ticket',
-        },
-        () => {
-          refresh(staffPrefix)
-        }
-      )
-      .subscribe()
+    const interval = setInterval(() => {
+      refresh(staffPrefix)
+    }, 5000)
 
     return () => {
-      supabase.removeChannel(channel)
+      clearInterval(interval)
     }
   }, [staffPrefix, refresh])
 
   // --------------------------------------------------
   // FILTER QUEUE BY STAFF DEPARTMENT
+  //
+  // The Node API should already return the correct
+  // department queue. This is an additional frontend
+  // safety filter so staff cannot accidentally see
+  // another department's tickets.
   // --------------------------------------------------
 
-  const filteredWaitingQueue = waitingQueue.filter((patient) =>
-    matchesStaffDepartment(patient.id, staffPrefix)
+  const filteredWaitingQueue = waitingQueue.filter(
+    (patient) =>
+      matchesStaffDepartment(
+        patient.id,
+        staffPrefix
+      )
   )
 
   const isCurrentForStaff = currentlyServing
@@ -132,17 +238,54 @@ export default function DashboardPage() {
     : null
 
   // --------------------------------------------------
-  // SKIP
+  // START SERVICE
+  //
+  // IMPORTANT:
+  // Call Patient does NOT start the service timer.
+  // The timer starts only after this action.
+  // --------------------------------------------------
+
+  const handleStartService = async () => {
+    if (!activeServing || startingService) return
+
+    try {
+      setStartingService(true)
+
+      await startService(staffPrefix)
+
+      await refresh(staffPrefix)
+    } catch (error) {
+      console.error(
+        'Failed to start service:',
+        error
+      )
+    } finally {
+      setStartingService(false)
+    }
+  }
+
+  // --------------------------------------------------
+  // SKIP PATIENT
   // --------------------------------------------------
 
   const handleConfirmSkip = async (reason) => {
-    await skipCurrentPatient(
-      reason,
-      staffPrefix
-    )
+    if (!staffPrefix) return
 
-    refresh(staffPrefix)
-    setShowSkip(false)
+    try {
+      await skipCurrentPatient(
+        reason,
+        staffPrefix
+      )
+
+      await refresh(staffPrefix)
+
+      setShowSkip(false)
+    } catch (error) {
+      console.error(
+        'Failed to skip patient:',
+        error
+      )
+    }
   }
 
   // --------------------------------------------------
@@ -151,6 +294,7 @@ export default function DashboardPage() {
 
   if (
     authLoading ||
+    departmentLoading ||
     (user?.department && !staffPrefix)
   ) {
     return (
@@ -165,6 +309,21 @@ export default function DashboardPage() {
   // --------------------------------------------------
 
   const nextPatient = filteredWaitingQueue[0]
+
+  // --------------------------------------------------
+  // DETERMINE SERVICE STATE
+  //
+  // Only service_began_at/serviceBeganAt should mean
+  // the actual service has started.
+  //
+  // Do NOT use status === "serving" by itself because
+  // the patient can be called before Start Service.
+  // --------------------------------------------------
+
+  const serviceHasStarted = Boolean(
+    activeServing?.serviceBeganAt ||
+      activeServing?.service_began_at
+  )
 
   // --------------------------------------------------
   // PAGE
@@ -187,10 +346,6 @@ export default function DashboardPage() {
           } (${staffPrefix})`}
         />
 
-        {/* CONTENT
-            Keep this padding identical on Dashboard
-            and Queue History.
-        */}
         <div className="px-4 pb-8 pt-5">
 
           {/* PAGE TITLE */}
@@ -213,7 +368,6 @@ export default function DashboardPage() {
 
             {/* WAITING */}
             <div className="flex h-[78px] items-center justify-between rounded-[9px] border border-[#73add4] bg-white px-4 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-
               <div>
                 <p className="text-[8px] font-bold uppercase tracking-wide text-[#536170]">
                   WAITING
@@ -223,12 +377,10 @@ export default function DashboardPage() {
                   {filteredWaitingQueue.length}
                 </p>
               </div>
-
             </div>
 
             {/* CURRENTLY SERVING */}
             <div className="flex h-[78px] items-center justify-between rounded-[9px] border border-[#73add4] bg-white px-4 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-
               <div>
                 <p className="text-[8px] font-bold uppercase tracking-wide text-[#536170]">
                   CURRENTLY SERVING
@@ -238,12 +390,10 @@ export default function DashboardPage() {
                   {activeServing ? 1 : 0}
                 </p>
               </div>
-
             </div>
 
             {/* COMPLETED */}
             <div className="flex h-[78px] items-center justify-between rounded-[9px] border border-[#73add4] bg-white px-4 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-
               <div>
                 <p className="text-[8px] font-bold uppercase tracking-wide text-[#536170]">
                   TODAY'S COMPLETED
@@ -275,12 +425,10 @@ export default function DashboardPage() {
                   r="9"
                 />
               </svg>
-
             </div>
 
             {/* SKIPPED */}
             <div className="flex h-[78px] items-center justify-between rounded-[9px] border border-[#73add4] bg-white px-4 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
-
               <div>
                 <p className="text-[8px] font-bold uppercase tracking-wide text-[#536170]">
                   TODAY'S SKIPPED
@@ -313,7 +461,6 @@ export default function DashboardPage() {
                   strokeLinecap="round"
                 />
               </svg>
-
             </div>
 
           </div>
@@ -362,76 +509,146 @@ export default function DashboardPage() {
                       </span>
                     )}
 
-                    <div className="mt-4 flex items-center justify-center gap-2">
+                    {/* PATIENT STATUS */}
+                    <div className="mx-auto mt-4">
 
-                      <span
-                        className="h-7 w-7 rounded-full bg-slate-200 bg-cover bg-center"
-                        style={{
-                          backgroundImage: `url(https://api.dicebear.com/7.x/avataaars/svg?seed=${activeServing.avatarSeed})`,
-                        }}
-                      />
+                      <div className="flex items-center justify-center gap-2">
 
-                      <button
-                        onClick={async () => {
-                          await markPatientArrived(
-                            staffPrefix
-                          )
+                        <span
+                          className="h-7 w-7 rounded-full bg-slate-200 bg-cover bg-center"
+                          style={{
+                            backgroundImage: `url(https://api.dicebear.com/7.x/avataaars/svg?seed=${activeServing.avatarSeed})`,
+                          }}
+                        />
 
-                          refresh(staffPrefix)
-                        }}
-                        disabled={
-                          activeServing.status ===
-                          'serving'
-                        }
-                        className={`text-[9px] font-semibold ${
-                          activeServing.status ===
-                          'waiting'
-                            ? 'text-amber-600 hover:underline'
-                            : 'cursor-default text-blue-700'
-                        }`}
-                      >
-                        {activeServing.status ===
-                        'waiting'
-                          ? 'Waiting for patient · Mark arrived'
-                          : 'Serving'}
-                      </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await markPatientArrived(
+                                staffPrefix
+                              )
+
+                              await refresh(
+                                staffPrefix
+                              )
+                            } catch (error) {
+                              console.error(
+                                'Failed to mark patient arrived:',
+                                error
+                              )
+                            }
+                          }}
+                          disabled={
+                            activeServing.status ===
+                              'arrived' ||
+                            serviceHasStarted
+                          }
+                          className={`text-[9px] font-semibold ${
+                            activeServing.status !==
+                              'arrived' &&
+                            !serviceHasStarted
+                              ? 'text-amber-600 hover:underline'
+                              : 'cursor-default text-blue-700'
+                          }`}
+                        >
+                          {activeServing.status !==
+                            'arrived' &&
+                          !serviceHasStarted
+                            ? 'Waiting for patient · Mark arrived'
+                            : serviceHasStarted
+                            ? 'Service in progress'
+                            : 'Patient arrived'}
+                        </button>
+
+                      </div>
 
                     </div>
 
-                    <div className="mx-auto mt-3 w-fit rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold text-slate-600">
-                      ⏱{' '}
-                      {formatSeconds(
-                        activeServing.secondsElapsed
-                      )}
-                    </div>
+                    {/* START SERVICE */}
+                    {!serviceHasStarted && (
+                      <div className="mt-5">
 
+                        <p className="mb-2 text-[9px] text-slate-400">
+                          Patient has been called.
+                          Start the service when you
+                          are ready.
+                        </p>
+
+                        <button
+                          onClick={
+                            handleStartService
+                          }
+                          disabled={
+                            startingService
+                          }
+                          className="rounded-[6px] bg-[#00854a] px-6 py-2.5 text-[10px] font-semibold text-white hover:bg-[#006f3d] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {startingService
+                            ? 'Starting...'
+                            : '▶ Start Service'}
+                        </button>
+
+                      </div>
+                    )}
+
+                    {/* SERVICE TIMER */}
+                    {serviceHasStarted && (
+                      <div className="mx-auto mt-4 w-fit rounded-full bg-slate-100 px-4 py-1.5 text-[10px] font-semibold text-slate-600">
+                        ⏱{' '}
+                        {formatSeconds(
+                          activeServing.secondsElapsed
+                        )}
+                      </div>
+                    )}
+
+                    {/* ACTIONS */}
                     <div className="mt-5 flex justify-center gap-2">
 
                       <button
                         onClick={async () => {
-                          await recallCurrentPatient(
-                            staffPrefix
-                          )
+                          try {
+                            await recallCurrentPatient(
+                              staffPrefix
+                            )
 
-                          refresh(staffPrefix)
+                            await refresh(
+                              staffPrefix
+                            )
+                          } catch (error) {
+                            console.error(
+                              'Failed to recall patient:',
+                              error
+                            )
+                          }
                         }}
                         className="rounded-[6px] border border-slate-200 px-4 py-2 text-[9px] font-semibold text-slate-600 hover:bg-slate-50"
                       >
                         Recall
                       </button>
 
-                      <button
-                        onClick={async () => {
-                          await completeCurrentPatient(
-                            staffPrefix
-                          )
+                      {serviceHasStarted && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await completeCurrentPatient(
+                                staffPrefix
+                              )
 
-                          refresh(staffPrefix)
-                        }}
-                        className="rounded-[6px] bg-[#005b9f] px-4 py-2 text-[9px] font-semibold text-white hover:bg-[#00477c]"
-                      >
-                        Complete
-                      </button>
+                              await refresh(
+                                staffPrefix
+                              )
+                            } catch (error) {
+                              console.error(
+                                'Failed to complete patient:',
+                                error
+                              )
+                            }
+                          }}
+                          className="rounded-[6px] bg-[#005b9f] px-4 py-2 text-[9px] font-semibold text-white hover:bg-[#00477c]"
+                        >
+                          Complete
+                        </button>
+                      )}
 
                       <button
                         onClick={() =>
@@ -461,13 +678,27 @@ export default function DashboardPage() {
 
                     <button
                       onClick={async () => {
-                        await callNextPatient(
-                          staffPrefix
-                        )
+                        if (!staffPrefix) return
 
-                        refresh(staffPrefix)
+                        try {
+                          await callNextPatient(
+                            staffPrefix
+                          )
+
+                          await refresh(
+                            staffPrefix
+                          )
+                        } catch (error) {
+                          console.error(
+                            'Failed to call next patient:',
+                            error
+                          )
+                        }
                       }}
-                      disabled={!nextPatient}
+                      disabled={
+                        !nextPatient ||
+                        !staffPrefix
+                      }
                       className="mt-5 rounded-[6px] bg-[#005b9f] px-5 py-2.5 text-[10px] font-semibold text-white hover:bg-[#00477c] disabled:opacity-40"
                     >
                       ▶ Call Patient

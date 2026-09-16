@@ -8,6 +8,7 @@ import PatientView from './queue/pages/Patient/PatientView';
 import TvDisplay from './queue/pages/TV/TvDisplay';
 import TrackerPage from './queue/pages/WebTracker/TrackerPage';
 import StaffApp from './queue/pages/Staff/StaffApp';
+import TerminalSelectionPage from './queue/pages/Staff/TerminalSelectionPage';
 import { QueueProvider } from './queue/context/QueueContext';
 
 function RootRedirect() {
@@ -75,6 +76,15 @@ function App() {
               element={
                 <ProtectedRoute allowedRole="superadmin">
                   <SuperAdminApp />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/staff/select-terminal"
+              element={
+                <ProtectedRoute allowedRole="staff">
+                  <TerminalSelectionPage />
                 </ProtectedRoute>
               }
             />
