@@ -11,7 +11,7 @@ const THEME_MODES = [
 
 // Each swatch is a 4-quadrant preview circle.
 const THEME_SWATCHES = [
-  { key: 'blue', colors: ['#3B82F6', '#93B4E8', '#1D4ED8', '#BFD3F2'] },
+  { key: 'blue', colors: ['#9D0A0E', '#D4B0B1', '#7D080B', '#F0DADA'] },
   { key: 'slate', colors: ['#6B7280', '#9CA3AF', '#4B5563', '#D1D5DB'] },
   { key: 'ocean', colors: ['#1E5FA8', '#5B8FC9', '#123C73', '#A8C4E0'] },
   { key: 'steel', colors: ['#64748B', '#94A3B8', '#334155', '#CBD5E1'] },
@@ -60,7 +60,7 @@ function DepartmentCustomizationModal({ onClose }) {
         {/* Body */}
         <div className="space-y-4 px-5 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FBF1F1] text-xs font-semibold text-[#9D0A0E]">
               JD
             </div>
             <button
@@ -99,7 +99,7 @@ function DepartmentCustomizationModal({ onClose }) {
           </button>
           <button
             type="button"
-            className="rounded-md bg-[#00529B] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#003F75]"
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
           >
             Save
           </button>
@@ -174,7 +174,7 @@ function ThemeModal({ onClose, onOpenColorPicker }) {
                     style={{ background: quadrantGradient(colors) }}
                   />
                   {isSelected && (
-                    <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#00529B] text-white">
+                    <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
                       <Check size={10} strokeWidth={3} />
                     </span>
                   )}
@@ -207,7 +207,7 @@ function ThemeModal({ onClose, onOpenColorPicker }) {
           </button>
           <button
             type="button"
-            className="rounded-md bg-[#00529B] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#003F75]"
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
           >
             Save
           </button>

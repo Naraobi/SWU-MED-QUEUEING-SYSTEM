@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 
 import {
+  Building2,
+  Check,
   ChevronDown,
   ChevronRight,
+  Eye,
+  EyeOff,
   MapPin,
   Monitor,
   MoreVertical,
@@ -47,8 +51,10 @@ export default function KioskManagement() {
 
   const [kioskModal, setKioskModal] = useState(null);
   const [kioskName, setKioskName] = useState('');
+  const [kioskLocation, setKioskLocation] = useState('');
   const [kioskPin, setKioskPin] = useState('');
-  const [kioskStatus, setKioskStatus] = useState('inactive');
+  const [showPin, setShowPin] = useState(false);
+  const [kioskStatus, setKioskStatus] = useState('active');
 
   const [savingKiosk, setSavingKiosk] = useState(false);
   const [kioskError, setKioskError] = useState(null);
@@ -57,11 +63,8 @@ export default function KioskManagement() {
   // KIOSK STATUS CONFIRMATION
   // =============================================
 
-  const [kioskStatusModal, setKioskStatusModal] =
-    useState(null);
-
-  const [changingKioskStatus, setChangingKioskStatus] =
-    useState(false);
+  const [kioskStatusModal, setKioskStatusModal] = useState(null);
+  const [changingKioskStatus, setChangingKioskStatus] = useState(false);
 
   // =============================================
   // TERMINAL MODAL
@@ -70,17 +73,16 @@ export default function KioskManagement() {
   const [terminalModal, setTerminalModal] = useState(null);
 
   const [terminalForm, setTerminalForm] = useState({
+    terminalName: '',
     counterNumber: '',
     prefix: '',
-    status: 'inactive',
+    terminalCode: '',
+    status: 'active',
     assignedStaffId: '',
   });
 
-  const [savingTerminal, setSavingTerminal] =
-    useState(false);
-
-  const [terminalError, setTerminalError] =
-    useState(null);
+  const [savingTerminal, setSavingTerminal] = useState(false);
+  const [terminalError, setTerminalError] = useState(null);
 
   // =============================================
   // LOAD PAGE DATA
@@ -104,15 +106,13 @@ export default function KioskManagement() {
         // LOAD DEPARTMENTS
         // -----------------------------------------
 
-        const departmentData =
-          await getDepartments();
+        const departmentData = await getDepartments();
 
         // -----------------------------------------
         // LOAD TERMINALS
         // -----------------------------------------
 
-        const terminalData =
-          await getTerminals();
+        const terminalData = await getTerminals();
 
         if (!mounted) return;
 
@@ -120,104 +120,54 @@ export default function KioskManagement() {
         // FORMAT KIOSKS
         // -----------------------------------------
 
-        const formattedKiosks =
-          (kioskData || []).map((kiosk) => ({
-            kiosk_id:
-              kiosk.kiosk_id,
-
-            name:
-              kiosk.name || '',
-
-            status:
-              kiosk.status || 'inactive',
-
-            created_at:
-              kiosk.created_at || null,
-
-            updated_at:
-              kiosk.updated_at || null,
-          }));
+        const formattedKiosks = (kioskData || []).map((kiosk) => ({
+          kiosk_id: kiosk.kiosk_id,
+          name: kiosk.name || '',
+          location: kiosk.location || '',
+          status: kiosk.status || 'inactive',
+          created_at: kiosk.created_at || null,
+          updated_at: kiosk.updated_at || null,
+        }));
 
         // -----------------------------------------
         // FORMAT DEPARTMENTS
         // -----------------------------------------
 
-        const formattedDepartments =
-          (departmentData || []).map(
-            (department) => ({
-              department_id:
-                department.department_id,
-
-              name:
-                department.name || '',
-
-              status:
-                department.status ||
-                'inactive',
-
-              kiosk_id:
-                department.kiosk_id || '',
-
-              prefix:
-                department.prefix || '',
-            })
-          );
+        const formattedDepartments = (departmentData || []).map(
+          (department) => ({
+            department_id: department.department_id,
+            name: department.name || '',
+            status: department.status || 'inactive',
+            kiosk_id: department.kiosk_id || '',
+            prefix: department.prefix || '',
+          })
+        );
 
         // -----------------------------------------
         // FORMAT TERMINALS
         // -----------------------------------------
 
-        const formattedTerminals =
-          (terminalData || []).map(
-            (terminal) => ({
-              counter_id:
-                terminal.counter_id,
-
-              department_id:
-                terminal.department_id || '',
-
-              counter_number:
-                terminal.counter_number ?? '',
-
-              prefix:
-                terminal.prefix || '',
-
-              status:
-                terminal.status || 'inactive',
-
-              assigned_staff_id:
-                terminal.assigned_staff_id ||
-                '',
-
-              created_at:
-                terminal.created_at || null,
-
-              updated_at:
-                terminal.updated_at || null,
-            })
-          );
+        const formattedTerminals = (terminalData || []).map((terminal) => ({
+          counter_id: terminal.counter_id,
+          department_id: terminal.department_id || '',
+          counter_number: terminal.counter_number ?? '',
+          prefix: terminal.prefix || '',
+          status: terminal.status || 'inactive',
+          assigned_staff_id: terminal.assigned_staff_id || '',
+          created_at: terminal.created_at || null,
+          updated_at: terminal.updated_at || null,
+        }));
 
         setKiosks(formattedKiosks);
-        setDepartments(
-          formattedDepartments
-        );
-        setTerminals(
-          formattedTerminals
-        );
+        setDepartments(formattedDepartments);
+        setTerminals(formattedTerminals);
 
         setLoading(false);
       } catch (err) {
-        console.error(
-          'FETCH KIOSK DATA ERROR:',
-          err
-        );
+        console.error('FETCH KIOSK DATA ERROR:', err);
 
         if (mounted) {
-          setError(
-            err.message ||
-              'Failed to load kiosk data.'
-          );
-
+          setError(err.message || 'Failed to load kiosk data.');
           setLoading(false);
         }
       }
@@ -237,10 +187,7 @@ export default function KioskManagement() {
   function openKioskStatusConfirmation(kiosk) {
     if (!kiosk) return;
 
-    const nextStatus =
-      kiosk.status === 'active'
-        ? 'inactive'
-        : 'active';
+    const nextStatus = kiosk.status === 'active' ? 'inactive' : 'active';
 
     setKioskStatusModal({
       ...kiosk,
@@ -257,24 +204,16 @@ export default function KioskManagement() {
   async function handleConfirmKioskStatus() {
     if (!kioskStatusModal) return;
 
-    const {
-      kiosk_id,
-      name,
-      nextStatus,
-    } = kioskStatusModal;
+    const { kiosk_id, name, nextStatus } = kioskStatusModal;
 
     try {
       setChangingKioskStatus(true);
       setError(null);
 
-      const updatedKiosk =
-        await updateKiosk(
-          kiosk_id,
-          {
-            name,
-            status: nextStatus,
-          }
-        );
+      const updatedKiosk = await updateKiosk(kiosk_id, {
+        name,
+        status: nextStatus,
+      });
 
       setKiosks((current) =>
         current.map((kiosk) =>
@@ -290,15 +229,9 @@ export default function KioskManagement() {
 
       setKioskStatusModal(null);
     } catch (err) {
-      console.error(
-        'UPDATE KIOSK STATUS ERROR:',
-        err
-      );
+      console.error('UPDATE KIOSK STATUS ERROR:', err);
 
-      setError(
-        err.message ||
-          'Failed to update kiosk status.'
-      );
+      setError(err.message || 'Failed to update kiosk status.');
     } finally {
       setChangingKioskStatus(false);
     }
@@ -314,8 +247,10 @@ export default function KioskManagement() {
     });
 
     setKioskName('');
+    setKioskLocation('');
     setKioskPin('');
-    setKioskStatus('inactive');
+    setShowPin(false);
+    setKioskStatus('active');
     setKioskError(null);
   }
 
@@ -329,16 +264,11 @@ export default function KioskManagement() {
       ...kiosk,
     });
 
-    setKioskName(
-      kiosk.name || ''
-    );
-
+    setKioskName(kiosk.name || '');
+    setKioskLocation(kiosk.location || '');
     setKioskPin('');
-
-    setKioskStatus(
-      kiosk.status || 'inactive'
-    );
-
+    setShowPin(false);
+    setKioskStatus(kiosk.status || 'inactive');
     setKioskError(null);
   }
 
@@ -349,28 +279,17 @@ export default function KioskManagement() {
   async function handleSaveKiosk() {
     if (!kioskModal) return;
 
-    const trimmedName =
-      kioskName.trim();
-
-    const trimmedPin =
-      kioskPin.trim();
+    const trimmedName = kioskName.trim();
+    const trimmedLocation = kioskLocation.trim();
+    const trimmedPin = kioskPin.trim();
 
     if (!trimmedName) {
-      setKioskError(
-        'Kiosk name is required.'
-      );
-
+      setKioskError('Kiosk name is required.');
       return;
     }
 
-    if (
-      kioskModal.mode === 'add' &&
-      !/^\d{4}$/.test(trimmedPin)
-    ) {
-      setKioskError(
-        'Kiosk PIN must be exactly 4 digits.'
-      );
-
+    if (kioskModal.mode === 'add' && !/^\d{4}$/.test(trimmedPin)) {
+      setKioskError('Kiosk PIN must be exactly 4 digits.');
       return;
     }
 
@@ -382,21 +301,20 @@ export default function KioskManagement() {
       // ADD KIOSK
       // =========================================
 
-      if (
-        kioskModal.mode === 'add'
-      ) {
-        const newKiosk =
-          await createKiosk({
-            name: trimmedName,
-            kiosk_pin: trimmedPin,
-            status: kioskStatus,
-          });
+      if (kioskModal.mode === 'add') {
+        const newKiosk = await createKiosk({
+          name: trimmedName,
+          location: trimmedLocation,
+          kiosk_pin: trimmedPin,
+          status: kioskStatus,
+        });
 
         setKiosks((current) => [
           ...current,
           {
             ...newKiosk,
             name: trimmedName,
+            location: trimmedLocation,
             status: kioskStatus,
           },
         ]);
@@ -407,25 +325,21 @@ export default function KioskManagement() {
       // =========================================
 
       else {
-        const updatedKiosk =
-          await updateKiosk(
-            kioskModal.kiosk_id,
-            {
-              name: trimmedName,
-              status: kioskStatus,
-            }
-          );
+        const updatedKiosk = await updateKiosk(kioskModal.kiosk_id, {
+          name: trimmedName,
+          location: trimmedLocation,
+          status: kioskStatus,
+        });
 
         setKiosks((current) =>
           current.map((kiosk) =>
-            kiosk.kiosk_id ===
-            kioskModal.kiosk_id
+            kiosk.kiosk_id === kioskModal.kiosk_id
               ? {
                   ...kiosk,
                   ...updatedKiosk,
-                  kiosk_id:
-                    kioskModal.kiosk_id,
+                  kiosk_id: kioskModal.kiosk_id,
                   name: trimmedName,
+                  location: trimmedLocation,
                   status: kioskStatus,
                 }
               : kiosk
@@ -435,20 +349,16 @@ export default function KioskManagement() {
 
       setKioskModal(null);
       setKioskName('');
+      setKioskLocation('');
       setKioskPin('');
-      setKioskStatus('inactive');
+      setKioskStatus('active');
     } catch (err) {
-      console.error(
-        'SAVE KIOSK ERROR:',
-        err
-      );
+      console.error('SAVE KIOSK ERROR:', err);
 
       setKioskError(
         err.message ||
           `Failed to ${
-            kioskModal.mode === 'add'
-              ? 'add kiosk'
-              : 'update kiosk'
+            kioskModal.mode === 'add' ? 'add kiosk' : 'update kiosk'
           }.`
       );
     } finally {
@@ -461,12 +371,7 @@ export default function KioskManagement() {
   // =============================================
 
   function toggleKiosk(kioskId) {
-    setExpandedKiosk((current) =>
-      current === kioskId
-        ? null
-        : kioskId
-    );
-
+    setExpandedKiosk((current) => (current === kioskId ? null : kioskId));
     setExpandedDepartment(null);
   }
 
@@ -474,13 +379,9 @@ export default function KioskManagement() {
   // TOGGLE DEPARTMENT
   // =============================================
 
-  function toggleDepartment(
-    departmentId
-  ) {
+  function toggleDepartment(departmentId) {
     setExpandedDepartment((current) =>
-      current === departmentId
-        ? null
-        : departmentId
+      current === departmentId ? null : departmentId
     );
   }
 
@@ -488,46 +389,22 @@ export default function KioskManagement() {
   // LOAD STAFF FOR DEPARTMENT
   // =============================================
 
-  async function loadStaffForDepartment(
-    departmentId
-  ) {
+  async function loadStaffForDepartment(departmentId) {
     try {
-      const staff =
-        await getStaffByDepartment(
-          departmentId
-        );
+      const staff = await getStaffByDepartment(departmentId);
 
-      const formattedStaff =
-        (staff || []).map(
-          (person) => ({
-            user_id:
-              person.user_id,
+      const formattedStaff = (staff || []).map((person) => ({
+        user_id: person.user_id,
+        first_name: person.first_name || '',
+        last_name: person.last_name || '',
+        role_id: person.role_id || '',
+        department_id: person.department_id || '',
+      }));
 
-            first_name:
-              person.first_name || '',
-
-            last_name:
-              person.last_name || '',
-
-            role_id:
-              person.role_id || '',
-
-            department_id:
-              person.department_id || '',
-          })
-        );
-
-      setStaffOptions(
-        formattedStaff
-      );
+      setStaffOptions(formattedStaff);
     } catch (err) {
-      console.error(
-        'LOAD STAFF ERROR:',
-        err
-      );
-
+      console.error('LOAD STAFF ERROR:', err);
       setStaffOptions([]);
-
       throw err;
     }
   }
@@ -536,18 +413,21 @@ export default function KioskManagement() {
   // OPEN ADD TERMINAL MODAL
   // =============================================
 
-  async function openTerminalModal(
-    department
-  ) {
+  async function openTerminalModal(department) {
+    const parentKiosk = kiosks.find((k) => k.kiosk_id === department.kiosk_id);
+
     setTerminalModal({
       mode: 'add',
       ...department,
+      kioskName: parentKiosk?.name || 'Main Lobby',
     });
 
     setTerminalForm({
+      terminalName: '',
       counterNumber: '',
       prefix: '',
-      status: 'inactive',
+      terminalCode: '',
+      status: 'active',
       assignedStaffId: '',
     });
 
@@ -559,34 +439,19 @@ export default function KioskManagement() {
       // DEPARTMENT PREFIX
       // -----------------------------------------
 
-      const departmentPrefix =
-        department.prefix
-          ?.trim()
-          .toUpperCase() || '';
+      const departmentPrefix = department.prefix?.trim().toUpperCase() || '';
 
       // -----------------------------------------
       // EXISTING TERMINALS
       // -----------------------------------------
 
-      const departmentTerminals =
-        terminals.filter(
-          (terminal) =>
-            terminal.department_id ===
-            department.department_id
-        );
+      const departmentTerminals = terminals.filter(
+        (terminal) => terminal.department_id === department.department_id
+      );
 
-      const usedNumbers =
-        departmentTerminals
-          .map((terminal) =>
-            Number(
-              terminal.counter_number
-            )
-          )
-          .filter(
-            (number) =>
-              Number.isInteger(number) &&
-              number > 0
-          );
+      const usedNumbers = departmentTerminals
+        .map((terminal) => Number(terminal.counter_number))
+        .filter((number) => Number.isInteger(number) && number > 0);
 
       // -----------------------------------------
       // NEXT TERMINAL NUMBER
@@ -594,45 +459,32 @@ export default function KioskManagement() {
 
       let nextCounterNumber = 1;
 
-      while (
-        usedNumbers.includes(
-          nextCounterNumber
-        )
-      ) {
+      while (usedNumbers.includes(nextCounterNumber)) {
         nextCounterNumber++;
       }
 
+      const generatedCode = departmentPrefix
+        ? `${departmentPrefix}-${nextCounterNumber}`
+        : `${nextCounterNumber}`;
+
       setTerminalForm({
-        counterNumber:
-          String(nextCounterNumber),
-
-        prefix:
-          `${departmentPrefix}${nextCounterNumber}`,
-
-        status:
-          'inactive',
-
-        assignedStaffId:
-          '',
+        terminalName: String(nextCounterNumber),
+        counterNumber: String(nextCounterNumber),
+        prefix: departmentPrefix,
+        terminalCode: generatedCode,
+        status: 'active',
+        assignedStaffId: '',
       });
 
       // -----------------------------------------
       // LOAD STAFF
       // -----------------------------------------
 
-      await loadStaffForDepartment(
-        department.department_id
-      );
+      await loadStaffForDepartment(department.department_id);
     } catch (err) {
-      console.error(
-        'OPEN ADD TERMINAL ERROR:',
-        err
-      );
+      console.error('OPEN ADD TERMINAL ERROR:', err);
 
-      setTerminalError(
-        err.message ||
-          'Unable to prepare terminal.'
-      );
+      setTerminalError(err.message || 'Unable to prepare terminal.');
     }
   }
 
@@ -640,59 +492,42 @@ export default function KioskManagement() {
   // OPEN EDIT TERMINAL MODAL
   // =============================================
 
-  async function openEditTerminalModal(
-    terminal
-  ) {
-    const department =
-      departments.find(
-        (item) =>
-          item.department_id ===
-          terminal.department_id
-      );
+  async function openEditTerminalModal(terminal) {
+    const department = departments.find(
+      (item) => item.department_id === terminal.department_id
+    );
+
+    const parentKiosk = kiosks.find((k) => k.kiosk_id === department?.kiosk_id);
+
+    const generatedCode = terminal.prefix
+      ? `${terminal.prefix}-${terminal.counter_number}`
+      : `${terminal.counter_number}`;
 
     setTerminalModal({
       mode: 'edit',
       ...terminal,
-
-      departmentName:
-        department?.name || '',
+      kioskName: parentKiosk?.name || 'Main Lobby',
+      departmentName: department?.name || '',
     });
 
     setTerminalForm({
-      counterNumber:
-        String(
-          terminal.counter_number ?? ''
-        ),
-
-      prefix:
-        terminal.prefix || '',
-
-      status:
-        terminal.status ||
-        'inactive',
-
-      assignedStaffId:
-        terminal.assigned_staff_id ||
-        '',
+      terminalName: String(terminal.counter_number ?? ''),
+      counterNumber: String(terminal.counter_number ?? ''),
+      prefix: terminal.prefix || '',
+      terminalCode: generatedCode,
+      status: terminal.status || 'inactive',
+      assignedStaffId: terminal.assigned_staff_id || '',
     });
 
     setTerminalError(null);
     setStaffOptions([]);
 
     try {
-      await loadStaffForDepartment(
-        terminal.department_id
-      );
+      await loadStaffForDepartment(terminal.department_id);
     } catch (err) {
-      console.error(
-        'LOAD TERMINAL STAFF ERROR:',
-        err
-      );
+      console.error('LOAD TERMINAL STAFF ERROR:', err);
 
-      setTerminalError(
-        err.message ||
-          'Failed to load staff.'
-      );
+      setTerminalError(err.message || 'Failed to load staff.');
     }
   }
 
@@ -707,53 +542,36 @@ export default function KioskManagement() {
       setSavingTerminal(true);
       setTerminalError(null);
 
-      const assignedStaffId =
-        terminalForm.assignedStaffId
-          ? terminalForm.assignedStaffId
-          : null;
+      const assignedStaffId = terminalForm.assignedStaffId
+        ? terminalForm.assignedStaffId
+        : null;
 
       const terminalData = {
-        department_id:
-          terminalModal.department_id,
-
-        counter_number:
-          Number(
-            terminalForm.counterNumber
-          ),
-
-        prefix:
-          terminalForm.prefix
-            .trim()
-            .toUpperCase(),
-
-        status:
-          terminalForm.status,
-
-        assigned_staff_id:
-          assignedStaffId,
+        department_id: terminalModal.department_id,
+        counter_number: Number(
+          terminalForm.terminalName || terminalForm.counterNumber
+        ),
+        prefix: terminalForm.prefix.trim().toUpperCase(),
+        status: terminalForm.status,
+        assigned_staff_id: assignedStaffId,
       };
 
       // =========================================
       // EDIT TERMINAL
       // =========================================
 
-      if (
-        terminalModal.mode === 'edit'
-      ) {
-        const updatedTerminal =
-          await updateTerminal(
-            terminalModal.counter_id,
-            terminalData
-          );
+      if (terminalModal.mode === 'edit') {
+        const updatedTerminal = await updateTerminal(
+          terminalModal.counter_id,
+          terminalData
+        );
 
         setTerminals((current) =>
           current.map((terminal) => {
             if (
               assignedStaffId &&
-              terminal.assigned_staff_id ===
-                assignedStaffId &&
-              terminal.counter_id !==
-                terminalModal.counter_id
+              terminal.assigned_staff_id === assignedStaffId &&
+              terminal.counter_id !== terminalModal.counter_id
             ) {
               return {
                 ...terminal,
@@ -761,35 +579,18 @@ export default function KioskManagement() {
               };
             }
 
-            if (
-              terminal.counter_id ===
-              terminalModal.counter_id
-            ) {
+            if (terminal.counter_id === terminalModal.counter_id) {
               return {
                 ...terminal,
                 ...updatedTerminal,
-
-                counter_id:
-                  terminalModal.counter_id,
-
-                department_id:
-                  terminalModal.department_id,
-
-                counter_number:
-                  Number(
-                    terminalForm.counterNumber
-                  ),
-
-                prefix:
-                  terminalForm.prefix
-                    .trim()
-                    .toUpperCase(),
-
-                status:
-                  terminalForm.status,
-
-                assigned_staff_id:
-                  assignedStaffId || '',
+                counter_id: terminalModal.counter_id,
+                department_id: terminalModal.department_id,
+                counter_number: Number(
+                  terminalForm.terminalName || terminalForm.counterNumber
+                ),
+                prefix: terminalForm.prefix.trim().toUpperCase(),
+                status: terminalForm.status,
+                assigned_staff_id: assignedStaffId || '',
               };
             }
 
@@ -803,34 +604,19 @@ export default function KioskManagement() {
       // =========================================
 
       else {
-        const newTerminal =
-          await createTerminal(
-            terminalData
-          );
+        const newTerminal = await createTerminal(terminalData);
 
         setTerminals((current) => [
           ...current,
           {
             ...newTerminal,
-
-            department_id:
-              terminalModal.department_id,
-
-            counter_number:
-              Number(
-                terminalForm.counterNumber
-              ),
-
-            prefix:
-              terminalForm.prefix
-                .trim()
-                .toUpperCase(),
-
-            status:
-              terminalForm.status,
-
-            assigned_staff_id:
-              assignedStaffId || '',
+            department_id: terminalModal.department_id,
+            counter_number: Number(
+              terminalForm.terminalName || terminalForm.counterNumber
+            ),
+            prefix: terminalForm.prefix.trim().toUpperCase(),
+            status: terminalForm.status,
+            assigned_staff_id: assignedStaffId || '',
           },
         ]);
       }
@@ -842,23 +628,19 @@ export default function KioskManagement() {
       setTerminalModal(null);
 
       setTerminalForm({
+        terminalName: '',
         counterNumber: '',
         prefix: '',
-        status: 'inactive',
+        terminalCode: '',
+        status: 'active',
         assignedStaffId: '',
       });
 
       setStaffOptions([]);
     } catch (err) {
-      console.error(
-        'SAVE TERMINAL ERROR:',
-        err
-      );
+      console.error('SAVE TERMINAL ERROR:', err);
 
-      setTerminalError(
-        err.message ||
-          'Failed to save terminal.'
-      );
+      setTerminalError(err.message || 'Failed to save terminal.');
     } finally {
       setSavingTerminal(false);
     }
@@ -873,12 +655,7 @@ export default function KioskManagement() {
       return 'Unassigned';
     }
 
-    const staff =
-      staffOptions.find(
-        (person) =>
-          person.user_id ===
-          staffId
-      );
+    const staff = staffOptions.find((person) => person.user_id === staffId);
 
     if (!staff) {
       return 'Assigned staff';
@@ -893,33 +670,29 @@ export default function KioskManagement() {
 
   return (
     <div className="space-y-6">
-
       {/* =========================================
           PAGE HEADER
       ========================================== */}
 
       <div className="flex items-center justify-between gap-4">
-
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800">
+          <h1 className="text-2xl font-semibold text-[#1F2937]">
             Kiosk Management
           </h1>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Manage kiosks, departments, and
-            terminals.
+          <p className="mt-1 text-sm text-[#4B5563]">
+            Manage kiosks, departments, and terminals.
           </p>
         </div>
 
         <button
           type="button"
           onClick={openAddKioskModal}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#00529B] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#003f75]"
+          className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B]"
         >
           <Plus size={16} />
           Add Kiosk
         </button>
-
       </div>
 
       {/* =========================================
@@ -927,7 +700,7 @@ export default function KioskManagement() {
       ========================================== */}
 
       {loading && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 text-sm text-[#4B5563]">
           Loading kiosks...
         </div>
       )}
@@ -937,7 +710,7 @@ export default function KioskManagement() {
       ========================================== */}
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+        <div className="rounded-xl border border-[#F0DADA] bg-[#FBF1F1] p-4 text-sm text-[#9D0A0E]">
           {error}
         </div>
       )}
@@ -946,522 +719,449 @@ export default function KioskManagement() {
           KIOSKS
       ========================================== */}
 
-      {!loading &&
-        !error && (
-          <div className="space-y-4">
+      {!loading && !error && (
+        <div className="space-y-4">
+          {kiosks.map((kiosk) => {
+            const kioskDepartments = departments.filter(
+              (department) => department.kiosk_id === kiosk.kiosk_id
+            );
 
-            {kiosks.map((kiosk) => {
-              const kioskDepartments =
-                departments.filter(
-                  (department) =>
-                    department.kiosk_id ===
-                    kiosk.kiosk_id
-                );
+            const isKioskExpanded = expandedKiosk === kiosk.kiosk_id;
 
-              const isKioskExpanded =
-                expandedKiosk ===
-                kiosk.kiosk_id;
+            return (
+              <div
+                key={kiosk.kiosk_id}
+                className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm"
+              >
+                {/* KIOSK HEADER */}
 
-              return (
-                <div
-                  key={kiosk.kiosk_id}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-                >
+                <div className="flex w-full items-center gap-4 p-5 transition hover:bg-[#F8F9FA]">
+                  <button
+                    type="button"
+                    onClick={() => toggleKiosk(kiosk.kiosk_id)}
+                    className="flex min-w-0 flex-1 items-center gap-4 text-left"
+                  >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FBF1F1] text-[#9D0A0E]">
+                      <Monitor size={22} />
+                    </div>
 
-                  {/* KIOSK HEADER */}
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-base font-semibold text-[#1F2937]">
+                        {kiosk.name}
+                      </h2>
 
-                  <div className="flex w-full items-center gap-4 p-5 transition hover:bg-slate-50">
+                      <div className="mt-1 flex items-center gap-2 text-sm text-[#4B5563]">
+                        <MapPin size={15} />
+                        <span>{kiosk.location || 'Kiosk'}</span>
+                      </div>
+                    </div>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    {/* STATUS */}
 
                     <button
                       type="button"
-                      onClick={() =>
-                        toggleKiosk(
-                          kiosk.kiosk_id
-                        )
-                      }
-                      className="flex min-w-0 flex-1 items-center gap-4 text-left"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openKioskStatusConfirmation(kiosk);
+                      }}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                        kiosk.status === 'active'
+                          ? 'bg-[#E8F8F0] text-[#0D8A4E] border border-[#86EFAC]'
+                          : 'bg-[#F1F3F5] text-[#4B5563] hover:bg-[#E5E7EB]'
+                      }`}
                     >
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#00529B]">
-                        <Monitor size={22} />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <h2 className="text-base font-semibold text-slate-800">
-                          {kiosk.name}
-                        </h2>
-
-                        <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-                          <MapPin size={15} />
-                          <span>Kiosk</span>
-                        </div>
-                      </div>
+                      {kiosk.status === 'active' ? 'Active' : 'Inactive'}
                     </button>
 
-                    <div className="flex items-center gap-2">
+                    {/* ACTIONS */}
 
-                      {/* STATUS */}
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEditKioskModal(kiosk);
+                      }}
+                      className="rounded-lg p-2 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#1F2937]"
+                      title="Edit kiosk"
+                    >
+                      <MoreVertical size={20} />
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-
-                          openKioskStatusConfirmation(
-                            kiosk
-                          );
-                        }}
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-                          kiosk.status ===
-                          'active'
-                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        {kiosk.status}
-                      </button>
-
-                      {/* ACTIONS */}
-
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-
-                          openEditKioskModal(
-                            kiosk
-                          );
-                        }}
-                        className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                        title="Edit kiosk"
-                      >
-                        <MoreVertical
-                          size={20}
-                        />
-                      </button>
-
-                      <div className="shrink-0 text-slate-400">
-                        {isKioskExpanded ? (
-                          <ChevronDown
-                            size={20}
-                          />
-                        ) : (
-                          <ChevronRight
-                            size={20}
-                          />
-                        )}
-                      </div>
-
+                    <div className="shrink-0 text-[#9CA3AF]">
+                      {isKioskExpanded ? (
+                        <ChevronDown size={20} />
+                      ) : (
+                        <ChevronRight size={20} />
+                      )}
                     </div>
                   </div>
+                </div>
 
-                  {/* DEPARTMENTS */}
+                {/* DEPARTMENTS */}
 
-                  {isKioskExpanded && (
-                    <div className="border-t border-slate-100 p-5">
+                {isKioskExpanded && (
+                  <div className="border-t border-[#E5E7EB] p-5">
+                    <div className="mb-4">
+                      <h3 className="text-sm font-semibold text-[#1F2937]">
+                        Departments
+                      </h3>
 
-                      <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-slate-800">
-                          Departments
-                        </h3>
+                      <p className="mt-1 text-xs text-[#4B5563]">
+                        Departments assigned to this kiosk
+                      </p>
+                    </div>
 
-                        <p className="mt-1 text-xs text-slate-500">
-                          Departments assigned to
-                          this kiosk
-                        </p>
-                      </div>
+                    {kioskDepartments.length > 0 ? (
+                      <div className="space-y-2">
+                        {kioskDepartments.map((department) => {
+                          const isDepartmentExpanded =
+                            expandedDepartment === department.department_id;
 
-                      {kioskDepartments.length >
-                      0 ? (
-                        <div className="space-y-2">
+                          const departmentTerminals = terminals
+                            .filter(
+                              (terminal) =>
+                                terminal.department_id ===
+                                department.department_id
+                            )
+                            .sort(
+                              (a, b) =>
+                                Number(a.counter_number) -
+                                Number(b.counter_number)
+                            );
 
-                          {kioskDepartments.map(
-                            (department) => {
-                              const isDepartmentExpanded =
-                                expandedDepartment ===
-                                department.department_id;
+                          return (
+                            <div
+                              key={department.department_id}
+                              className="overflow-hidden rounded-xl border border-[#E5E7EB]"
+                            >
+                              {/* DEPARTMENT HEADER */}
 
-                              const departmentTerminals =
-                                terminals
-                                  .filter(
-                                    (terminal) =>
-                                      terminal.department_id ===
-                                      department.department_id
-                                  )
-                                  .sort(
-                                    (
-                                      a,
-                                      b
-                                    ) =>
-                                      Number(
-                                        a.counter_number
-                                      ) -
-                                      Number(
-                                        b.counter_number
-                                      )
-                                  );
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  toggleDepartment(department.department_id)
+                                }
+                                className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#F8F9FA]"
+                              >
+                                <div className="shrink-0 text-[#9CA3AF]">
+                                  {isDepartmentExpanded ? (
+                                    <ChevronDown size={18} />
+                                  ) : (
+                                    <ChevronRight size={18} />
+                                  )}
+                                </div>
 
-                              return (
-                                <div
-                                  key={
-                                    department.department_id
-                                  }
-                                  className="overflow-hidden rounded-xl border border-slate-200"
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-[#1F2937]">
+                                    {department.name}
+                                  </p>
+
+                                  {department.prefix && (
+                                    <p className="mt-0.5 text-xs text-[#9CA3AF]">
+                                      Prefix: {department.prefix}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <span
+                                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                    department.status === 'active'
+                                      ? 'bg-[#E8F8F0] text-[#0D8A4E] border border-[#86EFAC]'
+                                      : 'bg-[#F1F3F5] text-[#4B5563]'
+                                  }`}
                                 >
+                                  {department.status === 'active'
+                                    ? 'Active'
+                                    : 'Inactive'}
+                                </span>
+                              </button>
 
-                                  {/* DEPARTMENT HEADER */}
+                              {/* TERMINALS */}
 
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      toggleDepartment(
-                                        department.department_id
-                                      )
-                                    }
-                                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
-                                  >
+                              {isDepartmentExpanded && (
+                                <div className="border-t border-[#E5E7EB] bg-[#F8F9FA]/50 px-4 py-4">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <h4 className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
+                                        Terminals
+                                      </h4>
 
-                                    <div className="shrink-0 text-slate-400">
-                                      {isDepartmentExpanded ? (
-                                        <ChevronDown
-                                          size={18}
-                                        />
-                                      ) : (
-                                        <ChevronRight
-                                          size={18}
-                                        />
-                                      )}
-                                    </div>
-
-                                    <div className="min-w-0 flex-1">
-
-                                      <p className="text-sm font-medium text-slate-800">
-                                        {
-                                          department.name
-                                        }
+                                      <p className="mt-1 text-xs text-[#9CA3AF]">
+                                        Terminals assigned to this department
                                       </p>
-
-                                      {department.prefix && (
-                                        <p className="mt-0.5 text-xs text-slate-400">
-                                          Prefix:{' '}
-                                          {
-                                            department.prefix
-                                          }
-                                        </p>
-                                      )}
-
                                     </div>
 
-                                    <span
-                                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                                        department.status ===
-                                        'active'
-                                          ? 'bg-emerald-50 text-emerald-700'
-                                          : 'bg-slate-100 text-slate-600'
-                                      }`}
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openTerminalModal(department);
+                                      }}
+                                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#4B5563] transition hover:border-[#9D0A0E] hover:text-[#9D0A0E]"
+                                      title="Add Terminal"
                                     >
-                                      {
-                                        department.status
-                                      }
-                                    </span>
+                                      <Plus size={16} />
+                                    </button>
+                                  </div>
 
-                                  </button>
-
-                                  {/* TERMINALS */}
-
-                                  {isDepartmentExpanded && (
-                                    <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-4">
-
-                                      <div className="flex items-center justify-between">
-
-                                        <div>
-                                          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                                            Terminals
-                                          </h4>
-
-                                          <p className="mt-1 text-xs text-slate-400">
-                                            Terminals assigned
-                                            to this department
-                                          </p>
-                                        </div>
-
-                                        <button
-                                          type="button"
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-
-                                            openTerminalModal(
-                                              department
-                                            );
-                                          }}
-                                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-[#00529B] hover:text-[#00529B]"
-                                          title="Add Terminal"
+                                  {departmentTerminals.length > 0 ? (
+                                    <div className="mt-4 space-y-2">
+                                      {departmentTerminals.map((terminal) => (
+                                        <div
+                                          key={terminal.counter_id}
+                                          onClick={() =>
+                                            openEditTerminalModal(terminal)
+                                          }
+                                          className="flex cursor-pointer items-center justify-between rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 transition hover:border-[#9D0A0E] hover:bg-[#FBF1F1]"
                                         >
-                                          <Plus
-                                            size={16}
-                                          />
-                                        </button>
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-medium text-[#1F2937]">
+                                              Terminal {terminal.counter_number}
+                                            </p>
 
-                                      </div>
+                                            <p className="mt-1 text-xs text-[#4B5563]">
+                                              Prefix:{' '}
+                                              {terminal.prefix || 'Not set'}
+                                            </p>
 
-                                      {departmentTerminals.length >
-                                      0 ? (
-                                        <div className="mt-4 space-y-2">
-
-                                          {departmentTerminals.map(
-                                            (
-                                              terminal
-                                            ) => (
-                                              <div
-                                                key={
-                                                  terminal.counter_id
-                                                }
-                                                onClick={() =>
-                                                  openEditTerminalModal(
-                                                    terminal
+                                            <p className="mt-1 text-xs text-[#9CA3AF]">
+                                              {terminal.assigned_staff_id
+                                                ? getStaffName(
+                                                    terminal.assigned_staff_id
                                                   )
-                                                }
-                                                className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 transition hover:border-[#00529B] hover:bg-blue-50/30"
-                                              >
+                                                : 'Unassigned'}
+                                            </p>
+                                          </div>
 
-                                                <div className="min-w-0">
-
-                                                  <p className="text-sm font-medium text-slate-800">
-                                                    Terminal{' '}
-                                                    {
-                                                      terminal.counter_number
-                                                    }
-                                                  </p>
-
-                                                  <p className="mt-1 text-xs text-slate-500">
-                                                    Prefix:{' '}
-                                                    {terminal.prefix ||
-                                                      'Not set'}
-                                                  </p>
-
-                                                  <p className="mt-1 text-xs text-slate-400">
-                                                    {terminal.assigned_staff_id
-                                                      ? getStaffName(
-                                                          terminal.assigned_staff_id
-                                                        )
-                                                      : 'Unassigned'}
-                                                  </p>
-
-                                                </div>
-
-                                                <span
-                                                  className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-                                                    terminal.status ===
-                                                    'active'
-                                                      ? 'bg-emerald-50 text-emerald-700'
-                                                      : 'bg-slate-100 text-slate-600'
-                                                  }`}
-                                                >
-                                                  {
-                                                    terminal.status
-                                                  }
-                                                </span>
-
-                                              </div>
-                                            )
-                                          )}
-
+                                          <span
+                                            className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                              terminal.status === 'active'
+                                                ? 'bg-[#E8F8F0] text-[#0D8A4E] border border-[#86EFAC]'
+                                                : 'bg-[#F1F3F5] text-[#4B5563]'
+                                            }`}
+                                          >
+                                            {terminal.status === 'active'
+                                              ? 'Active'
+                                              : 'Inactive'}
+                                          </span>
                                         </div>
-                                      ) : (
-                                        <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white p-4 text-center text-xs text-slate-500">
-                                          No terminals
-                                          assigned to
-                                          this
-                                          department.
-                                        </div>
-                                      )}
-
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="mt-4 rounded-lg border border-dashed border-[#E5E7EB] bg-white p-4 text-center text-xs text-[#4B5563]">
+                                      No terminals assigned to this department.
                                     </div>
                                   )}
-
                                 </div>
-                              );
-                            }
-                          )}
-
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-                          No departments
-                          assigned to this
-                          kiosk.
-                        </div>
-                      )}
-
-                    </div>
-                  )}
-
-                </div>
-              );
-            })}
-
-          </div>
-        )}
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-[#E5E7EB] p-6 text-center text-sm text-[#4B5563]">
+                        No departments assigned to this kiosk.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* =========================================
           NO KIOSKS
       ========================================== */}
 
-      {!loading &&
-        !error &&
-        kiosks.length === 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-            No kiosks found.
-          </div>
-        )}
+      {!loading && !error && kiosks.length === 0 && (
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-8 text-center text-sm text-[#4B5563]">
+          No kiosks found.
+        </div>
+      )}
 
       {/* =========================================
-          KIOSK MODAL
+          ADD / EDIT KIOSK MODAL
       ========================================== */}
 
       {kioskModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-
           <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
-
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-
+            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-slate-800">
-                  {kioskModal.mode === 'edit'
-                    ? 'Edit Kiosk'
-                    : 'Add Kiosk'}
+                <h3 className="text-lg font-semibold text-[#1F2937]">
+                  {kioskModal.mode === 'edit' ? 'Edit Kiosk' : 'Add Kiosk'}
                 </h3>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-0.5 text-sm text-[#6B7280]">
                   {kioskModal.mode === 'edit'
                     ? 'Update kiosk information'
-                    : 'Create a new kiosk'}
+                    : 'Create a new kiosk.'}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setKioskModal(null)
-                }
-                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => setKioskModal(null)}
+                className="rounded-lg p-2 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#4B5563]"
                 title="Close"
               >
                 <X size={20} />
               </button>
-
             </div>
 
             <div className="space-y-4 px-6 py-5">
-
               {kioskError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                <div className="rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2.5 text-sm text-[#9D0A0E]">
                   {kioskError}
                 </div>
               )}
 
+              {/* Kiosk Name */}
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Kiosk Name
+                <label className="mb-1.5 block text-sm font-medium text-[#374151]">
+                  Kiosk Name <span className="text-[#9D0A0E]">*</span>
                 </label>
 
                 <input
                   type="text"
                   value={kioskName}
-                  onChange={(event) =>
-                    setKioskName(
-                      event.target.value
-                    )
-                  }
+                  onChange={(event) => setKioskName(event.target.value)}
                   placeholder="e.g. Main Lobby"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#00529B] focus:ring-2 focus:ring-[#00529B]/10"
+                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
                 />
               </div>
 
+              {/* Location */}
+              {kioskModal.mode === 'add' && (
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[#374151]">
+                    Location <span className="text-[#9D0A0E]">*</span>
+                  </label>
+
+                  <div className="relative flex items-center">
+                    <MapPin
+                      size={18}
+                      className="absolute left-3 text-[#9CA3AF]"
+                    />
+                    <input
+                      type="text"
+                      value={kioskLocation}
+                      onChange={(event) => setKioskLocation(event.target.value)}
+                      placeholder="e.g. Ground Floor"
+                      className="w-full rounded-lg border border-[#E5E7EB] pl-9 pr-3 py-2.5 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Kiosk PIN */}
               {kioskModal.mode === 'add' && (
                 <div>
                   <label
                     htmlFor="kiosk-pin"
-                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                    className="mb-1.5 block text-sm font-medium text-[#374151]"
                   >
-                    Kiosk PIN
+                    Kiosk PIN <span className="text-[#9D0A0E]">*</span>
                   </label>
 
-                  <input
-                    id="kiosk-pin"
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={kioskPin}
-                    onChange={(event) => {
-                      const value = event.target.value
-                        .replace(/\D/g, '')
-                        .slice(0, 4);
+                  <div className="relative flex items-center">
+                    <input
+                      id="kiosk-pin"
+                      type={showPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={kioskPin}
+                      onChange={(event) => {
+                        const value = event.target.value
+                          .replace(/\D/g, '')
+                          .slice(0, 4);
 
-                      setKioskPin(value);
-                    }}
-                    placeholder="Enter 4-digit PIN"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm tracking-[0.3em] outline-none transition focus:border-[#00529B] focus:ring-2 focus:ring-[#00529B]/10"
-                  />
+                        setKioskPin(value);
+                      }}
+                      placeholder="Enter 4-digit PIN"
+                      className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 pr-10 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPin((prev) => !prev)}
+                      className="absolute right-3 text-[#9CA3AF] hover:text-[#4B5563]"
+                    >
+                      {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+
+                  <p className="mt-1.5 text-xs text-[#6B7280]">
+                    Authorized staff use this PIN to activate the kiosk.
+                  </p>
                 </div>
               )}
 
+              {/* Status Segmented Control */}
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label className="mb-1.5 block text-sm font-medium text-[#374151]">
                   Status
                 </label>
 
-                <select
-                  value={kioskStatus}
-                  onChange={(event) =>
-                    setKioskStatus(
-                      event.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#00529B] focus:ring-2 focus:ring-[#00529B]/10"
-                >
-                  <option value="active">
+                <div className="grid grid-cols-2 gap-1 rounded-xl bg-[#F1F3F5] p-1">
+                  <button
+                    type="button"
+                    onClick={() => setKioskStatus('active')}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition ${
+                      kioskStatus === 'active'
+                        ? 'bg-[#E8F8F0] text-[#0D8A4E] border border-[#86EFAC] shadow-xs'
+                        : 'text-[#4B5563] hover:text-[#1F2937]'
+                    }`}
+                  >
+                    {kioskStatus === 'active' && <Check size={16} />}
                     Active
-                  </option>
+                  </button>
 
-                  <option value="inactive">
+                  <button
+                    type="button"
+                    onClick={() => setKioskStatus('inactive')}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition ${
+                      kioskStatus === 'inactive'
+                        ? 'bg-white text-[#1F2937] shadow-xs'
+                        : 'text-[#4B5563] hover:text-[#1F2937]'
+                    }`}
+                  >
                     Inactive
-                  </option>
-                </select>
+                  </button>
+                </div>
               </div>
-
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
-
+            <div className="flex justify-end gap-3 border-t border-[#E5E7EB] px-6 py-4">
               <button
                 type="button"
-                onClick={() =>
-                  setKioskModal(null)
-                }
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                onClick={() => setKioskModal(null)}
+                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA]"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                onClick={
-                  handleSaveKiosk
-                }
+                onClick={handleSaveKiosk}
                 disabled={savingKiosk}
-                className="rounded-lg bg-[#00529B] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#003f75] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {savingKiosk
-                  ? 'Saving...'
-                  : kioskModal.mode ===
-                    'edit'
-                  ? 'Save Changes'
-                  : 'Add Kiosk'}
+                {savingKiosk ? (
+                  'Saving...'
+                ) : kioskModal.mode === 'edit' ? (
+                  'Save Changes'
+                ) : (
+                  <>
+                    <Plus size={16} />
+                    Add Kiosk
+                  </>
+                )}
               </button>
-
             </div>
-
           </div>
         </div>
       )}
@@ -1472,325 +1172,272 @@ export default function KioskManagement() {
 
       {kioskStatusModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
-
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
-
             <div className="px-6 py-5">
-
-              <h3 className="text-lg font-semibold text-slate-800">
-                {kioskStatusModal.nextStatus ===
-                'active'
+              <h3 className="text-lg font-semibold text-[#1F2937]">
+                {kioskStatusModal.nextStatus === 'active'
                   ? 'Activate Kiosk?'
                   : 'Deactivate Kiosk?'}
               </h3>
 
-              <p className="mt-2 text-sm leading-6 text-slate-500">
+              <p className="mt-2 text-sm leading-6 text-[#4B5563]">
                 Are you sure you want to{' '}
-                {kioskStatusModal.nextStatus ===
-                'active'
+                {kioskStatusModal.nextStatus === 'active'
                   ? 'activate'
                   : 'deactivate'}{' '}
-                <span className="font-medium text-slate-700">
+                <span className="font-medium text-[#1F2937]">
                   "{kioskStatusModal.name}"
                 </span>
                 ?
               </p>
 
-              {kioskStatusModal.nextStatus ===
-                'inactive' && (
+              {kioskStatusModal.nextStatus === 'inactive' && (
                 <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2.5 text-xs text-amber-700">
-                  Patients should not be able to
-                  use an inactive kiosk for queue
+                  Patients should not be able to use an inactive kiosk for queue
                   transactions.
                 </p>
               )}
-
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
-
+            <div className="flex justify-end gap-3 border-t border-[#E5E7EB] px-6 py-4">
               <button
                 type="button"
-                onClick={() =>
-                  setKioskStatusModal(null)
-                }
-                disabled={
-                  changingKioskStatus
-                }
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => setKioskStatusModal(null)}
+                disabled={changingKioskStatus}
+                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                onClick={
-                  handleConfirmKioskStatus
-                }
-                disabled={
-                  changingKioskStatus
-                }
-                className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                  kioskStatusModal.nextStatus ===
-                  'active'
-                    ? 'bg-[#00529B] hover:bg-[#003f75]'
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
+                onClick={handleConfirmKioskStatus}
+                disabled={changingKioskStatus}
+                className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {changingKioskStatus
                   ? 'Updating...'
-                  : kioskStatusModal.nextStatus ===
-                    'active'
+                  : kioskStatusModal.nextStatus === 'active'
                   ? 'Activate Kiosk'
                   : 'Deactivate Kiosk'}
               </button>
-
             </div>
-
           </div>
         </div>
       )}
 
       {/* =========================================
-          TERMINAL MODAL
+          ADD / EDIT TERMINAL MODAL
       ========================================== */}
 
       {terminalModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-
           <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
-
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-
+            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
               <div>
-
-                <h3 className="text-lg font-semibold text-slate-800">
-                  {terminalModal.mode ===
-                  'edit'
+                <h3 className="text-lg font-semibold text-[#1F2937]">
+                  {terminalModal.mode === 'edit'
                     ? 'Edit Terminal'
                     : 'Add Terminal'}
                 </h3>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  {terminalModal.mode ===
-                  'edit'
-                    ? terminalModal.departmentName ||
-                      departments.find(
-                        (department) =>
-                          department.department_id ===
-                          terminalModal.department_id
-                      )?.name ||
-                      'Terminal'
-                    : terminalModal.name ||
-                      'Terminal'}
+                <p className="mt-0.5 text-sm text-[#6B7280]">
+                  Create a new service terminal for this department.
                 </p>
 
+                {terminalModal.mode === 'add' && (
+                  <p className="mt-1 text-xs text-[#6B7280]">
+                    Fields marked <span className="text-[#9D0A0E]">*</span> are
+                    required.
+                  </p>
+                )}
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setTerminalModal(null)
-                }
-                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => setTerminalModal(null)}
+                className="rounded-lg p-2 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#4B5563]"
                 title="Close"
               >
                 <X size={20} />
               </button>
-
             </div>
 
             <div className="space-y-4 px-6 py-5">
-
               {terminalError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                <div className="rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2.5 text-sm text-[#9D0A0E]">
                   {terminalError}
                 </div>
               )}
 
-              {/* TERMINAL NUMBER */}
+              {/* Department Banner Box */}
+              <div className="flex items-center justify-between rounded-xl bg-[#F8F9FA] px-4 py-3">
+                <div className="flex items-center gap-2.5 text-sm font-medium text-[#1F2937]">
+                  <Building2 size={18} className="text-[#9D0A0E]" />
+                  <span>
+                    {terminalModal.kioskName || 'Main Lobby'} •{' '}
+                    {terminalModal.name || terminalModal.departmentName}
+                  </span>
+                </div>
 
-              <div>
-
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Terminal Number
-                </label>
-
-                <input
-                  type="number"
-                  value={
-                    terminalForm.counterNumber
-                  }
-                  readOnly
-                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-600 outline-none"
-                />
-
+                {terminalForm.prefix && (
+                  <span className="rounded-md border border-[#E5E7EB] bg-white px-2 py-0.5 text-xs font-semibold text-[#374151]">
+                    Prefix: {terminalForm.prefix}
+                  </span>
+                )}
               </div>
 
-              {/* PREFIX */}
-
+              {/* Terminal Name */}
               <div>
-
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Prefix
+                <label className="mb-1.5 block text-sm font-medium text-[#374151]">
+                  Terminal Name <span className="text-[#9D0A0E]">*</span>
                 </label>
 
                 <input
                   type="text"
-                  value={
-                    terminalForm.prefix
+                  value={terminalForm.terminalName}
+                  onChange={(event) =>
+                    setTerminalForm((prev) => ({
+                      ...prev,
+                      terminalName: event.target.value,
+                      terminalCode: prev.prefix
+                        ? `${prev.prefix}-${event.target.value}`
+                        : event.target.value,
+                    }))
                   }
-                  readOnly
-                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-600 outline-none"
+                  placeholder="3"
+                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
                 />
-
               </div>
 
-              {/* ASSIGNED STAFF */}
+              {/* Terminal Code / ID */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium text-[#374151]">
+                    Terminal Code / ID <span className="text-[#9D0A0E]">*</span>
+                  </label>
+                  <span className="text-xs text-[#6B7280]">Auto-generated</span>
+                </div>
 
-              {terminalModal.mode ===
-                'edit' && (
+                <input
+                  type="text"
+                  value={terminalForm.terminalCode}
+                  readOnly
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm text-[#374151] outline-none"
+                />
+
+                <p className="mt-1 text-xs text-[#6B7280]">
+                  Identifier displayed on queue slips and call displays.
+                </p>
+              </div>
+
+              {/* ASSIGNED STAFF (EDIT MODE) */}
+              {terminalModal.mode === 'edit' && (
                 <div>
-
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  <label className="mb-1.5 block text-sm font-medium text-[#374151]">
                     Assigned Staff
                   </label>
 
                   <select
-                    value={
-                      terminalForm.assignedStaffId
-                    }
+                    value={terminalForm.assignedStaffId}
                     onChange={(event) =>
-                      setTerminalForm(
-                        (current) => ({
-                          ...current,
-
-                          assignedStaffId:
-                            event.target
-                              .value,
-                        })
-                      )
+                      setTerminalForm((current) => ({
+                        ...current,
+                        assignedStaffId: event.target.value,
+                      }))
                     }
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#00529B] focus:ring-2 focus:ring-[#00529B]/10"
+                    className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
                   >
+                    <option value="">Unassigned</option>
 
-                    <option value="">
-                      Unassigned
-                    </option>
-
-                    {staffOptions.map(
-                      (person) => (
-                        <option
-                          key={
-                            person.user_id
-                          }
-                          value={
-                            person.user_id
-                          }
-                        >
-                          {
-                            person.first_name
-                          }{' '}
-                          {
-                            person.last_name
-                          }
-                        </option>
-                      )
-                    )}
-
+                    {staffOptions.map((person) => (
+                      <option key={person.user_id} value={person.user_id}>
+                        {person.first_name} {person.last_name}
+                      </option>
+                    ))}
                   </select>
 
-                  {staffOptions.length ===
-                    0 && (
-                    <p className="mt-1.5 text-xs text-slate-400">
-                      No Staff users are
-                      assigned to this
-                      department.
+                  {staffOptions.length === 0 && (
+                    <p className="mt-1.5 text-xs text-[#9CA3AF]">
+                      No Staff users are assigned to this department.
                     </p>
                   )}
-
                 </div>
               )}
 
-              {/* STATUS */}
-
+              {/* STATUS SEGMENTED CONTROL */}
               <div>
-
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label className="mb-1.5 block text-sm font-medium text-[#374151]">
                   Status
                 </label>
 
-                <select
-                  value={
-                    terminalForm.status
-                  }
-                  onChange={(event) =>
-                    setTerminalForm(
-                      (current) => ({
-                        ...current,
-
-                        status:
-                          event.target
-                            .value,
-                      })
-                    )
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#00529B] focus:ring-2 focus:ring-[#00529B]/10"
-                >
-
-                  <option value="active">
+                <div className="grid grid-cols-2 gap-1 rounded-xl bg-[#F1F3F5] p-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTerminalForm((prev) => ({ ...prev, status: 'active' }))
+                    }
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition ${
+                      terminalForm.status === 'active'
+                        ? 'bg-[#E8F8F0] text-[#0D8A4E] border border-[#86EFAC] shadow-xs'
+                        : 'text-[#4B5563] hover:text-[#1F2937]'
+                    }`}
+                  >
+                    {terminalForm.status === 'active' && <Check size={16} />}
                     Active
-                  </option>
+                  </button>
 
-                  <option value="inactive">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTerminalForm((prev) => ({
+                        ...prev,
+                        status: 'inactive',
+                      }))
+                    }
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition ${
+                      terminalForm.status === 'inactive'
+                        ? 'bg-white text-[#1F2937] shadow-xs'
+                        : 'text-[#4B5563] hover:text-[#1F2937]'
+                    }`}
+                  >
                     Inactive
-                  </option>
-
-                </select>
-
+                  </button>
+                </div>
               </div>
-
             </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
-
+            <div className="flex justify-end gap-3 border-t border-[#E5E7EB] px-6 py-4">
               <button
                 type="button"
-                onClick={() =>
-                  setTerminalModal(null)
-                }
-                disabled={
-                  savingTerminal
-                }
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => setTerminalModal(null)}
+                disabled={savingTerminal}
+                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                onClick={
-                  handleSaveTerminal
-                }
-                disabled={
-                  savingTerminal
-                }
-                className="rounded-lg bg-[#00529B] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#003f75] disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={handleSaveTerminal}
+                disabled={savingTerminal}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {savingTerminal
-                  ? 'Saving...'
-                  : terminalModal.mode ===
-                    'edit'
-                  ? 'Save Changes'
-                  : 'Add Terminal'}
+                {savingTerminal ? (
+                  'Saving...'
+                ) : terminalModal.mode === 'edit' ? (
+                  'Save Changes'
+                ) : (
+                  <>
+                    <Plus size={16} />
+                    Add Terminal
+                  </>
+                )}
               </button>
-
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }

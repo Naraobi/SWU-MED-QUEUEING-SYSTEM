@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   LayoutGrid,
@@ -9,7 +9,7 @@ import {
   BarChart3,
   Settings as SettingsIcon,
   ShieldCheck,
-  UserCircle,
+  BriefcaseBusiness,
   LogOut,
   Upload,
   X,
@@ -22,16 +22,35 @@ import logo from '../../../assets/logo.png';
 import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';
 
+// ⚠️ ProfileModal below calls `supabase.storage` and `supabase.from(...)`, but this file
+// never imports supabase — avatar upload and "Save changes" will throw
+// "supabase is not defined" at runtime. Uncomment the line below with your real path:
+// import { supabase } from '../../services/supabaseClient';
+
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
   { key: 'users', label: 'User Management', icon: Users },
   { key: 'departments', label: 'Department Management', icon: Building2 },
   { key: 'kiosks', label: 'Kiosk Management', icon: Monitor },
   { key: 'roles', label: 'Role Management', icon: ShieldCheck },
+  { key: 'positions', label: 'Position Management', icon: BriefcaseBusiness },
   { key: 'queues', label: 'Queue Management', icon: ClipboardList },
   { key: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
+
+function toInitials(value, fallback = '?') {
+  const initials = (value || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+
+  return initials || fallback;
+}
 
 export default function Layout({ activePage, onNavigate, children }) {
   const { signOut, user } = useAuth();
@@ -44,6 +63,22 @@ export default function Layout({ activePage, onNavigate, children }) {
   const visibleNavItems = NAV_ITEMS.filter(({ key }) =>
     canAccessSuperadminPage(user, key)
   );
+
+  // Header identity, read from the signed-in user
+  const displayName = user?.full_name || user?.email || '';
+
+  const roleLabel =
+    typeof user?.role === 'object'
+      ? user?.role?.role ?? ''
+      : user?.role ?? '';
+
+  const initials = toInitials(displayName);
+
+  // Figma header: circular scope avatar + "Role / Current page"
+  const scopeRole = roleLabel || 'Super Admin';
+  const pageLabel =
+    NAV_ITEMS.find((item) => item.key === activePage)?.label ?? 'Dashboard';
+  const scopeInitials = toInitials(scopeRole, 'SA');
 
   // Prevent navigation to unauthorized pages
   function handleNavigate(key) {
@@ -66,18 +101,18 @@ export default function Layout({ activePage, onNavigate, children }) {
 
   return (
     <div
-      className="flex min-h-screen flex-col bg-slate-50"
+      className="flex min-h-screen flex-col bg-[#F8F9FA]"
       style={{ fontFamily: 'Inter, sans-serif' }}
     >
       <div className="flex flex-1">
         {/* Sidebar */}
-        <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
+        <aside className="flex w-64 flex-col border-r border-[#E5E7EB] bg-white">
           {/* Logo */}
-          <div className="border-b border-slate-100 px-6 py-5">
+          <div className="border-b border-[#E5E7EB] px-6 py-5">
             <button
               type="button"
               onClick={() => handleNavigate('dashboard')}
-              className="block select-none text-left cursor-pointer focus:outline-none"
+              className="block cursor-pointer select-none text-left focus:outline-none"
               aria-label="Go to Dashboard"
               title="Go to Dashboard"
             >
@@ -88,7 +123,7 @@ export default function Layout({ activePage, onNavigate, children }) {
               />
             </button>
 
-            <p className="text-xs text-slate-400">
+            <p className="mt-1 text-xs text-[#4B5563]">
               Queuing System
             </p>
           </div>
@@ -105,8 +140,8 @@ export default function Layout({ activePage, onNavigate, children }) {
                   onClick={() => handleNavigate(key)}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                     isActive
-                      ? 'bg-[#00529B] text-white'
-                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                      ? 'bg-[#9D0A0E] text-white'
+                      : 'text-[#4B5563] hover:bg-[#F1F3F5] hover:text-[#1F2937]'
                   }`}
                 >
                   <Icon size={18} />
@@ -117,11 +152,11 @@ export default function Layout({ activePage, onNavigate, children }) {
           </nav>
 
           {/* Logout Button at the bottom of the sidebar */}
-          <div className="border-t border-slate-100 p-3">
+          <div className="border-t border-[#E5E7EB] p-3">
             <button
               type="button"
               onClick={() => setShowLogoutModal(true)}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#9D0A0E] transition hover:bg-[#FBF1F1]"
             >
               <LogOut size={18} />
               Log out
@@ -131,25 +166,59 @@ export default function Layout({ activePage, onNavigate, children }) {
 
         {/* Main area */}
         <div className="flex flex-1 flex-col">
-          {/* Header */}
-          <header className="flex items-center justify-between border-b border-slate-200 bg-white px-8 py-4">
-            <p className="text-[30px] font-medium text-[#5F6368]">
-              Super Admin
-            </p>
+          {/* Header — Figma: avatar + "Role / Page" on the left, bell + identity on the right */}
+          <header className="flex items-center justify-between gap-4 border-b border-[#E5E7EB] bg-white px-8 py-3.5">
+            <div className="flex min-w-0 items-center gap-4">
+              <span
+                aria-hidden="true"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#E4EAF4] text-[15px] font-semibold tracking-wide text-[#3E4A61]"
+              >
+                {scopeInitials}
+              </span>
 
-            <div className="flex items-center gap-5">
+              <h1 className="truncate text-[22px] font-medium text-[#1F2937]">
+                {scopeRole} <span className="text-[#9CA3AF]">/</span> {pageLabel}
+              </h1>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-5">
               {/* Notifications */}
               <NotificationsBell />
 
-              {/* Profile Icon triggers modal */}
+              <span
+                aria-hidden="true"
+                className="h-8 w-px bg-[#E5E7EB]"
+              />
+
+              {/* Identity block triggers the profile modal */}
               <button
                 type="button"
                 onClick={() => setShowProfileModal(true)}
-                className="text-slate-500 hover:text-slate-700"
+                className="flex items-center gap-3 rounded-lg px-1 py-1 transition hover:bg-[#F8F9FA] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
                 aria-label="Profile"
                 title="Profile"
               >
-                <UserCircle size={20} />
+                <span className="hidden text-right sm:block">
+                  <span className="block text-[13px] font-semibold leading-tight text-[#1F2937]">
+                    {roleLabel || 'Super Admin'}
+                  </span>
+
+                  <span className="block text-[11px] leading-tight text-[#6B7280]">
+                    {displayName}
+                  </span>
+                </span>
+
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E4EAF4] text-sm font-semibold text-[#3E4A61]">
+                  {user?.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    initials
+                  )}
+                </span>
               </button>
             </div>
           </header>
@@ -179,25 +248,61 @@ export default function Layout({ activePage, onNavigate, children }) {
   );
 }
 
-// Internal Logout Confirmation Modal Component
+// Closes a modal on Escape and locks background scrolling while it is open.
+function useModalBehavior(onClose) {
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+}
+
+// Internal Logout Confirmation Modal Component — proportions follow the Figma frame
 function LogoutModal({ onCancel, onConfirm }) {
+  useModalBehavior(onCancel);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
-        <h2 className="text-lg font-bold text-slate-800">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 px-4"
+      onClick={onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="logout-title"
+        aria-describedby="logout-description"
+        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-[520px] rounded-2xl bg-white px-10 py-9 text-center shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
+      >
+        <h2
+          id="logout-title"
+          className="text-[28px] font-bold leading-tight text-[#1F2937]"
+        >
           Log Out?
         </h2>
 
-        <p className="mt-2 text-sm text-slate-500">
+        <p
+          id="logout-description"
+          className="mx-auto mt-4 max-w-[400px] text-[15px] leading-relaxed text-[#6B7280]"
+        >
           Are you sure you want to log out? You will need to sign in again to
           access your assigned terminal.
         </p>
 
-        <div className="mt-6 flex items-center justify-center gap-3">
+        <div className="mt-8 flex gap-4">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-lg border border-[#00529B] py-2.5 text-sm font-semibold text-[#00529B] transition hover:bg-blue-50"
+            className="h-12 flex-1 rounded-lg border-2 border-[#9EC5FE] bg-white text-[17px] font-semibold text-[#1F2937] transition-colors hover:bg-[#F4F8FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9EC5FE]"
           >
             Cancel
           </button>
@@ -205,7 +310,8 @@ function LogoutModal({ onCancel, onConfirm }) {
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 rounded-lg bg-[#7A1F2B] py-2.5 text-sm font-semibold text-white transition hover:bg-[#611825]"
+            autoFocus
+            className="h-12 flex-1 rounded-lg bg-[#8B0000] text-[17px] font-semibold text-white transition-colors hover:bg-[#6F0000] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8B0000]/50"
           >
             Log Out
           </button>
@@ -218,6 +324,8 @@ function LogoutModal({ onCancel, onConfirm }) {
 // Internal Profile Modal Component
 function ProfileModal({ onClose }) {
   const { user } = useAuth();
+
+  useModalBehavior(onClose);
 
   const [fullName, setFullName] = useState(
     user?.full_name ?? ''
@@ -314,27 +422,36 @@ function ProfileModal({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 px-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-title"
+        onClick={(event) => event.stopPropagation()}
+        className="relative w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-7 shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
+      >
         {/* Close Button */}
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+          className="absolute right-4 top-4 rounded-md p-1 text-[#4B5563] transition hover:bg-[#F1F3F5] hover:text-[#1F2937] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
           aria-label="Close profile"
         >
           <X size={20} />
         </button>
 
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-slate-800">
+        <div className="mb-6">
+          <h2 id="profile-title" className="text-lg font-semibold text-[#1F2937]">
             My Profile
-          </h1>
+          </h2>
         </div>
 
         {/* Avatar Section */}
         <div className="mb-6 flex flex-col items-center">
-          <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100">
+          <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-[#E5E7EB] bg-[#F1F3F5]">
             {avatarUrl ? (
               <img
                 src={avatarUrl}
@@ -344,12 +461,12 @@ function ProfileModal({ onClose }) {
             ) : (
               <UserIcon
                 size={32}
-                className="text-slate-400"
+                className="text-[#4B5563]"
               />
             )}
           </div>
 
-          <label className="mt-3 flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+          <label className="mt-3 flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]">
             <Upload size={14} />
 
             {uploading
@@ -368,7 +485,7 @@ function ProfileModal({ onClose }) {
 
         {/* Email */}
         <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-slate-500">
+          <label className="mb-1 block text-xs font-medium text-[#4B5563]">
             Email
           </label>
 
@@ -376,13 +493,13 @@ function ProfileModal({ onClose }) {
             type="text"
             value={user?.email ?? ''}
             disabled
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
+            className="w-full rounded-lg border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2 text-sm text-[#4B5563]"
           />
         </div>
 
         {/* Role */}
         <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-slate-500">
+          <label className="mb-1 block text-xs font-medium text-[#4B5563]">
             Role
           </label>
 
@@ -394,13 +511,13 @@ function ProfileModal({ onClose }) {
                 : user?.role ?? 'Super Admin'
             }
             disabled
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
+            className="w-full rounded-lg border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2 text-sm text-[#4B5563]"
           />
         </div>
 
         {/* Full Name */}
         <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-slate-500">
+          <label className="mb-1 block text-xs font-medium text-[#4B5563]">
             Full name
           </label>
 
@@ -408,7 +525,7 @@ function ProfileModal({ onClose }) {
             type="text"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#123C73] focus:outline-none"
+            className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
           />
         </div>
 
@@ -420,7 +537,7 @@ function ProfileModal({ onClose }) {
         )}
 
         {error && (
-          <p className="mb-3 text-xs text-red-600">
+          <p className="mb-3 text-xs text-[#9D0A0E]">
             {error}
           </p>
         )}
@@ -430,7 +547,7 @@ function ProfileModal({ onClose }) {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="w-full rounded-lg bg-[#00529B] py-2.5 text-sm font-semibold text-white hover:bg-[#003F75] disabled:opacity-50"
+          className="h-11 w-full rounded-lg bg-[#9D0A0E] text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:opacity-50"
         >
           {saving ? 'Saving...' : 'Save changes'}
         </button>
