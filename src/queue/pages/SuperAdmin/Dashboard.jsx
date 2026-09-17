@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react';
+
+import { getDashboardAnalytics } from "../../services/backendApi";
+import { auth } from "../../../firebase";
+
 import {
   Building2,
   Users,
@@ -14,26 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-const INSIGHTS = [
-  { icon: Info, text: 'Laboratory has a high number of waiting patients (24).' },
-  { icon: TrendingUp, text: 'Cashier 4 (Pharmacy) is 15% faster than average.' },
-  { icon: AlertTriangle, text: 'High skip rate detected in Payment & Billing between 10 AM - 11 AM.' },
-];
 
-// Placeholder analytics data — needs a real queue/transactions table before this can be live,
-// same as the 6 stat cards were in the old Dashboard.
-const DEPARTMENT_VOLUME = [
-  { name: 'Billing', value: 42, max: 50 },
-  { name: 'Laboratory', value: 18, max: 50 },
-  { name: 'Pharmacy', value: 25, max: 50 },
-  { name: 'Radiology', value: 0, max: 50 },
-];
-
-const QUEUE_DISTRIBUTION = [
-  { label: 'Serving', pct: 25, color: '#0B1524' },
-  { label: 'Waiting', pct: 45, color: '#94A3B8' },
-  { label: 'Completed', pct: 30, color: '#2563EB' },
-];
 
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
@@ -324,25 +309,98 @@ function CalendarPopup({ value, onChange, onClose }) {
 
 export default function Dashboard() {
   const [departments, setDepartments] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Calendar UI state only. Existing dashboard data/functions remain unchanged.
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
 
-  async function fetchDepartments() {
+  const todayDate = startOfDay(new Date());
+
+  const [selectedStartDate, setSelectedStartDate] = useState(todayDate);
+  const [selectedEndDate, setSelectedEndDate] = useState(null);
+
+  const [appliedStartDate, setAppliedStartDate] = useState(todayDate);
+  const [appliedEndDate, setAppliedEndDate] = useState(null);
+
+  const [firebaseUser, setFirebaseUser] = useState(null);
+
+async function fetchDashboardData(
+  startDate = appliedStartDate,
+  endDate = appliedEndDate
+) {
+  try {
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase.from('departments').select('*').order('name', { ascending: true });
-    if (error) setError(error.message);
-    else setDepartments(data);
+
+    const user = auth.currentUser;
+
+    if (!user) {
+      throw new Error("You must be signed in to load the dashboard.");
+    }
+
+    setFirebaseUser(user);
+
+    const start = formatDate(startDate);
+    const end = formatDate(endDate || startDate);
+
+    const data = await getDashboardAnalytics(
+      user,
+      start,
+      end
+    );
+
+    setAnalytics(data);
+
+    /*
+     * Department Overview still needs the department records themselves.
+     * The dashboard analytics endpoint supplies aggregate information,
+     * while the existing department endpoint supplies the table data.
+     */
+    const token = await user.getIdToken();
+
+    const departmentResponse = await fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/departments`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const departmentResult = await departmentResponse.json();
+
+    if (!departmentResponse.ok) {
+      throw new Error(
+        departmentResult.message ||
+          "Failed to load departments."
+      );
+    }
+
+    const departmentData =
+      departmentResult.data || departmentResult;
+
+    setDepartments(
+      Array.isArray(departmentData)
+        ? departmentData
+        : []
+    );
+  } catch (err) {
+    console.error("Dashboard loading error:", err);
+    setError(
+      err.message || "Failed to load dashboard data."
+    );
+  } finally {
     setLoading(false);
   }
+}
 
-  useEffect(() => {
-    fetchDepartments();
-  }, []);
+useEffect(() => {
+  fetchDashboardData();
+}, []);
 
   useEffect(() => {
     const handleOutsideClick = () => setCalendarOpen(false);
@@ -354,7 +412,6 @@ export default function Dashboard() {
     return () => document.removeEventListener('click', handleOutsideClick);
   }, [calendarOpen]);
 
-  const activeCount = departments.filter((d) => d.status === 'active').length;
   const today = new Date().toLocaleDateString(undefined, {
     weekday: 'long',
     year: 'numeric',
@@ -362,18 +419,99 @@ export default function Dashboard() {
     day: 'numeric',
   });
 
-  const STATS = [
-    { label: 'Departments', value: `${activeCount}/${departments.length || 0}`, caption: 'Active departments', icon: Building2 },
-    { label: 'Total Waiting', value: '145', caption: 'Across all departments', icon: Users },
-    { label: 'Average Wait', value: '18m', caption: 'Average wait time', icon: Clock },
-    { label: 'Skipped', value: '16', caption: 'Skipped queuing', icon: RotateCw },
-    { label: 'Completed', value: '255', caption: 'Completed queuing', icon: TrendingUp },
-    { label: 'Terminals', value: '42/64', caption: 'Active terminals', icon: Monitor },
-  ];
+  const departmentStats = analytics?.departments || {
+  active: 0,
+  total: 0,
+};
 
-  const calendarLabel = isSameDay(selectedDate, new Date())
+const queueStats = analytics?.queue || {
+  waiting: 0,
+  averageWaitMinutes: 0,
+  skipped: 0,
+  completed: 0,
+};
+
+const terminalStats = analytics?.terminals || {
+  active: 0,
+  total: 0,
+};
+
+const STATS = [
+  {
+    label: 'Departments',
+    value: `${departmentStats.active}/${departmentStats.total}`,
+    caption: 'Active departments',
+    icon: Building2,
+  },
+  {
+    label: 'Total Waiting',
+    value: String(queueStats.waiting),
+    caption: 'Across all departments',
+    icon: Users,
+  },
+  {
+    label: 'Average Wait',
+    value: `${queueStats.averageWaitMinutes}m`,
+    caption: 'Average wait time',
+    icon: Clock,
+  },
+  {
+    label: 'Skipped',
+    value: String(queueStats.skipped),
+    caption: 'Skipped queuing',
+    icon: RotateCw,
+  },
+  {
+    label: 'Completed',
+    value: String(queueStats.completed),
+    caption: 'Completed queuing',
+    icon: TrendingUp,
+  },
+  {
+    label: 'Terminals',
+    value: `${terminalStats.active}/${terminalStats.total}`,
+    caption: 'Active terminals',
+    icon: Monitor,
+  },
+];
+
+const departmentVolume = analytics?.departmentVolume || [];
+
+const queueDistribution = analytics?.queueDistribution || [
+  {
+    label: 'Serving',
+    value: 0,
+    pct: 0,
+    color: '#0B1524',
+  },
+  {
+    label: 'Waiting',
+    value: 0,
+    pct: 0,
+    color: '#94A3B8',
+  },
+  {
+    label: 'Completed',
+    value: 0,
+    pct: 0,
+    color: '#2563EB',
+  },
+];
+
+const insights = analytics?.insights || [];
+
+const calendarLabel = selectedEndDate
+  ? `${selectedStartDate.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    })} - ${selectedEndDate.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })}`
+  : isSameDay(selectedStartDate, new Date())
     ? 'Today'
-    : selectedDate.toLocaleDateString(undefined, {
+    : selectedStartDate.toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
@@ -408,8 +546,10 @@ export default function Dashboard() {
 
             {calendarOpen && (
               <CalendarPopup
-                value={selectedDate}
-                onChange={setSelectedDate}
+                value={selectedStartDate}
+                onChange={(date) => {
+                  setSelectedStartDate(date);
+                }}
                 onClose={() => setCalendarOpen(false)}
               />
             )}
@@ -417,6 +557,17 @@ export default function Dashboard() {
 
           <button
             type="button"
+            onClick={() => {
+              setAppliedStartDate(selectedStartDate);
+              setAppliedEndDate(selectedEndDate);
+
+              fetchDashboardData(
+                selectedStartDate,
+                selectedEndDate
+              );
+
+              setCalendarOpen(false);
+            }}
             className="rounded-lg bg-[#0B2447] px-4 py-2 text-xs font-medium text-white hover:bg-[#0B2447]/90"
           >
             Apply Filter
@@ -424,7 +575,12 @@ export default function Dashboard() {
 
           <button
             type="button"
-            onClick={fetchDepartments}
+            onClick={() =>
+            fetchDashboardData(
+              appliedStartDate,
+              appliedEndDate
+            )
+          }
             className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:bg-white"
           >
             <RotateCw size={12} /> Refresh
@@ -432,8 +588,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Note: Departments card is live (from Supabase). Total Waiting / Average Wait /
-          Counters are still placeholders until a real queue/transactions table exists. */}
       <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-6">
         {STATS.map((stat) => {
           const Icon = stat.icon;
@@ -457,51 +611,110 @@ export default function Dashboard() {
             <h2 className="text-sm font-semibold text-slate-800">AI-Assisted Insights</h2>
           </div>
           <div className="space-y-4">
-            {INSIGHTS.map((insight, i) => {
-              const Icon = insight.icon;
-              return (
-                <div key={i} className="flex gap-2.5 text-sm text-slate-600">
-                  <Icon size={16} className="mt-0.5 shrink-0 text-slate-400" />
-                  <p>{insight.text}</p>
-                </div>
-              );
-            })}
-          </div>
+  {insights.length === 0 ? (
+    <p className="text-sm text-slate-400">
+      No insights available for the selected period.
+    </p>
+  ) : (
+    insights.map((insight, i) => {
+      const Icon =
+        insight.icon === 'trending'
+          ? TrendingUp
+          : insight.icon === 'alert'
+            ? AlertTriangle
+            : Info;
+
+      return (
+        <div
+          key={`${insight.type}-${i}`}
+          className="flex gap-2.5 text-sm text-slate-600"
+        >
+          <Icon
+            size={16}
+            className="mt-0.5 shrink-0 text-slate-400"
+          />
+          <p>{insight.text}</p>
+        </div>
+      );
+    })
+  )}
+</div>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold text-slate-800">Department Volume</h2>
           <div className="space-y-4">
-            {DEPARTMENT_VOLUME.map((dept) => (
-              <div key={dept.name}>
-                <div className="mb-1 flex items-center justify-between text-xs">
-                  <span className="font-medium text-slate-700">{dept.name}</span>
-                  <span className="text-slate-400">{dept.value}</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-slate-100">
-                  <div
-                    className="h-2 rounded-full bg-[#0B2447]"
-                    style={{ width: `${(dept.value / dept.max) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+  {departmentVolume.length === 0 ? (
+    <p className="text-sm text-slate-400">
+      No queue volume recorded for the selected period.
+    </p>
+  ) : (
+    departmentVolume.slice(0, 6).map((dept) => {
+      const maxVolume = Math.max(
+        ...departmentVolume.map((item) => item.value),
+        1
+      );
+
+      const percentage = Math.min(
+        100,
+        (dept.value / maxVolume) * 100
+      );
+
+      return (
+        <div key={dept.department_id}>
+          <div className="mb-1 flex items-center justify-between text-xs">
+            <span className="font-medium text-slate-700">
+              {dept.name}
+            </span>
+            <span className="text-slate-400">
+              {dept.value}
+            </span>
           </div>
+
+          <div className="h-2 w-full rounded-full bg-slate-100">
+            <div
+              className="h-2 rounded-full bg-[#0B2447]"
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+        </div>
+      );
+    })
+  )}
+</div>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold text-slate-800">Queue Status Distribution</h2>
           <div className="flex items-center gap-6">
-            <DonutChart data={QUEUE_DISTRIBUTION} />
-            <div className="space-y-2 text-xs">
-              {QUEUE_DISTRIBUTION.map((slice) => (
-                <div key={slice.label} className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: slice.color }} />
-                  <span className="text-slate-600">{slice.label} ({slice.pct}%)</span>
-                </div>
-              ))}
-            </div>
-          </div>
+  {queueDistribution.every((slice) => slice.pct === 0) ? (
+    <div className="flex h-28 w-28 items-center justify-center rounded-full border-8 border-slate-100">
+      <span className="text-[10px] text-slate-400">
+        No data
+      </span>
+    </div>
+  ) : (
+    <DonutChart data={queueDistribution} />
+  )}
+
+  <div className="space-y-2 text-xs">
+    {queueDistribution.map((slice) => (
+      <div
+        key={slice.label}
+        className="flex items-center gap-2"
+      >
+        <span
+          className="h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: slice.color }}
+        />
+
+        <span className="text-slate-600">
+          {slice.label} ({slice.pct}%)
+        </span>
+      </div>
+    ))}
+  </div>
+</div>
         </div>
       </div>
 
@@ -540,7 +753,7 @@ export default function Dashboard() {
             )}
             {!loading &&
               departments.map((dept) => (
-                <tr key={dept.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
+                <tr key={dept.department_id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
                   <td className="px-5 py-3 font-medium text-slate-700">{dept.name}</td>
                   <td className="px-5 py-3 text-slate-500">{dept.classification}</td>
                   <td className="px-5 py-3 text-slate-600">{dept.location}</td>

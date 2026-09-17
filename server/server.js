@@ -25,6 +25,7 @@ const roleRoutes = require("./routes/roleRoutes");
 const authRoutes = require("./routes/authRoutes");
 const patientRoutes = require("./routes/patientRoutes");
 const staffQueueRoutes = require("./routes/staffQueueRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 
 const app = express();
 const PORT = 5000;
@@ -42,46 +43,15 @@ app.use(express.json());
 // API ROUTES
 // =====================================================
 
-app.use(
-  "/api/departments",
-  departmentRoutes
-);
-
-app.use(
-  "/api/users",
-  userRoutes
-);
-
-app.use(
-  "/api/kiosks",
-  kioskRoutes
-);
-
-app.use(
-  "/api/counters",
-  counterRoutes
-);
-
-app.use(
-  "/api/roles",
-  roleRoutes
-);
-
-app.use(
-  "/api/auth",
-  authRoutes
-);
-
-app.use(
-  "/api/patients",
-  patientRoutes
-);
-
-app.use(
-  "/api/staff-queue",
-  staffQueueRoutes
-);
-
+app.use("/api/departments", departmentRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/kiosks", kioskRoutes);
+app.use("/api/counters", counterRoutes);
+app.use("/api/roles", roleRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/patients", patientRoutes);
+app.use("/api/staff-queue", staffQueueRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 // =====================================================
 // BASIC BACKEND TEST
 // =====================================================

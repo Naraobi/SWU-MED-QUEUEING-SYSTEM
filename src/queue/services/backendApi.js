@@ -1563,6 +1563,93 @@ export async function getCurrentUserProfile(
   }
 }
 
+export async function getDashboardAnalytics(
+  firebaseUser,
+  startDate,
+  endDate
+) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  const token = await firebaseUser.getIdToken();
+
+  const params = new URLSearchParams();
+
+  if (startDate) {
+    params.set("startDate", startDate);
+  }
+
+  if (endDate) {
+    params.set("endDate", endDate);
+  }
+
+  const queryString = params.toString();
+
+  const response = await fetch(
+    `${API_URL}/dashboard/analytics${
+      queryString ? `?${queryString}` : ""
+    }`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result.message || "Failed to load dashboard analytics."
+    );
+  }
+
+  return result.data;
+}
+
+export async function getReportsAnalytics(firebaseUser, startDate, endDate) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  const token = await firebaseUser.getIdToken();
+
+  const params = new URLSearchParams();
+
+  if (startDate) {
+    params.set("startDate", startDate);
+  }
+
+  if (endDate) {
+    params.set("endDate", endDate);
+  }
+
+  const queryString = params.toString();
+
+  const response = await fetch(
+    `${API_URL}/dashboard/analytics${queryString ? `?${queryString}` : ""}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result.message || "Failed to load reports analytics."
+    );
+  }
+
+  return result.data;
+}
 // -----------------------------------------------------
 // MARK PASSWORD AS CHANGED
 // POST /api/auth/password-changed

@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { auth } from '../../../firebase';
+import { getReportsAnalytics } from '../../services/backendApi';
+
 import { 
   Users, 
   Clock, 
@@ -11,7 +14,12 @@ import {
 export default function ReportsAnalytics() {
   const [loading, setLoading] = useState(false);
   const [timeFilter, setTimeFilter] = useState('Today');
-
+  const [departmentVolume, setDepartmentVolume] = useState([]);
+  const [queueDistribution, setQueueDistribution] = useState([]);
+  const [hourlyVolume, setHourlyVolume] = useState([]);
+  const [departmentWait, setDepartmentWait] = useState([]);
+  const [departmentPerformance, setDepartmentPerformance] = useState([]);
+const [insights, setInsights] = useState([]);
   // Operational Metrics State
   const [metrics, setMetrics] = useState({
     totalPatientsServed: 512,
@@ -43,28 +51,85 @@ export default function ReportsAnalytics() {
   ]);
 
   async function fetchAnalytics() {
-    setLoading(true);
-    try {
-      // Optional Supabase fetch example
-      const { data, error } = await supabase
-        .from('system_metrics')
-        .select('*')
-        .single();
+  setLoading(true);
 
-      if (!error && data) {
-        setMetrics({
-          totalPatientsServed: data.total_patients || 512,
-          totalWaiting: data.total_waiting || 145,
-          avgWaitTime: data.avg_wait || '18m',
-          activeTerminals: data.active_terminals || 42,
-        });
-      }
-    } catch (err) {
-      // Retain visual defaults matching screenshot on fallback
-    } finally {
-      setLoading(false);
+  try {
+    const user = auth.currentUser;
+
+    if (!user) {
+      throw new Error("You must be signed in to load reports.");
     }
+
+    const today = new Date();
+    const formatDate = (date) =>
+      date.toISOString().slice(0, 10);
+
+    let startDate;
+    let endDate;
+
+    if (timeFilter === "Today") {
+      startDate = today;
+      endDate = today;
+    } else if (timeFilter === "Yesterday") {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      startDate = yesterday;
+      endDate = yesterday;
+    } else if (timeFilter === "This Week") {
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - 6);
+
+      startDate = weekStart;
+      endDate = today;
+    } else if (timeFilter === "This Month") {
+      const monthStart = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        1
+      );
+
+      startDate = monthStart;
+      endDate = today;
+    }
+
+    const data = await getReportsAnalytics(
+      user,
+      formatDate(startDate),
+      formatDate(endDate)
+    );
+    console.log("REPORTS ANALYTICS DATA:", data);
+
+    setMetrics({
+      totalPatientsServed: Number(data?.queue?.completed || 0),
+      totalWaiting: Number(data?.queue?.waiting || 0),
+      avgWaitTime: `${Number(data?.queue?.averageWaitMinutes || 0)}m`,
+      activeTerminals: Number(data?.terminals?.active || 0),
+    });
+
+    setDepartmentVolume(
+    Array.isArray(data?.departmentVolume)
+      ? data.departmentVolume
+      : []
+);
+
+    setQueueDistribution(
+      Array.isArray(data?.queueDistribution)
+        ? data.queueDistribution
+        : []
+    );
+
+    setInsights(
+      Array.isArray(data?.insights)
+        ? data.insights
+        : []
+    );
+  } catch (err) {
+    console.error("Failed to load reports analytics:", err);
+  } finally {
+    setLoading(false);
   }
+}
 
   useEffect(() => {
     fetchAnalytics();
@@ -174,6 +239,7 @@ export default function ReportsAnalytics() {
           </div>
         </div>
       </div>
+
 
       {/* Main 2-Column Section */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
