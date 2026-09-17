@@ -12,6 +12,9 @@ import {
   Users,
 } from 'lucide-react';
 
+import { auth } from '../../../firebase';
+import { getDashboardAnalytics } from '../../services/backendApi';
+
 import { useAuth } from '../../services/Authcontext';
 import { useQueue } from '../../context/QueueContext';
 
@@ -331,30 +334,140 @@ export function QueueManagementPage() {
 }
 
 export function ReportsPage() {
+  const [loading, setLoading] = useState(false);
+  const [analytics, setAnalytics] = useState(null);
+
+  useEffect(() => {
+    async function fetchReports() {
+      setLoading(true);
+
+      try {
+        const user = auth.currentUser;
+
+        if (!user) {
+          throw new Error("You must be signed in to load reports.");
+        }
+
+        const today = new Date();
+        const todayString = today.toISOString().slice(0, 10);
+
+        const data = await getDashboardAnalytics(
+          user,
+          todayString,
+          todayString
+        );
+
+        console.log("ADMIN REPORTS ANALYTICS:", data);
+
+        setAnalytics(data);
+      } catch (error) {
+        console.error("Failed to load admin reports:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchReports();
+  }, []);
+
+  const patientsServed = Number(
+    analytics?.queue?.completed || 0
+  );
+
+  const averageWait = Number(
+    analytics?.queue?.averageWaitMinutes || 0
+  );
+
+  const skipped = Number(
+    analytics?.queue?.skipped || 0
+  );
+
+  const waiting = Number(
+    analytics?.queue?.waiting || 0
+  );
+
+  const activeTerminals = Number(
+    analytics?.terminals?.active || 0
+  );
+
+  const totalTickets = Number(
+    analytics?.queue?.totalTickets || 0
+  );
+
+  const completionRate =
+    totalTickets > 0
+      ? Math.round((patientsServed / totalTickets) * 100)
+      : 0;
+
   return (
     <div>
       <div className="mb-5">
-        <h1 className="text-2xl font-bold text-slate-800">Reports & Analytics</h1>
-        <p className="mt-1 text-xs text-slate-500">Track queue performance and operational insights.</p>
+        <h1 className="text-2xl font-bold text-slate-800">
+          Reports & Analytics
+        </h1>
+
+        <p className="mt-1 text-xs text-slate-500">
+          Track queue performance and operational insights.
+        </p>
       </div>
 
       <div className="mb-5 grid gap-3 md:grid-cols-3">
-        <StatCard label="Patients served" value="1,248" caption="This month" icon={BarChart3} />
-        <StatCard label="Avg. service time" value="12m" caption="Across departments" icon={Clock3} />
-        <StatCard label="Satisfaction" value="96%" caption="Recent feedback" icon={CheckCircle2} />
+        <StatCard
+          label="Patients served"
+          value={loading ? "..." : patientsServed}
+          caption="Today"
+          icon={BarChart3}
+        />
+
+        <StatCard
+          label="Avg. wait time"
+          value={loading ? "..." : `${averageWait}m`}
+          caption="Today"
+          icon={Clock3}
+        />
+
+        <StatCard
+          label="Completion rate"
+          value={loading ? "..." : `${completionRate}%`}
+          caption={`${skipped} skipped`}
+          icon={CheckCircle2}
+        />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-700">Performance summary</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <h2 className="text-sm font-semibold text-slate-700">
+          Performance summary
+        </h2>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Peak hours</p>
-            <p className="mt-2 text-xl font-bold text-slate-800">9:00 AM - 11:30 AM</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              Currently waiting
+            </p>
+
+            <p className="mt-2 text-xl font-bold text-slate-800">
+              {loading ? "..." : waiting}
+            </p>
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Queue efficiency</p>
-            <p className="mt-2 text-xl font-bold text-slate-800">Excellent</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              Active terminals
+            </p>
+
+            <p className="mt-2 text-xl font-bold text-slate-800">
+              {loading ? "..." : activeTerminals}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              Total tickets
+            </p>
+
+            <p className="mt-2 text-xl font-bold text-slate-800">
+              {loading ? "..." : totalTickets}
+            </p>
           </div>
         </div>
       </div>
