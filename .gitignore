@@ -28,3 +28,10 @@ server/serviceAccountKey.json
 server/.env
 server/.env.xampp-backup
 
+# Contain real credentials copied from server/.env — never commit these.
+.env.example.env
+server/.env.examples.env
+
+# Firebase service-account private key files.
+server/*firebase-adminsdk*.json
+

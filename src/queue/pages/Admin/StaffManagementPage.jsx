@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
-  Briefcase,
-  Monitor,
+  CalendarOff,
+  IdCard,
+  LogOut,
   Plus,
+  Search,
   Trash2,
   Users,
   X,
@@ -19,8 +20,11 @@ import {
   deleteUser,
 } from '../../services/backendApi';
 
+import { StatCard } from './shared';
+import { useLanguage } from './LanguageContext';
+
 const fieldClass =
-  'mt-1 w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#075b9f]';
+  'mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#9D0A0E]';
 
 const labelClass =
   'block text-xs font-semibold text-slate-600';
@@ -44,72 +48,32 @@ const EMPTY_FORM = {
 
 const STATS_META = [
   {
-    key: 'superAdmin',
-    label: 'Super Admin',
-    caption: 'Total super admin',
-    icon: Users,
-  },
-  {
-    key: 'deptAdmin',
-    label: 'Dept Admin',
-    caption: 'Total dept admin',
-    icon: Users,
-  },
-  {
     key: 'staff',
-    label: 'Staff',
-    caption: 'Total staff',
-    icon: Briefcase,
+    labelKey: 'common.stat.staff',
+    captionKey: 'staff.stat.totalStaffCaption',
+    icon: Users,
   },
   {
-    key: 'active',
-    label: 'Active',
-    caption: 'Admin/staff on duty',
-    icon: Activity,
+    key: 'onDuty',
+    labelKey: 'staff.stat.onDuty',
+    captionKey: 'staff.stat.onDutyCaption',
+    icon: IdCard,
   },
   {
-    key: 'terminal',
-    label: 'Terminal',
-    caption: 'Active terminal',
-    icon: Monitor,
+    key: 'offWork',
+    labelKey: 'staff.stat.offWork',
+    captionKey: 'staff.stat.offWorkCaption',
+    icon: CalendarOff,
+  },
+  {
+    key: 'onLeave',
+    labelKey: 'staff.stat.onLeave',
+    captionKey: 'staff.stat.noLeaveYet',
+    icon: LogOut,
   },
 ];
 
-/*
-|--------------------------------------------------------------------------
-| STAT CARD
-|--------------------------------------------------------------------------
-*/
-
-function StatCard({
-  label,
-  value,
-  caption,
-  icon: Icon,
-}) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-          {label}
-        </p>
-
-        <Icon
-          size={16}
-          className="text-slate-400"
-        />
-      </div>
-
-      <p className="text-2xl font-bold text-slate-800">
-        {value}
-      </p>
-
-      <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-slate-400">
-        {caption}
-      </p>
-    </div>
-  );
-}
+const PAGE_SIZE = 5;
 
 /*
 |--------------------------------------------------------------------------
@@ -294,6 +258,8 @@ function findKiosk(
 */
 
 export default function StaffManagementPage() {
+  const { t } = useLanguage();
+
   /*
   |--------------------------------------------------------------------------
   | STATE
@@ -333,6 +299,9 @@ export default function StaffManagementPage() {
 
   const [modal, setModal] =
     useState(null);
+
+  const [confirmDelete, setConfirmDelete] =
+    useState(false);
 
   const [page, setPage] =
     useState(1);
@@ -784,39 +753,58 @@ export default function StaffManagementPage() {
 
   /*
   |--------------------------------------------------------------------------
+  | PAGINATION
+  |--------------------------------------------------------------------------
+  */
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      filteredUsers.length /
+        PAGE_SIZE
+    )
+  );
+
+  const currentPage = Math.min(
+    page,
+    totalPages
+  );
+
+  const pagedUsers = useMemo(
+    () =>
+      filteredUsers.slice(
+        (currentPage - 1) *
+          PAGE_SIZE,
+        currentPage * PAGE_SIZE
+      ),
+    [
+      filteredUsers,
+      currentPage,
+    ]
+  );
+
+  const pageNumbers = useMemo(() => {
+    const start = Math.max(
+      1,
+      Math.min(
+        currentPage - 1,
+        totalPages - 2
+      )
+    );
+
+    return Array.from(
+      { length: Math.min(3, totalPages) },
+      (_, index) => start + index
+    );
+  }, [currentPage, totalPages]);
+
+  /*
+  |--------------------------------------------------------------------------
   | STATISTICS
   |--------------------------------------------------------------------------
   */
 
   const stats = useMemo(() => {
-    const normalizedRoles =
-      usersWithRoleNames.map(
-        (user) =>
-          normalizeRole(
-            getRoleName(user)
-          )
-      );
-
-    const superAdminCount =
-      normalizedRoles.filter(
-        (role) =>
-          role === 'superadmin'
-      ).length;
-
-    const adminCount =
-      normalizedRoles.filter(
-        (role) =>
-          role === 'admin' ||
-          role === 'deptadmin' ||
-          role === 'departmentadmin'
-      ).length;
-
-    const staffCount =
-      normalizedRoles.filter(
-        (role) =>
-          role === 'staff'
-      ).length;
-
     const activeCount =
       usersWithRoleNames.filter(
         (user) =>
@@ -827,30 +815,20 @@ export default function StaffManagementPage() {
       ).length;
 
     return {
-      superAdmin:
-        superAdminCount,
-
-      deptAdmin:
-        adminCount,
-
       staff:
-        staffCount,
+        usersWithRoleNames.length,
 
-      active:
-        `${activeCount}/${usersWithRoleNames.length}`,
+      onDuty:
+        activeCount,
 
-      terminal:
-        kiosks.filter(
-          (kiosk) =>
-            String(
-              kiosk.status || ''
-            ).toLowerCase() ===
-            'active'
-        ).length,
+      offWork:
+        usersWithRoleNames.length -
+        activeCount,
+
+      onLeave: 0,
     };
   }, [
     usersWithRoleNames,
-    kiosks,
   ]);
 
   /*
@@ -910,14 +888,6 @@ export default function StaffManagementPage() {
 
       email:
         user.email || '',
-
-      /*
-      |--------------------------------------------------------------------------
-      | SECURITY
-      |--------------------------------------------------------------------------
-      | Never load an existing password into the form.
-      |--------------------------------------------------------------------------
-      */
 
       role:
         'Staff',
@@ -1042,10 +1012,10 @@ export default function StaffManagementPage() {
 
   function closeModal() {
     setModal(null);
+    setConfirmDelete(false);
 
     setForm({
       ...EMPTY_FORM,
-
     });
 
     setError(null);
@@ -1150,20 +1120,8 @@ export default function StaffManagementPage() {
     setError(null);
 
     try {
-      /*
-      |--------------------------------------------------------------------------
-      | 1. GET CURRENT USERS
-      |--------------------------------------------------------------------------
-      */
-
       const allUsers =
         await getUsers();
-
-      /*
-      |--------------------------------------------------------------------------
-      | 2. CHECK DUPLICATE EMAIL
-      |--------------------------------------------------------------------------
-      */
 
       const normalizedEmail =
         form.email
@@ -1187,12 +1145,6 @@ export default function StaffManagementPage() {
         );
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | 3. GET ADMIN DEPARTMENT
-      |--------------------------------------------------------------------------
-      */
-
       const departmentData =
         departments.find(
           (department) =>
@@ -1209,12 +1161,6 @@ export default function StaffManagementPage() {
           'Your department could not be found.'
         );
       }
-
-      /*
-      |--------------------------------------------------------------------------
-      | 4. VERIFY DEPARTMENT KIOSK
-      |--------------------------------------------------------------------------
-      */
 
       if (
         !departmentData.kiosk_id
@@ -1292,19 +1238,7 @@ export default function StaffManagementPage() {
         );
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | 6. CLOSE MODAL
-      |--------------------------------------------------------------------------
-      */
-
       closeModal();
-
-      /*
-      |--------------------------------------------------------------------------
-      | 7. REFRESH
-      |--------------------------------------------------------------------------
-      */
 
       await loadStaffManagement(
         false
@@ -1347,12 +1281,6 @@ export default function StaffManagementPage() {
       return;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | VERIFY EXISTING STAFF DEPARTMENT
-    |--------------------------------------------------------------------------
-    */
-
     const sameDepartmentId =
       modal.user.department_id &&
       adminDepartmentRecord?.department_id &&
@@ -1385,12 +1313,6 @@ export default function StaffManagementPage() {
       return;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | GET ADMIN DEPARTMENT
-    |--------------------------------------------------------------------------
-    */
-
     const departmentData =
       departments.find(
         (department) =>
@@ -1408,12 +1330,6 @@ export default function StaffManagementPage() {
       );
       return;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | GET DEPARTMENT KIOSK
-    |--------------------------------------------------------------------------
-    */
 
     const selectedKiosk =
       kiosks.find(
@@ -1433,12 +1349,6 @@ export default function StaffManagementPage() {
       return;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | POSITION
-    |--------------------------------------------------------------------------
-    */
-
     const positionToSave =
       form.position === 'Null' ||
       form.position === '' ||
@@ -1451,12 +1361,6 @@ export default function StaffManagementPage() {
     setError(null);
 
     try {
-      /*
-      |--------------------------------------------------------------------------
-      | UPDATE STAFF THROUGH NODE
-      |--------------------------------------------------------------------------
-      */
-
       const updatedUser =
         await updateUser(
           modal.user.user_id,
@@ -1511,19 +1415,7 @@ export default function StaffManagementPage() {
         );
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | CLOSE MODAL
-      |--------------------------------------------------------------------------
-      */
-
       closeModal();
-
-      /*
-      |--------------------------------------------------------------------------
-      | REFRESH
-      |--------------------------------------------------------------------------
-      */
 
       await loadStaffManagement(
         false
@@ -1555,12 +1447,6 @@ export default function StaffManagementPage() {
     ) {
       return;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | VERIFY DEPARTMENT
-    |--------------------------------------------------------------------------
-    */
 
     const sameDepartmentId =
       modal.user.department_id &&
@@ -1594,54 +1480,14 @@ export default function StaffManagementPage() {
       return;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | CONFIRM DELETE
-    |--------------------------------------------------------------------------
-    */
-
-    const confirmed =
-      window.confirm(
-        `Delete ${form.first_name} ${form.last_name}?`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | GET DELETION REASON
-    |--------------------------------------------------------------------------
-    */
-
-    const deletionReason =
-      window.prompt(
-        'Please enter the reason for deleting this staff account:'
-      );
-
-    if (
-      deletionReason === null
-    ) {
-      return;
-    }
-
-    if (
-      !deletionReason.trim()
-    ) {
-      setError(
-        'A deletion reason is required.'
-      );
-      return;
-    }
-
+    setConfirmDelete(false);
     setSaving(true);
     setError(null);
 
     try {
       await deleteUser(
         modal.user.user_id,
-        deletionReason.trim()
+        `Removed by ${adminDepartment} admin via Staff Management`
       );
 
       closeModal();
@@ -1677,17 +1523,17 @@ export default function StaffManagementPage() {
 
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">
-            Staff Management
+          <h1 className="text-2xl font-bold text-[#1F2937]">
+            {t('staff.title')}
           </h1>
 
-          <p className="mt-0.5 text-xs text-slate-500">
-            Manage staff accounts for your department.
+          <p className="mt-0.5 text-xs text-[#4B5563]">
+            {t('staff.subtitle')}
           </p>
 
           {adminDepartment && (
-            <p className="mt-1 text-xs font-semibold text-[#075b9f]">
-              Department: {adminDepartment}
+            <p className="mt-1 text-xs font-semibold text-[#9D0A0E]">
+              {t('staff.department', { name: adminDepartment })}
             </p>
           )}
         </div>
@@ -1701,10 +1547,10 @@ export default function StaffManagementPage() {
             !staffRoleId ||
             loading
           }
-          className="inline-flex items-center gap-2 rounded-lg bg-[#00549A] px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#004880] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus size={15} />
-          Add Staff
+          {t('staff.addButton')}
         </button>
       </div>
 
@@ -1726,15 +1572,15 @@ export default function StaffManagementPage() {
         </div>
       )}
 
-      {/* STATISTICS */}
+      {/* STATISTICS - Updated to 4 columns to match reference layout */}
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {STATS_META.map(
           (stat) => (
             <StatCard
               key={stat.key}
-              label={stat.label}
-              caption={stat.caption}
+              label={t(stat.labelKey)}
+              caption={t(stat.captionKey)}
               icon={stat.icon}
               value={
                 loading
@@ -1750,33 +1596,40 @@ export default function StaffManagementPage() {
 
       {/* STAFF TABLE */}
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
 
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] px-5 py-4">
           <div>
             <h2 className="text-sm font-semibold text-slate-700">
               {adminDepartment
-                ? `${adminDepartment} Staff`
-                : 'Staff'}
+                ? t('staff.staffSuffix', { department: adminDepartment })
+                : t('common.stat.staff')}
             </h2>
 
             <p className="mt-1 text-[10px] text-slate-400">
-              Staff assigned to this department are retrieved through Node.js.
+              {t('staff.tableSubtitle')}
             </p>
           </div>
 
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => {
-              setQuery(
-                e.target.value
-              );
-              setPage(1);
-            }}
-            placeholder="Search staff..."
-            className="w-48 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-[#075b9f]"
-          />
+          <div className="relative w-64">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => {
+                setQuery(
+                  e.target.value
+                );
+                setPage(1);
+              }}
+              placeholder={t('common.search')}
+              className="w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 pr-9 text-xs outline-none focus:border-[#9D0A0E]"
+            />
+
+            <Search
+              size={14}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -1784,38 +1637,38 @@ export default function StaffManagementPage() {
           <table className="w-full min-w-[950px] text-left text-sm">
 
             <thead>
-              <tr className="bg-[#dfeaf6] text-xs font-bold uppercase tracking-wide text-slate-600">
+              <tr className="bg-[#9D0A0E]/5 text-xs font-bold uppercase tracking-wide text-slate-600">
 
                 <th className="px-5 py-3">
-                  Full name
+                  {t('common.table.fullName')}
                 </th>
 
                 <th className="px-5 py-3">
-                  Email
+                  {t('common.table.email')}
                 </th>
 
                 <th className="px-5 py-3">
-                  Contact Info
+                  {t('staff.table.contactInfo')}
                 </th>
 
                 <th className="px-5 py-3">
-                  Role
+                  {t('common.table.role')}
                 </th>
 
                 <th className="px-5 py-3">
-                  Position
+                  {t('staff.table.position')}
                 </th>
 
                 <th className="px-5 py-3">
-                  Department
+                  {t('staff.table.department')}
                 </th>
 
                 <th className="px-5 py-3">
-                  Kiosk
+                  {t('staff.table.kiosk')}
                 </th>
 
                 <th className="px-5 py-3">
-                  Status
+                  {t('common.table.status')}
                 </th>
 
               </tr>
@@ -1829,13 +1682,13 @@ export default function StaffManagementPage() {
                     colSpan={8}
                     className="px-5 py-8 text-center text-sm text-slate-500"
                   >
-                    Loading staff…
+                    {t('staff.loadingStaff')}
                   </td>
                 </tr>
               )}
 
               {!loading &&
-                filteredUsers.map(
+                pagedUsers.map(
                   (user) => (
                     <tr
                       key={
@@ -1846,7 +1699,7 @@ export default function StaffManagementPage() {
                           user
                         )
                       }
-                      className="cursor-pointer border-t border-slate-200 hover:bg-slate-50"
+                      className="cursor-pointer border-t border-[#E5E7EB] hover:bg-slate-50"
                     >
 
                       <td className="px-5 py-3 capitalize text-slate-700">
@@ -1902,7 +1755,7 @@ export default function StaffManagementPage() {
                             ).toLowerCase() ===
                             'active'
                               ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-slate-200 text-slate-600'
+                              : 'bg-[#E5E7EB] text-slate-600'
                           }`}
                         >
                           {displayValue(
@@ -1925,11 +1778,10 @@ export default function StaffManagementPage() {
               0 && (
               <div className="px-5 py-8 text-center text-sm text-slate-500">
                 {query.trim()
-                  ? 'No staff match your search.'
-                  : `No staff found in ${
-                      adminDepartment ||
-                      'your department'
-                    }.`}
+                  ? t('staff.noMatch')
+                  : t('staff.noneInDept', {
+                      department: adminDepartment || t('staff.yourDepartment'),
+                    })}
               </div>
             )}
 
@@ -1937,14 +1789,20 @@ export default function StaffManagementPage() {
 
         {/* PAGINATION */}
 
-        <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-xs text-slate-500">
+        <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-xs text-slate-500">
 
           <span>
-            Showing{' '}
-            {filteredUsers.length}{' '}
-            of{' '}
-            {users.length}{' '}
-            staff
+            {t('staff.showing', {
+              from:
+                filteredUsers.length === 0
+                  ? 0
+                  : (currentPage - 1) * PAGE_SIZE + 1,
+              to: Math.min(
+                currentPage * PAGE_SIZE,
+                filteredUsers.length
+              ),
+              total: filteredUsers.length,
+            })}
           </span>
 
           <div className="flex items-center gap-2">
@@ -1961,32 +1819,49 @@ export default function StaffManagementPage() {
                 )
               }
               disabled={
-                page === 1
+                currentPage === 1
               }
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
             >
-              Prev
+              {t('common.prev')}
             </button>
 
-            <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5">
-              Page {page}
-            </span>
+            {pageNumbers.map(
+              (number) => (
+                <button
+                  key={number}
+                  type="button"
+                  onClick={() =>
+                    setPage(number)
+                  }
+                  className={`rounded-md border px-3 py-1.5 font-semibold ${
+                    number === currentPage
+                      ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+                      : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {number}
+                </button>
+              )
+            )}
 
             <button
               type="button"
               onClick={() =>
                 setPage(
                   (value) =>
-                    value + 1
+                    Math.min(
+                      totalPages,
+                      value + 1
+                    )
                 )
               }
               disabled={
-                filteredUsers.length ===
-                0
+                currentPage === totalPages
               }
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
             >
-              Next
+              {t('common.next')}
             </button>
 
           </div>
@@ -2002,16 +1877,16 @@ export default function StaffManagementPage() {
         typeof modal === 'object' && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
 
-            <section className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-300 bg-white shadow-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <section className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white shadow-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 
-              <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-[#f5faff] px-5 py-3">
+              <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E5E7EB] bg-white px-5 py-3">
 
                 <div>
                   <h2 className="text-lg font-bold text-slate-800">
-                    Staff Details
+                    {t('staff.modal.staffDetails')}
                   </h2>
 
-                  <p className="text-[10px] font-semibold text-[#075b9f]">
+                  <p className="text-[10px] font-semibold text-[#9D0A0E]">
                     {adminDepartment}
                   </p>
                 </div>
@@ -2038,7 +1913,7 @@ export default function StaffManagementPage() {
                 <div className="grid grid-cols-2 gap-3">
 
                   <label className={labelClass}>
-                    First Name
+                    {t('staff.modal.firstName')}
 
                     <input
                       className={
@@ -2057,7 +1932,7 @@ export default function StaffManagementPage() {
                   </label>
 
                   <label className={labelClass}>
-                    Last Name
+                    {t('staff.modal.lastName')}
 
                     <input
                       className={
@@ -2101,7 +1976,7 @@ export default function StaffManagementPage() {
                   </label>
 
                   <label className={labelClass}>
-                    Contact Number
+                    {t('staff.modal.contactNumber')}
 
                     <input
                       className={
@@ -2116,7 +1991,7 @@ export default function StaffManagementPage() {
                           e.target.value
                         )
                       }
-                      placeholder="Contact number"
+                      placeholder={t('staff.modal.contactNumber')}
                     />
                   </label>
 
@@ -2125,7 +2000,7 @@ export default function StaffManagementPage() {
                 {/* EMAIL */}
 
                 <label className={labelClass}>
-                  Email Address
+                  {t('staff.modal.emailAddress')}
 
                   <input
                     type="email"
@@ -2146,13 +2021,13 @@ export default function StaffManagementPage() {
 
                 {/* PASSWORD NOTE */}
 
-                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2">
                   <p className="text-[10px] font-medium text-slate-500">
-                    Password
+                    {t('staff.modal.password')}
                   </p>
 
                   <p className="mt-0.5 text-[10px] text-slate-400">
-                    The existing password is hidden for security. Password changes can be handled separately.
+                    {t('staff.modal.passwordNote')}
                   </p>
                 </div>
 
@@ -2161,7 +2036,7 @@ export default function StaffManagementPage() {
                 <div className="grid grid-cols-2 gap-3">
 
                   <label className={labelClass}>
-                    Role
+                    {t('staff.modal.role')}
 
                     <input
                       className={
@@ -2173,7 +2048,7 @@ export default function StaffManagementPage() {
                   </label>
 
                   <label className={labelClass}>
-                    Position
+                    {t('staff.modal.position')}
 
                     <select
                       className={
@@ -2191,19 +2066,19 @@ export default function StaffManagementPage() {
                       }
                     >
                       <option value="Null">
-                        Null
+                        {t('staff.modal.positionNull')}
                       </option>
 
                       <option value="President">
-                        President
+                        {t('staff.modal.positionPresident')}
                       </option>
 
                       <option value="Vice President">
-                        Vice President
+                        {t('staff.modal.positionVicePresident')}
                       </option>
 
                       <option value="Manager">
-                        Manager
+                        {t('staff.modal.positionManager')}
                       </option>
                     </select>
                   </label>
@@ -2213,7 +2088,7 @@ export default function StaffManagementPage() {
                 {/* KIOSK */}
 
                 <label className={labelClass}>
-                  Kiosk
+                  {t('staff.modal.kiosk')}
 
                   <input
                     className={
@@ -2228,14 +2103,14 @@ export default function StaffManagementPage() {
                   />
 
                   <p className="mt-1 text-[10px] text-slate-400">
-                    Kiosk is automatically assigned from your department.
+                    {t('staff.modal.kioskAutoNote')}
                   </p>
                 </label>
 
                 {/* DEPARTMENT */}
 
                 <label className={labelClass}>
-                  Department
+                  {t('staff.modal.department')}
 
                   <input
                     className={
@@ -2250,14 +2125,14 @@ export default function StaffManagementPage() {
                   />
 
                   <p className="mt-1 text-[10px] text-slate-400">
-                    Department is automatically assigned from your Admin account.
+                    {t('staff.modal.deptAutoNote')}
                   </p>
                 </label>
 
                 {/* STATUS */}
 
                 <label className={labelClass}>
-                  Status
+                  {t('staff.modal.status')}
 
                   <select
                     className={
@@ -2274,23 +2149,23 @@ export default function StaffManagementPage() {
                     }
                   >
                     <option value="Active">
-                      Active
+                      {t('staff.modal.statusActive')}
                     </option>
 
                     <option value="Inactive">
-                      Inactive
+                      {t('staff.modal.statusInactive')}
                     </option>
                   </select>
                 </label>
 
               </div>
 
-              <footer className="sticky bottom-0 flex items-center justify-between border-t border-slate-200 bg-[#f5faff] px-5 py-3">
+              <footer className="sticky bottom-0 flex items-center justify-between border-t border-[#E5E7EB] bg-white px-5 py-3">
 
                 <button
                   type="button"
-                  onClick={
-                    deleteUserRow
+                  onClick={() =>
+                    setConfirmDelete(true)
                   }
                   disabled={
                     saving
@@ -2300,7 +2175,7 @@ export default function StaffManagementPage() {
                   <Trash2
                     size={13}
                   />
-                  Delete Staff
+                  {t('staff.modal.deleteStaff')}
                 </button>
 
                 <div className="flex gap-2">
@@ -2315,7 +2190,7 @@ export default function StaffManagementPage() {
                     }
                     className="rounded-md border px-4 py-2 text-xs font-semibold disabled:opacity-50"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
 
                   <button
@@ -2326,11 +2201,11 @@ export default function StaffManagementPage() {
                     disabled={
                       saving
                     }
-                    className="rounded-md bg-[#075b9f] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                    className="rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:opacity-50"
                   >
                     {saving
-                      ? 'Saving…'
-                      : 'Save'}
+                      ? t('common.saving')
+                      : t('common.save')}
                   </button>
 
                 </div>
@@ -2343,25 +2218,19 @@ export default function StaffManagementPage() {
         )}
 
       {/* ============================================================
-          ADD STAFF MODAL
+          ADD STAFF MODAL - Updated to match reference image 8c414a.png
       ============================================================ */}
 
       {modal === 'add' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
 
-          <section className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-300 bg-white shadow-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <section className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white shadow-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 
-            <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-[#f5faff] px-5 py-3">
+            <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E5E7EB] bg-white px-5 py-4">
 
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">
-                  Add New Staff
-                </h2>
-
-                <p className="text-[10px] font-semibold text-[#075b9f]">
-                  Department: {adminDepartment}
-                </p>
-              </div>
+              <h2 className="text-lg font-bold text-slate-800">
+                Add Staff
+              </h2>
 
               <button
                 type="button"
@@ -2380,20 +2249,17 @@ export default function StaffManagementPage() {
 
             <div className="space-y-4 p-5">
 
-              {/* NAME */}
+              {/* FIRST NAME & LAST NAME */}
 
               <div className="grid grid-cols-2 gap-3">
 
-                <label className={labelClass}>
-                  First Name
-
+                <div>
+                  <label className={labelClass}>
+                    First Name
+                  </label>
                   <input
-                    className={
-                      fieldClass
-                    }
-                    value={
-                      form.first_name
-                    }
+                    className={fieldClass}
+                    value={form.first_name}
                     onChange={(e) =>
                       updateField(
                         'first_name',
@@ -2402,18 +2268,15 @@ export default function StaffManagementPage() {
                     }
                     placeholder="Enter first name"
                   />
-                </label>
+                </div>
 
-                <label className={labelClass}>
-                  Last Name
-
+                <div>
+                  <label className={labelClass}>
+                    Last Name
+                  </label>
                   <input
-                    className={
-                      fieldClass
-                    }
-                    value={
-                      form.last_name
-                    }
+                    className={fieldClass}
+                    value={form.last_name}
                     onChange={(e) =>
                       updateField(
                         'last_name',
@@ -2422,217 +2285,88 @@ export default function StaffManagementPage() {
                     }
                     placeholder="Enter last name"
                   />
-                </label>
+                </div>
 
               </div>
 
-              {/* MI / CONTACT */}
+              {/* M.I & CONTACT NUMBER */}
 
               <div className="grid grid-cols-2 gap-3">
 
-                <label className={labelClass}>
-                  M.I.
-
+                <div>
+                  <label className={labelClass}>
+                    M.i
+                  </label>
                   <input
-                    className={
-                      fieldClass
-                    }
-                    value={
-                      form.mi
-                    }
+                    className={fieldClass}
+                    value={form.mi}
                     onChange={(e) =>
                       updateField(
                         'mi',
                         e.target.value
                       )
                     }
-                    placeholder="Enter M.I."
+                    placeholder="Enter M.i"
                   />
-                </label>
+                </div>
 
-                <label className={labelClass}>
-                  Contact Number
-
+                <div>
+                  <label className={labelClass}>
+                    Contact Number
+                  </label>
                   <input
-                    className={
-                      fieldClass
-                    }
-                    value={
-                      form.contact_number
-                    }
+                    className={fieldClass}
+                    value={form.contact_number}
                     onChange={(e) =>
                       updateField(
                         'contact_number',
                         e.target.value
                       )
                     }
-                    placeholder="Enter contact number"
+                    placeholder="Enter number"
                   />
-                </label>
+                </div>
 
               </div>
 
               {/* EMAIL */}
 
-              <label className={labelClass}>
-                Email Address
-
+              <div>
+                <label className={labelClass}>
+                  Email
+                </label>
                 <input
                   type="email"
-                  className={
-                    fieldClass
-                  }
-                  value={
-                    form.email
-                  }
+                  className={fieldClass}
+                  value={form.email}
                   onChange={(e) =>
                     updateField(
                       'email',
                       e.target.value
                     )
                   }
-                  placeholder="Enter staff email"
+                  placeholder="Enter email"
                 />
+              </div>
 
-                <p className="mt-1 text-[10px] text-slate-400">
-                  This email is stored in the existing user account.
-                </p>
-              </label>
+              {/* SELECT ROLE */}
 
-              {/* ROLE */}
-
-              <label className={labelClass}>
-                Role
-
+              <div>
+                <label className={labelClass}>
+                  Select Role
+                </label>
                 <input
-                  className={
-                    fieldClass
-                  }
+                  className={`${fieldClass} cursor-not-allowed bg-slate-100 text-slate-500`}
                   value="Staff"
                   disabled
                 />
-
-                <p className="mt-1 text-[10px] text-slate-400">
-                  Staff role is automatically assigned.
-                </p>
-              </label>
-
-              {/* POSITION */}
-
-              <label className={labelClass}>
-                Position
-
-                <select
-                  className={
-                    fieldClass
-                  }
-                  value={
-                    form.position ||
-                    'Null'
-                  }
-                  onChange={(e) =>
-                    updateField(
-                      'position',
-                      e.target.value
-                    )
-                  }
-                >
-                  <option value="Null">
-                    Null
-                  </option>
-
-                  <option value="President">
-                    President
-                  </option>
-
-                  <option value="Vice President">
-                    Vice President
-                  </option>
-
-                  <option value="Manager">
-                    Manager
-                  </option>
-                </select>
-              </label>
-
-              {/* KIOSK */}
-
-              <label className={labelClass}>
-                Kiosk
-
-                <input
-                  className={
-                    fieldClass
-                  }
-                  value={
-                    displayValue(
-                      form.kiosk_name
-                    )
-                  }
-                  disabled
-                />
-
-                <p className="mt-1 text-[10px] text-slate-400">
-                  Kiosk is automatically assigned from your department.
-                </p>
-              </label>
-
-              {/* DEPARTMENT */}
-
-              <label className={labelClass}>
-                Department
-
-                <input
-                  className={
-                    fieldClass
-                  }
-                  value={
-                    displayValue(
-                      adminDepartment
-                    )
-                  }
-                  disabled
-                />
-
-                <p className="mt-1 text-[10px] text-slate-400">
-                  Department is automatically assigned from your Admin account.
-                </p>
-              </label>
-
-              {/* STATUS */}
-
-              <label className={labelClass}>
-                Status
-
-                <select
-                  className={
-                    fieldClass
-                  }
-                  value={
-                    form.status
-                  }
-                  onChange={(e) =>
-                    updateField(
-                      'status',
-                      e.target.value
-                    )
-                  }
-                >
-                  <option value="Active">
-                    Active
-                  </option>
-
-                  <option value="Inactive">
-                    Inactive
-                  </option>
-                </select>
-              </label>
+              </div>
 
             </div>
 
             {/* FOOTER */}
 
-            <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-[#f5faff] px-5 py-3">
+            <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-[#E5E7EB] bg-white px-5 py-3">
 
               <button
                 type="button"
@@ -2642,7 +2376,7 @@ export default function StaffManagementPage() {
                 disabled={
                   saving
                 }
-                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -2658,12 +2392,12 @@ export default function StaffManagementPage() {
                   !adminDepartmentRecord ||
                   !staffRoleId
                 }
-                className="inline-flex items-center gap-1.5 rounded-md bg-[#075b9f] px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus size={13} />
 
                 {saving
-                  ? 'Adding…'
+                  ? 'Adding...'
                   : 'Add This Staff'}
               </button>
 
@@ -2671,6 +2405,50 @@ export default function StaffManagementPage() {
 
           </section>
 
+        </div>
+      )}
+
+      {/* ============================================================
+          DELETE USER CONFIRMATION
+      ============================================================ */}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
+
+          <div className="w-full max-w-sm rounded-lg border border-[#E5E7EB] bg-white p-6 text-center shadow-xl">
+
+            <h2 className="text-lg font-bold text-[#1F2937]">
+              {t('staff.deleteModal.title')}
+            </h2>
+
+            <p className="mt-2 text-xs text-[#4B5563]">
+              {t('staff.deleteModal.body')}
+            </p>
+
+            <div className="mt-5 flex gap-2">
+
+              <button
+                type="button"
+                onClick={() =>
+                  setConfirmDelete(false)
+                }
+                disabled={saving}
+                className="flex-1 rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {t('common.cancel')}
+              </button>
+
+              <button
+                type="button"
+                onClick={deleteUserRow}
+                disabled={saving}
+                className="flex-1 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:opacity-50"
+              >
+                {saving ? t('common.deleting') : t('common.delete')}
+              </button>
+
+            </div>
+          </div>
         </div>
       )}
 

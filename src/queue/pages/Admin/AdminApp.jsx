@@ -7,9 +7,10 @@ import {
   ReportsPage,
   SettingsPage,
   TerminalManagementPage,
-  applyTheme,
-  loadStoredTheme,
 } from './AdminScreens';
+
+import { applyTheme, loadStoredTheme } from './adminHelpers';
+import { LanguageProvider } from './LanguageContext';
 
 function AdminApp() {
   const [activeItem, setActiveItem] = useState('dashboard');
@@ -22,22 +23,24 @@ function AdminApp() {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
-      <AdminSidebar activeItem={activeItem} onSelect={setActiveItem} />
+    <LanguageProvider>
+      <div className="flex min-h-screen bg-slate-100">
+        <AdminSidebar activeItem={activeItem} onSelect={setActiveItem} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <AdminHeaderBar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <AdminHeaderBar />
 
-        <main className="min-w-0 flex-1 bg-[#f1f3f6] px-4 py-5">
-          {activeItem === 'dashboard' && <AdminDashboard />}
-          {activeItem === 'staff' && <StaffManagementPage />}
-          {activeItem === 'terminal' && <TerminalManagementPage />}
-          {activeItem === 'queues' && <QueueManagementPage />}
-          {activeItem === 'reports' && <ReportsPage />}
-          {activeItem === 'settings' && <SettingsPage />}
-        </main>
+          <main className="min-w-0 flex-1 bg-[#f1f3f6] px-4 py-5">
+            {activeItem === 'dashboard' && <AdminDashboard />}
+            {activeItem === 'staff' && <StaffManagementPage />}
+            {activeItem === 'terminal' && <TerminalManagementPage />}
+            {activeItem === 'queues' && <QueueManagementPage />}
+            {activeItem === 'reports' && <ReportsPage />}
+            {activeItem === 'settings' && <SettingsPage />}
+          </main>
+        </div>
       </div>
-    </div>
+    </LanguageProvider>
   );
 }
 
