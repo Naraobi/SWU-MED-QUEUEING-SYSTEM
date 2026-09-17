@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '../../services/Authcontext';
 import { getLandingPath } from '../../services/accessControl';
 import ChangePasswordModal from '../../components/changePasswordModal';
@@ -182,159 +182,129 @@ async function handlePasswordChangeSuccess(
         backgroundImage: `url(${LoginBG1})`,
       }}
     >
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-100/80 via-slate-100/40 to-transparent pointer-events-none" />
-
-      <div className="relative z-10 flex w-full max-w-xs sm:max-w-sm flex-col items-center">
+      <div className="relative z-10 w-full max-w-sm rounded-lg bg-white p-7 shadow-2xl">
 
         {/* =====================================================
-            LOGO
+            LOGO + TITLE
         ===================================================== */}
 
-        <div className="mb-6 flex flex-col items-center text-center">
+        <div className="flex flex-col items-center text-center">
           <img
             src={Logo}
-            alt="SWUMed Logo"
-            className="h-16 w-auto object-contain mb-2"
+            alt="SWUMed"
+            className="h-8 w-auto object-contain"
           />
 
-          <p className="mt-0.5 text-xs font-semibold text-slate-500">
-            Queuing System
+          <p className="mt-2 text-base font-bold text-[#1F2937]">
+            Queuing Management System
           </p>
         </div>
 
-        {/* =====================================================
-            LOGIN CARD
-        ===================================================== */}
+        <div className="mt-4 border-t border-[#E5E7EB]" />
 
-        <div className="w-full rounded-xl border border-slate-100 bg-white p-6 shadow-xl">
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-4"
-          >
+        <form
+          onSubmit={handleSubmit}
+          className="mt-5 space-y-4"
+        >
 
-            {/* =================================================
-                EMAIL
-            ================================================= */}
+          {/* =================================================
+              EMAIL
+          ================================================= */}
 
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-1 block text-xs font-semibold text-slate-600"
-              >
-                Email
-              </label>
+          <div>
+            <label
+              htmlFor="email"
+              className="mb-2 block text-sm font-semibold text-[#1F2937]"
+            >
+              Email Address
+            </label>
 
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              placeholder="Enter email address"
+              autoComplete="email"
+              disabled={loading}
+              className="w-full rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"
+            />
+
+            {errors.email && (
+              <p className="mt-1.5 text-xs text-[#9D0A0E]">
+                {errors.email}
+              </p>
+            )}
+          </div>
+
+          {/* =================================================
+              PASSWORD
+          ================================================= */}
+
+          <div>
+            <label
+              htmlFor="password"
+              className="mb-2 block text-sm font-semibold text-[#1F2937]"
+            >
+              Password
+            </label>
+
+            <div className="relative">
               <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) =>
-                  setEmail(e.target.value)
+                id="password"
+                type={
+                  showPassword
+                    ? 'text'
+                    : 'password'
                 }
-                placeholder="example.swu@phinmaed.com"
-                autoComplete="email"
+                value={password}
+                onChange={(e) =>
+                  setPassword(
+                    e.target.value
+                  )
+                }
+                placeholder="Enter password"
+                autoComplete="current-password"
                 disabled={loading}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#00569c] focus:outline-none disabled:bg-slate-100"
+                className="w-full rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 pr-10 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"
               />
 
-              {errors.email && (
-                <p className="mt-1 text-xs text-red-500">
-                  {errors.email}
-                </p>
-              )}
-            </div>
-
-            {/* =================================================
-                PASSWORD
-            ================================================= */}
-
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-1 block text-xs font-semibold text-slate-600"
+              <button
+                type="button"
+                onClick={() =>
+                  setShowPassword(
+                    (prev) => !prev
+                  )
+                }
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-[#4B5563] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
+                aria-label={
+                  showPassword
+                    ? 'Hide password'
+                    : 'Show password'
+                }
+                disabled={loading}
               >
-                Password
-              </label>
-
-              <div className="relative">
-                <input
-                  id="password"
-                  type={
-                    showPassword
-                      ? 'text'
-                      : 'password'
-                  }
-                  value={password}
-                  onChange={(e) =>
-                    setPassword(
-                      e.target.value
-                    )
-                  }
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  disabled={loading}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-9 text-sm focus:border-[#00569c] focus:outline-none disabled:bg-slate-100"
-                />
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowPassword(
-                      (prev) => !prev
-                    )
-                  }
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  aria-label={
-                    showPassword
-                      ? 'Hide password'
-                      : 'Show password'
-                  }
-                  disabled={loading}
-                >
-                  {showPassword ? (
-                    <Eye size={16} />
-                  ) : (
-                    <EyeOff size={16} />
-                  )}
-                </button>
-              </div>
-
-              {errors.password && (
-                <p className="mt-1 text-xs text-red-500">
-                  {errors.password}
-                </p>
-              )}
+                {showPassword ? (
+                  <EyeOff size={16} />
+                ) : (
+                  <Eye size={16} />
+                )}
+              </button>
             </div>
 
-            {/* =================================================
-                GENERAL ERROR
-            ================================================= */}
-
-            {errors.form && (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                {errors.form}
-              </div>
+            {errors.password && (
+              <p className="mt-1.5 text-xs text-[#9D0A0E]">
+                {errors.password}
+              </p>
             )}
-
-            {/* =================================================
-                LOGIN BUTTON
-            ================================================= */}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-md bg-[#00569c] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#004278] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading
-                ? 'Logging in...'
-                : 'Login'}
-            </button>
 
             {/* =================================================
                 FORGOT PASSWORD
             ================================================= */}
 
-            <div className="pt-1 text-center">
+            <div className="mt-2 flex justify-end">
               <button
                 type="button"
                 onClick={() =>
@@ -342,14 +312,48 @@ async function handlePasswordChangeSuccess(
                     '/forgot-password'
                   )
                 }
-                className="text-xs font-medium text-[#00569c] hover:underline"
+                className="rounded text-xs font-medium text-[#9D0A0E] transition hover:underline focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
               >
                 Forgot Password?
               </button>
             </div>
+          </div>
 
-          </form>
-        </div>
+          {/* =================================================
+              GENERAL ERROR
+          ================================================= */}
+
+          {errors.form && (
+            <div className="rounded-md border border-[#9D0A0E]/20 bg-[#9D0A0E]/5 px-3 py-2 text-xs text-[#9D0A0E]">
+              {errors.form}
+            </div>
+          )}
+
+          {/* =================================================
+              LOGIN BUTTON
+          ================================================= */}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-3 text-sm font-bold text-white transition-colors hover:bg-[#7D080B] focus:outline-none focus:ring-4 focus:ring-[#9D0A0E]/30 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading
+              ? 'Logging in...'
+              : 'Login'}
+
+            {!loading && <LogIn size={16} />}
+          </button>
+
+        </form>
+
+        {/* =====================================================
+            FOOTER
+        ===================================================== */}
+
+        <p className="mt-4 text-center text-xs text-[#4B5563]">
+          For authorized users only.
+        </p>
       </div>
 
       {/* =====================================================
