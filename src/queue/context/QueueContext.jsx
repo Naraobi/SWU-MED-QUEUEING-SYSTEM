@@ -68,7 +68,7 @@ export function QueueProvider({ children }) {
    * Firebase / MySQL
    */
 
-  const refresh = useCallback(async (departmentPrefix) => {
+  const refresh = useCallback(async (departmentPrefix, range) => {
     if (!departmentPrefix) {
       setWaitingQueue([])
       setCurrentlyServing(null)
@@ -89,7 +89,8 @@ export function QueueProvider({ children }) {
 
     try {
       const state = await api.fetchQueueState(
-        departmentPrefix
+        departmentPrefix,
+        range
       )
 
       /*

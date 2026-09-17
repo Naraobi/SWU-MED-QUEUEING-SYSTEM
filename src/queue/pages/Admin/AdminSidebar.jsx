@@ -1,21 +1,23 @@
 import { useState } from 'react';
-import { BarChart3, Bell, ClipboardList, LayoutGrid, LogOut, Monitor, Settings, Users } from 'lucide-react';
+import { BarChart3, Bell, ClipboardPlus, LayoutDashboard, LogOut, Monitor, Settings, Users } from 'lucide-react';
 import { useAuth } from '../../services/Authcontext';
 import { canAccessAdminPage } from '../../services/accessControl';
 import logo from '../../../assets/logo.png';
 import LogoutModal from '../../components/modals/LogoutModal';
+import { useLanguage } from './LanguageContext';
 
 const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
-  { key: 'staff', label: 'Staff Management', icon: Users },
-  { key: 'terminal', label: 'Terminal Management', icon: Monitor },
-  { key: 'queues', label: 'Queue Management', icon: ClipboardList },
-  { key: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
-  { key: 'settings', label: 'Settings', icon: Settings },
+  { key: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { key: 'staff', labelKey: 'nav.staff', icon: Users },
+  { key: 'queues', labelKey: 'nav.queues', icon: ClipboardPlus },
+  { key: 'terminal', labelKey: 'nav.terminal', icon: Monitor },
+  { key: 'reports', labelKey: 'nav.reports', icon: BarChart3 },
+  { key: 'settings', labelKey: 'nav.settings', icon: Settings },
 ];
 
 export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () => {} }) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const visibleItems = NAV_ITEMS.filter(({ key }) => canAccessAdminPage(user, key));
 
@@ -29,18 +31,18 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
       <aside className="flex h-screen w-56 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
         <div className="flex h-[74px] flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
           <img src={logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
-          <div className="text-[10px] font-medium tracking-wide text-slate-400">Queuing System</div>
+          <div className="text-[10px] font-medium tracking-wide text-slate-400">{t('nav.queuingSystem')}</div>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-6">
-          {visibleItems.map(({ key, label, icon: Icon }) => (
-            <button key={key} type="button" onClick={() => handleSelect(key)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs font-medium transition ${activeItem === key ? 'bg-[#00549A] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}>
-              <Icon size={17} /><span>{label}</span>
+          {visibleItems.map(({ key, labelKey, icon: Icon }) => (
+            <button key={key} type="button" onClick={() => handleSelect(key)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs font-medium transition ${activeItem === key ? 'bg-[#9D0A0E] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}>
+              <Icon size={17} /><span>{t(labelKey)}</span>
             </button>
           ))}
         </nav>
         <div className="border-t border-slate-100 px-3 py-3">
           <button type="button" onClick={() => setShowLogoutModal(true)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700">
-            <LogOut size={17} />Logout
+            <LogOut size={17} />{t('nav.logout')}
           </button>
         </div>
       </aside>

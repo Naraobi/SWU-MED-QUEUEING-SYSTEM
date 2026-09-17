@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Users,
   Clock,
+  Calendar,
   Hourglass,
   Printer,
   DoorOpen,
@@ -32,6 +33,17 @@ import {
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
+
+/* =========================================================
+   BRAND THEME
+========================================================= */
+
+const BRAND_RED = '#9D0A0E';
+const REGULAR_DARK = '#1F2937';
+
+function getQueueThemeColor(queueType) {
+  return queueType?.key === 'priority' ? BRAND_RED : REGULAR_DARK;
+}
 
 /* =========================================================
    QR TRACKER URL
@@ -64,6 +76,7 @@ const QUEUE_TYPES = [
   {
     key: 'regular',
     name: 'Regular Queue',
+    label: 'REGULAR QUEUE',
     description:
       'For patients who do not require priority assistance.',
     icon: User,
@@ -71,6 +84,7 @@ const QUEUE_TYPES = [
   {
     key: 'priority',
     name: 'Priority Queue',
+    label: 'PRIORITY QUEUE',
     description:
       'For Senior Citizens, PWD, and Pregnant Patients.',
     icon: Accessibility,
@@ -179,6 +193,13 @@ function getDepartmentDescription(department) {
   return 'Department services and assistance.';
 }
 
+function isDepartmentActive(department) {
+  return (
+    !department?.status ||
+    String(department.status).toLowerCase() === 'active'
+  );
+}
+
 /* =========================================================
    KIOSK DAILY UNLOCK HELPERS
 ========================================================= */
@@ -279,6 +300,19 @@ function getActiveKioskForToday(kiosks) {
 }
 
 /* =========================================================
+   SWUMED WORDMARK
+========================================================= */
+
+function Wordmark({ size = 'text-xl' }) {
+  return (
+    <div className={`${size} font-extrabold leading-none`}>
+      <span className="text-[#9D0A0E]">SWU</span>
+      <span className="text-slate-900">Med</span>
+    </div>
+  );
+}
+
+/* =========================================================
    KIOSK HEADER
 ========================================================= */
 
@@ -286,7 +320,7 @@ function KioskHeader() {
   const [now] = useState(new Date());
 
   const time = now.toLocaleTimeString([], {
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
   });
 
@@ -301,24 +335,16 @@ function KioskHeader() {
 
   return (
     <div className="mb-6 flex items-center justify-between">
-      <div>
-        <span className="text-base font-bold text-red-600">
-          SWU
-        </span>
+      <Wordmark size="text-base" />
 
-        <span className="text-base font-bold text-slate-800">
-          Med
-        </span>
-      </div>
-
-      <div className="flex items-center gap-3 text-xs text-slate-400">
-        <span className="flex items-center gap-1">
-          <Clock size={12} />
+      <div className="flex items-center gap-3 text-[13px] font-semibold text-slate-700">
+        <span className="flex items-center gap-1.5">
+          <Clock size={14} />
           {time}
         </span>
 
-        <span className="flex items-center gap-1">
-          &#128197;
+        <span className="flex items-center gap-1.5">
+          <Calendar size={14} />
           {date}
         </span>
       </div>
@@ -332,7 +358,7 @@ function KioskHeader() {
 
 function Screen({ children }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#EAF3FB] px-4 py-10">
+    <div className="flex min-h-screen items-center justify-center bg-[#F1F3F5] px-4 py-10 print:hidden">
       <div className="w-full max-w-sm">
         {children}
       </div>
@@ -355,7 +381,7 @@ function NavButtons({
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 hover:border-slate-300"
+        className="flex items-center gap-1.5 rounded-none border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-500 hover:border-slate-300"
       >
         <ArrowLeft size={14} />
         Back
@@ -365,7 +391,7 @@ function NavButtons({
         type="button"
         onClick={onContinue}
         disabled={disabled}
-        className="flex items-center gap-1.5 rounded-full bg-[#123C73] px-5 py-2 text-xs font-semibold text-white hover:bg-[#0d2c56] disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex items-center gap-1.5 rounded-none bg-[#9D0A0E] px-5 py-2.5 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {continueLabel}
         <ArrowRight size={14} />
@@ -383,20 +409,14 @@ function WelcomeScreen({ onStart }) {
     <Screen>
       <div className="flex flex-col items-center px-2 text-center">
         <div className="mb-10">
-          <span className="text-xl font-bold text-red-600">
-            SWU
-          </span>
-
-          <span className="text-xl font-bold text-slate-800">
-            Med
-          </span>
+          <Wordmark size="text-2xl" />
         </div>
 
         <h1 className="text-2xl font-bold text-slate-900">
           Welcome to
         </h1>
 
-        <h1 className="mb-6 text-2xl font-bold text-[#123C73]">
+        <h1 className="mb-6 text-2xl font-bold text-[#9D0A0E]">
           SWU Med Hospital
         </h1>
 
@@ -407,13 +427,63 @@ function WelcomeScreen({ onStart }) {
         <button
           type="button"
           onClick={onStart}
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-[#123C73] py-4 text-base font-semibold text-white shadow-sm hover:bg-[#0d2c56]"
+          className="flex w-full items-center justify-center gap-2 rounded-none bg-[#9D0A0E] py-4 text-base font-semibold text-white shadow-sm hover:bg-[#7d0809]"
         >
           GET STARTED
           <ArrowRight size={18} />
         </button>
       </div>
     </Screen>
+  );
+}
+
+/* =========================================================
+   NUMERIC KEYPAD
+========================================================= */
+
+function NumericKeypad({ onDigit, onBackspace, onClear }) {
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+  const keyClass =
+    'flex h-14 items-center justify-center rounded-none border border-slate-200 bg-white text-lg font-semibold text-slate-800 transition hover:border-slate-300 active:bg-slate-50';
+
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {keys.map((key) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onDigit(key)}
+          className={keyClass}
+        >
+          {key}
+        </button>
+      ))}
+
+      <button
+        type="button"
+        onClick={onClear}
+        className={`${keyClass} text-sm text-slate-400`}
+      >
+        Clear
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onDigit('0')}
+        className={keyClass}
+      >
+        0
+      </button>
+
+      <button
+        type="button"
+        onClick={onBackspace}
+        className={`${keyClass} text-sm text-slate-400`}
+      >
+        &#9003;
+      </button>
+    </div>
   );
 }
 
@@ -484,22 +554,22 @@ function SelectKioskScreen({
                 onClick={() =>
                   onSelect(currentKiosk)
                 }
-                className={`relative flex w-full items-center gap-3 rounded-xl border p-4 text-left transition ${
+                className={`relative flex w-full items-center gap-3 rounded-none border p-4 text-left transition ${
                   isSelected
-                    ? 'border-[#123C73] bg-blue-50 shadow-sm'
+                    ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 shadow-sm'
                     : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
                 {isSelected && (
-                  <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#123C73] text-white">
+                  <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
                     <CheckCircle2 size={12} />
                   </span>
                 )}
 
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#9D0A0E]/10">
                   <Icon
                     size={16}
-                    className="text-[#123C73]"
+                    className="text-[#9D0A0E]"
                   />
                 </div>
 
@@ -508,7 +578,7 @@ function SelectKioskScreen({
                     <p
                       className={`text-sm font-bold uppercase tracking-wide ${
                         isSelected
-                          ? 'text-[#123C73]'
+                          ? 'text-[#9D0A0E]'
                           : 'text-slate-800'
                       }`}
                     >
@@ -541,7 +611,7 @@ function SelectKioskScreen({
 }
 
 /* =========================================================
-   KIOSK PIN SCREEN
+   KIOSK CODE SCREEN
 ========================================================= */
 
 function KioskPinScreen({
@@ -551,134 +621,165 @@ function KioskPinScreen({
 }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
- async function handleSubmit(event) {
-  event.preventDefault();
+  async function handleSubmit() {
+    setError('');
 
-  setError('');
-
-  if (!kiosk?.kiosk_id) {
-    setError('Invalid kiosk.');
-    return;
-  }
-
-  try {
-    const result = await verifyKioskPin(
-      kiosk.kiosk_id,
-      pin
-    );
-
-    if (result?.valid) {
-      unlockKioskForToday(
-        kiosk.kiosk_id
-      );
-
-      onSuccess();
-
+    if (!kiosk?.kiosk_id) {
+      setError('Invalid kiosk.');
       return;
     }
 
-    setError(
-      'Incorrect PIN. Please try again.'
-    );
+    if (pin.length !== 4) {
+      return;
+    }
 
-    setPin('');
-  } catch (error) {
-    console.error(
-      'Kiosk PIN verification error:',
-      error
-    );
+    setSubmitting(true);
 
-    setError(
-      error?.message ||
-        'Unable to verify kiosk PIN.'
-    );
+    try {
+      const result = await verifyKioskPin(
+        kiosk.kiosk_id,
+        pin
+      );
 
+      if (result?.valid) {
+        unlockKioskForToday(
+          kiosk.kiosk_id
+        );
+
+        onSuccess();
+
+        return;
+      }
+
+      setError(
+        'Incorrect code. Please try again.'
+      );
+
+      setPin('');
+    } catch (error) {
+      console.error(
+        'Kiosk PIN verification error:',
+        error
+      );
+
+      setError(
+        error?.message ||
+          'Unable to verify kiosk code.'
+      );
+
+      setPin('');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleDigit(digit) {
+    setError('');
+
+    setPin((current) =>
+      current.length >= 4
+        ? current
+        : current + digit
+    );
+  }
+
+  function handleBackspace() {
+    setError('');
+    setPin((current) => current.slice(0, -1));
+  }
+
+  function handleClear() {
+    setError('');
     setPin('');
   }
-}
+
   return (
     <Screen>
-      <KioskHeader />
+      <div className="mb-8 flex justify-center">
+        <Wordmark size="text-lg" />
+      </div>
 
       <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#9D0A0E]/10">
           <Lock
             size={22}
-            className="text-[#123C73]"
+            className="text-[#9D0A0E]"
           />
         </div>
 
         <h1 className="text-lg font-bold text-slate-900">
-          Kiosk Access
+          Enter Kiosk Code
         </h1>
 
         <p className="mt-1 text-sm text-slate-500">
-          Enter the admin PIN to unlock
+          Please enter the kiosk code to activate.
         </p>
 
-        <p className="mt-2 text-sm font-bold text-[#123C73]">
-          {kiosk.name}
-        </p>
+        {kiosk?.name && (
+          <p className="mt-2 text-sm font-bold text-[#9D0A0E]">
+            {kiosk.name}
+          </p>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <label
-            htmlFor="kiosk-pin"
-            className="mb-2 block text-xs font-medium text-slate-500"
-          >
-            Admin PIN
-          </label>
+      <div className="mb-6 flex justify-center gap-3">
+        {Array.from({ length: 4 }, (_, index) => {
+          const filled = index < pin.length;
+          const isActive = index === pin.length;
 
-          <input
-            id="kiosk-pin"
-            type="password"
-            inputMode="numeric"
-            maxLength={4}
-            value={pin}
-            onChange={(event) => {
-              const value =
-                event.target.value.replace(
-                  /\D/g,
-                  ''
-                );
+          return (
+            <div
+              key={index}
+              className={`flex h-12 w-12 items-center justify-center rounded-none border-2 bg-white text-lg font-bold ${
+                isActive
+                  ? 'border-[#9D0A0E]'
+                  : 'border-slate-200'
+              }`}
+            >
+              {filled && (
+                <span className="h-2.5 w-2.5 rounded-full bg-slate-800" />
+              )}
+            </div>
+          );
+        })}
+      </div>
 
-              setPin(value);
-              setError('');
-            }}
-            placeholder="Enter 4-digit PIN"
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-lg tracking-[0.5em] outline-none focus:border-[#123C73] focus:ring-1 focus:ring-[#123C73]"
-            autoFocus
-          />
+      {error && (
+        <p className="mb-4 text-center text-xs font-medium text-red-500">
+          {error}
+        </p>
+      )}
 
-          {error && (
-            <p className="mt-3 text-center text-xs font-medium text-red-500">
-              {error}
-            </p>
-          )}
-        </div>
+      <div className="mb-6">
+        <NumericKeypad
+          onDigit={handleDigit}
+          onBackspace={handleBackspace}
+          onClear={handleClear}
+        />
+      </div>
 
-        <div className="flex justify-between">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-500 hover:border-slate-300"
-          >
-            <ArrowLeft size={14} />
-            Back
-          </button>
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={pin.length !== 4 || submitting}
+          className="flex w-full items-center justify-center gap-2 rounded-none bg-[#9D0A0E] py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitting ? 'Activating...' : 'Activate Kiosk'}
+          <ArrowRight size={16} />
+        </button>
 
-          <button
-            type="submit"
-            disabled={pin.length !== 4}
-            className="flex items-center gap-1.5 rounded-full bg-[#123C73] px-5 py-2 text-xs font-semibold text-white hover:bg-[#0d2c56] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Unlock Kiosk
-            <ArrowRight size={14} />
-          </button>
-        </div>
-      </form>
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700"
+        >
+          <ArrowLeft size={14} />
+          Back
+        </button>
+      </div>
     </Screen>
   );
 }
@@ -708,7 +809,7 @@ function QueueTypeScreen({
         </p>
 
         {kiosk && (
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#123C73]">
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#9D0A0E]/5 px-3 py-1.5 text-xs font-medium text-[#9D0A0E]">
             <MapPin size={11} />
             {kiosk.name}
           </div>
@@ -717,8 +818,6 @@ function QueueTypeScreen({
 
       <div className="mb-8 space-y-3">
         {QUEUE_TYPES.map((type) => {
-          const Icon = type.icon;
-
           const isSelected =
             selected?.key === type.key;
 
@@ -727,37 +826,26 @@ function QueueTypeScreen({
               key={type.key}
               type="button"
               onClick={() => onSelect(type)}
-              className={`relative w-full rounded-xl border p-5 text-center transition ${
+              className={`relative w-full rounded-none border p-6 text-center transition ${
                 isSelected
-                  ? 'border-[#123C73] bg-blue-50 shadow-sm'
+                  ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 shadow-sm'
                   : 'border-slate-200 bg-white hover:border-slate-300'
               }`}
             >
               {isSelected && (
-                <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#123C73] text-white">
+                <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
                   <CheckCircle2 size={12} />
                 </span>
               )}
 
-              <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
-                <Icon
-                  size={16}
-                  className="text-[#123C73]"
-                />
-              </div>
-
               <p
-                className={`mb-1 text-sm font-bold uppercase tracking-wide ${
+                className={`text-sm font-bold uppercase tracking-wide ${
                   isSelected
-                    ? 'text-[#123C73]'
+                    ? 'text-[#9D0A0E]'
                     : 'text-slate-800'
                 }`}
               >
-                {type.name}
-              </p>
-
-              <p className="text-xs text-slate-400">
-                {type.description}
+                {type.label}
               </p>
             </button>
           );
@@ -774,7 +862,7 @@ function QueueTypeScreen({
 }
 
 /* =========================================================
-   DEPARTMENT SCREEN
+   DEPARTMENT (SELECT SERVICES) SCREEN
 ========================================================= */
 
 function SelectDepartmentScreen({
@@ -796,11 +884,11 @@ function SelectDepartmentScreen({
         </h1>
 
         <p className="text-sm text-slate-500">
-          Please select a department to get your queue number.
+          Please select a service to get your queue number.
         </p>
 
         {kiosk && (
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#123C73]">
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#9D0A0E]/5 px-3 py-1.5 text-xs font-medium text-[#9D0A0E]">
             <MapPin size={11} />
             {kiosk.name}
           </div>
@@ -808,7 +896,7 @@ function SelectDepartmentScreen({
       </div>
 
       <div
-        className="mb-2 max-h-80 space-y-3 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden"
+        className="mb-2 max-h-80 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden"
         style={{
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
@@ -816,7 +904,7 @@ function SelectDepartmentScreen({
       >
         {loading && (
           <div className="rounded-xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-400">
-            Loading departments...
+            Loading services...
           </div>
         )}
 
@@ -824,7 +912,7 @@ function SelectDepartmentScreen({
           departments.length === 0 && (
             <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
               <p className="text-sm font-semibold text-slate-700">
-                No departments are currently available.
+                No services are currently available.
               </p>
 
               <p className="mt-1 text-xs text-slate-400">
@@ -833,86 +921,85 @@ function SelectDepartmentScreen({
             </div>
           )}
 
-        {!loading &&
-          departments.map((department) => {
-            const Icon =
-              getDepartmentIcon(
-                department.name,
-                department.classification
-              );
+        {!loading && departments.length > 0 && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {departments.map((department) => {
+              const Icon =
+                getDepartmentIcon(
+                  department.name,
+                  department.classification
+                );
 
-            const isSelected =
-              selected?.department_id ===
-              department.department_id;
+              const isSelected =
+                selected?.department_id ===
+                department.department_id;
 
-            return (
-              <button
-                key={department.department_id}
-                type="button"
-                onClick={() =>
-                  onSelect(department)
-                }
-                className={`relative flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${
-                  isSelected
-                    ? 'border-[#123C73] bg-blue-50 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
-              >
-                {isSelected && (
-                  <span className="absolute right-3 top-3 flex h-4 w-4 items-center justify-center rounded-full bg-[#123C73] text-white">
-                    <CheckCircle2 size={12} />
-                  </span>
-                )}
+              const active = isDepartmentActive(department);
 
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                  <Icon
-                    size={16}
-                    className="text-[#123C73]"
-                  />
-                </div>
+              return (
+                <button
+                  key={department.department_id}
+                  type="button"
+                  disabled={!active}
+                  onClick={() =>
+                    active && onSelect(department)
+                  }
+                  className={`relative flex flex-col items-center gap-1.5 rounded-none border p-3 text-center transition ${
+                    !active
+                      ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'
+                      : isSelected
+                        ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  {isSelected && active && (
+                    <span className="absolute right-1.5 top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
+                      <CheckCircle2 size={9} />
+                    </span>
+                  )}
 
-                <div className="flex-1">
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                      !active ? 'bg-slate-200' : 'bg-[#9D0A0E]/10'
+                    }`}
+                  >
+                    <Icon
+                      size={15}
+                      className={
+                        !active
+                          ? 'text-slate-400'
+                          : 'text-[#9D0A0E]'
+                      }
+                    />
+                  </div>
+
                   <p
-                    className={`text-sm font-bold ${
-                      isSelected
-                        ? 'text-[#123C73]'
-                        : 'text-slate-800'
+                    className={`text-[10px] font-bold uppercase leading-tight tracking-wide ${
+                      !active
+                        ? 'text-slate-400'
+                        : isSelected
+                          ? 'text-[#9D0A0E]'
+                          : 'text-slate-800'
                     }`}
                   >
                     {department.name}
                   </p>
 
-                  <p className="mb-1 text-xs text-slate-400">
-                    {getDepartmentDescription(
-                      department
-                    )}
+                  <p className="text-[9px] leading-tight text-slate-400">
+                    {active
+                      ? getDepartmentDescription(department)
+                      : 'Inactive'}
                   </p>
-
-                  <p className="flex items-center gap-3 text-[11px] text-slate-400">
-                    <span className="flex items-center gap-1">
-                      <Users size={10} />
-                      {department.waiting ?? 0}{' '}
-                      waiting
-                    </span>
-
-                    <span className="flex items-center gap-1">
-                      <Clock size={10} />
-                      ~{department.estMin ?? 0}{' '}
-                      min
-                    </span>
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {!loading &&
-        departments.length > 0 && (
-          <p className="mb-6 text-center text-[11px] text-slate-400">
-            &darr; Swipe up for more
-          </p>
-        )}
+      <p className="mb-6 mt-3 text-center text-[11px] text-slate-400">
+        &darr; Swipe up for more
+      </p>
 
       <NavButtons
         onBack={onBack}
@@ -940,7 +1027,8 @@ function ConfirmScreen({
   onBack,
   onConfirm,
 }) {
-  const ServiceIcon = service?.icon;
+  const ServiceIcon = service?.icon || ClipboardList;
+  const QueueIcon = queueType?.icon || User;
 
   return (
     <Screen>
@@ -957,93 +1045,71 @@ function ConfirmScreen({
       </div>
 
       <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 space-y-3 text-sm">
-          {/* QUEUE TYPE */}
-
-          <div className="flex items-center gap-3">
-            <Accessibility
-              size={16}
-              className="text-slate-400"
-            />
-
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                Queue Type
-              </p>
-
-              <p className="font-semibold text-slate-800">
-                {queueType?.name}
-              </p>
-            </div>
-          </div>
-
-          {/* KIOSK */}
-
-          <div className="flex items-center gap-3">
+        <div className="mb-4 flex flex-col items-center border-b border-slate-100 pb-4 text-center">
+          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#9D0A0E]/10">
             <MapPin
-              size={16}
-              className="text-slate-400"
+              size={22}
+              className="text-[#9D0A0E]"
             />
-
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                Kiosk
-              </p>
-
-              <p className="font-semibold text-slate-800">
-                {kiosk?.name}
-              </p>
-            </div>
           </div>
 
-          {/* DEPARTMENT */}
+          <p className="text-sm font-bold text-slate-900">
+            {kiosk?.name}
+          </p>
+        </div>
 
-          <div className="flex items-center gap-3">
-            {ServiceIcon && (
-              <ServiceIcon
-                size={16}
-                className="text-slate-400"
-              />
-            )}
+        <div className="mb-4 space-y-2.5">
+          <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-4 py-3">
+            <QueueIcon
+              size={16}
+              className="shrink-0 text-slate-700"
+            />
 
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                Department
-              </p>
+            <p className="text-sm font-semibold text-slate-800">
+              {queueType?.name}
+            </p>
+          </div>
 
-              <p className="font-semibold text-slate-800">
-                {service?.name}
-              </p>
-            </div>
+          <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-4 py-3">
+            <ServiceIcon
+              size={16}
+              className="shrink-0 text-slate-700"
+            />
+
+            <p className="text-sm font-semibold text-slate-800">
+              {service?.name}
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 rounded-lg bg-blue-50 px-4 py-3 text-center">
+        <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-100 px-4 py-3 text-center">
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-slate-400">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
               Current Queue
             </p>
 
-            <p className="text-xl font-bold text-[#123C73]">
-              {waitingAhead}
-            </p>
-
-            <p className="text-[10px] text-slate-400">
-              people ahead
+            <p className="flex items-baseline justify-center gap-1.5">
+              <span className="text-2xl font-extrabold text-slate-900">
+                {waitingAhead}
+              </span>
+              <span className="text-xs font-semibold text-[#9D0A0E]">
+                people ahead
+              </span>
             </p>
           </div>
 
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-slate-400">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
               Estimated Wait
             </p>
 
-            <p className="text-xl font-bold text-[#123C73]">
-              ~{service?.estMin ?? 0}
-            </p>
-
-            <p className="text-[10px] text-slate-400">
-              min
+            <p className="flex items-baseline justify-center gap-1.5">
+              <span className="text-2xl font-extrabold text-slate-900">
+                ~{service?.estMin ?? 0}
+              </span>
+              <span className="text-xs font-semibold text-[#9D0A0E]">
+                min
+              </span>
             </p>
           </div>
         </div>
@@ -1069,12 +1135,15 @@ function ConfirmScreen({
 
 function TicketScreen({
   queueType,
+  kiosk,
   service,
   queueNumber,
   queueId,
   onPrint,
   onSkipPrint,
 }) {
+  const themeColor = getQueueThemeColor(queueType);
+
   return (
     <Screen>
       <KioskHeader />
@@ -1092,22 +1161,23 @@ function TicketScreen({
       <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div
           className="px-6 py-6 text-center"
-          style={{
-            backgroundColor:
-              queueType.key ===
-              'priority'
-                ? '#800000'
-                : '#123C73',
-          }}
+          style={{ backgroundColor: themeColor }}
         >
-          <p className="mb-2 text-4xl font-bold text-white">
+          <p className="mb-3 text-4xl font-bold text-white">
             {queueNumber}
           </p>
 
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white">
-            &#128100;
-            {service.name}
+          <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+            {queueType?.label}
           </span>
+
+          <p className="mt-3 text-[11px] text-white/70">
+            SERVICE: {service?.name}
+          </p>
+
+          <p className="text-[11px] text-white/70">
+            DEPARTMENT: {kiosk?.name}
+          </p>
         </div>
 
         <div className="grid grid-cols-[1fr_auto] gap-4 p-4">
@@ -1124,7 +1194,7 @@ function TicketScreen({
                 </p>
 
                 <p className="text-xs font-semibold text-slate-700">
-                  {service.waiting ?? 0}{' '}
+                  {service?.waiting ?? 0}{' '}
                   people waiting
                 </p>
               </div>
@@ -1142,7 +1212,7 @@ function TicketScreen({
                 </p>
 
                 <p className="text-xs font-semibold text-slate-700">
-                  {service.estMin ?? 0}{' '}
+                  ~{service?.estMin ?? 0}{' '}
                   minutes
                 </p>
               </div>
@@ -1172,7 +1242,7 @@ function TicketScreen({
         <button
           type="button"
           onClick={onPrint}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-[#123C73] py-3 text-xs font-semibold text-white hover:bg-[#0d2c56]"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-none bg-[#9D0A0E] py-3 text-xs font-semibold text-white hover:bg-[#7d0809]"
         >
           <Printer size={14} />
           PRINT TICKET
@@ -1181,7 +1251,7 @@ function TicketScreen({
         <button
           type="button"
           onClick={onSkipPrint}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white py-3 text-xs font-semibold text-slate-600 hover:border-slate-300"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-none border border-slate-200 bg-white py-3 text-xs font-semibold text-slate-600 hover:border-slate-300"
         >
           CONTINUE WITHOUT PRINTING
           <ArrowRight size={14} />
@@ -1196,8 +1266,11 @@ function TicketScreen({
 ========================================================= */
 
 function PrintingScreen({
+  queueType,
   queueNumber,
 }) {
+  const themeColor = getQueueThemeColor(queueType);
+
   return (
     <Screen>
       <KioskHeader />
@@ -1207,7 +1280,10 @@ function PrintingScreen({
           Printing Your Ticket
         </h2>
 
-        <div className="mx-auto mb-5 max-w-[220px] rounded-xl bg-[#123C73] px-4 py-4">
+        <div
+          className="mx-auto mb-5 max-w-[220px] rounded-xl px-4 py-4"
+          style={{ backgroundColor: themeColor }}
+        >
           <p className="text-[9px] uppercase tracking-wide text-white/60">
             Your queue number
           </p>
@@ -1227,8 +1303,14 @@ function PrintingScreen({
           Take it with you to the waiting area.
         </p>
 
-        <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-[#123C73]">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#123C73]" />
+        <p
+          className="flex items-center justify-center gap-1.5 text-xs font-medium"
+          style={{ color: themeColor }}
+        >
+          <span
+            className="h-1.5 w-1.5 animate-pulse rounded-full"
+            style={{ backgroundColor: themeColor }}
+          />
           Printing...
         </p>
       </div>
@@ -1241,17 +1323,23 @@ function PrintingScreen({
 ========================================================= */
 
 function SuccessScreen({
+  queueType,
   queueNumber,
 }) {
+  const themeColor = getQueueThemeColor(queueType);
+
   return (
     <Screen>
       <KioskHeader />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+        <div
+          className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full"
+          style={{ backgroundColor: `${themeColor}1A` }}
+        >
           <CheckCircle2
             size={24}
-            className="text-[#123C73]"
+            style={{ color: themeColor }}
           />
         </div>
 
@@ -1259,12 +1347,21 @@ function SuccessScreen({
           Ticket Printed Successfully!
         </h2>
 
-        <div className="mx-auto mb-5 max-w-[220px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+        <div
+          className="mx-auto mb-5 max-w-[220px] rounded-xl border px-4 py-4"
+          style={{
+            backgroundColor: `${themeColor}0D`,
+            borderColor: `${themeColor}33`,
+          }}
+        >
           <p className="text-[9px] uppercase tracking-wide text-slate-400">
             Your queue number
           </p>
 
-          <p className="text-2xl font-bold text-slate-900">
+          <p
+            className="text-2xl font-bold"
+            style={{ color: themeColor }}
+          >
             {queueNumber}
           </p>
         </div>
@@ -1278,6 +1375,110 @@ function SuccessScreen({
         </p>
       </div>
     </Screen>
+  );
+}
+
+/* =========================================================
+   PRINTED TICKET RECEIPT (real printable output)
+========================================================= */
+
+function PrintedTicketReceipt({
+  kiosk,
+  service,
+  queueType,
+  queueNumber,
+  queueId,
+}) {
+  if (!queueNumber) {
+    return null;
+  }
+
+  const themeColor = getQueueThemeColor(queueType);
+  const now = new Date();
+
+  const dateLabel = now.toLocaleDateString(undefined, {
+    month: 'long',
+    day: '2-digit',
+    year: 'numeric',
+  });
+
+  const timeLabel = now.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  return (
+    <div className="hidden print:flex print:min-h-screen print:items-center print:justify-center">
+      <div className="w-full max-w-[320px] p-6 text-center">
+        <Wordmark size="text-xl" />
+
+        <p className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-500">
+          {kiosk?.name}
+        </p>
+
+        <p className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+          Queue Number
+        </p>
+
+        <p
+          className="text-4xl font-extrabold"
+          style={{ color: themeColor }}
+        >
+          {queueNumber}
+        </p>
+
+        <div className="my-4 border-t border-dashed border-slate-300" />
+
+        <div className="space-y-1.5 text-left text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Service:</span>
+            <span className="font-semibold text-slate-800">
+              {service?.name}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">People Ahead:</span>
+            <span className="font-semibold text-slate-800">
+              {service?.waiting ?? 0}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Estimated Wait:</span>
+            <span className="font-semibold text-slate-800">
+              {service?.estMin ?? 0} minutes
+            </span>
+          </div>
+        </div>
+
+        <div className="my-4 border-t border-dashed border-slate-300" />
+
+        <div className="flex items-center justify-between text-[10px] text-slate-400">
+          <span>{dateLabel}</span>
+          <span>{timeLabel}</span>
+        </div>
+
+        <div className="my-4 flex justify-center">
+          <QRCodeSVG
+            value={getTrackerUrl(queueId)}
+            size={110}
+            level="M"
+            includeMargin={true}
+          />
+        </div>
+
+        <p className="text-[10px] text-slate-400">
+          Scan the QR code to track your queue.
+        </p>
+
+        <div className="my-4 border-t border-dashed border-slate-300" />
+
+        <p className="text-[10px] text-slate-400">
+          Please keep this ticket until your number is called.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -1466,6 +1667,10 @@ export default function PatientView({
       Node.js
           ↓
       MySQL
+
+    Inactive departments are kept in the list (not hidden)
+    so the kiosk can show them greyed-out/disabled, matching
+    the reference design.
   */
 
   async function fetchDepartments(
@@ -1481,7 +1686,7 @@ export default function PatientView({
 
     try {
       /*
-        Get only departments assigned to this kiosk.
+        Get departments assigned to this kiosk.
       */
 
       const data =
@@ -1489,44 +1694,39 @@ export default function PatientView({
           kioskRecord.kiosk_id
         );
 
-      const activeDepartments =
-        (data || []).filter(
-          (department) =>
-            !department.status ||
-            String(
-              department.status
-            ).toLowerCase() ===
-              'active'
-        );
+      const allDepartments =
+        data || [];
 
       /*
         Get current waiting count for
-        each department.
+        each active department.
       */
 
       const departmentsWithWaiting =
         await Promise.all(
-          activeDepartments.map(
+          allDepartments.map(
             async (department) => {
               let waiting = 0;
 
-              try {
-                const waitingData =
-                  await getWaitingCount(
-                    department.department_id
+              if (isDepartmentActive(department)) {
+                try {
+                  const waitingData =
+                    await getWaitingCount(
+                      department.department_id
+                    );
+
+                  waiting =
+                    Number(
+                      waitingData?.waiting_count
+                    ) || 0;
+                } catch (error) {
+                  console.warn(
+                    `Unable to get waiting count for ${department.name}:`,
+                    error
                   );
 
-                waiting =
-                  Number(
-                    waitingData?.waiting_count
-                  ) || 0;
-              } catch (error) {
-                console.warn(
-                  `Unable to get waiting count for ${department.name}:`,
-                  error
-                );
-
-                waiting = 0;
+                  waiting = 0;
+                }
               }
 
               return {
@@ -1639,8 +1839,29 @@ export default function PatientView({
     }
 
     /*
-      No active kiosk has been unlocked today.
-      Patient must select a kiosk.
+      This terminal is bound to a specific kiosk but has
+      not been unlocked yet today — go straight to the
+      kiosk code screen instead of a kiosk picker.
+    */
+
+    if (configuredKiosk) {
+      setKiosk(configuredKiosk);
+      setQueueType(null);
+      setService(null);
+
+      setRequiresKioskSelection(
+        false
+      );
+
+      setStep('kioskPin');
+
+      return;
+    }
+
+    /*
+      No specific kiosk is configured and no active
+      kiosk has been unlocked today. Patient must
+      select a kiosk.
     */
 
     setKiosk(null);
@@ -1924,7 +2145,7 @@ export default function PatientView({
   }
 
   /* =======================================================
-     PRINTING → SUCCESS
+     PRINTING → TRIGGER REAL PRINT → SUCCESS
   ======================================================= */
 
   useEffect(() => {
@@ -1934,13 +2155,26 @@ export default function PatientView({
       return;
     }
 
-    const timer =
+    /*
+      Trigger the browser's real print dialog. The printable
+      receipt is rendered by <PrintedTicketReceipt /> below,
+      which is the only thing visible via the print:* classes
+      when printing.
+    */
+
+    const printTimer = setTimeout(() => {
+      window.print();
+    }, 400);
+
+    const advanceTimer =
       setTimeout(() => {
         setStep('success');
       }, 2200);
 
-    return () =>
-      clearTimeout(timer);
+    return () => {
+      clearTimeout(printTimer);
+      clearTimeout(advanceTimer);
+    };
   }, [step]);
 
   /* =======================================================
@@ -1964,6 +2198,20 @@ export default function PatientView({
   }, [step]);
 
   /* =======================================================
+     RENDER
+  ======================================================= */
+
+  const receipt = (
+    <PrintedTicketReceipt
+      kiosk={kiosk}
+      service={service}
+      queueType={queueType}
+      queueNumber={queueNumber}
+      queueId={queueId}
+    />
+  );
+
+  /* =======================================================
      WELCOME
   ======================================================= */
 
@@ -1971,11 +2219,14 @@ export default function PatientView({
     step === 'welcome'
   ) {
     return (
-      <WelcomeScreen
-        onStart={
-          handleStart
-        }
-      />
+      <>
+        <WelcomeScreen
+          onStart={
+            handleStart
+          }
+        />
+        {receipt}
+      </>
     );
   }
 
@@ -2030,6 +2281,8 @@ export default function PatientView({
             {kiosksError}
           </p>
         )}
+
+        {receipt}
       </>
     );
   }
@@ -2043,15 +2296,20 @@ export default function PatientView({
     kiosk
   ) {
     return (
-      <KioskPinScreen
-        kiosk={kiosk}
-        onBack={() =>
-          setStep('kiosk')
-        }
-        onSuccess={
-          handleKioskPinSuccess
-        }
-      />
+      <>
+        <KioskPinScreen
+          kiosk={kiosk}
+          onBack={() =>
+            requiresKioskSelection
+              ? setStep('kiosk')
+              : handleReset()
+          }
+          onSuccess={
+            handleKioskPinSuccess
+          }
+        />
+        {receipt}
+      </>
     );
   }
 
@@ -2063,53 +2321,56 @@ export default function PatientView({
     step === 'queueType'
   ) {
     return (
-      <QueueTypeScreen
-        selected={
-          queueType
-        }
-        kiosk={kiosk}
-        onSelect={(type) => {
-          setQueueType(type);
-          setService(null);
-        }}
-        onBack={() => {
-          /*
-            If the patient entered through kiosk
-            selection, return to kiosk selection.
-
-            If a physical kiosk was already unlocked,
-            return to welcome.
-          */
-
-          if (
-            requiresKioskSelection
-          ) {
-            setStep('kiosk');
-          } else {
-            handleReset();
+      <>
+        <QueueTypeScreen
+          selected={
+            queueType
           }
-        }}
-        onContinue={() => {
-          if (!queueType) {
-            return;
-          }
+          kiosk={kiosk}
+          onSelect={(type) => {
+            setQueueType(type);
+            setService(null);
+          }}
+          onBack={() => {
+            /*
+              If the patient entered through kiosk
+              selection, return to kiosk selection.
 
-          if (!kiosk) {
-            return;
-          }
+              If a physical kiosk was already unlocked,
+              return to welcome.
+            */
 
-          /*
-            Refresh departments before moving
-            to department selection.
-          */
+            if (
+              requiresKioskSelection
+            ) {
+              setStep('kiosk');
+            } else {
+              handleReset();
+            }
+          }}
+          onContinue={() => {
+            if (!queueType) {
+              return;
+            }
 
-          fetchDepartments(kiosk);
+            if (!kiosk) {
+              return;
+            }
 
-          setStep(
-            'department'
-          );
-        }}
-      />
+            /*
+              Refresh departments before moving
+              to department selection.
+            */
+
+            fetchDepartments(kiosk);
+
+            setStep(
+              'department'
+            );
+          }}
+        />
+        {receipt}
+      </>
     );
   }
 
@@ -2159,6 +2420,8 @@ export default function PatientView({
             {departmentsError}
           </p>
         )}
+
+        {receipt}
       </>
     );
   }
@@ -2171,29 +2434,32 @@ export default function PatientView({
     step === 'confirm'
   ) {
     return (
-      <ConfirmScreen
-        queueType={
-          queueType
-        }
-        kiosk={kiosk}
-        service={
-          service
-        }
-        waitingAhead={
-          service?.waiting ?? 0
-        }
-        isGenerating={
-          isGenerating
-        }
-        onBack={() =>
-          setStep(
-            'department'
-          )
-        }
-        onConfirm={
-          handleGenerateNumber
-        }
-      />
+      <>
+        <ConfirmScreen
+          queueType={
+            queueType
+          }
+          kiosk={kiosk}
+          service={
+            service
+          }
+          waitingAhead={
+            service?.waiting ?? 0
+          }
+          isGenerating={
+            isGenerating
+          }
+          onBack={() =>
+            setStep(
+              'department'
+            )
+          }
+          onConfirm={
+            handleGenerateNumber
+          }
+        />
+        {receipt}
+      </>
     );
   }
 
@@ -2205,26 +2471,30 @@ export default function PatientView({
     step === 'ticket'
   ) {
     return (
-      <TicketScreen
-        queueType={
-          queueType
-        }
-        service={
-          service
-        }
-        queueNumber={
-          queueNumber
-        }
-        queueId={
-          queueId
-        }
-        onPrint={
-          handlePrint
-        }
-        onSkipPrint={() =>
-          handleReset()
-        }
-      />
+      <>
+        <TicketScreen
+          queueType={
+            queueType
+          }
+          kiosk={kiosk}
+          service={
+            service
+          }
+          queueNumber={
+            queueNumber
+          }
+          queueId={
+            queueId
+          }
+          onPrint={
+            handlePrint
+          }
+          onSkipPrint={() =>
+            handleReset()
+          }
+        />
+        {receipt}
+      </>
     );
   }
 
@@ -2236,11 +2506,17 @@ export default function PatientView({
     step === 'printing'
   ) {
     return (
-      <PrintingScreen
-        queueNumber={
-          queueNumber
-        }
-      />
+      <>
+        <PrintingScreen
+          queueType={
+            queueType
+          }
+          queueNumber={
+            queueNumber
+          }
+        />
+        {receipt}
+      </>
     );
   }
 
@@ -2249,10 +2525,16 @@ export default function PatientView({
   ======================================================= */
 
   return (
-    <SuccessScreen
-      queueNumber={
-        queueNumber
-      }
-    />
+    <>
+      <SuccessScreen
+        queueType={
+          queueType
+        }
+        queueNumber={
+          queueNumber
+        }
+      />
+      {receipt}
+    </>
   );
 }

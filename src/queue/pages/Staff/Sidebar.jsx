@@ -24,14 +24,43 @@ export default function Sidebar() {
   }, [user, navigate]);
 
   return (
-    <aside className="staff-sidebar sticky top-0 flex h-screen flex-shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div className="flex h-[74px] flex-col items-center justify-center border-b border-slate-200 px-3 text-center"><img src={logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" /><p className="mt-0.5 text-[9px] font-medium text-slate-400">Queue Terminal</p></div>
+    <aside className="staff-sidebar sticky top-0 flex h-screen flex-shrink-0 flex-col border-r border-slate-200 bg-white z-40">
+      <div className="flex h-[74px] flex-col items-center justify-center border-b border-slate-200 px-3 text-center">
+        <img src={logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
+        <p className="mt-0.5 text-[9px] font-medium text-slate-400">Queue Terminal</p>
+      </div>
+
       <nav className="flex-1 space-y-1 px-2 py-7">
         {visibleLinks.map(({ key, to, label, icon: Icon }) => (
-          <NavLink key={to} to={to} end={to === '/staff'} className={({ isActive }) => `flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-[10px] font-semibold uppercase transition ${isActive ? 'bg-[#005b9f] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}><Icon /><span>{label}</span></NavLink>
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/staff'}
+            className={({ isActive }) =>
+              `flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide transition ${
+                isActive
+                  ? 'bg-[#851010] text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`
+            }
+          >
+            <Icon />
+            <span>{label}</span>
+          </NavLink>
         ))}
       </nav>
-      <div className="border-t border-slate-200 px-2 py-4"><button onClick={() => setShowLogout(true)} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"><LogoutIcon /><span>Logout</span></button></div>
+
+      <div className="border-t border-slate-200 px-3 py-4">
+        <button
+          type="button"
+          onClick={() => setShowLogout(true)}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50 cursor-pointer"
+        >
+          <LogoutIcon />
+          <span>Logout</span>
+        </button>
+      </div>
+
       {showLogout && <LogoutModal onClose={() => setShowLogout(false)} />}
     </aside>
   );

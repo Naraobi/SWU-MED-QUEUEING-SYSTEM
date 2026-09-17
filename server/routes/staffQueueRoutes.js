@@ -114,7 +114,12 @@ async function syncQueueTicketToFirebase(queueId) {
 // HELPER: GET TODAY'S QUEUE STATE
 // ============================================================
 
-async function getQueueState(departmentPrefix) {
+async function getQueueState(
+  departmentPrefix,
+  { start, end } = {}
+) {
+  // Live panels (waiting list + currently serving) always
+  // reflect today, regardless of the reporting date filter.
   const [waitingQueue] = await pool.query(
     `
     SELECT
@@ -216,6 +221,26 @@ async function getQueueState(departmentPrefix) {
         }
       : null;
 
+  // Reporting stats (the stat cards / donut chart) respect the
+  // requested date range. Defaults to today when none is given,
+  // reusing the same range-condition pattern as /history below.
+  let statsDateCondition =
+    "DATE(qt.issued_at) = CURDATE()";
+
+  const statsParams = [
+    departmentPrefix,
+  ];
+
+  if (start && end) {
+    statsDateCondition =
+      "DATE(qt.issued_at) BETWEEN ? AND ?";
+
+    statsParams.push(
+      start,
+      end
+    );
+  }
+
   const [statsRows] = await pool.query(
     `
     SELECT
@@ -258,9 +283,9 @@ async function getQueueState(departmentPrefix) {
       ON qt.department_id = d.department_id
 
     WHERE d.prefix = ?
-      AND DATE(qt.issued_at) = CURDATE()
+      AND ${statsDateCondition}
     `,
-    [departmentPrefix]
+    statsParams
   );
 
   const stats = {
@@ -293,6 +318,9 @@ async function getQueueState(departmentPrefix) {
 // GET /api/staff-queue/state/:departmentPrefix
 // ============================================================
 
+const ISO_DATE_PATTERN =
+  /^\d{4}-\d{2}-\d{2}$/;
+
 router.get(
   "/state/:departmentPrefix",
   async (req, res) => {
@@ -309,9 +337,21 @@ router.get(
         });
       }
 
+      const {
+        start,
+        end,
+      } = req.query;
+
+      const hasValidRange =
+        ISO_DATE_PATTERN.test(start || "") &&
+        ISO_DATE_PATTERN.test(end || "");
+
       const state =
         await getQueueState(
-          departmentPrefix
+          departmentPrefix,
+          hasValidRange
+            ? { start, end }
+            : {}
         );
 
       res.json({

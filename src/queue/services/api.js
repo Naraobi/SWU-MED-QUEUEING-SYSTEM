@@ -678,7 +678,8 @@ export async function fetchTicketStatus(
  */
 
 export async function fetchQueueState(
-  departmentPrefix
+  departmentPrefix,
+  { start, end } = {}
 ) {
   if (!departmentPrefix) {
     return {
@@ -694,11 +695,29 @@ export async function fetchQueueState(
   }
 
   try {
+    const params =
+      new URLSearchParams()
+
+    if (start) {
+      params.set('start', start)
+    }
+
+    if (end) {
+      params.set('end', end)
+    }
+
+    const queryString =
+      params.toString()
+
     const response =
       await fetch(
         `${API_URL}/staff-queue/state/${encodeURIComponent(
           departmentPrefix
-        )}`
+        )}${
+          queryString
+            ? `?${queryString}`
+            : ''
+        }`
       )
 
     const result =
