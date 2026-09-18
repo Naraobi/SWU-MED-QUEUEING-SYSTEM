@@ -915,6 +915,11 @@ router.get(
           FROM queue_ticket
           WHERE department_id = ?
             AND status = 'waiting'
+            AND issued_at >= CURDATE()
+            AND issued_at < DATE_ADD(
+              CURDATE(),
+              INTERVAL 1 DAY
+            )
           `,
           [departmentId]
         );

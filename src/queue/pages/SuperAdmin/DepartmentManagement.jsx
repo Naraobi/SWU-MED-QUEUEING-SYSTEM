@@ -16,6 +16,9 @@ import {
   Monitor,
   Plus,
   X,
+  Check,
+  ChevronDown,
+  MapPin,
 } from 'lucide-react';
 
 // ===========================================================
@@ -144,23 +147,31 @@ function DepartmentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
 
-        {/* HEADER */}
+        {/* ===================================================
+            HEADER
+        =================================================== */}
 
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
 
           <div>
-            <h2 className="text-lg font-bold text-slate-700">
+            <h2 className="text-lg font-bold text-[#1F2937]">
               {isEditing
                 ? 'Edit Department'
                 : 'Add New Department'}
             </h2>
 
-            <p className="mt-0.5 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-[#4B5563]">
               {isEditing
                 ? 'Update the department configuration below.'
-                : 'Select a kiosk before configuring the department.'}
+                : 'Create a department and assign it to a kiosk.'}
+            </p>
+
+            <p className="mt-0.5 text-xs text-[#4B5563]">
+              Fields marked{' '}
+              <span className="text-[#9D0A0E]">*</span>
+              {' '}are required.
             </p>
           </div>
 
@@ -168,7 +179,7 @@ function DepartmentModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="text-slate-400 transition hover:text-slate-600 disabled:opacity-40"
+            className="rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30 disabled:opacity-40"
             aria-label="Close"
           >
             <X size={18} />
@@ -176,26 +187,35 @@ function DepartmentModal({
 
         </div>
 
-        {/* BODY */}
 
-        <div className="space-y-5 px-6 py-5">
+        {/* ===================================================
+            BODY
+        =================================================== */}
 
-          {/* KIOSK */}
+        <div className="space-y-4 px-6 py-5">
+
+          {/* ----- KIOSK ----- */}
 
           <div>
 
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+            <label
+              htmlFor="department-kiosk"
+              className="mb-1 block text-sm font-semibold text-[#1F2937]"
+            >
               Kiosk
+              <span className="ml-0.5 text-[#9D0A0E]">*</span>
             </label>
 
             <div className="relative">
 
               <Monitor
                 size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#4B5563]"
               />
 
               <select
+                id="department-kiosk"
                 value={form.kiosk_id}
                 onChange={(e) =>
                   setForm((current) => ({
@@ -204,7 +224,7 @@ function DepartmentModal({
                   }))
                 }
                 disabled={saving}
-                className="w-full appearance-none rounded-lg border border-slate-300 bg-slate-50 py-2.5 pl-9 pr-10 text-sm text-slate-700 transition focus:border-[#00529B] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00529B] disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full appearance-none rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-10 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
 
                 <option value="">
@@ -238,44 +258,53 @@ function DepartmentModal({
 
               </select>
 
-              <svg
-                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-.02-1.06.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 1.04l-4.25-4.51a.75.75 0 01.02-1.06z"
-                  clipRule="evenodd"
-                />
-              </svg>
+              <ChevronDown
+                size={16}
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#4B5563]"
+              />
 
             </div>
 
+            {/* Assignment confirmation chip */}
+
+            {selectedKiosk && (
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[#F0DADA] bg-[#FBF1F1] px-2.5 py-1 text-xs font-medium text-[#9D0A0E]">
+                <MapPin size={12} />
+                Assigning to: {selectedKiosk.name}
+              </p>
+            )}
+
             {activeKiosks.length === 0 && (
-              <p className="mt-1.5 text-[11px] text-red-500">
+              <p className="mt-1.5 text-xs text-[#9D0A0E]">
                 No active kiosks are available. Please add or activate a kiosk first.
               </p>
             )}
 
             {!form.kiosk_id &&
               activeKiosks.length > 0 && (
-                <p className="mt-1.5 text-[11px] text-slate-400">
+                <p className="mt-1.5 text-xs text-[#4B5563]">
                   Select the kiosk where this department will be assigned.
                 </p>
               )}
 
           </div>
 
-          {/* DEPARTMENT NAME */}
+
+          {/* ----- DEPARTMENT NAME ----- */}
 
           <div>
 
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+            <label
+              htmlFor="department-name"
+              className="mb-1 block text-sm font-semibold text-[#1F2937]"
+            >
               Department Name
+              <span className="ml-0.5 text-[#9D0A0E]">*</span>
             </label>
 
             <input
+              id="department-name"
               type="text"
               value={form.department_name}
               onChange={(e) =>
@@ -289,35 +318,39 @@ function DepartmentModal({
                 !form.kiosk_id ||
                 saving
               }
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition placeholder:text-slate-400 focus:border-[#00529B] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00529B] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+              className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:cursor-not-allowed disabled:bg-[#F1F3F5] disabled:text-[#9CA3AF]"
               placeholder={
                 form.kiosk_id
-                  ? 'e.g. Laboratory'
+                  ? 'e.g. Laboratory, Pharmacy, Billing'
                   : 'Select a kiosk first'
               }
             />
 
             {!form.kiosk_id && (
-              <p className="mt-1.5 text-[11px] text-slate-400">
+              <p className="mt-1.5 text-xs text-[#4B5563]">
                 Department name becomes available after selecting a kiosk.
               </p>
             )}
 
           </div>
 
-          {/* PREFIX + STATUS */}
+
+          {/* ----- PREFIX + STATUS ----- */}
 
           <div className="grid grid-cols-2 gap-4">
 
-            {/* PREFIX */}
-
             <div>
 
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                Queue Prefix Code
+              <label
+                htmlFor="department-prefix"
+                className="mb-1 block text-sm font-semibold text-[#1F2937]"
+              >
+                Department Prefix
+                <span className="ml-0.5 text-[#9D0A0E]">*</span>
               </label>
 
               <input
+                id="department-prefix"
                 type="text"
                 value={form.prefix}
                 onChange={(e) =>
@@ -331,51 +364,61 @@ function DepartmentModal({
                   !form.kiosk_id ||
                   saving
                 }
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition placeholder:text-slate-400 focus:border-[#00529B] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00529B] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:cursor-not-allowed disabled:bg-[#F1F3F5] disabled:text-[#9CA3AF]"
                 placeholder="e.g. L or P"
               />
 
+              <p className="mt-1.5 text-xs text-[#4B5563]">
+                Tickets will show as{' '}
+                {form.prefix
+                  ? `${form.prefix}-001`
+                  : 'ML-001'}
+              </p>
+
             </div>
 
-            {/* STATUS */}
 
             <div>
 
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+              <label className="mb-1 block text-sm font-semibold text-[#1F2937]">
                 Status
               </label>
 
-              <select
-                value={form.status}
-                onChange={(e) =>
-                  setForm((current) => ({
-                    ...current,
-                    status:
-                      e.target.value,
-                  }))
-                }
-                disabled={
-                  !form.kiosk_id ||
-                  saving
-                }
-                className="w-full appearance-none rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-[#00529B] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#00529B] disabled:cursor-not-allowed disabled:opacity-60"
-              >
+              <div className="inline-flex rounded-lg border border-[#E5E7EB] p-1">
+                {STATUS_OPTIONS.map((status) => {
+                  const isSelected =
+                    form.status === status;
 
-                {STATUS_OPTIONS.map(
-                  (status) => (
-                    <option
+                  const isDisabled =
+                    !form.kiosk_id || saving;
+
+                  return (
+                    <button
                       key={status}
-                      value={status}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          status: status,
+                        }))
+                      }
+                      aria-pressed={isSelected}
+                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium capitalize transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                        isSelected
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'text-[#4B5563] hover:bg-[#F1F3F5]'
+                      }`}
                     >
-                      {status
-                        .charAt(0)
-                        .toUpperCase() +
-                        status.slice(1)}
-                    </option>
-                  )
-                )}
+                      {isSelected && (
+                        <Check size={14} />
+                      )}
 
-              </select>
+                      {status}
+                    </button>
+                  );
+                })}
+              </div>
 
             </div>
 
@@ -383,15 +426,18 @@ function DepartmentModal({
 
         </div>
 
-        {/* FOOTER */}
 
-        <div className="flex items-center justify-end gap-3 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-4">
+        {/* ===================================================
+            FOOTER
+        =================================================== */}
+
+        <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
 
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
+            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-40"
           >
             Cancel
           </button>
@@ -404,7 +450,7 @@ function DepartmentModal({
               !form.kiosk_id ||
               !form.department_name.trim()
             }
-            className="flex items-center gap-2 rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving
               ? 'Saving...'
@@ -440,16 +486,16 @@ function ResetPinModal({
 
       <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
 
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
 
-          <h2 className="text-lg font-bold text-slate-700">
+          <h2 className="text-lg font-bold text-[#1F2937]">
             Reset Department
           </h2>
 
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 transition hover:text-slate-600"
+            className="text-[#4B5563] transition hover:text-[#4B5563]"
             aria-label="Close"
           >
             <X size={18} />
@@ -461,11 +507,11 @@ function ResetPinModal({
 
           <div>
 
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-[#4B5563]">
               Enter the administrator PIN to reset this department.
             </p>
 
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-[#4B5563]">
               This action only resets the current frontend queue display.
             </p>
 
@@ -473,7 +519,7 @@ function ResetPinModal({
 
           <div>
 
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+            <label className="mb-1.5 block text-xs font-semibold text-[#4B5563]">
               Admin PIN
             </label>
 
@@ -492,7 +538,7 @@ function ResetPinModal({
                 setPinInput(value);
               }}
               placeholder="Enter 4-digit PIN"
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+              className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
               autoFocus
             />
 
@@ -500,12 +546,12 @@ function ResetPinModal({
 
         </div>
 
-        <div className="flex items-center justify-end gap-3 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-4">
+        <div className="flex items-center justify-end gap-3 rounded-b-xl border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
           >
             Cancel
           </button>
@@ -516,7 +562,7 @@ function ResetPinModal({
             disabled={
               pinInput.length !== 4
             }
-            className="rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
           >
             Verify PIN
           </button>
@@ -1822,11 +1868,11 @@ export default function DepartmentCrud() {
 
         <div>
 
-          <h1 className="text-2xl font-bold text-slate-800">
+          <h1 className="text-2xl font-bold text-[#1F2937]">
             Department Management
           </h1>
 
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-[#4B5563]">
             Configure departments and associate them with hospital kiosks.
           </p>
 
@@ -1840,7 +1886,7 @@ export default function DepartmentCrud() {
             disabled={
               loadingKiosks
             }
-            className="flex items-center gap-1.5 rounded-md bg-[#00529B] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
           >
 
             <Plus size={15} />
@@ -1877,29 +1923,29 @@ export default function DepartmentCrud() {
 
         {/* DEPARTMENT */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
               DEPARTMENT
             </span>
 
             <Building2
               size={18}
-              className="text-slate-600"
+              className="text-[#4B5563]"
             />
 
           </div>
 
           <div className="mt-3">
 
-            <p className="text-2xl font-bold text-slate-800">
+            <p className="text-2xl font-bold text-[#1F2937]">
               {activeDepts}/
               {totalDepts}
             </p>
 
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
               ACTIVE DEPARTMENTS
             </p>
 
@@ -1909,28 +1955,28 @@ export default function DepartmentCrud() {
 
         {/* TOTAL WAITING */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
               TOTAL WAITING
             </span>
 
             <Users
               size={18}
-              className="text-slate-600"
+              className="text-[#4B5563]"
             />
 
           </div>
 
           <div className="mt-3">
 
-            <p className="text-2xl font-bold text-slate-800">
+            <p className="text-2xl font-bold text-[#1F2937]">
               {totalWaiting}
             </p>
 
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
               ACROSS ALL DEPARTMENTS
             </p>
 
@@ -1940,28 +1986,28 @@ export default function DepartmentCrud() {
 
         {/* AVERAGE WAIT */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
               AVERAGE WAIT
             </span>
 
             <Clock
               size={18}
-              className="text-slate-600"
+              className="text-[#4B5563]"
             />
 
           </div>
 
           <div className="mt-3">
 
-            <p className="text-2xl font-bold text-slate-800">
+            <p className="text-2xl font-bold text-[#1F2937]">
               {averageWait}m
             </p>
 
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
               AVERAGE WAIT TIME
             </p>
 
@@ -1971,30 +2017,30 @@ export default function DepartmentCrud() {
 
         {/* TERMINAL */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
               TERMINAL
             </span>
 
             <Monitor
               size={18}
-              className="text-slate-600"
+              className="text-[#4B5563]"
             />
 
           </div>
 
           <div className="mt-3">
 
-            <p className="text-2xl font-bold text-slate-800">
+            <p className="text-2xl font-bold text-[#1F2937]">
               {loadingCounters
                 ? '...'
                 : totalActiveTerminals}
             </p>
 
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
               ACTIVE TERMINALS
             </p>
 
@@ -2008,13 +2054,13 @@ export default function DepartmentCrud() {
           DEPARTMENT OVERVIEW
       ===================================================== */}
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
 
         {/* HEADER */}
 
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
 
-          <h2 className="text-base font-bold text-slate-800">
+          <h2 className="text-base font-bold text-[#1F2937]">
             Department Overview
           </h2>
 
@@ -2029,12 +2075,12 @@ export default function DepartmentCrud() {
                   e.target.value
                 )
               }
-              className="w-full rounded-full border border-slate-200 bg-slate-50/50 py-2 pl-4 pr-10 text-xs text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none"
+              className="w-full rounded-full border border-[#E5E7EB] bg-[#F8F9FA] py-2 pl-4 pr-10 text-xs text-[#1F2937] placeholder-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
             />
 
             <Search
               size={15}
-              className="absolute right-3.5 top-2.5 text-slate-400"
+              className="absolute right-3.5 top-2.5 text-[#4B5563]"
             />
 
           </div>
@@ -2049,7 +2095,7 @@ export default function DepartmentCrud() {
 
             <thead>
 
-              <tr className="border-b border-slate-100 bg-[#F8FAFC] text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              <tr className="border-b border-[#E5E7EB] bg-[#FBF1F1] text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
 
                 <th className="px-6 py-3.5">
                   DEPARTMENT
@@ -2087,7 +2133,7 @@ export default function DepartmentCrud() {
 
             </thead>
 
-            <tbody className="divide-y divide-slate-100 text-slate-600">
+            <tbody className="divide-y divide-[#F1F3F5] text-[#4B5563]">
 
               {/* LOADING */}
 
@@ -2096,7 +2142,7 @@ export default function DepartmentCrud() {
 
                   <td
                     colSpan={8}
-                    className="px-6 py-8 text-center text-slate-400"
+                    className="px-6 py-8 text-center text-[#4B5563]"
                   >
                     Loading departments from backend...
                   </td>
@@ -2113,7 +2159,7 @@ export default function DepartmentCrud() {
 
                     <td
                       colSpan={8}
-                      className="px-6 py-8 text-center text-slate-400"
+                      className="px-6 py-8 text-center text-[#4B5563]"
                     >
                       No departments found matching your search.
                     </td>
@@ -2135,12 +2181,12 @@ export default function DepartmentCrud() {
                           department
                         )
                       }
-                      className="cursor-pointer transition-colors hover:bg-slate-50"
+                      className="cursor-pointer transition-colors hover:bg-[#F8F9FA]"
                     >
 
                       {/* DEPARTMENT */}
 
-                      <td className="px-6 py-4 font-semibold text-slate-800">
+                      <td className="px-6 py-4 font-semibold text-[#1F2937]">
                         {
                           department.department_name
                         }
@@ -2154,15 +2200,15 @@ export default function DepartmentCrud() {
 
                           <Monitor
                             size={14}
-                            className="text-slate-400"
+                            className="text-[#4B5563]"
                           />
 
                           <span
                             className={
                               department.kiosk_name ===
                               'Unassigned'
-                                ? 'text-slate-400'
-                                : 'font-medium text-slate-600'
+                                ? 'text-[#4B5563]'
+                                : 'font-medium text-[#4B5563]'
                             }
                           >
                             {
@@ -2176,7 +2222,7 @@ export default function DepartmentCrud() {
 
                       {/* WAITING */}
 
-                      <td className="px-6 py-4 text-center text-slate-700">
+                      <td className="px-6 py-4 text-center text-[#1F2937]">
                         {
                           department.waiting
                         }
@@ -2184,7 +2230,7 @@ export default function DepartmentCrud() {
 
                       {/* CURRENT QUEUE */}
 
-                      <td className="px-6 py-4 text-center font-medium text-slate-700">
+                      <td className="px-6 py-4 text-center font-medium text-[#1F2937]">
                         {
                           department.current_queue
                         }
@@ -2192,7 +2238,7 @@ export default function DepartmentCrud() {
 
                       {/* ACTIVE TERMINALS */}
 
-                      <td className="px-6 py-4 text-center text-slate-600">
+                      <td className="px-6 py-4 text-center text-[#4B5563]">
                         {
                           department.active_terminals
                         }
@@ -2200,7 +2246,7 @@ export default function DepartmentCrud() {
 
                       {/* AVG WAIT */}
 
-                      <td className="px-6 py-4 text-center text-slate-600">
+                      <td className="px-6 py-4 text-center text-[#4B5563]">
                         {
                           department.avg_wait
                         }
@@ -2214,8 +2260,8 @@ export default function DepartmentCrud() {
                           className={
                             department.status ===
                             'active'
-                              ? 'font-medium text-slate-800'
-                              : 'font-medium text-slate-500'
+                              ? 'font-medium text-[#1F2937]'
+                              : 'font-medium text-[#4B5563]'
                           }
                         >
                           {String(
@@ -2265,7 +2311,7 @@ export default function DepartmentCrud() {
                             );
 
                           }}
-                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                          className="rounded-md border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
                         >
                           Reset
                         </button>
@@ -2284,7 +2330,7 @@ export default function DepartmentCrud() {
 
         {/* PAGINATION */}
 
-        <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 text-xs text-slate-500">
+        <div className="flex items-center justify-between border-t border-[#E5E7EB] px-6 py-4 text-xs text-[#4B5563]">
 
           <span>
 
@@ -2318,7 +2364,7 @@ export default function DepartmentCrud() {
                 currentPage ===
                 1
               }
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-50"
+              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:text-[#4B5563] disabled:opacity-50"
             >
               Prev
             </button>
@@ -2342,11 +2388,11 @@ export default function DepartmentCrud() {
                       ? 'page'
                       : undefined
                   }
-                  className={`rounded-md border border-slate-200 px-3 py-1 transition ${
+                  className={`rounded-md border px-3 py-1 transition ${
                     number ===
                     currentPage
-                      ? 'bg-white font-semibold text-slate-700 shadow-sm'
-                      : 'bg-white text-slate-500 hover:bg-slate-50'
+                      ? 'border-[#9D0A0E] bg-[#9D0A0E] font-semibold text-white'
+                      : 'border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#F1F3F5]'
                   }`}
                 >
                   {number}
@@ -2368,7 +2414,7 @@ export default function DepartmentCrud() {
                 currentPage ===
                 totalPages
               }
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-50"
+              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:text-[#4B5563] disabled:opacity-50"
             >
               Next
             </button>
@@ -2383,15 +2429,15 @@ export default function DepartmentCrud() {
           DEPARTMENT VOLUME
       ===================================================== */}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
 
-        <h2 className="text-base font-bold text-slate-800">
+        <h2 className="text-base font-bold text-[#1F2937]">
           Department Volume
         </h2>
 
-        <div className="mt-4 flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
+        <div className="mt-4 flex h-32 items-center justify-center rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8F9FA]">
 
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-[#4B5563]">
             Department volume charts and activity logs will render here.
           </p>
 

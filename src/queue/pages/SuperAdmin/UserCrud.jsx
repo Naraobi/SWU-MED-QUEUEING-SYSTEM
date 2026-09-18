@@ -7,7 +7,9 @@ import {
   Contact,
   UserCheck,
   Monitor,
-  Plus,
+  X,
+  Lock,
+  Check,
 } from 'lucide-react';
 
 import {
@@ -371,528 +373,619 @@ function UserModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
 
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
-        {/* HEADER */}
+        {/* ===================================================
+            HEADER
+        =================================================== */}
 
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
 
-          <h2 className="text-lg font-bold text-slate-700">
-            {isEditing
-              ? 'Edit User'
-              : 'Add New User'}
-          </h2>
+          <div>
+            <h2 className="text-lg font-bold text-[#1F2937]">
+              {isEditing
+                ? 'Edit User'
+                : 'Add New User'}
+            </h2>
+
+            <p className="mt-1 text-xs text-[#4B5563]">
+              {isEditing
+                ? 'Update user information and account settings.'
+                : 'Fields marked * are required.'}
+            </p>
+          </div>
 
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="font-bold text-slate-400 hover:text-slate-600 disabled:opacity-40"
+            className="rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30 disabled:opacity-40"
             aria-label="Close"
           >
-            ✕
+            <X size={18} />
           </button>
 
         </div>
 
 
-        {/* FORM */}
+        {/* ===================================================
+            FORM
+        =================================================== */}
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
 
-          {/* NAME */}
+          {/* ----- PERSONAL INFO ----- */}
 
-          <div className="grid grid-cols-2 gap-4">
+          <FormSection title="Personal Info">
 
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                First Name
-              </label>
+            <div className="flex items-end gap-3">
 
-              <input
-                type="text"
-                value={form.first_name}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    first_name:
-                      event.target.value,
-                  })
-                }
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                placeholder="Enter first name"
-              />
-            </div>
+              <div className="flex-1">
+                <FieldLabel required>First Name</FieldLabel>
 
-
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                Last Name
-              </label>
-
-              <input
-                type="text"
-                value={form.last_name}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    last_name:
-                      event.target.value,
-                  })
-                }
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                placeholder="Enter last name"
-              />
-            </div>
-
-          </div>
-
-
-          {/* MI / CONTACT */}
-
-          <div className="grid grid-cols-2 gap-4">
-
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                M.I.
-              </label>
-
-              <input
-                type="text"
-                maxLength="2"
-                value={form.mi}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    mi: event.target.value,
-                  })
-                }
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                placeholder="Enter M.I."
-              />
-            </div>
-
-
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                Contact Number
-              </label>
-
-              <input
-                type="text"
-                value={form.contact_number}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    contact_number:
-                      event.target.value,
-                  })
-                }
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                placeholder="Enter number"
-              />
-            </div>
-
-          </div>
-
-
-          {/* EMAIL */}
-
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-              Email Address
-            </label>
-
-            <input
-              type="email"
-              value={form.email}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  email:
-                    event.target.value,
-                })
-              }
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-              placeholder="Enter email"
-            />
-          </div>
-
-
-          {/* ROLE / POSITION */}
-
-          <div className="grid grid-cols-2 gap-4">
-
-            <div>
-              <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-600">
-                <span>Select Role</span>
-                <Plus size={12} />
-              </label>
-
-              <select
-                value={form.role}
-                onChange={handleRoleChange}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-              >
-                <option value="" disabled>
-                  Select role
-                </option>
-
-                {roleOptions.map((role) => (
-                  <option
-                    key={
-                      role.id ??
-                      role.name
-                    }
-                    value={role.name}
-                  >
-                    {role.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-                Select Position
-              </label>
-
-              <select
-                value={form.position ?? ''}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    position:
-                      event.target.value === ''
-                        ? null
-                        : event.target.value,
-                  })
-                }
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-              >
-                {POSITION_OPTIONS.map(
-                  (position) => (
-                    <option
-                      key={position.label}
-                      value={
-                        position.value ?? ''
-                      }
-                    >
-                      {position.label}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-          </div>
-
-
-          {/* KIOSK */}
-
-          <div>
-            <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-600">
-
-              <span>Select Kiosk</span>
-
-              <button
-                type="button"
-                disabled={isSuperadmin}
-                className="flex items-center justify-center text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:text-slate-300"
-                title="Add kiosk"
-              >
-                <Plus size={12} />
-              </button>
-
-            </label>
-
-
-            <select
-              value={
-                isSuperadmin
-                  ? 'Whole'
-                  : form.kiosk_id ??
-                    'Select Kiosk'
-              }
-              disabled={isSuperadmin}
-              onChange={handleKioskChange}
-              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition ${
-                isSuperadmin
-                  ? 'cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500'
-                  : 'border-slate-300 bg-slate-50 text-slate-700 focus:border-blue-500 focus:bg-white'
-              }`}
-            >
-
-              {isSuperadmin ? (
-                <option value="Whole">
-                  Whole
-                </option>
-              ) : (
-                <>
-                  <option value="Select Kiosk">
-                    Select Kiosk
-                  </option>
-
-                  {kioskOptions.map(
-                    (kiosk) => (
-                      <option
-                        key={kiosk.id}
-                        value={kiosk.id}
-                      >
-                        {kiosk.name}
-                      </option>
-                    )
-                  )}
-                </>
-              )}
-
-            </select>
-
-
-            {isSuperadmin && (
-              <p className="mt-1 text-[10px] text-slate-400">
-                Superadmin oversees all kiosks.
-              </p>
-            )}
-
-          </div>
-
-
-          {/* DEPARTMENT */}
-
-          <div>
-
-            <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-slate-600">
-
-              <span>Select Department</span>
-
-              <button
-                type="button"
-                onClick={onAddDepartment}
-                disabled={isSuperadmin}
-                className="flex items-center justify-center text-slate-500 hover:text-blue-600 disabled:cursor-not-allowed disabled:text-slate-300"
-                title="Add department"
-              >
-                <Plus size={12} />
-              </button>
-
-            </label>
-
-
-            <select
-              value={
-                isSuperadmin
-                  ? 'Whole'
-                  : form.department_id ??
-                    'Select Department'
-              }
-              disabled={
-                isSuperadmin ||
-                !form.kiosk_id
-              }
-              onChange={handleDepartmentChange}
-              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition ${
-                isSuperadmin ||
-                !form.kiosk_id
-                  ? 'cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500'
-                  : 'border-slate-300 bg-slate-50 text-slate-700 focus:border-blue-500 focus:bg-white'
-              }`}
-            >
-
-              {isSuperadmin ? (
-                <option value="Whole">
-                  Whole
-                </option>
-              ) : (
-                <>
-                  <option value="Select Department">
-                    Select Department
-                  </option>
-
-                  {departmentOptions.map(
-                    (department) => (
-                      <option
-                        key={department.id}
-                        value={department.id}
-                      >
-                        {department.name}
-                      </option>
-                    )
-                  )}
-                </>
-              )}
-
-            </select>
-
-
-            {!isSuperadmin &&
-              !form.kiosk_id && (
-                <p className="mt-1 text-[10px] text-slate-400">
-                  Select a kiosk first to view its departments.
-                </p>
-              )}
-
-
-            {isSuperadmin && (
-              <p className="mt-1 text-[10px] text-slate-400">
-                Superadmin oversees all departments.
-              </p>
-            )}
-
-          </div>
-
-
-          {/* STATUS */}
-
-          <div>
-
-            <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-              Status
-            </label>
-
-            <select
-              value={form.status}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  status:
-                    event.target.value,
-                })
-              }
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-            >
-              {STATUS_OPTIONS.map(
-                (status) => (
-                  <option
-                    key={status}
-                    value={status}
-                  >
-                    {status}
-                  </option>
-                )
-              )}
-            </select>
-
-          </div>
-
-
-        </div>
-
-
-        {/* DELETE SECTION */}
-
-        {isEditing && (
-          <div className="border-t border-slate-100 bg-red-50/40 px-6 py-4">
-
-            {showDeletePrompt ? (
-
-              <div className="space-y-3">
-
-                <label className="block text-xs font-semibold text-red-700">
-                  Reason for deletion
-                </label>
-
-                <textarea
-                  value={deleteReason}
+                <input
+                  type="text"
+                  value={form.first_name}
                   onChange={(event) =>
-                    setDeleteReason(
-                      event.target.value
-                    )
+                    setForm({
+                      ...form,
+                      first_name:
+                        event.target.value,
+                    })
                   }
-                  rows={3}
-                  placeholder="Enter the reason this user is being deleted..."
-                  className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-red-400 focus:outline-none"
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="Enter first name"
                 />
+              </div>
 
-                <div className="flex items-center justify-end gap-3">
+              <div className="w-20 shrink-0">
+                <FieldLabel>M.I.</FieldLabel>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowDeletePrompt(false);
-                      setDeleteReason('');
-                    }}
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
+                <input
+                  type="text"
+                  maxLength="2"
+                  value={form.mi}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      mi: event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="Enter M.I"
+                />
+              </div>
 
-                  <button
-                    type="button"
-                    onClick={onDeleteUser}
-                    disabled={
-                      saving ||
-                      !deleteReason.trim()
-                    }
-                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {saving
-                      ? 'Deleting...'
-                      : 'Final Delete'}
-                  </button>
+              <div className="flex-1">
+                <FieldLabel required>Last Name</FieldLabel>
 
+                <input
+                  type="text"
+                  value={form.last_name}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      last_name:
+                        event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="Enter last name"
+                />
+              </div>
+
+            </div>
+
+          </FormSection>
+
+
+          {/* ----- CONTACT ----- */}
+
+          <FormSection title="Contact">
+
+            <div className="grid grid-cols-2 gap-4">
+
+              <div>
+                <FieldLabel required>Contact Number</FieldLabel>
+
+                <input
+                  type="text"
+                  value={form.contact_number}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      contact_number:
+                        event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="09XX XXX XXXX"
+                />
+              </div>
+
+              <div>
+                <FieldLabel required>Email Address</FieldLabel>
+
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      email:
+                        event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="name@gmail.com"
+                />
+              </div>
+
+            </div>
+
+          </FormSection>
+
+
+          {/* ----- ASSIGNMENT ----- */}
+
+          <FormSection title="Assignment">
+
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+
+              {/* ROLE */}
+
+              <div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <FieldLabel required>Role</FieldLabel>
+
+                  <span className="text-xs font-semibold text-[#9D0A0E]">
+                    + Add role
+                  </span>
                 </div>
 
-              </div>
-
-            ) : (
-
-              <div className="flex items-center justify-end">
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowDeletePrompt(true)
-                  }
-                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                <select
+                  value={form.role}
+                  onChange={handleRoleChange}
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
                 >
-                  Delete User
-                </button>
+                  <option value="" disabled>
+                    Select role
+                  </option>
 
+                  {roleOptions.map((role) => (
+                    <option
+                      key={
+                        role.id ??
+                        role.name
+                      }
+                      value={role.name}
+                    >
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
+
+              {/* POSITION */}
+
+              <div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <FieldLabel required>Position</FieldLabel>
+                </div>
+
+                <select
+                  value={form.position ?? ''}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      position:
+                        event.target.value === ''
+                          ? null
+                          : event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                >
+                  {POSITION_OPTIONS.map(
+                    (position) => (
+                      <option
+                        key={position.label}
+                        value={
+                          position.value ?? ''
+                        }
+                      >
+                        {position.label}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+
+              {/* KIOSK */}
+
+              <div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <FieldLabel required>Kiosk</FieldLabel>
+
+                  <span
+                    className={`text-xs font-semibold ${
+                      isSuperadmin
+                        ? 'text-[#9CA3AF]'
+                        : 'text-[#9D0A0E]'
+                    }`}
+                  >
+                    + Add kiosk
+                  </span>
+                </div>
+
+                <select
+                  value={
+                    isSuperadmin
+                      ? 'Whole'
+                      : form.kiosk_id ??
+                        'Select Kiosk'
+                  }
+                  disabled={isSuperadmin}
+                  onChange={handleKioskChange}
+                  className={
+                    isSuperadmin
+                      ? 'w-full cursor-not-allowed rounded-lg border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2 text-sm text-[#9CA3AF]'
+                      : 'w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20'
+                  }
+                >
+
+                  {isSuperadmin ? (
+                    <option value="Whole">
+                      Whole
+                    </option>
+                  ) : (
+                    <>
+                      <option value="Select Kiosk">
+                        Select kiosk
+                      </option>
+
+                      {kioskOptions.map(
+                        (kiosk) => (
+                          <option
+                            key={kiosk.id}
+                            value={kiosk.id}
+                          >
+                            {kiosk.name}
+                          </option>
+                        )
+                      )}
+                    </>
+                  )}
+
+                </select>
+
+                {isSuperadmin && (
+                  <p className="mt-1.5 text-xs text-[#4B5563]">
+                    Superadmin oversees all kiosks.
+                  </p>
+                )}
+              </div>
+
+
+              {/* DEPARTMENT */}
+
+              <div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <FieldLabel required>Department</FieldLabel>
+
+                  <button
+                    type="button"
+                    onClick={onAddDepartment}
+                    disabled={isSuperadmin}
+                    className="text-xs font-semibold text-[#9D0A0E] transition hover:underline disabled:cursor-not-allowed disabled:text-[#9CA3AF] disabled:no-underline"
+                  >
+                    + Add department
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <select
+                    value={
+                      isSuperadmin
+                        ? 'Whole'
+                        : form.department_id ??
+                          'Select Department'
+                    }
+                    disabled={
+                      isSuperadmin ||
+                      !form.kiosk_id
+                    }
+                    onChange={handleDepartmentChange}
+                    className={
+                      isSuperadmin ||
+                      !form.kiosk_id
+                        ? 'w-full cursor-not-allowed rounded-lg border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2 text-sm text-[#9CA3AF] pr-9'
+                        : 'w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20'
+                    }
+                  >
+
+                    {isSuperadmin ? (
+                      <option value="Whole">
+                        Whole
+                      </option>
+                    ) : (
+                      <>
+                        <option value="Select Department">
+                          {form.kiosk_id
+                            ? 'Select Department'
+                            : 'Select a kiosk first'}
+                        </option>
+
+                        {departmentOptions.map(
+                          (department) => (
+                            <option
+                              key={department.id}
+                              value={department.id}
+                            >
+                              {department.name}
+                            </option>
+                          )
+                        )}
+                      </>
+                    )}
+
+                  </select>
+
+                  {!isSuperadmin &&
+                    !form.kiosk_id && (
+                      <Lock
+                        size={14}
+                        aria-hidden="true"
+                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]"
+                      />
+                    )}
+                </div>
+
+                {isSuperadmin && (
+                  <p className="mt-1.5 text-xs text-[#4B5563]">
+                    Superadmin oversees all departments.
+                  </p>
+                )}
+              </div>
+
+            </div>
+
+
+            {/* STATUS */}
+
+            <div className="mt-3">
+              <FieldLabel>Status</FieldLabel>
+
+              <div className="inline-flex rounded-lg border border-[#E5E7EB] p-1">
+                {STATUS_OPTIONS.map((status) => {
+                  const isSelected =
+                    form.status === status;
+
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          status: status,
+                        })
+                      }
+                      aria-pressed={isSelected}
+                      className={`flex items-center gap-1.5 rounded-md px-4 py-1 text-sm font-medium transition ${
+                        isSelected
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'text-[#4B5563] hover:bg-[#F1F3F5]'
+                      }`}
+                    >
+                      {isSelected && (
+                        <Check size={14} />
+                      )}
+
+                      {status}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+          </FormSection>
+
+
+        </div>
+
+
+        {/* ===================================================
+            FOOTER
+        =================================================== */}
+
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-3">
+
+          <div>
+            {isEditing && (
+              <button
+                type="button"
+                onClick={() =>
+                  setShowDeletePrompt(true)
+                }
+                className="rounded-lg border border-[#F0DADA] bg-white px-4 py-2 text-sm font-semibold text-[#9D0A0E] transition hover:bg-[#FBF1F1]"
+              >
+                Delete User
+              </button>
             )}
+          </div>
+
+          <div className="flex items-center gap-3">
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-40"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={
+                saving ||
+                !form.first_name.trim() ||
+                !form.last_name.trim() ||
+                !form.email.trim()  }
+              className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {saving
+                ? 'Saving...'
+                : isEditing
+                  ? 'Save Changes'
+                  : 'Add User'}
+            </button>
 
           </div>
-        )}
-
-
-        {/* FOOTER */}
-
-        <div className="sticky bottom-0 flex shrink-0 items-center justify-end gap-3 rounded-b-xl border-t border-slate-100 bg-slate-50 px-6 py-4">
-
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-          >
-            Cancel
-          </button>
-
-
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={
-              saving ||
-              !form.first_name.trim() ||
-              !form.last_name.trim() ||
-              !form.email.trim()  }
-            className="flex items-center gap-2 rounded-lg bg-[#00529B] px-5 py-2 text-sm font-medium text-white hover:bg-[#003F75] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {saving
-              ? 'Saving...'
-              : isEditing
-                ? 'Save Changes'
-                : '+ Add User'}
-          </button>
 
         </div>
 
       </div>
+
+
+      {/* ===================================================
+          DELETE USER DIALOG
+      =================================================== */}
+
+      {isEditing && showDeletePrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 px-4">
+
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+
+            <div className="relative px-8 pb-6 pt-8 text-center">
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeletePrompt(false);
+                  setDeleteReason('');
+                }}
+                className="absolute right-5 top-5 rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+
+              <h2 className="text-xl font-bold text-[#1F2937]">
+                Delete User
+              </h2>
+
+              <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#4B5563]">
+                This action will remove this user&rsquo;s account from the system.
+                Please provide a reason before continuing.
+              </p>
+
+            </div>
+
+
+            <div className="px-8 pb-6 text-left">
+
+              <label
+                htmlFor="delete-reason"
+                className="mb-2 block text-sm font-semibold text-[#1F2937]"
+              >
+                Reason for Deletion
+                <span className="ml-0.5 text-[#9D0A0E]">*</span>
+              </label>
+
+              <textarea
+                id="delete-reason"
+                value={deleteReason}
+                onChange={(event) =>
+                  setDeleteReason(
+                    event.target.value
+                  )
+                }
+                rows={4}
+                placeholder="Enter reason for deletion"
+                className="w-full resize-none rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+              />
+
+            </div>
+
+
+            <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-8 py-4">
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeletePrompt(false);
+                  setDeleteReason('');
+                }}
+                disabled={saving}
+                className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-40"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={onDeleteUser}
+                disabled={
+                  saving ||
+                  !deleteReason.trim()
+                }
+                className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {saving
+                  ? 'Deleting...'
+                  : 'Delete User'}
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
     </div>
+  );
+}
+
+
+/* =========================================================
+   MODAL SUB-COMPONENTS
+========================================================= */
+
+function FormSection({ title, children }) {
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
+          {title}
+        </span>
+
+        <span
+          aria-hidden="true"
+          className="h-px flex-1 bg-[#E5E7EB]"
+        />
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
+
+function FieldLabel({ children, required }) {
+  return (
+    <label className="mb-1 block text-sm font-semibold text-[#1F2937]">
+      {children}
+
+      {required && (
+        <span className="ml-0.5 text-[#9D0A0E]">*</span>
+      )}
+    </label>
   );
 }
 
@@ -2228,11 +2321,11 @@ export default function UserCrud({
 
         <div>
 
-          <h1 className="text-2xl font-bold text-slate-800">
+          <h1 className="text-2xl font-bold text-[#1F2937]">
             User Management
           </h1>
 
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-[#4B5563]">
             Manage system users, roles, and department assignments.
           </p>
 
@@ -2242,7 +2335,7 @@ export default function UserCrud({
         <button
           type="button"
           onClick={openAdd}
-          className="flex items-center gap-1.5 rounded-md bg-[#00529B] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003F75]"
+          className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B]"
         >
           <span className="text-sm leading-none">
             +
@@ -2257,7 +2350,7 @@ export default function UserCrud({
       {/* ERROR */}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-4 py-3 text-sm text-[#9D0A0E]">
           {error}
         </div>
       )}
@@ -2316,11 +2409,11 @@ export default function UserCrud({
 
       {/* USERS */}
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
 
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
 
-          <h2 className="text-base font-bold text-slate-800">
+          <h2 className="text-base font-bold text-[#1F2937]">
             Users
           </h2>
 
@@ -2336,12 +2429,12 @@ export default function UserCrud({
                   event.target.value
                 )
               }
-              className="w-full rounded-full border border-slate-200 bg-slate-50/50 py-2 pl-4 pr-10 text-xs text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none"
+              className="w-full rounded-full border border-[#E5E7EB] bg-[#F8F9FA] py-2 pl-4 pr-10 text-xs text-[#1F2937] placeholder-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
             />
 
             <Search
               size={15}
-              className="absolute right-3.5 top-2.5 text-slate-400"
+              className="absolute right-3.5 top-2.5 text-[#4B5563]"
             />
 
           </div>
@@ -2355,7 +2448,7 @@ export default function UserCrud({
 
             <thead>
 
-              <tr className="border-b border-slate-100 bg-[#F8FAFC] text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              <tr className="border-b border-[#E5E7EB] bg-[#FBF1F1] text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
 
                 <th className="px-6 py-3.5">
                   FULL NAME
@@ -2382,14 +2475,14 @@ export default function UserCrud({
             </thead>
 
 
-            <tbody className="divide-y divide-slate-100 text-slate-600">
+            <tbody className="divide-y divide-[#F1F3F5] text-[#4B5563]">
 
               {loading && (
                 <tr>
 
                   <td
                     colSpan={5}
-                    className="px-6 py-8 text-center text-slate-400"
+                    className="px-6 py-8 text-center text-[#4B5563]"
                   >
                     Loading users...
                   </td>
@@ -2404,7 +2497,7 @@ export default function UserCrud({
 
                     <td
                       colSpan={5}
-                      className="px-6 py-8 text-center text-slate-400"
+                      className="px-6 py-8 text-center text-[#4B5563]"
                     >
                       No users found matching your criteria.
                     </td>
@@ -2421,24 +2514,24 @@ export default function UserCrud({
                       onClick={() =>
                         openEdit(user)
                       }
-                      className="cursor-pointer transition-colors hover:bg-slate-50"
+                      className="cursor-pointer transition-colors hover:bg-[#F8F9FA]"
                     >
 
-                      <td className="px-6 py-4 font-medium text-slate-800">
+                      <td className="px-6 py-4 font-semibold text-[#1F2937]">
                         {user.first_name}{' '}
                         {user.last_name}
                       </td>
 
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-6 py-4 text-[#4B5563]">
                         {user.email}
                       </td>
 
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-6 py-4 text-[#4B5563]">
                         {user.department ||
                           'Whole'}
                       </td>
 
-                      <td className="px-6 py-4 capitalize text-slate-600">
+                      <td className="px-6 py-4 capitalize text-[#4B5563]">
                         {normalizeRole(
                           user.role
                         )}
@@ -2447,13 +2540,23 @@ export default function UserCrud({
                       <td className="px-6 py-4">
 
                         <span
-                          className={`text-[11px] font-semibold ${
+                          className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${
                             user.status ===
                             'Active'
-                              ? 'text-slate-700'
-                              : 'text-slate-400'
+                              ? 'text-emerald-600'
+                              : 'text-[#4B5563]'
                           }`}
                         >
+                          <span
+                            aria-hidden="true"
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              user.status ===
+                              'Active'
+                                ? 'bg-emerald-500'
+                                : 'bg-[#9CA3AF]'
+                            }`}
+                          />
+
                           {user.status}
                         </span>
 
@@ -2472,7 +2575,7 @@ export default function UserCrud({
 
         {/* PAGINATION */}
 
-        <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4 text-xs text-slate-500">
+        <div className="flex items-center justify-between border-t border-[#E5E7EB] px-6 py-4 text-xs text-[#4B5563]">
 
           <span>
             {filteredUsers.length === 0
@@ -2504,7 +2607,7 @@ export default function UserCrud({
               disabled={
                 currentPage === 1
               }
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-50"
+              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Prev
             </button>
@@ -2526,11 +2629,11 @@ export default function UserCrud({
                     ? 'page'
                     : undefined
                 }
-                className={`rounded-md border border-slate-200 px-3 py-1 transition ${
+                className={`rounded-md border px-3 py-1 transition ${
                   number ===
                   currentPage
-                    ? 'bg-white font-semibold text-slate-700 shadow-sm'
-                    : 'bg-white text-slate-500 hover:bg-slate-50'
+                    ? 'border-[#9D0A0E] bg-[#9D0A0E] font-semibold text-white'
+                    : 'border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#F1F3F5]'
                 }`}
               >
                 {number}
@@ -2553,7 +2656,7 @@ export default function UserCrud({
                 currentPage ===
                 totalPages
               }
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:opacity-50"
+              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
             </button>
@@ -2572,7 +2675,7 @@ export default function UserCrud({
 
           <div className="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-2xl">
 
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
 
               <span className="text-xl font-bold">
                 !
@@ -2581,12 +2684,12 @@ export default function UserCrud({
             </div>
 
 
-            <h3 className="mt-4 text-lg font-bold text-slate-800">
+            <h3 className="mt-4 text-lg font-bold text-[#1F2937]">
               Duplicate User
             </h3>
 
 
-            <p className="mt-2 text-sm leading-6 text-slate-500">
+            <p className="mt-2 text-sm leading-6 text-[#4B5563]">
               This email address is already registered. Please use a different email address.
             </p>
 
@@ -2596,7 +2699,7 @@ export default function UserCrud({
               onClick={() =>
                 setDuplicatePopup(false)
               }
-              className="mt-5 w-full rounded-lg bg-[#00529B] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#003F75]"
+              className="mt-5 w-full rounded-lg bg-[#9D0A0E] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B]"
             >
               OK
             </button>
@@ -2649,15 +2752,15 @@ function SummaryCard({
   icon,
 }) {
   return (
-    <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
       <div className="flex items-center justify-between">
 
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+        <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
           {title}
         </span>
 
-        <span className="text-slate-600">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
           {icon}
         </span>
 
@@ -2666,11 +2769,11 @@ function SummaryCard({
 
       <div className="mt-3">
 
-        <p className="text-2xl font-bold text-slate-800">
+        <p className="text-2xl font-bold text-[#1F2937]">
           {count}
         </p>
 
-        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+        <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
           {subtitle}
         </p>
 

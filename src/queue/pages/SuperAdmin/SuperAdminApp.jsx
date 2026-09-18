@@ -8,6 +8,7 @@ import Reports from './Reports';
 import AdminQueueManagement from './QueueManagement';
 import Settings from './Settings';
 import KioskManagement from './KioskManagement';
+import PositionManagement from './PositionManagement';
 
 export default function SuperAdminApp() {
   const [activePage, setActivePage] = useState('dashboard');
@@ -22,6 +23,7 @@ export default function SuperAdminApp() {
       {activePage === 'reports' && <Reports />}
       {activePage === 'queues' && <AdminQueueManagement />}
       {activePage === 'settings' && <Settings />}
+      {activePage === 'positions' && <PositionManagement />}
     </Layout>
   );
 }
