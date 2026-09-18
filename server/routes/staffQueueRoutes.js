@@ -1390,7 +1390,13 @@ router.get(
       let dateCondition =
         "DATE(qt.issued_at) = CURDATE()";
 
-      if (
+      const dateParams = [];
+
+      if (range === "Yesterday") {
+        dateCondition =
+          "DATE(qt.issued_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
+      } else if (
+        range === "Last 7 Days" ||
         range === "This Week" ||
         range === "week"
       ) {
@@ -1401,9 +1407,8 @@ router.get(
             INTERVAL 7 DAY
           )
         `;
-      }
-
-      if (
+      } else if (
+        range === "Last 30 Days" ||
         range === "This Month" ||
         range === "month"
       ) {
@@ -1411,15 +1416,53 @@ router.get(
           qt.issued_at >=
           DATE_SUB(
             CURDATE(),
-            INTERVAL 1 MONTH
+            INTERVAL 30 DAY
           )
         `;
+      } else if (
+        typeof range === "string" &&
+        range.startsWith("custom:")
+      ) {
+        /*
+         * Format: custom:<startISO>|<endISO>
+         *
+         * "|" is used instead of ":" because ISO timestamps
+         * themselves contain colons (e.g. 2026-09-18T00:00:00.000Z),
+         * which would otherwise make the value impossible to split
+         * apart reliably.
+         */
+        const [startIso, endIso] =
+          range.slice("custom:".length).split("|");
+
+        const startDate = startIso
+          ? new Date(startIso)
+          : null;
+
+        const endDate = endIso
+          ? new Date(endIso)
+          : null;
+
+        if (
+          startDate &&
+          !Number.isNaN(startDate.getTime()) &&
+          endDate &&
+          !Number.isNaN(endDate.getTime())
+        ) {
+          dateCondition =
+            "qt.issued_at BETWEEN ? AND ?";
+
+          dateParams.push(
+            startDate,
+            endDate
+          );
+        }
       }
 
       let statusCondition = "";
 
       const queryParams = [
         departmentId,
+        ...dateParams,
       ];
 
       if (

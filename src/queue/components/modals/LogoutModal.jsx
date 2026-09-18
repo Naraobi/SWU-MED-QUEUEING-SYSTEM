@@ -16,7 +16,7 @@ export default function LogoutModal({ onClose }) {
       <div
         className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl"
       >
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-500">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#9D0A0E]/10 text-[#9D0A0E]">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
             <path d="M16 17l5-5-5-5" />
@@ -37,7 +37,7 @@ export default function LogoutModal({ onClose }) {
           </button>
           <button
             onClick={handleLogout}
-            className="flex-1 rounded-lg bg-rose-600 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+            className="flex-1 rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-semibold text-white hover:bg-[#7d0809]"
           >
             Log Out
           </button>

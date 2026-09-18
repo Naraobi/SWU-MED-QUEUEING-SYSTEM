@@ -68,7 +68,9 @@ export function QueueProvider({ children }) {
    * Firebase / MySQL
    */
 
-  const refresh = useCallback(async (departmentPrefix, range) => {
+  const refresh = useCallback(async (departmentPrefix, range, options = {}) => {
+    const silent = Boolean(options.silent)
+
     if (!departmentPrefix) {
       setWaitingQueue([])
       setCurrentlyServing(null)
@@ -80,12 +82,26 @@ export function QueueProvider({ children }) {
         skipped: 0,
       })
 
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
 
       return
     }
 
-    setLoading(true)
+    /*
+     * IMPORTANT:
+     *
+     * `loading` drives full-card loading skeletons (e.g. the
+     * Staff dashboard's "Currently Serving" card). Background
+     * polling refreshes must NOT toggle it, or the whole card
+     * flickers back to a loading state every few seconds even
+     * though nothing actually changed. Only explicit/initial
+     * refreshes should show the loading state.
+     */
+    if (!silent) {
+      setLoading(true)
+    }
 
     try {
       const state = await api.fetchQueueState(
@@ -142,20 +158,27 @@ export function QueueProvider({ children }) {
       )
 
       /*
-       * Do not leave stale queue information
-       * visible when a refresh fails.
+       * A silent background poll that fails (e.g. a brief network
+       * blip) should NOT wipe out perfectly good data already on
+       * screen — that would flash the currently-serving patient
+       * and waiting queue to empty every time a single poll drops.
+       * Only clear state on an explicit/initial refresh failure.
        */
-      setWaitingQueue([])
-      setCurrentlyServing(null)
+      if (!silent) {
+        setWaitingQueue([])
+        setCurrentlyServing(null)
 
-      setStats({
-        waiting: 0,
-        currentlyServing: 0,
-        completed: 0,
-        skipped: 0,
-      })
+        setStats({
+          waiting: 0,
+          currentlyServing: 0,
+          completed: 0,
+          skipped: 0,
+        })
+      }
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

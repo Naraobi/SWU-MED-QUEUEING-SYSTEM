@@ -1,6 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { CheckCircle2, SkipForward, Timer } from 'lucide-react'
 import Sidebar from './Sidebar.jsx'
 import Topbar from './Topbar.jsx'
+import StaffStatCard from './StaffStatCard.jsx'
 import QueueDetailsModal from '../../components/modals/QueueDetailsModal.jsx'
 import { useAuth } from '../../services/Authcontext.jsx'
 import * as api from '../../services/backendApi'
@@ -11,22 +14,52 @@ const PAGE_SIZE = 8
 // CUSTOM DATE RANGE CALENDAR POPOVER
 // ============================================================
 
-function CalendarPopover({ onClose, onApply }) {
+function CalendarPopover({ anchorRef, onClose, onApply }) {
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
   const [startDate, setStartDate] = useState(null)
   const [endDate, setEndDate] = useState(null)
   const [hoverDate, setHoverDate] = useState(null)
+  const [position, setPosition] = useState(null)
   const ref = useRef(null)
+
+  // Rendered through a portal (see below) so it isn't clipped by the
+  // history table's `overflow-hidden` container. Position is computed
+  // from the trigger button's on-screen location instead of relying on
+  // CSS `position: absolute` inside a parent that clips overflow.
+  useLayoutEffect(() => {
+    function updatePosition() {
+      const rect = anchorRef.current?.getBoundingClientRect()
+      if (!rect) return
+      setPosition({
+        top: rect.bottom + 4,
+        left: rect.right - 360, // right-align to a 360px-wide popover
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [anchorRef])
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) onClose()
+      if (
+        ref.current &&
+        !ref.current.contains(e.target) &&
+        !anchorRef.current?.contains(e.target)
+      ) {
+        onClose()
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [onClose])
+  }, [onClose, anchorRef])
 
   const MONTHS = [
     'January','February','March','April','May','June',
@@ -84,10 +117,13 @@ function CalendarPopover({ onClose, onApply }) {
     ? Math.round(Math.abs(endDate - startDate) / 86400000) + 1
     : null
 
-  return (
+  if (!position) return null
+
+  return createPortal(
     <div
       ref={ref}
-      className="absolute right-0 top-full z-50 mt-1 w-[360px] rounded-2xl border border-[#E5E7EB] bg-white shadow-2xl"
+      style={{ position: 'fixed', top: position.top, left: position.left }}
+      className="z-50 w-[360px] rounded-2xl border border-[#E5E7EB] bg-white shadow-2xl"
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
@@ -175,7 +211,8 @@ function CalendarPopover({ onClose, onApply }) {
           Apply
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -196,6 +233,7 @@ export default function QueueHistoryPage() {
   const [page, setPage]               = useState(1)
   const [selectedRow, setSelectedRow] = useState(null)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const dateRangeAnchorRef = useRef(null)
 
   // ============================================================
   // FETCH QUEUE HISTORY
@@ -212,14 +250,13 @@ export default function QueueHistoryPage() {
       try {
         let apiRange = range
         if (range === 'Custom Date Range' && customRange) {
-          apiRange = `custom:${customRange.startDate.toISOString()}:${customRange.endDate.toISOString()}`
+          // NOTE: ISO timestamps contain colons, so "|" is used as the
+          // separator here instead of ":" to keep this parseable on the
+          // backend (see staffQueueRoutes.js /history/:departmentId).
+          apiRange = `custom:${customRange.startDate.toISOString()}|${customRange.endDate.toISOString()}`
         }
 
-        console.log("Fetching history for department:", departmentId, "with range:", apiRange, "and status:", status)
-
         const data = await api.fetchQueueHistory(departmentId, { search: search.trim(), status, range: apiRange })
-        
-        console.log("RAW API Queue History Response:", data)
 
         if (cancelled) return
         
@@ -408,50 +445,23 @@ export default function QueueHistoryPage() {
 
           {/* STAT CARDS */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <StaffStatCard
+              label="TODAY'S COMPLETED"
+              value={completedCount}
+              icon={CheckCircle2}
+            />
 
-            {/* TODAY'S COMPLETED */}
-            <div className="flex h-[100px] items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-6 shadow-sm">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">TODAY'S COMPLETED</p>
-                <p className="mt-2 text-4xl font-extrabold leading-none text-[#1F2937]">{completedCount}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F3F5]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.8">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-            </div>
+            <StaffStatCard
+              label="TODAY'S SKIPPED"
+              value={skippedCount}
+              icon={SkipForward}
+            />
 
-            {/* TODAY'S SKIPPED */}
-            <div className="flex h-[100px] items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-6 shadow-sm">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">TODAY'S SKIPPED</p>
-                <p className="mt-2 text-4xl font-extrabold leading-none text-[#1F2937]">{skippedCount}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F3F5]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.8">
-                  <circle cx="12" cy="12" r="9"/>
-                  <path d="M15 9l-6 6M9 9l6 6" strokeLinecap="round"/>
-                </svg>
-              </div>
-            </div>
-
-            {/* AVERAGE SERVICE TIME */}
-            <div className="flex h-[100px] items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-6 shadow-sm">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">AVERAGE SERVICE TIME</p>
-                <p className="mt-2 text-4xl font-extrabold leading-none text-[#1F2937]">{averageServiceTime}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F3F5]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.8">
-                  <circle cx="12" cy="13" r="8"/>
-                  <path d="M12 9v4l2.5 2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M9.5 2.5h5M12 2.5v2" strokeLinecap="round"/>
-                </svg>
-              </div>
-            </div>
-
+            <StaffStatCard
+              label="AVERAGE SERVICE TIME"
+              value={averageServiceTime}
+              icon={Timer}
+            />
           </div>
 
           {/* HISTORY TABLE */}
@@ -478,7 +488,7 @@ export default function QueueHistoryPage() {
               <div className="flex items-center gap-3">
 
                 {/* DATE RANGE */}
-                <div className="relative">
+                <div className="relative" ref={dateRangeAnchorRef}>
                   <select
                     value={range}
                     onChange={e => handleRangeChange(e.target.value)}
@@ -497,6 +507,7 @@ export default function QueueHistoryPage() {
                   )}
                   {showCalendar && (
                     <CalendarPopover
+                      anchorRef={dateRangeAnchorRef}
                       onClose={() => setShowCalendar(false)}
                       onApply={({ startDate, endDate, label }) => {
                         setCustomRange({ startDate, endDate, label })
