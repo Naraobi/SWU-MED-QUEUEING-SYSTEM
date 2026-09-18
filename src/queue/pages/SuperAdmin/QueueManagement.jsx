@@ -164,7 +164,7 @@ export default function QueueManagement() {
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
+        <div className="inline-flex items-center gap-2 rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2 text-xs font-medium text-[#9D0A0E]">
           <Plus size={14} />
           Department overview
         </div>
@@ -201,7 +201,7 @@ export default function QueueManagement() {
                     onClick={() => toggleDepartment(department.department_id)}
                     className="flex w-full items-center gap-4 p-5 text-left transition hover:bg-slate-50"
                   >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[#00529B]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FBF1F1] text-[#9D0A0E]">
                       <Building2 size={22} />
                     </div>
 
@@ -242,7 +242,7 @@ export default function QueueManagement() {
                       <div className="grid gap-3 md:grid-cols-4">
                         <div className="rounded-xl border border-slate-200 bg-white p-4">
                           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            <Users size={14} className="text-blue-600" />
+                            <Users size={14} className="text-[#9D0A0E]" />
                             Waiting
                           </div>
                           <p className="mt-3 text-2xl font-semibold text-slate-800">{state.stats?.waiting || 0}</p>
@@ -281,8 +281,8 @@ export default function QueueManagement() {
                           </div>
 
                           {currentlyServing ? (
-                            <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                            <div className="rounded-lg border border-[#F0DADA] bg-[#FBF1F1] p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-[#9D0A0E]">
                                 Currently serving
                               </p>
                               <p className="mt-2 text-xl font-semibold text-slate-800">
@@ -337,9 +337,9 @@ export default function QueueManagement() {
                               <Link
                                 key={href}
                                 to={href}
-                                className="group flex items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-blue-200 hover:bg-blue-50/40"
+                                className="group flex items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-[#F0DADA] hover:bg-[#FBF1F1]/40"
                               >
-                                <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                                <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
                                   <Icon size={16} />
                                 </div>
                                 <div className="min-w-0 flex-1">
