@@ -23,4 +23,12 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
+// The server/DB run in UTC, but the hospital operates in Philippine
+// Time (UTC+8). Queue numbering resets rely on MySQL's CURDATE()/NOW(),
+// so every connection's session timezone is pinned to Manila time —
+// otherwise "midnight" resets would happen at 8:00 AM local time instead.
+pool.on("connection", (connection) => {
+  connection.query("SET time_zone = '+08:00'");
+});
+
 module.exports = pool;
