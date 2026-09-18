@@ -14,18 +14,11 @@ export default function LogoutModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div
-        className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl"
+        className="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-xl"
       >
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#9D0A0E]/10 text-[#9D0A0E]">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <path d="M16 17l5-5-5-5" />
-            <path d="M21 12H9" />
-          </svg>
-        </div>
-        <h2 className="mt-4 text-lg font-bold text-slate-800">Log Out?</h2>
+        <h2 className="text-lg font-bold text-slate-800">Log Out?</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Are you sure you want to log out of the Staff Terminal? You will need to sign in again to access
+          Are you sure you want to log out? You will need to sign in again to access
           your assigned terminal.
         </p>
         <div className="mt-6 flex gap-3">
