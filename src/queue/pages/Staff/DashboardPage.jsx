@@ -837,13 +837,18 @@ export default function DashboardPage() {
                         key={patient.uniqueKey || patient.id || index}
                         className="flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition"
                       >
-                        <p
-                          className={`text-base font-bold ${
-                            isPriority ? 'text-[#851010]' : 'text-slate-800'
-                          }`}
-                        >
-                          {patient.id}
-                        </p>
+                        <span className="flex items-center gap-3">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                            {index + 2}
+                          </span>
+                          <span
+                            className={`rounded-md bg-slate-100 px-2.5 py-1 text-base font-bold ${
+                              isPriority ? 'text-[#851010]' : 'text-slate-800'
+                            }`}
+                          >
+                            {patient.id}
+                          </span>
+                        </span>
                         <p className="text-sm font-medium text-slate-400">
                           ~{patient.etaMinutes || (index + 2) * 4} min ({index + 2}{' '}
                           ahead)

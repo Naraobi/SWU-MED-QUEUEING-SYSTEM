@@ -328,13 +328,13 @@ export function QueueManagementPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <section className="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold text-[#1F2937]">{t('queue.currentStatus')}</h2>
             <span className="text-[10px] font-semibold text-slate-400">{t('common.today')}</span>
           </div>
 
-          <div className="flex flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('queue.nowServing')}</p>
             <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : current?.id || '--'}</p>
             <p className="mt-2 text-xs text-[#4B5563]">
@@ -362,7 +362,7 @@ export function QueueManagementPage() {
                 <div key={row.uniqueKey || `${row.id}-${index}`} className="flex items-center justify-between rounded-md border border-[#E5E7EB] px-3 py-2.5">
                   <span className="flex items-center gap-2 text-xs font-bold text-[#1F2937]">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#F1F3F5] text-[10px] text-slate-500">{index + 1}</span>
-                    {row.id}
+                    <span className="rounded-md bg-[#F1F3F5] px-2 py-1 text-xs">{row.id}</span>
                   </span>
                   <span className="text-[10px] text-[#4B5563]">{t('queue.waitingMinutes', { minutes: row.etaMinutes ?? '~0' })}</span>
                 </div>
