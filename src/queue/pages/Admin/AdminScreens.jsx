@@ -545,14 +545,6 @@ export function TerminalManagementPage() {
     );
   }, [terminals, adminDepartment]);
 
-  const staffById = useMemo(() => {
-    const map = {};
-    staff.forEach((person) => {
-      map[String(person.user_id)] = person;
-    });
-    return map;
-  }, [staff]);
-
   const departmentStaff = useMemo(() => {
     if (!adminDepartment) {
       return [];
@@ -565,6 +557,19 @@ export function TerminalManagementPage() {
     );
   }, [staff, adminDepartment]);
 
+  // A terminal's assigned_staff_id can point at someone who has since
+  // transferred to another department. Looking them up only within
+  // departmentStaff (rather than the full staff list) makes sure such
+  // stale assignments render as "Unassigned" instead of showing a staff
+  // member who no longer belongs to this terminal's department.
+  const departmentStaffById = useMemo(() => {
+    const map = {};
+    departmentStaff.forEach((person) => {
+      map[String(person.user_id)] = person;
+    });
+    return map;
+  }, [departmentStaff]);
+
   const filteredTerminals = useMemo(() => {
     const search = query.trim().toLowerCase();
 
@@ -573,7 +578,7 @@ export function TerminalManagementPage() {
     }
 
     return departmentTerminals.filter((terminal) => {
-      const assigned = staffById[String(terminal.assigned_staff_id)];
+      const assigned = departmentStaffById[String(terminal.assigned_staff_id)];
       const name = `${assigned?.first_name || ''} ${assigned?.last_name || ''}`.toLowerCase();
       const email = String(assigned?.email || '').toLowerCase();
 
@@ -583,7 +588,7 @@ export function TerminalManagementPage() {
         String(terminal.prefix || '').toLowerCase().includes(search)
       );
     });
-  }, [departmentTerminals, staffById, query]);
+  }, [departmentTerminals, departmentStaffById, query]);
 
   const TERMINAL_PAGE_SIZE = 5;
 
@@ -640,8 +645,17 @@ export function TerminalManagementPage() {
   }
 
   function openEdit(terminal) {
+    // A terminal can be left pointing at a staff member who has since
+    // moved to another department. That staff member no longer appears
+    // in `departmentStaff`, so the dropdown can't actually select them -
+    // treat the assignment as unassigned instead of leaving a stale,
+    // unselectable value in the form.
+    const assignedStillInDepartment = departmentStaff.some(
+      (person) => String(person.user_id) === String(terminal.assigned_staff_id)
+    );
+
     setForm({
-      assigned_staff_id: terminal.assigned_staff_id || '',
+      assigned_staff_id: assignedStillInDepartment ? terminal.assigned_staff_id : '',
       counter_number: String(terminal.counter_number ?? ''),
     });
     setError(null);
@@ -787,7 +801,7 @@ export function TerminalManagementPage() {
 
               {!loading &&
                 pagedTerminals.map((terminal) => {
-                  const assigned = staffById[String(terminal.assigned_staff_id)];
+                  const assigned = departmentStaffById[String(terminal.assigned_staff_id)];
 
                   return (
                     <tr
