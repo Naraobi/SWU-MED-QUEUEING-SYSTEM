@@ -48,6 +48,35 @@ const AVAILABLE_PERMISSIONS = [
   'Modify settings',
 ];
 
+// The same permissions, grouped for display only.
+const PERMISSION_GROUPS = [
+  {
+    title: 'Staff',
+    permissions: [
+      'Assign staff',
+      'Manage users',
+      'Assign terminals',
+    ],
+  },
+  {
+    title: 'Queue',
+    permissions: [
+      'Manage queues',
+      'Update queue status',
+      'Call next patient',
+    ],
+  },
+  {
+    title: 'System',
+    permissions: [
+      'Modify settings',
+      'View reports',
+      'Manage departments',
+      'Manage kiosks',
+    ],
+  },
+];
+
 // =========================================================
 // DEFAULT ROLE DESCRIPTIONS
 // =========================================================
@@ -1084,11 +1113,11 @@ export default function RoleManagement() {
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">
+          <h1 className="text-2xl font-bold text-[#1F2937]">
             Role Management
           </h1>
 
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-[#4B5563]">
             Configure access levels and user
             permissions across the queueing system.
           </p>
@@ -1109,7 +1138,7 @@ export default function RoleManagement() {
                 resetDraft();
               }
             }}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#00529B] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#00467f]"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#7D080B]"
           >
             <Plus size={16} />
             Add Role
@@ -1143,17 +1172,17 @@ export default function RoleManagement() {
 
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-2xl">
 
             {/* MODAL HEADER */}
 
             <div className="mb-5 flex items-start justify-between">
               <div>
-                <h3 className="text-xl font-bold text-slate-800">
+                <h3 className="text-xl font-bold text-[#1F2937]">
                   Edit Role
                 </h3>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-[#4B5563]">
                   Update access details and permissions.
                 </p>
               </div>
@@ -1162,7 +1191,7 @@ export default function RoleManagement() {
                 type="button"
                 onClick={closeEditRole}
                 disabled={saving}
-                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+                className="rounded-lg p-2 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#4B5563] disabled:opacity-50"
               >
                 <X size={20} />
               </button>
@@ -1172,7 +1201,7 @@ export default function RoleManagement() {
 
             <div className="grid gap-4 md:grid-cols-2">
 
-              <label className="block text-sm text-slate-600">
+              <label className="block text-sm text-[#4B5563]">
                 Role name
 
                 <input
@@ -1187,11 +1216,11 @@ export default function RoleManagement() {
                       })
                     )
                   }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#00529B] focus:ring-1 focus:ring-[#00529B]"
+                  className="mt-1 w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
                 />
               </label>
 
-              <label className="block text-sm text-slate-600">
+              <label className="block text-sm text-[#4B5563]">
                 Status
 
                 <select
@@ -1205,7 +1234,7 @@ export default function RoleManagement() {
                       })
                     )
                   }
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#00529B] focus:ring-1 focus:ring-[#00529B]"
+                  className="mt-1 w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
                 >
                   <option value="Active">
                     Active
@@ -1220,7 +1249,7 @@ export default function RoleManagement() {
 
             {/* DESCRIPTION */}
 
-            <label className="mt-4 block text-sm text-slate-600">
+            <label className="mt-4 block text-sm text-[#4B5563]">
               Description
 
               <textarea
@@ -1235,7 +1264,7 @@ export default function RoleManagement() {
                   )
                 }
                 rows={3}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#00529B] focus:ring-1 focus:ring-[#00529B]"
+                className="mt-1 w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
               />
             </label>
 
@@ -1243,7 +1272,7 @@ export default function RoleManagement() {
 
             <div className="relative mt-4">
 
-              <label className="block text-sm text-slate-600">
+              <label className="block text-sm text-[#4B5563]">
                 Permissions
 
                 <button
@@ -1253,14 +1282,14 @@ export default function RoleManagement() {
                       (value) => !value
                     )
                   }
-                  className="mt-1 flex w-full items-center justify-between rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-left text-sm outline-none transition hover:bg-slate-100 focus:border-[#00529B]"
+                  className="mt-1 flex w-full items-center justify-between rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-left text-sm outline-none transition hover:bg-[#F1F3F5] focus:border-[#9D0A0E]"
                 >
                   <span
                     className={
                       editDraft.permissions
                         .length === 0
-                        ? 'text-slate-400'
-                        : 'text-slate-700'
+                        ? 'text-[#9CA3AF]'
+                        : 'text-[#1F2937]'
                     }
                   >
                     {editDraft.permissions
@@ -1276,7 +1305,7 @@ export default function RoleManagement() {
 
                   <ChevronDown
                     size={17}
-                    className={`text-slate-400 transition-transform ${
+                    className={`text-[#9CA3AF] transition-transform ${
                       showEditPermissionDropdown
                         ? 'rotate-180'
                         : ''
@@ -1288,12 +1317,12 @@ export default function RoleManagement() {
               {/* PERMISSION DROPDOWN */}
 
               {showEditPermissionDropdown && (
-                <div className="absolute z-30 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+                <div className="absolute z-30 mt-2 w-full rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-xl">
 
                   {/* SELECT / CLEAR */}
 
-                  <div className="flex items-center justify-between border-b border-slate-200 px-2 py-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <div className="flex items-center justify-between border-b border-[#E5E7EB] px-2 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
                       Available permissions
                     </span>
 
@@ -1303,7 +1332,7 @@ export default function RoleManagement() {
                         onClick={
                           selectAllEditPermissions
                         }
-                        className="text-xs font-semibold text-[#00529B] hover:underline"
+                        className="text-xs font-semibold text-[#9D0A0E] hover:underline"
                       >
                         Select all
                       </button>
@@ -1313,7 +1342,7 @@ export default function RoleManagement() {
                         onClick={
                           clearAllEditPermissions
                         }
-                        className="text-xs font-semibold text-slate-500 hover:text-slate-700 hover:underline"
+                        className="text-xs font-semibold text-[#4B5563] hover:text-[#1F2937] hover:underline"
                       >
                         Clear
                       </button>
@@ -1339,13 +1368,13 @@ export default function RoleManagement() {
                                 permission
                               )
                             }
-                            className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                            className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-[#1F2937] transition hover:bg-[#F8F9FA]"
                           >
                             <span
                               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${
                                 checked
-                                  ? 'border-[#00529B] bg-[#00529B] text-white'
-                                  : 'border-slate-300 bg-white'
+                                  ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+                                  : 'border-[#E5E7EB] bg-white'
                               }`}
                             >
                               {checked && (
@@ -1374,7 +1403,7 @@ export default function RoleManagement() {
                   (permission) => (
                     <span
                       key={permission}
-                      className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#00529B]"
+                      className="rounded-full bg-[#FBF1F1] px-3 py-1.5 text-xs font-medium text-[#9D0A0E]"
                     >
                       {permission}
                     </span>
@@ -1390,7 +1419,7 @@ export default function RoleManagement() {
                 type="button"
                 onClick={closeEditRole}
                 disabled={saving}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#4B5563] hover:bg-[#F8F9FA] disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1399,7 +1428,7 @@ export default function RoleManagement() {
                 type="button"
                 onClick={handleUpdateRole}
                 disabled={saving}
-                className="rounded-lg bg-[#00529B] px-4 py-2 text-sm font-semibold text-white hover:bg-[#00467f] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving
                   ? 'Saving...'
@@ -1416,7 +1445,7 @@ export default function RoleManagement() {
 
       {showDeleteModal && deletingRole && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl">
 
             {/* ICON */}
 
@@ -1429,13 +1458,13 @@ export default function RoleManagement() {
             {/* TEXT */}
 
             <div className="mt-4 text-center">
-              <h3 className="text-lg font-bold text-slate-800">
+              <h3 className="text-lg font-bold text-[#1F2937]">
                 Delete Role?
               </h3>
 
-              <p className="mt-2 text-sm leading-6 text-slate-500">
+              <p className="mt-2 text-sm leading-6 text-[#4B5563]">
                 Are you sure you want to delete the
-                <span className="font-semibold text-slate-700">
+                <span className="font-semibold text-[#1F2937]">
                   {' '}
                   "{deletingRole.name}"
                 </span>
@@ -1456,7 +1485,7 @@ export default function RoleManagement() {
                   closeDeleteConfirmation
                 }
                 disabled={deleting}
-                className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                className="flex-1 rounded-lg border border-[#E5E7EB] px-4 py-2.5 text-sm font-medium text-[#4B5563] hover:bg-[#F8F9FA] disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1481,245 +1510,274 @@ export default function RoleManagement() {
       ================================================= */}
 
       {showForm && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8">
 
-          {/* ROLE NAME + STATUS */}
+          <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
-          <div className="grid gap-4 md:grid-cols-2">
+            {/* HEADER */}
 
-            <label className="block text-sm text-slate-600">
-              Role name
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
 
-              <input
-                type="text"
-                value={draft.name}
-                onChange={(event) =>
-                  setDraft(
-                    (current) => ({
-                      ...current,
-                      name:
-                        event.target.value,
-                    })
-                  )
-                }
-                placeholder="e.g. Billing Officer"
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#00529B]"
-              />
-            </label>
+              <div>
+                <h2 className="text-lg font-bold text-[#1F2937]">
+                  Add Role
+                </h2>
 
-            <label className="block text-sm text-slate-600">
-              Status
+                <p className="mt-1 text-xs text-[#4B5563]">
+                  Create a role and choose what it can access.
+                </p>
 
-              <select
-                value={draft.status}
-                onChange={(event) =>
-                  setDraft(
-                    (current) => ({
-                      ...current,
-                      status:
-                        event.target.value,
-                    })
-                  )
-                }
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#00529B]"
-              >
-                <option value="Active">
-                  Active
-                </option>
-
-                <option value="Inactive">
-                  Inactive
-                </option>
-              </select>
-            </label>
-          </div>
-
-          {/* DESCRIPTION */}
-
-          <label className="mt-4 block text-sm text-slate-600">
-            Description
-
-            <textarea
-              value={draft.description}
-              onChange={(event) =>
-                setDraft(
-                  (current) => ({
-                    ...current,
-                    description:
-                      event.target.value,
-                  })
-                )
-              }
-              rows={3}
-              placeholder="Describe the purpose of this role"
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#00529B]"
-            />
-          </label>
-
-          {/* PERMISSIONS */}
-
-          <div className="relative mt-4">
-
-            <label className="block text-sm text-slate-600">
-              Permissions
+                <p className="mt-0.5 text-xs text-[#4B5563]">
+                  Fields marked{' '}
+                  <span className="text-[#9D0A0E]">*</span>
+                  {' '}are required.
+                </p>
+              </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowPermissionDropdown(
-                    (value) => !value
-                  )
-                }
-                className="mt-1 flex w-full items-center justify-between rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-left text-sm outline-none transition hover:bg-slate-100 focus:border-[#00529B]"
+                onClick={() => {
+                  setShowForm(false);
+                  resetDraft();
+                }}
+                className="rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
+                aria-label="Close"
               >
-                <span
-                  className={
-                    draft.permissions.length ===
-                    0
-                      ? 'text-slate-400'
-                      : 'text-slate-700'
-                  }
-                >
-                  {draft.permissions.length ===
-                  0
-                    ? 'Select permissions'
-                    : `${draft.permissions.length} permission${
-                        draft.permissions.length ===
-                        1
-                          ? ''
-                          : 's'
-                      } selected`}
-                </span>
-
-                <ChevronDown
-                  size={17}
-                  className={`text-slate-400 transition-transform ${
-                    showPermissionDropdown
-                      ? 'rotate-180'
-                      : ''
-                  }`}
-                />
+                <X size={18} />
               </button>
-            </label>
 
-            {/* DROPDOWN */}
+            </div>
 
-            {showPermissionDropdown && (
-              <div className="absolute z-30 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+            {/* BODY */}
 
-                <div className="flex items-center justify-between border-b border-slate-200 px-2 py-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Available permissions
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              {/* ROLE NAME + STATUS */}
+
+              <div className="flex items-start gap-4">
+
+                <div className="flex-1">
+                  <label
+                    htmlFor="role-name"
+                    className="mb-1.5 block text-sm font-semibold text-[#1F2937]"
+                  >
+                    Role Name
+                    <span className="ml-0.5 text-[#9D0A0E]">*</span>
+                  </label>
+
+                  <input
+                    id="role-name"
+                    type="text"
+                    value={draft.name}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Billing Officer"
+                    className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  />
+                </div>
+
+                <div className="shrink-0">
+                  <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">
+                    Status
                   </span>
 
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={
-                        selectAllPermissions
-                      }
-                      className="text-xs font-semibold text-[#00529B] hover:underline"
-                    >
-                      Select all
-                    </button>
+                  <div className="inline-flex rounded-lg border border-[#E5E7EB] p-1">
+                    {['Active', 'Inactive'].map(
+                      (option) => {
+                        const isSelected =
+                          draft.status === option;
 
-                    <button
-                      type="button"
-                      onClick={
-                        clearAllPermissions
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() =>
+                              setDraft((current) => ({
+                                ...current,
+                                status: option,
+                              }))
+                            }
+                            aria-pressed={isSelected}
+                            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                              isSelected
+                                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/30'
+                                : 'text-[#4B5563] hover:bg-[#F1F3F5]'
+                            }`}
+                          >
+                            {isSelected && (
+                              <Check size={14} />
+                            )}
+
+                            {option}
+                          </button>
+                        );
                       }
-                      className="text-xs font-semibold text-slate-500 hover:text-slate-700 hover:underline"
-                    >
-                      Clear
-                    </button>
+                    )}
                   </div>
                 </div>
 
-                <div className="max-h-64 overflow-y-auto py-1">
-                  {AVAILABLE_PERMISSIONS.map(
-                    (permission) => {
-                      const checked =
-                        draft.permissions.includes(
-                          permission
-                        );
-
-                      return (
-                        <button
-                          key={permission}
-                          type="button"
-                          onClick={() =>
-                            togglePermission(
-                              permission
-                            )
-                          }
-                          className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50"
-                        >
-                          <span
-                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${
-                              checked
-                                ? 'border-[#00529B] bg-[#00529B] text-white'
-                                : 'border-slate-300 bg-white'
-                            }`}
-                          >
-                            {checked && (
-                              <Check
-                                size={13}
-                                strokeWidth={3}
-                              />
-                            )}
-                          </span>
-
-                          {permission}
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
               </div>
-            )}
-          </div>
 
-          {/* SELECTED PERMISSIONS */}
 
-          {draft.permissions.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {draft.permissions.map(
-                (permission) => (
-                  <span
-                    key={permission}
-                    className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#00529B]"
-                  >
-                    {permission}
+              {/* DESCRIPTION */}
+
+              <div className="mt-5">
+                <label
+                  htmlFor="role-description"
+                  className="mb-1.5 block text-sm font-semibold text-[#1F2937]"
+                >
+                  Description
+                </label>
+
+                <textarea
+                  id="role-description"
+                  rows={3}
+                  value={draft.description}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  placeholder="Describe the purpose of this role"
+                  className="w-full resize-none rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/20"
+                />
+              </div>
+
+
+              {/* PERMISSIONS */}
+
+              <div className="mt-5">
+
+                <div className="mb-2 flex items-baseline justify-between gap-3">
+
+                  <span className="text-sm font-semibold text-[#1F2937]">
+                    Permissions
+                    <span className="ml-0.5 text-[#9D0A0E]">*</span>
                   </span>
-                )
-              )}
+
+                  <span className="flex items-baseline gap-2 text-xs text-[#4B5563]">
+                    {draft.permissions.length} selected
+
+                    <span aria-hidden="true">&middot;</span>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          permissions:
+                            current.permissions.length ===
+                            AVAILABLE_PERMISSIONS.length
+                              ? []
+                              : [...AVAILABLE_PERMISSIONS],
+                        }))
+                      }
+                      className="font-semibold text-[#9D0A0E] transition hover:underline"
+                    >
+                      {draft.permissions.length ===
+                      AVAILABLE_PERMISSIONS.length
+                        ? 'Clear all'
+                        : 'Select all'}
+                    </button>
+                  </span>
+
+                </div>
+
+                <div className="space-y-3">
+                  {PERMISSION_GROUPS.map((group) => (
+                    <div
+                      key={group.title}
+                      className="rounded-lg bg-[#F1F3F5] p-4"
+                    >
+
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
+                        {group.title}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                        {group.permissions.map(
+                          (permission) => {
+                            const isChecked =
+                              draft.permissions.includes(
+                                permission
+                              );
+
+                            return (
+                              <label
+                                key={permission}
+                                className="flex cursor-pointer items-center gap-2.5 text-sm text-[#1F2937]"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() =>
+                                    setDraft((current) => ({
+                                      ...current,
+                                      permissions:
+                                        current.permissions.includes(
+                                          permission
+                                        )
+                                          ? current.permissions.filter(
+                                              (item) =>
+                                                item !==
+                                                permission
+                                            )
+                                          : [
+                                              ...current.permissions,
+                                              permission,
+                                            ],
+                                    }))
+                                  }
+                                  className="h-4 w-4 shrink-0 cursor-pointer rounded border-[#9CA3AF] accent-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/30"
+                                />
+
+                                {permission}
+                              </label>
+                            );
+                          }
+                        )}
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+
             </div>
-          )}
 
-          {/* BUTTONS */}
+            {/* FOOTER */}
 
-          <div className="mt-5 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setShowForm(false);
-                resetDraft();
-              }}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
+            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
 
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={saving}
-              className="rounded-lg bg-[#00529B] px-4 py-2 text-sm font-semibold text-white hover:bg-[#00467f] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving
-                ? 'Saving...'
-                : 'Save Role'}
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  resetDraft();
+                }}
+                className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={saving}
+                className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving
+                  ? 'Saving...'
+                  : 'Save Role'}
+              </button>
+
+            </div>
+
           </div>
         </div>
       )}
@@ -1734,14 +1792,14 @@ export default function RoleManagement() {
             ROLE LIST
         ================================================= */}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           {/* SEARCH */}
 
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2">
             <Search
               size={16}
-              className="text-slate-400"
+              className="text-[#9CA3AF]"
             />
 
             <input
@@ -1753,18 +1811,18 @@ export default function RoleManagement() {
                 )
               }
               placeholder="Search roles"
-              className="w-full border-0 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+              className="w-full border-0 bg-transparent text-sm text-[#1F2937] outline-none placeholder:text-[#9CA3AF]"
             />
           </div>
 
           {/* LOADING */}
 
           {loading ? (
-            <div className="py-10 text-center text-sm text-slate-500">
+            <div className="py-10 text-center text-sm text-[#4B5563]">
               Loading roles...
             </div>
           ) : filteredRoles.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8F9FA] p-6 text-center text-sm text-[#4B5563]">
               No roles found.
             </div>
           ) : (
@@ -1783,35 +1841,35 @@ export default function RoleManagement() {
                     }
                     className={`w-full rounded-xl border p-3 text-left transition ${
                       active
-                        ? 'border-[#00529B] bg-blue-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        ? 'border-[#9D0A0E] bg-[#FBF1F1]'
+                        : 'border-[#E5E7EB] bg-white hover:border-[#E5E7EB] hover:bg-[#F8F9FA]'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
 
                       <div>
-                        <p className="text-sm font-semibold text-slate-800">
+                        <p className="text-sm font-semibold text-[#1F2937]">
                           {role.name}
                         </p>
 
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-[#4B5563]">
                           {role.description}
                         </p>
                       </div>
 
                       <span
-                        className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                        className={`rounded-full px-2 py-1 text-xs font-semibold ${
                           role.status ===
                           'Active'
                             ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-slate-200 text-slate-600'
+                            : 'bg-[#E5E7EB] text-[#4B5563]'
                         }`}
                       >
                         {role.status}
                       </span>
                     </div>
 
-                    <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500">
+                    <div className="mt-3 flex items-center justify-between text-xs text-[#4B5563]">
 
                       <span className="inline-flex items-center gap-1.5">
                         <Users size={12} />
@@ -1828,7 +1886,7 @@ export default function RoleManagement() {
                           event.stopPropagation();
                           openEditRole(role);
                         }}
-                        className="inline-flex cursor-pointer items-center gap-1.5 text-[#00529B]"
+                        className="inline-flex cursor-pointer items-center gap-1.5 text-[#9D0A0E]"
                       >
                         <PencilLine
                           size={12}
@@ -1848,28 +1906,28 @@ export default function RoleManagement() {
             ROLE DETAILS
         ================================================= */}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
 
           {selectedRole ? (
             <>
               {/* ROLE HEADER */}
 
-              <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-3 border-b border-[#E5E7EB] pb-5 md:flex-row md:items-center md:justify-between">
 
                 <div className="flex items-center gap-3">
 
-                  <div className="rounded-xl bg-blue-100 p-3 text-[#00529B]">
+                  <div className="rounded-xl bg-[#FBF1F1] p-3 text-[#9D0A0E]">
                     <ShieldCheck
                       size={22}
                     />
                   </div>
 
                   <div>
-                    <h2 className="text-xl font-bold text-slate-800">
+                    <h2 className="text-xl font-bold text-[#1F2937]">
                       {selectedRole.name}
                     </h2>
 
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-[#4B5563]">
                       {selectedRole.status}{' '}
                       role
                     </p>
@@ -1887,7 +1945,7 @@ export default function RoleManagement() {
                         selectedRole
                       )
                     }
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    className="inline-flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm font-medium text-[#1F2937] hover:bg-[#F8F9FA]"
                   >
                     <PencilLine
                       size={15}
@@ -1922,13 +1980,13 @@ export default function RoleManagement() {
 
                   {/* DESCRIPTION */}
 
-                  <div className="rounded-xl bg-slate-50 p-4">
+                  <div className="rounded-xl bg-[#F8F9FA] p-4">
 
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">
                       Description
                     </p>
 
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                    <p className="mt-2 text-sm leading-6 text-[#4B5563]">
                       {selectedRole.description}
                     </p>
                   </div>
@@ -1937,7 +1995,7 @@ export default function RoleManagement() {
 
                   <div className="mt-5">
 
-                    <p className="mb-3 text-sm font-semibold text-slate-700">
+                    <p className="mb-3 text-sm font-semibold text-[#1F2937]">
                       Permissions
                     </p>
 
@@ -1951,9 +2009,9 @@ export default function RoleManagement() {
                               key={
                                 permission
                               }
-                              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+                              className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#4B5563]"
                             >
-                              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#00529B]" />
+                              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#9D0A0E]" />
 
                               {permission}
                             </div>
@@ -1962,7 +2020,7 @@ export default function RoleManagement() {
 
                       </div>
                     ) : (
-                      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                      <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8F9FA] px-3 py-4 text-sm text-[#4B5563]">
                         No permissions assigned.
                       </div>
                     )}
@@ -1971,9 +2029,9 @@ export default function RoleManagement() {
 
                 {/* SUMMARY */}
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="rounded-xl border border-[#E5E7EB] bg-[#F8F9FA] p-4">
 
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">
                     Summary
                   </p>
 
@@ -1983,11 +2041,11 @@ export default function RoleManagement() {
 
                     <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
 
-                      <span className="text-sm text-slate-500">
+                      <span className="text-sm text-[#4B5563]">
                         Assigned users
                       </span>
 
-                      <span className="text-lg font-bold text-slate-800">
+                      <span className="text-lg font-bold text-[#1F2937]">
                         {selectedRole.users}
                       </span>
                     </div>
@@ -1996,11 +2054,11 @@ export default function RoleManagement() {
 
                     <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
 
-                      <span className="text-sm text-slate-500">
+                      <span className="text-sm text-[#4B5563]">
                         Access level
                       </span>
 
-                      <span className="text-sm font-semibold text-slate-700">
+                      <span className="text-sm font-semibold text-[#1F2937]">
                         {selectedRole.name}
                       </span>
                     </div>
@@ -2009,11 +2067,11 @@ export default function RoleManagement() {
 
                     <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
 
-                      <span className="text-sm text-slate-500">
+                      <span className="text-sm text-[#4B5563]">
                         Permissions
                       </span>
 
-                      <span className="text-sm font-semibold text-slate-700">
+                      <span className="text-sm font-semibold text-[#1F2937]">
                         {currentPermissions.length}
                       </span>
                     </div>
@@ -2022,15 +2080,15 @@ export default function RoleManagement() {
 
                     <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
 
-                      <span className="text-sm text-slate-500">
+                      <span className="text-sm text-[#4B5563]">
                         Module
                       </span>
 
-                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#1F2937]">
 
                         <BriefcaseBusiness
                           size={14}
-                          className="text-[#00529B]"
+                          className="text-[#9D0A0E]"
                         />
 
                         Queue System
@@ -2041,7 +2099,7 @@ export default function RoleManagement() {
               </div>
             </>
           ) : (
-            <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500">
+            <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8F9FA] text-[#4B5563]">
               No role selected.
             </div>
           )}

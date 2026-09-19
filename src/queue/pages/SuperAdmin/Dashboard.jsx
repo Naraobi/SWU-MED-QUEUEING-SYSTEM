@@ -30,9 +30,9 @@ const DEPARTMENT_VOLUME = [
 ];
 
 const QUEUE_DISTRIBUTION = [
-  { label: 'Serving', pct: 25, color: '#0B1524' },
-  { label: 'Waiting', pct: 45, color: '#94A3B8' },
-  { label: 'Completed', pct: 30, color: '#2563EB' },
+  { label: 'Serving', pct: 25, color: '#1F2937' },
+  { label: 'Waiting', pct: 45, color: '#4B5563' },
+  { label: 'Completed', pct: 30, color: '#B34C4C' },
 ];
 
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
@@ -220,7 +220,7 @@ function CalendarPopup({ value, onChange, onClose }) {
                 key={preset}
                 type="button"
                 onClick={() => selectPreset(preset)}
-                className="block w-full rounded-md px-1 py-2 text-left text-[15px] font-medium text-slate-700 transition hover:bg-slate-50 hover:text-[#087FF5]"
+                className="block w-full rounded-md px-1 py-2 text-left text-[15px] font-medium text-slate-700 transition hover:bg-[#F1F3F5] hover:text-[#9D0A0E]"
               >
                 {preset}
               </button>
@@ -230,7 +230,7 @@ function CalendarPopup({ value, onChange, onClose }) {
           <button
             type="button"
             onClick={reset}
-            className="mt-auto px-1 text-left text-[15px] font-semibold text-[#087FF5] hover:underline"
+            className="mt-auto px-1 text-left text-[15px] font-semibold text-[#9D0A0E] hover:underline"
           >
             Reset
           </button>
@@ -282,7 +282,7 @@ function CalendarPopup({ value, onChange, onClose }) {
                   type="button"
                   onClick={() => selectDate(date)}
                   className={`relative flex h-12 items-center justify-center text-[15px] ${
-                    inRange ? 'bg-[#DCEEFF]' : ''
+                    inRange ? 'bg-[#F6E7E7]' : ''
                   } ${
                     !currentMonth
                       ? 'text-slate-300'
@@ -290,7 +290,7 @@ function CalendarPopup({ value, onChange, onClose }) {
                   }`}
                 >
                   {(selectedStart || selectedEnd) && (
-                    <span className="absolute h-10 w-10 rounded-full bg-[#0B8AF7]" />
+                    <span className="absolute h-10 w-10 rounded-full bg-[#9D0A0E]" />
                   )}
 
                   <span
@@ -311,7 +311,7 @@ function CalendarPopup({ value, onChange, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="h-10 rounded-lg bg-[#0B2447] px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#0B2447]/90"
+              className="h-10 rounded-lg bg-[#9D0A0E] px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#7D080B]"
             >
               Done
             </button>
@@ -383,8 +383,8 @@ export default function Dashboard() {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800">System Overview</h1>
-          <p className="text-sm text-slate-500">Today &middot; {today}</p>
+          <h1 className="text-2xl font-semibold text-[#1F2937]">System Overview</h1>
+          <p className="text-sm text-[#4B5563]">Today &middot; {today}</p>
         </div>
 
         <div className="flex items-center gap-2.5">
@@ -395,7 +395,7 @@ export default function Dashboard() {
                 event.stopPropagation();
                 setCalendarOpen((open) => !open);
               }}
-              className="flex min-w-[128px] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 focus:outline-none"
+              className="flex min-w-32 items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-[#4B5563] focus:outline-none"
               aria-expanded={calendarOpen}
               aria-haspopup="dialog"
             >
@@ -417,7 +417,7 @@ export default function Dashboard() {
 
           <button
             type="button"
-            className="rounded-lg bg-[#0B2447] px-4 py-2 text-xs font-medium text-white hover:bg-[#0B2447]/90"
+            className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-[#7D080B]"
           >
             Apply Filter
           </button>
@@ -425,7 +425,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={fetchDepartments}
-            className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:bg-white"
+            className="flex h-10 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 text-xs font-medium text-[#4B5563] shadow-sm transition-colors hover:bg-[#F8F9FA]"
           >
             <RotateCw size={12} /> Refresh
           </button>
@@ -438,30 +438,33 @@ export default function Dashboard() {
         {STATS.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.label} className="min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+            <div key={stat.label} className="min-w-0 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{stat.label}</p>
-                <Icon size={16} className="text-slate-400" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">{stat.label}</p>
+                <Icon size={16} className="text-[#9D0A0E]" />
               </div>
-              <p className="text-2xl font-semibold text-slate-800">{stat.value}</p>
-              <p className="mt-1 text-[11px] uppercase tracking-wide text-slate-400">{stat.caption}</p>
+              <p className="text-2xl font-bold text-[#1F2937]">{stat.value}</p>
+              <p className="mt-1 text-xs uppercase tracking-wide text-[#4B5563]">{stat.caption}</p>
             </div>
           );
         })}
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-3 flex items-center gap-2">
-            <Sparkles size={16} className="text-[#0B1524]" />
-            <h2 className="text-sm font-semibold text-slate-800">AI-Assisted Insights</h2>
+        <div className="rounded-xl border border-[#F0DADA] bg-[#FBF1F1] p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="text-[#9D0A0E]" />
+            <h2 className="text-sm font-bold text-[#1F2937]">AI-Assisted Insights</h2>
           </div>
+
+          <div className="my-4 border-t border-[#EBD5D5]" />
+
           <div className="space-y-4">
             {INSIGHTS.map((insight, i) => {
               const Icon = insight.icon;
               return (
-                <div key={i} className="flex gap-2.5 text-sm text-slate-600">
-                  <Icon size={16} className="mt-0.5 shrink-0 text-slate-400" />
+                <div key={i} className="flex gap-2.5 text-sm text-[#4B5563]">
+                  <Icon size={16} className="mt-0.5 shrink-0 text-[#B34C4C]" />
                   <p>{insight.text}</p>
                 </div>
               );
@@ -469,18 +472,18 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-800">Department Volume</h2>
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-sm font-bold text-[#1F2937]">Department Volume</h2>
           <div className="space-y-4">
             {DEPARTMENT_VOLUME.map((dept) => (
               <div key={dept.name}>
                 <div className="mb-1 flex items-center justify-between text-xs">
-                  <span className="font-medium text-slate-700">{dept.name}</span>
-                  <span className="text-slate-400">{dept.value}</span>
+                  <span className="font-semibold text-[#1F2937]">{dept.name}</span>
+                  <span className="text-[#4B5563]">{dept.value}</span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-slate-100">
+                <div className="h-2 w-full rounded-full bg-[#F1F3F5]">
                   <div
-                    className="h-2 rounded-full bg-[#0B2447]"
+                    className="h-2 rounded-full bg-[#9D0A0E]"
                     style={{ width: `${(dept.value / dept.max) * 100}%` }}
                   />
                 </div>
@@ -489,72 +492,20 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-800">Queue Status Distribution</h2>
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-sm font-bold text-[#1F2937]">Queue Status Distribution</h2>
           <div className="flex items-center gap-6">
             <DonutChart data={QUEUE_DISTRIBUTION} />
             <div className="space-y-2 text-xs">
               {QUEUE_DISTRIBUTION.map((slice) => (
                 <div key={slice.label} className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: slice.color }} />
-                  <span className="text-slate-600">{slice.label} ({slice.pct}%)</span>
+                  <span className="text-[#4B5563]">{slice.label} ({slice.pct}%)</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-800">Department Overview</h2>
-          <span className="text-xs text-slate-400">Live from Department Management</span>
-        </div>
-
-        {error && (
-          <div className="mx-5 my-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
-            {error}
-          </div>
-        )}
-
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
-              <th className="px-5 py-2.5 font-medium">Department</th>
-              <th className="px-5 py-2.5 font-medium">Classification</th>
-              <th className="px-5 py-2.5 font-medium">Location</th>
-              <th className="px-5 py-2.5 font-medium">Prefix</th>
-              <th className="px-5 py-2.5 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">Loading departments...</td>
-              </tr>
-            )}
-            {!loading && departments.length === 0 && !error && (
-              <tr>
-                <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">No departments yet.</td>
-              </tr>
-            )}
-            {!loading &&
-              departments.map((dept) => (
-                <tr key={dept.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                  <td className="px-5 py-3 font-medium text-slate-700">{dept.name}</td>
-                  <td className="px-5 py-3 text-slate-500">{dept.classification}</td>
-                  <td className="px-5 py-3 text-slate-600">{dept.location}</td>
-                  <td className="px-5 py-3 text-slate-600">{dept.prefix}</td>
-                  <td className="px-5 py-3">
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${dept.status === 'active' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${dept.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                      {dept.status === 'active' ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );

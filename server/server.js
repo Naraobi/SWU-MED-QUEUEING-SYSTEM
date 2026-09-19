@@ -27,7 +27,8 @@ const patientRoutes = require("./routes/patientRoutes");
 const staffQueueRoutes = require("./routes/staffQueueRoutes");
 
 const app = express();
-const PORT = 5000;
+
+const PORT = process.env.PORT || 5000;
 
 const SYNC_INTERVAL = 30 * 1000;
 
