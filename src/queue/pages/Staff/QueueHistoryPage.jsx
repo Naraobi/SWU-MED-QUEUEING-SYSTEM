@@ -384,7 +384,7 @@ export default function QueueHistoryPage() {
   // ============================================================
 
   return (
-    <div className="staff-shell flex min-h-screen w-full bg-[#F8F9FA]">
+    <div className="staff-shell flex min-h-screen w-full bg-[#F8F9FA]" style={{ fontFamily: 'Inter, sans-serif' }}>
 
       <Sidebar />
 
@@ -400,7 +400,7 @@ export default function QueueHistoryPage() {
 
           {/* PAGE TITLE */}
           <div className="mb-8">
-            <h1 className="text-3xl font-extrabold leading-none text-[#1F2937]">Queue History</h1>
+            <h1 className="text-2xl font-extrabold leading-none text-[#1F2937]">Queue History</h1>
             <p className="mt-2 text-sm text-[#4B5563]">
               Review queue transactions handled by your assigned department.
             </p>
@@ -413,7 +413,7 @@ export default function QueueHistoryPage() {
             <div className="flex h-[100px] items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-6 shadow-sm">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">TODAY'S COMPLETED</p>
-                <p className="mt-2 text-4xl font-extrabold leading-none text-[#1F2937]">{completedCount}</p>
+                <p className="mt-2 text-3xl font-extrabold leading-none text-[#1F2937]">{completedCount}</p>
               </div>
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F3F5]">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.8">
@@ -427,7 +427,7 @@ export default function QueueHistoryPage() {
             <div className="flex h-[100px] items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-6 shadow-sm">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">TODAY'S SKIPPED</p>
-                <p className="mt-2 text-4xl font-extrabold leading-none text-[#1F2937]">{skippedCount}</p>
+                <p className="mt-2 text-3xl font-extrabold leading-none text-[#1F2937]">{skippedCount}</p>
               </div>
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F3F5]">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.8">
@@ -441,7 +441,7 @@ export default function QueueHistoryPage() {
             <div className="flex h-[100px] items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-6 shadow-sm">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">AVERAGE SERVICE TIME</p>
-                <p className="mt-2 text-4xl font-extrabold leading-none text-[#1F2937]">{averageServiceTime}</p>
+                <p className="mt-2 text-3xl font-extrabold leading-none text-[#1F2937]">{averageServiceTime}</p>
               </div>
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F3F5]">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.8">

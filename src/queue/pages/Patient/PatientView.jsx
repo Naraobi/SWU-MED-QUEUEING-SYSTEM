@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
+import logo from '../../../assets/logo.png';
 
 /* =========================================================
    BRAND THEME
@@ -304,11 +305,17 @@ function getActiveKioskForToday(kiosks) {
 ========================================================= */
 
 function Wordmark({ size = 'text-xl' }) {
+  const logoSize =
+    size === 'text-2xl'
+      ? 'h-12'
+      : size === 'text-lg'
+        ? 'h-9'
+        : size === 'text-base'
+          ? 'h-8'
+          : 'h-9';
+
   return (
-    <div className={`${size} font-extrabold leading-none`}>
-      <span className="text-[#9D0A0E]">SWU</span>
-      <span className="text-slate-900">Med</span>
-    </div>
+    <img src={logo} alt="SWUMed Logo" className={`${logoSize} w-auto object-contain mix-blend-multiply`} />
   );
 }
 
@@ -335,16 +342,16 @@ function KioskHeader() {
 
   return (
     <div className="mb-6 flex items-center justify-between">
-      <Wordmark size="text-base" />
+      <Wordmark size="text-lg" />
 
-      <div className="flex items-center gap-3 text-[13px] font-semibold text-slate-700">
+      <div className="flex items-center gap-3 text-sm font-semibold text-slate-700">
         <span className="flex items-center gap-1.5">
-          <Clock size={14} />
+          <Clock size={16} />
           {time}
         </span>
 
         <span className="flex items-center gap-1.5">
-          <Calendar size={14} />
+          <Calendar size={16} />
           {date}
         </span>
       </div>
@@ -358,8 +365,8 @@ function KioskHeader() {
 
 function Screen({ children }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F1F3F5] px-4 py-10 print:hidden">
-      <div className="w-full max-w-sm">
+    <div className="flex min-h-screen cursor-default select-none items-center justify-center bg-[#F8F9FA] px-4 py-12 print:hidden" style={{ caretColor: 'transparent' }}>
+      <div className="w-full max-w-md">
         {children}
       </div>
     </div>
@@ -407,27 +414,27 @@ function NavButtons({
 function WelcomeScreen({ onStart }) {
   return (
     <Screen>
-      <div className="flex flex-col items-center px-2 text-center">
+      <div className="flex flex-col items-center justify-center px-2 text-center">
         <div className="mb-10">
           <Wordmark size="text-2xl" />
         </div>
 
-        <h1 className="text-2xl font-bold text-slate-900">
+        <h1 className="text-3xl font-bold text-slate-900">
           Welcome to
         </h1>
 
-        <h1 className="mb-6 text-2xl font-bold text-[#9D0A0E]">
+        <h1 className="mb-6 text-3xl font-bold text-[#9D0A0E]">
           SWU Med Hospital
         </h1>
 
-        <p className="mb-10 text-sm text-slate-500">
+        <p className="mb-10 max-w-[24rem] text-base text-slate-500">
           Please tap below to get your queue number.
         </p>
 
         <button
           type="button"
           onClick={onStart}
-          className="flex w-full items-center justify-center gap-2 rounded-none bg-[#9D0A0E] py-4 text-base font-semibold text-white shadow-sm hover:bg-[#7d0809]"
+          className="flex w-full max-w-[24rem] self-center items-center justify-center gap-2 rounded-none bg-[#9D0A0E] px-12 py-5 text-center text-lg font-semibold text-white shadow-sm hover:bg-[#7d0809]"
         >
           GET STARTED
           <ArrowRight size={18} />
@@ -504,7 +511,7 @@ function SelectKioskScreen({
       <KioskHeader />
 
       <div className="mb-6 text-center">
-        <h1 className="text-lg font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-slate-900">
           Select Your Kiosk
         </h1>
 
@@ -709,7 +716,7 @@ function KioskPinScreen({
           />
         </div>
 
-        <h1 className="text-lg font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-slate-900">
           Enter Kiosk Code
         </h1>
 
@@ -800,7 +807,7 @@ function QueueTypeScreen({
       <KioskHeader />
 
       <div className="mb-6 text-center">
-        <h1 className="text-lg font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-slate-900">
           Select Your Queue Type
         </h1>
 
@@ -879,7 +886,7 @@ function SelectDepartmentScreen({
       <KioskHeader />
 
       <div className="mb-5 text-center">
-        <h1 className="text-lg font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-slate-900">
           What do you need today?
         </h1>
 
@@ -922,7 +929,7 @@ function SelectDepartmentScreen({
           )}
 
         {!loading && departments.length > 0 && (
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-2 gap-3">
             {departments.map((department) => {
               const Icon =
                 getDepartmentIcon(
@@ -944,7 +951,7 @@ function SelectDepartmentScreen({
                   onClick={() =>
                     active && onSelect(department)
                   }
-                  className={`relative flex flex-col items-center gap-1.5 rounded-none border p-3 text-center transition ${
+                  className={`relative flex flex-col items-center gap-2 rounded-none border p-4 text-center transition ${
                     !active
                       ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'
                       : isSelected
@@ -959,12 +966,12 @@ function SelectDepartmentScreen({
                   )}
 
                   <div
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
                       !active ? 'bg-slate-200' : 'bg-[#9D0A0E]/10'
                     }`}
                   >
                     <Icon
-                      size={15}
+                      size={17}
                       className={
                         !active
                           ? 'text-slate-400'
@@ -974,7 +981,7 @@ function SelectDepartmentScreen({
                   </div>
 
                   <p
-                    className={`text-[10px] font-bold uppercase leading-tight tracking-wide ${
+                    className={`text-xs font-bold uppercase leading-tight tracking-wide ${
                       !active
                         ? 'text-slate-400'
                         : isSelected
@@ -985,7 +992,7 @@ function SelectDepartmentScreen({
                     {department.name}
                   </p>
 
-                  <p className="text-[9px] leading-tight text-slate-400">
+                  <p className="text-[10px] leading-tight text-slate-400">
                     {active
                       ? getDepartmentDescription(department)
                       : 'Inactive'}
@@ -1035,7 +1042,7 @@ function ConfirmScreen({
       <KioskHeader />
 
       <div className="mb-6 text-center">
-        <h1 className="text-lg font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-slate-900">
           Confirm Your Service
         </h1>
 
@@ -1149,7 +1156,7 @@ function TicketScreen({
       <KioskHeader />
 
       <div className="mb-5 text-center">
-        <h1 className="text-lg font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-slate-900">
           Your Queue Number
         </h1>
 
@@ -1158,12 +1165,12 @@ function TicketScreen({
         </p>
       </div>
 
-      <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="mx-auto mb-6 w-full max-w-[26rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div
           className="px-6 py-6 text-center"
           style={{ backgroundColor: themeColor }}
         >
-          <p className="mb-3 text-4xl font-bold text-white">
+          <p className="mb-3 text-5xl font-bold text-white">
             {queueNumber}
           </p>
 
@@ -1234,11 +1241,11 @@ function TicketScreen({
         </div>
       </div>
 
-      <p className="mb-3 text-center text-sm font-medium text-slate-700">
+      <p className="mb-5 text-center text-sm font-medium text-slate-700">
         Would you like to print your ticket?
       </p>
 
-      <div className="flex gap-3">
+      <div className="flex gap-4">
         <button
           type="button"
           onClick={onPrint}

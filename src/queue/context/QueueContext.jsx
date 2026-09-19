@@ -29,6 +29,8 @@ export function QueueProvider({ children }) {
   })
 
   const [loading, setLoading] = useState(true)
+  const hasLoadedRef = useRef(false)
+  const refreshInFlightRef = useRef(false)
 
   /* ==========================================================================
      NOTIFICATIONS
@@ -85,7 +87,10 @@ export function QueueProvider({ children }) {
       return
     }
 
-    setLoading(true)
+    if (refreshInFlightRef.current) return
+
+    refreshInFlightRef.current = true
+    if (!hasLoadedRef.current) setLoading(true)
 
     try {
       const state = await api.fetchQueueState(
@@ -155,6 +160,8 @@ export function QueueProvider({ children }) {
         skipped: 0,
       })
     } finally {
+      hasLoadedRef.current = true
+      refreshInFlightRef.current = false
       setLoading(false)
     }
   }, [])

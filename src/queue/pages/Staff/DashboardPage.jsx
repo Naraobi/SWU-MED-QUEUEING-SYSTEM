@@ -610,7 +610,7 @@ export default function DashboardPage() {
   const serviceDisplayName = activeServing?.service || 'Billing / Payment'
 
   return (
-    <div className="staff-shell flex min-h-screen w-full bg-[#f4f6f8] font-sans antialiased text-slate-800">
+    <div className="staff-shell flex min-h-screen w-full bg-[#f4f6f8] antialiased text-slate-800" style={{ fontFamily: 'Inter, sans-serif' }}>
       <Sidebar />
 
       <main className="min-h-screen min-w-0 flex-1 flex flex-col">
@@ -623,7 +623,7 @@ export default function DashboardPage() {
 
         <div className="p-8 flex-1 flex flex-col max-w-[1600px] w-full mx-auto">
           <div className="mb-6">
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               Today's Queue
             </h1>
             <p className="mt-1 text-sm text-slate-500">
@@ -637,7 +637,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   WAITING
                 </p>
-                <p className="mt-2 text-4xl font-extrabold text-slate-900">
+                <p className="mt-2 text-3xl font-extrabold text-slate-900">
                   {filteredWaitingQueue.length}
                 </p>
                 <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -654,7 +654,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   CURRENTLY SERVING
                 </p>
-                <p className="mt-2 text-4xl font-extrabold text-slate-900">
+                <p className="mt-2 text-3xl font-extrabold text-slate-900">
                   {serviceHasStarted && activeServing ? 1 : 0}
                 </p>
                 <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -671,7 +671,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   COMPLETED
                 </p>
-                <p className="mt-2 text-4xl font-extrabold text-slate-900">
+                <p className="mt-2 text-3xl font-extrabold text-slate-900">
                   {stats.completed || 0}
                 </p>
                 <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -688,7 +688,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   SKIPPED
                 </p>
-                <p className="mt-2 text-4xl font-extrabold text-slate-900">
+                <p className="mt-2 text-3xl font-extrabold text-slate-900">
                   {stats.skipped || 0}
                 </p>
                 <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -716,7 +716,7 @@ export default function DashboardPage() {
                 ) : activeServing ? (
                   serviceHasStarted ? (
                     <div className="mt-4">
-                      <p className="text-[90px] leading-none font-black text-[#851010] tracking-tight">
+                      <p className="text-[64px] leading-none font-black text-[#851010] tracking-tight">
                         {activeServing.id}
                       </p>
 
@@ -756,7 +756,7 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="mt-4">
-                      <p className="text-[90px] leading-none font-black text-[#851010] tracking-tight">
+                      <p className="text-[64px] leading-none font-black text-[#851010] tracking-tight">
                         {activeServing.id}
                       </p>
 
@@ -850,7 +850,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   NEXT PATIENT
                 </p>
-                <p className="mt-2 text-4xl font-extrabold text-slate-900">
+                <p className="mt-2 text-3xl font-extrabold text-slate-900">
                   {nextPatient ? nextPatient.id : '—'}
                 </p>
               </div>
