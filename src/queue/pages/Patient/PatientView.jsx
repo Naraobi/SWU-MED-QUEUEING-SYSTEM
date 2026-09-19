@@ -7,6 +7,15 @@ import {
   createPatientQueue,
   verifyKioskPin,
 } from '../../services/backendApi';
+
+import {
+  getOfflineData,
+  saveOfflineData,
+  addPendingOperation,
+} from '../../services/offlineStorage';
+
+import { syncPendingOperations } from '../../services/queueSync';
+
 import {
   ArrowRight,
   ArrowLeft,
@@ -1491,6 +1500,8 @@ export default function PatientView({
   const [step, setStep] =
     useState('welcome');
 
+    console.log('PATIENT CURRENT STEP:', step);
+
   const [queueType, setQueueType] =
     useState(null);
 
@@ -1545,81 +1556,121 @@ export default function PatientView({
     Supabase or Firebase.
   */
 
-  async function fetchKiosks() {
-    if (kioskFetchRef.current) {
-      return kioskFetchRef.current;
-    }
+async function fetchKiosks() {
+  if (kioskFetchRef.current) {
+    return kioskFetchRef.current;
+  }
 
-    const fetchPromise =
-      (async () => {
-        setKiosksLoading(true);
-        setKiosksError('');
-
-        try {
-          const data =
-            await getKiosks();
-
-          const normalizedKiosks =
-            (data || [])
-              .map((item) => ({
-                kiosk_id:
-                  item?.kiosk_id ||
-                  item?.id ||
-                  '',
-                name:
-                  item?.name || '',
-                status:
-                  item?.status ??
-                  null,
-              }))
-              .filter(
-                (item) =>
-                  item.kiosk_id &&
-                  item.name
-              )
-              .filter(
-                (item) =>
-                  !item.status ||
-                  String(
-                    item.status
-                  ).toLowerCase() ===
-                    'active'
-              )
-              .sort((a, b) =>
-                a.name.localeCompare(
-                  b.name
-                )
-              );
-
-          setKiosks(
-            normalizedKiosks
-          );
-        } catch (error) {
-          console.error(
-            'Error fetching kiosks:',
-            error
-          );
-
-          setKiosks([]);
-
-          setKiosksError(
-            error?.message ||
-              'Unable to load kiosks.'
-          );
-        } finally {
-          setKiosksLoading(false);
-        }
-      })();
-
-    kioskFetchRef.current =
-      fetchPromise;
+  const fetchPromise = (async () => {
+    setKiosksLoading(true);
+    setKiosksError('');
 
     try {
-      return await fetchPromise;
-    } finally {
-      kioskFetchRef.current = null;
-    }
+      let data = [];
+
+      try {
+        // Try the backend first.
+        data = await getKiosks();
+
+        // Cache the successful kiosk response for offline use.
+        await saveOfflineData('kiosks', data || []);
+      } catch (onlineError) {
+  console.warn(
+    'Unable to fetch kiosks from backend. Trying offline cache:',
+    onlineError
+  );
+
+  console.log('OFFLINE CACHE: attempting to read kiosks...');
+
+  data = await getOfflineData('kiosks');
+
+  console.log(
+    'OFFLINE CACHE: kiosks retrieved:',
+    data
+  );
+
+  if (!data || !Array.isArray(data)) {
+    throw new Error(
+      'No cached kiosk data is available for offline use.'
+    );
   }
+}
+
+      const normalizedKiosks = (data || [])
+        .map((item) => ({
+          kiosk_id:
+            item?.kiosk_id ||
+            item?.id ||
+            '',
+          name:
+            item?.name || '',
+          status:
+            item?.status ??
+            null,
+        }))
+        .filter(
+          (item) =>
+            item.kiosk_id &&
+            item.name
+        )
+        .filter(
+          (item) =>
+            !item.status ||
+            String(item.status).toLowerCase() ===
+              'active'
+        )
+        .sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
+
+      setKiosks(normalizedKiosks);
+      setKiosksError('');
+
+      console.log(
+  'NORMALIZED OFFLINE KIOSKS:',
+  normalizedKiosks
+);
+
+      if (normalizedKiosks.length === 0) {
+        setKiosksError(
+          'No kiosks are currently available.'
+        );
+      }
+    } catch (error) {
+  console.error(
+    'Error fetching kiosks:',
+    error
+  );
+
+  // Keep already-loaded kiosk data if it exists.
+  // This prevents a failed refresh from wiping out
+  // valid offline-cached kiosks.
+  setKiosks((currentKiosks) => {
+    if (currentKiosks.length > 0) {
+      return currentKiosks;
+    }
+
+    return [];
+  });
+
+  setKiosksError(
+    error?.message ||
+      'Unable to load kiosks.'
+  );
+} finally {
+      setKiosksLoading(false);
+    }
+  })();
+
+  kioskFetchRef.current =
+    fetchPromise;
+
+  try {
+    return await fetchPromise;
+  } finally {
+    kioskFetchRef.current = null;
+  }
+}
 
   /* =======================================================
      INITIAL KIOSK LOAD
@@ -1629,6 +1680,88 @@ export default function PatientView({
     fetchKiosks();
   }, []);
 
+   /* =======================================================
+     AUTOMATIC QUEUE SYNCHRONIZATION
+  ======================================================= */
+
+  useEffect(() => {
+  console.log('QUEUE SYNC: initializing...');
+
+  // Try to sync immediately when PatientView loads.
+  syncPendingOperations();
+
+  const handleOnline = () => {
+    console.log(
+      'QUEUE SYNC: connection restored. Starting synchronization...'
+    );
+
+    syncPendingOperations();
+  };
+
+  window.addEventListener('online', handleOnline);
+
+  // Also retry periodically in case the browser remains "online"
+  // while the backend itself was temporarily unavailable.
+  const syncInterval = setInterval(() => {
+    syncPendingOperations();
+  }, 10000);
+
+  return () => {
+    window.removeEventListener('online', handleOnline);
+    clearInterval(syncInterval);
+  };
+}, []);
+
+
+  /* =======================================================
+     UPDATE OFFLINE TICKET AFTER QUEUE SYNCHRONIZATION
+  ======================================================= */
+
+  useEffect(() => {
+    const handleQueueSyncSuccess = (event) => {
+      const {
+        local_id,
+        queue_id,
+        queue_number,
+        queue_data,
+      } = event.detail || {};
+
+      if (!local_id || local_id !== queueId) {
+        return;
+      }
+
+      console.log(
+        'QUEUE SYNC: updating current ticket with backend queue:',
+        queue_number
+      );
+
+      setQueueId(String(queue_id));
+      setQueueNumber(queue_number);
+
+      setService((current) => ({
+        ...current,
+        estMin:
+          Number(queue_data?.est_time) ||
+          current?.estMin ||
+          0,
+        waiting:
+          current?.waiting ?? 0,
+      }));
+    };
+
+    window.addEventListener(
+      'queue-sync-success',
+      handleQueueSyncSuccess
+    );
+
+    return () => {
+      window.removeEventListener(
+        'queue-sync-success',
+        handleQueueSyncSuccess
+      );
+    };
+  }, [queueId]);
+  
   /* =======================================================
      REFRESH KIOSKS WHEN KIOSK SCREEN OPENS
   ======================================================= */
@@ -1675,6 +1808,11 @@ export default function PatientView({
   async function fetchDepartments(
     kioskRecord
   ) {
+      console.log(
+    'FETCH DEPARTMENTS STARTED:',
+    kioskRecord
+  );
+
     if (!kioskRecord?.kiosk_id) {
       setDepartments([]);
       return;
@@ -1684,17 +1822,56 @@ export default function PatientView({
     setDepartmentsError('');
 
     try {
-      /*
-        Get departments assigned to this kiosk.
-      */
+  let data = [];
 
-      const data =
-        await getPatientDepartments(
-          kioskRecord.kiosk_id
-        );
+  try {
+    // Try the backend first.
+    data = await getPatientDepartments(
+  kioskRecord.kiosk_id
+);
 
-      const allDepartments =
-        data || [];
+console.log(
+  'DEPARTMENTS FROM BACKEND:',
+  data
+);
+
+// Save the successful response for offline use.
+await saveOfflineData(
+  `departments_${kioskRecord.kiosk_id}`,
+  data || []
+);
+
+console.log(
+  'DEPARTMENTS SAVED TO OFFLINE CACHE:',
+  `departments_${kioskRecord.kiosk_id}`
+);
+
+  } catch (onlineError) {
+    console.warn(
+      'Unable to fetch departments from backend. Trying offline cache:',
+      onlineError
+    );
+
+    // Backend unavailable — use the last cached departments.
+    data = await getOfflineData(
+      `departments_${kioskRecord.kiosk_id}`
+    );
+
+    console.log(
+      'OFFLINE CACHE: departments retrieved:',
+      data
+    );
+
+    if (!data || !Array.isArray(data)) {
+      throw new Error(
+        'No cached department data is available for offline use.'
+      );
+    }
+  }
+
+  setDepartmentsError('');
+
+  const allDepartments = data || [];
 
       /*
         Get current waiting count for
@@ -1776,15 +1953,23 @@ export default function PatientView({
      FETCH DEPARTMENTS WHEN KIOSK CHANGES
   ======================================================= */
 
-  useEffect(() => {
-    if (!kiosk) {
-      setDepartments([]);
-      setDepartmentsError('');
-      return;
-    }
+useEffect(() => {
+  console.log('DEPARTMENT EFFECT — kiosk:', kiosk);
 
-    fetchDepartments(kiosk);
-  }, [kiosk?.kiosk_id]);
+  if (!kiosk) {
+    setDepartments([]);
+    setDepartmentsError('');
+    return;
+  }
+
+  console.log(
+    'DEPARTMENT EFFECT — fetching departments for:',
+    kiosk.kiosk_id,
+    kiosk.name
+  );
+
+  fetchDepartments(kiosk);
+}, [kiosk?.kiosk_id]);
 
   /* =======================================================
      GET STARTED
@@ -1968,210 +2153,245 @@ export default function PatientView({
      GENERATE QUEUE NUMBER
   ======================================================= */
 
-  async function handleGenerateNumber() {
-    if (isGenerating) {
-      return;
+async function handleGenerateNumber() {
+  if (isGenerating) {
+    return;
+  }
+
+  try {
+    setIsGenerating(true);
+
+    /* ---------------------------------------------------
+       VALIDATE
+    --------------------------------------------------- */
+
+    if (!queueType) {
+      throw new Error(
+        'Please select a queue type.'
+      );
     }
 
-    try {
-      setIsGenerating(true);
-
-      /* ---------------------------------------------------
-         VALIDATE
-      --------------------------------------------------- */
-
-      if (!queueType) {
-        throw new Error(
-          'Please select a queue type.'
-        );
-      }
-
-      if (!kiosk) {
-        throw new Error(
-          'Please select a kiosk.'
-        );
-      }
-
-      if (!service) {
-        throw new Error(
-          'Please select a department.'
-        );
-      }
-
-      if (!service.department_id) {
-        throw new Error(
-          'The selected department does not have a valid department ID.'
-        );
-      }
-
-      /*
-        Extra safety check.
-      */
-
-      if (
-        String(
-          service.kiosk_id
-        ) !==
-        String(
-          kiosk.kiosk_id
-        )
-      ) {
-        throw new Error(
-          'The selected department does not belong to the selected kiosk.'
-        );
-      }
-
-      /* ---------------------------------------------------
-         CREATE QUEUE THROUGH NODE.JS
-      --------------------------------------------------- */
-
-      const result =
-        await createPatientQueue({
-          kiosk_id:
-            kiosk.kiosk_id,
-
-          kiosk_name:
-            kiosk.name,
-
-          department_id:
-            service.department_id,
-
-          department_name:
-            service.name,
-
-          queue_type:
-            queueType.key ===
-            'priority'
-              ? 'Priority'
-              : 'Regular',
-        });
-
-      /*
-        Node.js returns:
-
-        transaction_id
-        queue_id
-        queue_number
-        queue_sequence
-        patient_number
-        department_id
-        department
-        kiosk_id
-        kiosk
-        queue_type
-        is_priority
-        status
-        est_time
-      */
-
-      if (!result) {
-        throw new Error(
-          'The server did not return queue information.'
-        );
-      }
-
-      if (!result.queue_id) {
-        throw new Error(
-          'Queue was created, but no queue ID was returned.'
-        );
-      }
-
-      if (!result.queue_number) {
-        throw new Error(
-          'Queue was created, but no queue number was returned.'
-        );
-      }
-
-      /* ---------------------------------------------------
-         SAVE QUEUE INFORMATION
-      --------------------------------------------------- */
-
-      setQueueId(
-        String(result.queue_id)
+    if (!kiosk) {
+      throw new Error(
+        'Please select a kiosk.'
       );
+    }
+
+    if (!service) {
+      throw new Error(
+        'Please select a department.'
+      );
+    }
+
+    if (!service.department_id) {
+      throw new Error(
+        'The selected department does not have a valid department ID.'
+      );
+    }
+
+    /* Extra safety check. */
+    if (
+      String(service.kiosk_id) !==
+      String(kiosk.kiosk_id)
+    ) {
+      throw new Error(
+        'The selected department does not belong to the selected kiosk.'
+      );
+    }
+
+    const requestData = {
+      kiosk_id: kiosk.kiosk_id,
+      kiosk_name: kiosk.name,
+      department_id: service.department_id,
+      department_name: service.name,
+      queue_type:
+        queueType.key === 'priority'
+          ? 'Priority'
+          : 'Regular',
+    };
+
+    /* ---------------------------------------------------
+       CREATE QUEUE THROUGH NODE.JS
+    --------------------------------------------------- */
+
+    let result;
+
+    try {
+      result = await createPatientQueue(
+        requestData
+      );
+    } catch (onlineError) {
+      console.warn(
+        'Unable to create queue through backend. Saving as pending offline operation:',
+        onlineError
+      );
+
+      /* ---------------------------------------------------
+         OFFLINE QUEUE FALLBACK
+
+         The backend normally creates the authoritative
+         queue number. Since the backend is unavailable,
+         do NOT invent an official queue sequence.
+
+         Save the exact request so it can be submitted
+         to the backend when the connection returns.
+      --------------------------------------------------- */
+
+      const localQueueId =
+        `offline-${crypto.randomUUID()}`;
+
+      const pendingOperation = {
+        type: 'CREATE_PATIENT_QUEUE',
+        local_id: localQueueId,
+        payload: requestData,
+        created_at: new Date().toISOString(),
+        status: 'pending',
+      };
+
+      await addPendingOperation(
+        pendingOperation
+      );
+
+      console.log(
+        'OFFLINE QUEUE SAVED:',
+        pendingOperation
+      );
+
+      /* ---------------------------------------------------
+         CREATE A TEMPORARY LOCAL TICKET
+
+         This is NOT an authoritative hospital queue
+         number. It identifies this offline ticket until
+         the backend assigns the real queue number.
+      --------------------------------------------------- */
+
+      const offlineQueueNumber =
+        `OFFLINE-${Date.now()}`;
+
+      setQueueId(localQueueId);
 
       setQueueNumber(
-        result.queue_number
+        offlineQueueNumber
       );
-
-      /*
-        Update the selected service with
-        the latest values returned by Node.
-      */
 
       setService((current) => ({
         ...current,
-
         waiting:
           current?.waiting ?? 0,
-
         estMin:
-          Number(
-            result.est_time
-          ) ||
-          current?.estMin ||
-          0,
+          Number(current?.estMin) || 0,
       }));
 
-      /*
-        Refresh the waiting count once more right after the
-        ticket is created, so the number shown on the ticket
-        screen reflects who is actually still waiting at this
-        moment rather than the snapshot taken earlier in the
-        flow. The freshly created ticket itself is included in
-        that count, so it's subtracted back out.
-      */
-
-      try {
-        const waitingData =
-          await getWaitingCount(
-            service.department_id
-          );
-
-        const latestWaiting =
-          Math.max(
-            0,
-            (Number(
-              waitingData?.waiting_count
-            ) || 0) - 1
-          );
-
-        setService((current) =>
-          current
-            ? {
-                ...current,
-                waiting: latestWaiting,
-              }
-            : current
-        );
-      } catch (error) {
-        console.warn(
-          'Unable to refresh waiting count after ticket creation:',
-          error
-        );
-      }
-
-      /* ---------------------------------------------------
-         SHOW TICKET
-      --------------------------------------------------- */
-
       setStep('ticket');
+
+      return;
+    }
+
+    /* ---------------------------------------------------
+       VALIDATE ONLINE RESPONSE
+    --------------------------------------------------- */
+
+    if (!result) {
+      throw new Error(
+        'The server did not return queue information.'
+      );
+    }
+
+    if (!result.queue_id) {
+      throw new Error(
+        'Queue was created, but no queue ID was returned.'
+      );
+    }
+
+    if (!result.queue_number) {
+      throw new Error(
+        'Queue was created, but no queue number was returned.'
+      );
+    }
+
+    /* ---------------------------------------------------
+       SAVE QUEUE INFORMATION
+    --------------------------------------------------- */
+
+    setQueueId(
+      String(result.queue_id)
+    );
+
+    setQueueNumber(
+      result.queue_number
+    );
+
+    /*
+      Update the selected service with
+      the latest values returned by Node.
+    */
+
+    setService((current) => ({
+      ...current,
+      waiting:
+        current?.waiting ?? 0,
+      estMin:
+        Number(result.est_time) ||
+        current?.estMin ||
+        0,
+    }));
+
+    /*
+      Refresh the waiting count once more right after
+      the ticket is created.
+    */
+
+    try {
+      const waitingData =
+        await getWaitingCount(
+          service.department_id
+        );
+
+      const latestWaiting =
+        Math.max(
+          0,
+          (Number(
+            waitingData?.waiting_count
+          ) || 0) - 1
+        );
+
+      setService((current) =>
+        current
+          ? {
+              ...current,
+              waiting:
+                latestWaiting,
+            }
+          : current
+      );
     } catch (error) {
-      console.error(
-        'Queue generation error:',
+      console.warn(
+        'Unable to refresh waiting count after ticket creation:',
         error
       );
-
-      alert(
-        `Database Error: ${
-          error?.message ||
-          'Unable to generate queue number.'
-        }`
-      );
-    } finally {
-      setIsGenerating(false);
     }
+
+    /* ---------------------------------------------------
+       SHOW TICKET
+    --------------------------------------------------- */
+
+    setStep('ticket');
+  } catch (error) {
+    console.error(
+      'Queue generation error:',
+      error
+    );
+
+    alert(
+      `Database Error: ${
+        error?.message ||
+        'Unable to generate queue number.'
+      }`
+    );
+  } finally {
+    setIsGenerating(false);
   }
+}
 
   /* =======================================================
      PRINT

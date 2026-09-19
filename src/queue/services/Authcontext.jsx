@@ -1,3 +1,5 @@
+import { getOfflineData, saveOfflineData } from './offlineStorage';
+
 import {
   createContext,
   useContext,
@@ -367,12 +369,15 @@ password_changed_at:
 |--------------------------------------------------------------------------
 */
 
-function saveUserLocally(userData) {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(userData)
-  );
-}
+const saveUserLocally = async (userData) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+
+  try {
+    await saveOfflineData('user_profile', userData);
+  } catch (error) {
+    console.warn('Could not save offline user profile:', error);
+  }
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -396,76 +401,57 @@ function clearLocalUser() {
 |--------------------------------------------------------------------------
 */
 
-function loadSavedUser() {
+const loadSavedUser = async () => {
   try {
-    const stored =
-      localStorage.getItem(
-        STORAGE_KEY
-      );
+    const saved = localStorage.getItem(STORAGE_KEY);
 
-    if (!stored) {
-      return null;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+
+      if (
+        parsed?.status &&
+        ['inactive', 'deactivated', 'disabled'].includes(
+          String(parsed.status).trim().toLowerCase()
+        )
+      ) {
+        clearLocalUser();
+        return null;
+      }
+
+      const validated = validateUserAccess(parsed);
+
+      if (validated.valid) {
+        return buildFinalUser(parsed, null);
+      }
     }
-
-    const parsed =
-      JSON.parse(stored);
-
-    if (!parsed) {
-      return null;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | CHECK STATUS
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-      String(
-        parsed.status ?? ""
-      ).toLowerCase() ===
-      "inactive"
-    ) {
-      clearLocalUser();
-      return null;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | CHECK ROLE / ACCESS
-    |--------------------------------------------------------------------------
-    */
-
-    const validation =
-      validateUserAccess(
-        parsed
-      );
-
-    if (!validation.valid) {
-      console.warn(
-        "Saved user failed access validation:",
-        validation.message
-      );
-
-      clearLocalUser();
-      return null;
-    }
-
-    return buildFinalUser(
-      parsed,
-      null
-    );
   } catch (error) {
-    console.error(
-      "Error loading saved user:",
-      error
-    );
-
-    clearLocalUser();
-
-    return null;
+    console.warn('Could not load local user:', error);
   }
-}
+
+  try {
+    const offlineUser = await getOfflineData('user_profile');
+
+    if (offlineUser) {
+      if (
+        offlineUser?.status &&
+        ['inactive', 'deactivated', 'disabled'].includes(
+          String(offlineUser.status).trim().toLowerCase()
+        )
+      ) {
+        clearLocalUser();
+        return null;
+      }
+
+      if (validateUserAccess(offlineUser)) {
+        return buildFinalUser(offlineUser, null);
+      }
+    }
+  } catch (error) {
+    console.warn('Could not load offline user profile:', error);
+  }
+
+  return null;
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -658,29 +644,70 @@ export function AuthProvider({
               }
             );
           } catch (error) {
-            console.error(
-              "Error loading authenticated user profile:",
-              error
-            );
+  console.error(
+    "Error loading authenticated user profile:",
+    error
+  );
 
-            /*
-            |--------------------------------------------------------------------------
-            | IMPORTANT
-            |--------------------------------------------------------------------------
-            |
-            | Firebase authentication succeeded, but the application
-            | profile could not be loaded.
-            |
-            | Do not allow an incomplete user profile into the dashboard.
-            |
-            |--------------------------------------------------------------------------
-            */
+  /*
+  |--------------------------------------------------------------------------
+  | OFFLINE FALLBACK
+  |--------------------------------------------------------------------------
+  |
+  | Firebase authentication succeeded, but the backend/database
+  | may currently be unavailable.
+  |
+  | Firebase remains the authentication authority.
+  | If Firebase still has an authenticated user, we can safely
+  | restore the previously cached application profile.
+  |
+  |--------------------------------------------------------------------------
+  */
 
-            setUser(null);
-            clearLocalUser();
-          } finally {
-            setLoading(false);
-          }
+  console.warn(
+    "Backend unavailable. Attempting to restore saved offline session."
+  );
+
+  const savedUser = await loadSavedUser();
+
+  if (savedUser) {
+    const finalUser = buildFinalUser(
+      savedUser,
+      firebaseUser
+    );
+
+    setUser(finalUser);
+
+    console.log(
+      "Offline session restored:",
+      {
+        firebase_uid:
+          finalUser.firebase_uid,
+        email:
+          finalUser.email,
+        role:
+          finalUser.role,
+        department:
+          finalUser.department,
+        department_id:
+          finalUser.department_id,
+        department_prefix:
+          finalUser.department_prefix,
+        kiosk:
+          finalUser.kiosk,
+      }
+    );
+  } else {
+    console.warn(
+      "No saved offline session is available."
+    );
+
+    setUser(null);
+    clearLocalUser();
+  }
+} finally {
+  setLoading(false);
+}
         }
       );
 
