@@ -6,6 +6,10 @@ dotenv.config({
   path: path.join(__dirname, "../.env"),
 });
 
+const isLocalHost = ["localhost", "127.0.0.1"].includes(
+  process.env.MYSQL_HOST
+);
+
 const pool = mysql.createPool({
   host: process.env.MYSQL_HOST,
   user: process.env.MYSQL_USER,
@@ -13,10 +17,13 @@ const pool = mysql.createPool({
   database: process.env.MYSQL_DATABASE,
   port: Number(process.env.MYSQL_PORT) || 3306,
 
-  // TiDB Cloud requires SSL
-  ssl: {
-    rejectUnauthorized: true,
-  },
+  // TiDB Cloud (and most managed hosts) require SSL, but a local/same-server
+  // MySQL host (e.g. shared hosting) generally does not support it.
+  ssl: isLocalHost
+    ? undefined
+    : {
+        rejectUnauthorized: true,
+      },
 
   waitForConnections: true,
   connectionLimit: 10,

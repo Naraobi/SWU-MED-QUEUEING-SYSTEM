@@ -3,7 +3,6 @@ import {
   Camera,
   Check,
   CheckCircle2,
-  ChevronRight,
   ClipboardCheck,
   Clock3,
   IdCard,
@@ -328,13 +327,13 @@ export function QueueManagementPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <section className="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold text-[#1F2937]">{t('queue.currentStatus')}</h2>
             <span className="text-[10px] font-semibold text-slate-400">{t('common.today')}</span>
           </div>
 
-          <div className="flex flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('queue.nowServing')}</p>
             <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : current?.id || '--'}</p>
             <p className="mt-2 text-xs text-[#4B5563]">
@@ -362,7 +361,7 @@ export function QueueManagementPage() {
                 <div key={row.uniqueKey || `${row.id}-${index}`} className="flex items-center justify-between rounded-md border border-[#E5E7EB] px-3 py-2.5">
                   <span className="flex items-center gap-2 text-xs font-bold text-[#1F2937]">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#F1F3F5] text-[10px] text-slate-500">{index + 1}</span>
-                    {row.id}
+                    <span className="rounded-md bg-[#F1F3F5] px-2 py-1 text-xs">{row.id}</span>
                   </span>
                   <span className="text-[10px] text-[#4B5563]">{t('queue.waitingMinutes', { minutes: row.etaMinutes ?? '~0' })}</span>
                 </div>
@@ -634,6 +633,7 @@ export function TerminalManagementPage() {
     setForm({
       assigned_staff_id: '',
       counter_number: String(nextCounterNumber()),
+      status: 'active',
     });
     setError(null);
     setModal('add');
@@ -674,7 +674,12 @@ export function TerminalManagementPage() {
         counter_number: Number(form.counter_number),
         prefix: `${adminDepartment.prefix || 'T'}-${form.counter_number}`,
         assigned_staff_id: form.assigned_staff_id || null,
-        status: form.assigned_staff_id ? 'active' : 'inactive',
+        status:
+          modal?.type === 'edit'
+            ? form.assigned_staff_id
+              ? 'active'
+              : 'inactive'
+            : form.status || 'active',
       };
 
       if (modal?.type === 'edit') {
@@ -799,16 +804,8 @@ export function TerminalManagementPage() {
                       <td className="px-5 py-3 text-slate-700">{assigned ? `${assigned.first_name} ${assigned.last_name}` : t('common.unassigned')}</td>
                       <td className="px-5 py-3 text-slate-600">{adminKiosk?.name || '--'}</td>
                       <td className="px-5 py-3 text-slate-600">{assigned ? t('common.stat.staff') : '--'}</td>
-                      <td className="px-5 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                            normalizeRole(terminal.status) === 'active'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-[#E5E7EB] text-slate-600'
-                          }`}
-                        >
-                          {normalizeRole(terminal.status) === 'active' ? t('common.stat.active') : t('common.stat.inactive')}
-                        </span>
+                      <td className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        {normalizeRole(terminal.status) === 'active' ? t('common.stat.active') : t('common.stat.inactive')}
                       </td>
                     </tr>
                   );
@@ -863,30 +860,124 @@ export function TerminalManagementPage() {
         </div>
       </div>
 
-      {/* ADD / EDIT TERMINAL MODAL */}
+      {/* ADD TERMINAL MODAL */}
 
-      {(modal === 'add' || modal?.type === 'edit') && (
+      {modal === 'add' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <section className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
+            <header className="border-b border-[#E5E7EB] px-5 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-[#1F2937]">{t('terminal.addModalTitle')}</h2>
+                <button type="button" onClick={closeModal} aria-label="Close">
+                  <X size={19} className="text-slate-500" />
+                </button>
+              </div>
+
+              <p className="mt-1 text-xs text-slate-500">{t('terminal.addModalSubtitle')}</p>
+              <p className="text-xs text-slate-500">{t('terminal.requiredNote')}</p>
+            </header>
+
+            <div className="space-y-4 p-5">
+              {adminDepartment && (
+                <div className="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2.5">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <Monitor size={14} className="text-[#9D0A0E]" />
+                    {adminKiosk?.name || t('common.unassigned')} · {adminDepartment.name || adminDepartment}
+                  </span>
+                  <span className="shrink-0 rounded-md border border-[#E5E7EB] bg-white px-2 py-1 text-[10px] font-semibold text-slate-500">
+                    {t('terminal.prefixLabel', { prefix: adminDepartment.prefix || 'T' })}
+                  </span>
+                </div>
+              )}
+
+              {/* TERMINAL NAME */}
+              <label className="block text-xs font-semibold text-slate-600">
+                {t('terminal.terminalName')} <span className="text-[#9D0A0E]">*</span>
+
+                <input
+                  type="number"
+                  min={1}
+                  value={form.counter_number}
+                  onChange={(e) => setForm((f) => ({ ...f, counter_number: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#9D0A0E]"
+                />
+              </label>
+
+              {/* TERMINAL CODE / ID */}
+              <label className="block text-xs font-semibold text-slate-600">
+                <span className="flex items-center justify-between">
+                  <span>{t('terminal.terminalCode')} <span className="text-[#9D0A0E]">*</span></span>
+                  <span className="text-[10px] font-medium text-slate-400">{t('terminal.autoGenerated')}</span>
+                </span>
+
+                <input
+                  value={`${adminDepartment?.prefix || 'T'}-${form.counter_number || ''}`}
+                  disabled
+                  className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-xs text-slate-500 outline-none"
+                />
+              </label>
+
+              <p className="text-[10px] text-slate-400">{t('terminal.codeNote')}</p>
+
+              {/* STATUS */}
+              <div>
+                <p className="mb-2 text-xs font-semibold text-slate-600">{t('common.table.status')}</p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, status: 'active' }))}
+                    className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold ${
+                      form.status === 'active'
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                        : 'border-[#E5E7EB] bg-white text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    {form.status === 'active' && <Check size={13} />}
+                    {t('common.stat.active')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, status: 'inactive' }))}
+                    className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold ${
+                      form.status === 'inactive'
+                        ? 'border-slate-300 bg-slate-100 text-slate-700'
+                        : 'border-[#E5E7EB] bg-white text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    {t('common.stat.inactive')}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <footer className="flex items-center justify-end gap-2 border-t border-[#E5E7EB] px-5 py-3">
+              <button type="button" onClick={closeModal} disabled={saving} className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">
+                {t('common.cancel')}
+              </button>
+              <button type="button" onClick={saveTerminal} disabled={saving} className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:opacity-50">
+                <Plus size={13} />
+                {saving ? t('common.saving') : t('terminal.addButton')}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {/* EDIT ASSIGNED TERMINAL MODAL */}
+
+      {modal?.type === 'edit' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
           <section className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
             <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
-              <h2 className="text-lg font-bold text-[#1F2937]">{modal === 'add' ? t('terminal.addModalTitle') : t('terminal.editModalTitle')}</h2>
+              <h2 className="text-lg font-bold text-[#1F2937]">{t('terminal.editModalTitle')}</h2>
               <button type="button" onClick={closeModal} aria-label="Close">
                 <X size={19} className="text-slate-500" />
               </button>
             </header>
 
             <div className="space-y-4 p-5">
-              {/* DEPARTMENT / KIOSK CONTEXT */}
-              {adminDepartment && (
-                <div className="flex items-center justify-between gap-3 rounded-md bg-[#9D0A0E]/5 px-3 py-2 text-xs font-semibold text-[#9D0A0E]">
-                  <span className="flex items-center gap-1.5">
-                    <Monitor size={13} />
-                    {adminKiosk?.name || t('common.unassigned')} · {adminDepartment.name || adminDepartment}
-                  </span>
-                  <span className="shrink-0 text-[10px] text-[#9D0A0E]/80">Prefix: {adminDepartment.prefix || 'T'}</span>
-                </div>
-              )}
-
               {/* ASSIGNED TO */}
               <label className="block text-xs font-semibold text-slate-600">
                 {t('terminal.assignedTo')}
@@ -905,6 +996,21 @@ export function TerminalManagementPage() {
                 </select>
               </label>
 
+              {/* LOCATION */}
+              <label className="block text-xs font-semibold text-slate-600">
+                {t('terminal.location')}
+
+                <select
+                  value="current"
+                  disabled
+                  className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none"
+                >
+                  <option value="current">
+                    {adminKiosk?.name || t('common.unassigned')}
+                  </option>
+                </select>
+              </label>
+
               {/* TERMINAL NUMBER */}
               <label className="block text-xs font-semibold text-slate-600">
                 {t('terminal.terminalNumber')}
@@ -917,30 +1023,18 @@ export function TerminalManagementPage() {
                   className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#9D0A0E]"
                 />
               </label>
-
-              {/* STATUS NOTE */}
-              <div className="rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2">
-                <p className="text-[10px] font-semibold text-slate-600">Status</p>
-                <p className="mt-1 text-[10px] text-slate-500">
-                  {form.assigned_staff_id ? 'Status: Active' : 'Status: Inactive'}
-                </p>
-              </div>
             </div>
 
             <footer className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3">
-              {modal?.type === 'edit' ? (
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(true)}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 rounded-md border border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
-                >
-                  <Trash2 size={13} />
-                  {t('terminal.deleteTerminal')}
-                </button>
-              ) : (
-                <span />
-              )}
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={saving}
+                className="flex items-center gap-1.5 rounded-md border border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                <Trash2 size={13} />
+                {t('terminal.deleteTerminal')}
+              </button>
 
               <div className="flex gap-2">
                 <button type="button" onClick={closeModal} disabled={saving} className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">
@@ -1575,7 +1669,6 @@ export function SettingsPage() {
               className="flex items-center gap-2 rounded-md bg-[#F1F3F5] px-4 py-2.5 text-xs font-semibold text-[#1F2937] hover:bg-slate-200"
             >
               {t('modal.deptCustomization')}
-              <ChevronRight size={13} />
             </button>
 
             <button
@@ -1584,7 +1677,6 @@ export function SettingsPage() {
               className="flex items-center gap-2 rounded-md bg-[#F1F3F5] px-4 py-2.5 text-xs font-semibold text-[#1F2937] hover:bg-slate-200"
             >
               {t('settings.theme')}
-              <ChevronRight size={13} />
             </button>
           </div>
         </section>

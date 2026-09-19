@@ -18,6 +18,7 @@ import {
 
 import Sidebar from './Sidebar.jsx'
 import Topbar from './Topbar.jsx'
+import StaffStatCard from './StaffStatCard.jsx'
 import TerminalSelectionPage from './TerminalSelectionPage.jsx'
 import { useQueue } from '../../context/QueueContext.jsx'
 import { useAuth } from '../../services/Authcontext.jsx'
@@ -511,7 +512,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!staffPrefix) return
     const interval = setInterval(() => {
-      refresh(staffPrefix)
+      // Silent: background polling must not flash the loading
+      // skeleton over the currently-serving card every 5 seconds.
+      refresh(staffPrefix, undefined, { silent: true })
     }, 5000)
 
     return () => {
@@ -632,73 +635,29 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm flex items-start justify-between h-32">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  WAITING
-                </p>
-                <p className="mt-2 text-3xl font-extrabold text-slate-900">
-                  {filteredWaitingQueue.length}
-                </p>
-                <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  TOTAL WAITING
-                </p>
-              </div>
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-[#851010] border border-red-100/60">
-                <Users size={24} />
-              </span>
-            </div>
+            <StaffStatCard
+              label="WAITING"
+              value={filteredWaitingQueue.length}
+              icon={Users}
+            />
 
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm flex items-start justify-between h-32">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  CURRENTLY SERVING
-                </p>
-                <p className="mt-2 text-3xl font-extrabold text-slate-900">
-                  {serviceHasStarted && activeServing ? 1 : 0}
-                </p>
-                <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  TOTAL SERVING
-                </p>
-              </div>
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-[#851010] border border-red-100/60">
-                <UserCheck size={24} />
-              </span>
-            </div>
+            <StaffStatCard
+              label="CURRENTLY SERVING"
+              value={serviceHasStarted && activeServing ? 1 : 0}
+              icon={UserCheck}
+            />
 
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm flex items-start justify-between h-32">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  COMPLETED
-                </p>
-                <p className="mt-2 text-3xl font-extrabold text-slate-900">
-                  {stats.completed || 0}
-                </p>
-                <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  TOTAL COMPLETED
-                </p>
-              </div>
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-[#851010] border border-red-100/60">
-                <CheckCircle2 size={24} />
-              </span>
-            </div>
+            <StaffStatCard
+              label="COMPLETED"
+              value={stats.completed || 0}
+              icon={CheckCircle2}
+            />
 
-            <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm flex items-start justify-between h-32">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  SKIPPED
-                </p>
-                <p className="mt-2 text-3xl font-extrabold text-slate-900">
-                  {stats.skipped || 0}
-                </p>
-                <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  TOTAL SKIPPED
-                </p>
-              </div>
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 text-[#851010] border border-red-100/60">
-                <SkipForward size={24} />
-              </span>
-            </div>
+            <StaffStatCard
+              label="SKIPPED"
+              value={stats.skipped || 0}
+              icon={SkipForward}
+            />
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(350px,1fr)] flex-1 items-start">
@@ -878,13 +837,18 @@ export default function DashboardPage() {
                         key={patient.uniqueKey || patient.id || index}
                         className="flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition"
                       >
-                        <p
-                          className={`text-base font-bold ${
-                            isPriority ? 'text-[#851010]' : 'text-slate-800'
-                          }`}
-                        >
-                          {patient.id}
-                        </p>
+                        <span className="flex items-center gap-3">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                            {index + 2}
+                          </span>
+                          <span
+                            className={`rounded-md bg-slate-100 px-2.5 py-1 text-base font-bold ${
+                              isPriority ? 'text-[#851010]' : 'text-slate-800'
+                            }`}
+                          >
+                            {patient.id}
+                          </span>
+                        </span>
                         <p className="text-sm font-medium text-slate-400">
                           ~{patient.etaMinutes || (index + 2) * 4} min ({index + 2}{' '}
                           ahead)

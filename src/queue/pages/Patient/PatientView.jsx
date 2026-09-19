@@ -32,7 +32,6 @@ import {
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
-import logo from '../../../assets/logo.png';
 
 /* =========================================================
    BRAND THEME
@@ -303,20 +302,6 @@ function getActiveKioskForToday(kiosks) {
    SWUMED WORDMARK
 ========================================================= */
 
-<<<<<<< HEAD
-function Wordmark({ size = 'text-xl' }) {
-  const logoSize =
-    size === 'text-2xl'
-      ? 'h-12'
-      : size === 'text-lg'
-        ? 'h-9'
-        : size === 'text-base'
-          ? 'h-8'
-          : 'h-9';
-
-  return (
-    <img src={logo} alt="SWUMed Logo" className={`${logoSize} w-auto object-contain mix-blend-multiply`} />
-=======
 function Wordmark({ size = 'text-xl', compact = false }) {
   return (
     <div
@@ -329,7 +314,6 @@ function Wordmark({ size = 'text-xl', compact = false }) {
         <span className="text-slate-900">Med</span>
       </span>
     </div>
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
   );
 }
 
@@ -355,19 +339,6 @@ function KioskHeader() {
   );
 
   return (
-<<<<<<< HEAD
-    <div className="mb-6 flex items-center justify-between">
-      <Wordmark size="text-lg" />
-
-      <div className="flex items-center gap-3 text-sm font-semibold text-slate-700">
-        <span className="flex items-center gap-1.5">
-          <Clock size={16} />
-          {time}
-        </span>
-
-        <span className="flex items-center gap-1.5">
-          <Calendar size={16} />
-=======
     <div className="mb-10 flex items-center justify-between">
       <Wordmark size="text-2xl" compact />
 
@@ -379,7 +350,6 @@ function KioskHeader() {
 
         <span className="flex items-center gap-2">
           <Calendar size={20} />
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
           {date}
         </span>
       </div>
@@ -393,13 +363,8 @@ function KioskHeader() {
 
 function Screen({ children }) {
   return (
-<<<<<<< HEAD
-    <div className="flex min-h-screen cursor-default select-none items-center justify-center bg-[#F8F9FA] px-4 py-12 print:hidden" style={{ caretColor: 'transparent' }}>
-      <div className="w-full max-w-md">
-=======
     <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA] px-12 py-16 print:hidden">
       <div className="w-full max-w-[984px]">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
         {children}
       </div>
     </div>
@@ -447,22 +412,6 @@ function NavButtons({
 function WelcomeScreen({ onStart }) {
   return (
     <Screen>
-<<<<<<< HEAD
-      <div className="flex flex-col items-center justify-center px-2 text-center">
-        <div className="mb-10">
-          <Wordmark size="text-2xl" />
-        </div>
-
-        <h1 className="text-3xl font-bold text-slate-900">
-          Welcome to
-        </h1>
-
-        <h1 className="mb-6 text-3xl font-bold text-[#9D0A0E]">
-          SWU Med Hospital
-        </h1>
-
-        <p className="mb-10 max-w-[24rem] text-base text-slate-500">
-=======
       <div className="flex flex-col items-center px-2 text-center">
         <div className="mb-16">
           <Wordmark size="text-5xl" />
@@ -477,18 +426,13 @@ function WelcomeScreen({ onStart }) {
         </h1>
 
         <p className="mb-16 text-3xl text-slate-500">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
           Please tap below to get your queue number.
         </p>
 
         <button
           type="button"
           onClick={onStart}
-<<<<<<< HEAD
-          className="flex w-full max-w-[24rem] self-center items-center justify-center gap-2 rounded-none bg-[#9D0A0E] px-12 py-5 text-center text-lg font-semibold text-white shadow-sm hover:bg-[#7d0809]"
-=======
           className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#9D0A0E] py-8 text-3xl font-bold text-white shadow-sm hover:bg-[#7d0809]"
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
         >
           GET STARTED
           <ArrowRight size={30} />
@@ -564,13 +508,8 @@ function SelectKioskScreen({
     <Screen>
       <KioskHeader />
 
-<<<<<<< HEAD
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">
-=======
       <div className="mb-10 text-center">
         <h1 className="text-5xl font-extrabold text-slate-900">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
           Select Your Kiosk
         </h1>
 
@@ -767,20 +706,8 @@ function KioskPinScreen({
         <Wordmark size="text-4xl" />
       </div>
 
-<<<<<<< HEAD
-      <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#9D0A0E]/10">
-          <Lock
-            size={22}
-            className="text-[#9D0A0E]"
-          />
-        </div>
-
-        <h1 className="text-2xl font-bold text-slate-900">
-=======
       <div className="mb-10 text-center">
         <h1 className="text-5xl font-extrabold text-slate-900">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
           Enter Kiosk Code
         </h1>
 
@@ -871,13 +798,8 @@ function QueueTypeScreen({
     <Screen>
       <KioskHeader />
 
-<<<<<<< HEAD
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">
-=======
       <div className="mb-10 text-center">
         <h1 className="text-5xl font-extrabold text-slate-900">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
           Select Your Queue Type
         </h1>
 
@@ -955,13 +877,8 @@ function SelectDepartmentScreen({
     <Screen>
       <KioskHeader />
 
-<<<<<<< HEAD
-      <div className="mb-5 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">
-=======
       <div className="mb-8 text-center">
         <h1 className="text-5xl font-extrabold text-slate-900">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
           What do you need today?
         </h1>
 
@@ -1004,11 +921,7 @@ function SelectDepartmentScreen({
           )}
 
         {!loading && departments.length > 0 && (
-<<<<<<< HEAD
-          <div className="grid grid-cols-2 gap-3">
-=======
           <div className="grid grid-cols-3 gap-4">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
             {departments.map((department) => {
               const Icon =
                 getDepartmentIcon(
@@ -1030,11 +943,7 @@ function SelectDepartmentScreen({
                   onClick={() =>
                     active && onSelect(department)
                   }
-<<<<<<< HEAD
-                  className={`relative flex flex-col items-center gap-2 rounded-none border p-4 text-center transition ${
-=======
                   className={`relative flex flex-col items-center gap-3 rounded-xl border p-6 text-center transition ${
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
                     !active
                       ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'
                       : isSelected
@@ -1049,20 +958,12 @@ function SelectDepartmentScreen({
                   )}
 
                   <div
-<<<<<<< HEAD
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-=======
                     className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
                       !active ? 'bg-slate-200' : 'bg-[#9D0A0E]/10'
                     }`}
                   >
                     <Icon
-<<<<<<< HEAD
-                      size={17}
-=======
                       size={28}
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
                       className={
                         !active
                           ? 'text-slate-400'
@@ -1072,11 +973,7 @@ function SelectDepartmentScreen({
                   </div>
 
                   <p
-<<<<<<< HEAD
-                    className={`text-xs font-bold uppercase leading-tight tracking-wide ${
-=======
                     className={`text-xl font-bold uppercase leading-tight tracking-wide ${
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
                       !active
                         ? 'text-slate-400'
                         : isSelected
@@ -1087,11 +984,7 @@ function SelectDepartmentScreen({
                     {department.name}
                   </p>
 
-<<<<<<< HEAD
-                  <p className="text-[10px] leading-tight text-slate-400">
-=======
                   <p className="text-base leading-tight text-slate-400">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
                     {active
                       ? getDepartmentDescription(department)
                       : 'Inactive'}
@@ -1140,13 +1033,8 @@ function ConfirmScreen({
     <Screen>
       <KioskHeader />
 
-<<<<<<< HEAD
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">
-=======
       <div className="mb-8 text-center">
         <h1 className="text-5xl font-extrabold text-slate-900">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
           Confirm Your Service
         </h1>
 
@@ -1259,13 +1147,8 @@ function TicketScreen({
     <Screen>
       <KioskHeader />
 
-<<<<<<< HEAD
-      <div className="mb-5 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">
-=======
       <div className="mb-8 text-center">
         <h1 className="text-5xl font-extrabold text-slate-900">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
           Your Queue Number
         </h1>
 
@@ -1274,20 +1157,12 @@ function TicketScreen({
         </p>
       </div>
 
-<<<<<<< HEAD
-      <div className="mx-auto mb-6 w-full max-w-[26rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-=======
       <div className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
         <div
           className="px-10 py-12 text-center"
           style={{ backgroundColor: themeColor }}
         >
-<<<<<<< HEAD
-          <p className="mb-3 text-5xl font-bold text-white">
-=======
           <p className="mb-6 text-8xl font-extrabold text-white">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
             {queueNumber}
           </p>
 
@@ -1358,11 +1233,7 @@ function TicketScreen({
         </div>
       </div>
 
-<<<<<<< HEAD
-      <p className="mb-5 text-center text-sm font-medium text-slate-700">
-=======
       <p className="mb-5 text-center text-2xl font-medium text-slate-700">
->>>>>>> ae2672ab51d2b3325755204f455e0910f474fbf4
         Would you like to print your ticket?
       </p>
 
