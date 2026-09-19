@@ -187,6 +187,8 @@ async function getStaffCounterFromMySQL(staffId) {
 
 async function getCounters() {
   try {
+    await cleanupStaleAssignments();
+
     const mode = await getDatabaseMode();
 
     // =================================================
@@ -1072,6 +1074,12 @@ async function assignCounter(
   }
 
   try {
+    // Clear out any assignment this staff member is still
+    // holding from a department they no longer belong to,
+    // so a genuinely stale terminal can't block a new,
+    // legitimate assignment.
+    await cleanupStaleAssignments();
+
     // =================================================
     // GET STAFF DEPARTMENT
     // =================================================
@@ -1221,8 +1229,15 @@ async function assignCounter(
       existingAssignment.length >
       0
     ) {
+      const heldCounter =
+        existingAssignment[0];
+
+      const heldLabel =
+        heldCounter.prefix ||
+        `Terminal ${heldCounter.counter_number}`;
+
       throw new Error(
-        "You already have a terminal assigned"
+        `You already have a terminal assigned: ${heldLabel} (department ${heldCounter.department_id}, status: ${heldCounter.status}). Ask an admin to unassign it before selecting a new one.`
       );
     }
 
@@ -1439,6 +1454,94 @@ async function releaseCounter(
 }
 
 // =====================================================
+// CLEAN UP STALE COUNTER ASSIGNMENTS
+//
+// A counter can be left pointing at a staff member who
+// has since moved to another department, or who was
+// deleted outright. Editing that terminal in the admin
+// UI already *displays* it as "Unassigned" once the
+// staff member no longer matches (see the frontend's
+// departmentStaffById lookup), but the underlying
+// assigned_staff_id in the database is untouched until
+// something actually clears it — so the terminal still
+// silently blocks that staff member from being assigned
+// anywhere else, even though nothing on screen shows it.
+//
+// This finds every counter whose assigned staff member
+// either no longer exists or no longer belongs to that
+// counter's department, and clears the assignment for
+// real. It is safe to call liberally: it is a no-op when
+// nothing is stale.
+// =====================================================
+
+async function cleanupStaleAssignments() {
+  try {
+    const [staleRows] = await pool.query(`
+      SELECT c.counter_id
+      FROM counter c
+      LEFT JOIN user u ON u.user_id = c.assigned_staff_id
+      WHERE c.assigned_staff_id IS NOT NULL
+        AND (
+          u.user_id IS NULL OR
+          u.department_id IS NULL OR
+          u.department_id != c.department_id
+        )
+    `);
+
+    if (staleRows.length === 0) {
+      return;
+    }
+
+    const staleIds = staleRows.map(
+      (row) => row.counter_id
+    );
+
+    await pool.query(
+      `
+      UPDATE counter
+      SET assigned_staff_id = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE counter_id IN (${staleIds.map(() => "?").join(",")})
+      `,
+      staleIds
+    );
+
+    console.log(
+      `Cleared ${staleIds.length} stale counter assignment(s): ${staleIds.join(", ")}`
+    );
+
+    const mode = await getDatabaseMode();
+
+    if (mode === "firebase") {
+      await Promise.all(
+        staleIds.map((counterId) =>
+          db
+            .collection(COUNTER_COLLECTION)
+            .doc(counterId)
+            .set(
+              {
+                assigned_staff_id: null,
+                updated_at: new Date(),
+              },
+              { merge: true }
+            )
+            .catch((firebaseError) => {
+              console.error(
+                `Firebase stale-assignment sync failed for ${counterId}:`,
+                firebaseError.message
+              );
+            })
+        )
+      );
+    }
+  } catch (error) {
+    console.error(
+      "Failed to clean up stale counter assignments:",
+      error
+    );
+  }
+}
+
+// =====================================================
 // EXPORTS
 // =====================================================
 
@@ -1454,6 +1557,7 @@ module.exports = {
   assignCounter,
   releaseCounter,
   getStaffCounter,
+  cleanupStaleAssignments,
 
   // Aliases used by backend/frontend naming
   assignTerminal:

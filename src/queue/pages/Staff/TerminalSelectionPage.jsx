@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Info, Monitor, RefreshCw, ShieldAlert } from 'lucide-react'
 
 import { useAuth } from '../../services/Authcontext.jsx'
@@ -114,7 +115,8 @@ function getTerminalStatusMeta(terminal, staffId) {
 // =====================================================
 
 export default function TerminalSelectModal({ departmentName, onConfirm }) {
-  const { user, logout } = useAuth()
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
 
   const [terminals, setTerminals] = useState([])
   const [selectedId, setSelectedId] = useState('')
@@ -251,6 +253,15 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
 
     setSelectedId(id)
     setError('')
+  }
+
+  // ===================================================
+  // LOGOUT
+  // ===================================================
+
+  const handleLogout = async () => {
+    await signOut()
+    navigate('/superadmin/login', { replace: true })
   }
 
   // ===================================================
@@ -432,7 +443,7 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
         <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4">
           <button
             type="button"
-            onClick={() => logout?.()}
+            onClick={handleLogout}
             className="text-xs font-semibold text-[#c62828] hover:underline"
           >
             [→ Logout

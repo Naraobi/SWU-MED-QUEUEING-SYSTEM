@@ -15,6 +15,10 @@ const {
   getDatabaseMode,
 } = require("./databaseService");
 
+const {
+  cleanupStaleAssignments,
+} = require("./counterService");
+
 const USERS_COLLECTION = "users";
 
 /*
@@ -1731,6 +1735,8 @@ async function updateUser(
       );
     }
 
+    await cleanupStaleAssignments();
+
     return {
       ...normalizeUserProfile(
         updatedUser
@@ -1758,6 +1764,8 @@ async function updateUser(
       userId,
       updatedUser
     );
+
+    await cleanupStaleAssignments();
 
     return normalizeUserProfile(
       updatedUser
