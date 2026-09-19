@@ -1729,6 +1729,254 @@ export async function verifyKioskPin(
 }
 
 // =====================================================
+// SECURITY PIN API
+// =====================================================
+
+// -----------------------------------------------------
+// GET SECURITY PIN STATUS
+// GET /api/security/pin/status
+// -----------------------------------------------------
+
+export async function getSecurityPinStatus(
+  firebaseUser
+) {
+  if (!firebaseUser) {
+    throw new Error(
+      "Firebase user is required"
+    );
+  }
+
+  try {
+    const token =
+      await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}/security/pin/status`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type":
+            "application/json",
+        },
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      throw new Error(
+        result.message ||
+          "Failed to retrieve Security PIN status."
+      );
+    }
+
+    return result;
+  } catch (error) {
+    if (
+      error instanceof TypeError
+    ) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
+
+    throw error;
+  }
+}
+
+// -----------------------------------------------------
+// REQUEST SECURITY PIN VERIFICATION CODE
+// POST /api/security/pin/request
+// -----------------------------------------------------
+
+export async function requestSecurityPinVerification(
+  firebaseUser
+) {
+  if (!firebaseUser) {
+    throw new Error(
+      "Firebase user is required"
+    );
+  }
+
+  try {
+    const token =
+      await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}/security/pin/request`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type":
+            "application/json",
+        },
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      throw new Error(
+        result.message ||
+          "Failed to send the verification code."
+      );
+    }
+
+    return result;
+  } catch (error) {
+    if (
+      error instanceof TypeError
+    ) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
+
+    throw error;
+  }
+}
+
+// -----------------------------------------------------
+// VERIFY EMAIL CODE AND SAVE SECURITY PIN
+// POST /api/security/pin/verify
+// -----------------------------------------------------
+
+export async function verifySecurityPinCode(
+  firebaseUser,
+  code,
+  pin
+) {
+  if (!firebaseUser) {
+    throw new Error(
+      "Firebase user is required"
+    );
+  }
+
+  try {
+    const token =
+      await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}/security/pin/verify`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          code,
+          pin,
+        }),
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      const error =
+        new Error(
+          result.message ||
+            "Failed to verify the Security PIN."
+        );
+
+      error.attemptsRemaining =
+        result.attemptsRemaining;
+
+      throw error;
+    }
+
+    return result;
+  } catch (error) {
+    if (
+      error instanceof TypeError
+    ) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
+
+    throw error;
+  }
+}
+
+// -----------------------------------------------------
+// VALIDATE SECURITY PIN
+// POST /api/security/pin/validate
+// -----------------------------------------------------
+
+export async function validateSecurityPin(
+  firebaseUser,
+  pin
+) {
+  if (!firebaseUser) {
+    throw new Error(
+      "Firebase user is required"
+    );
+  }
+
+  try {
+    const token =
+      await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}/security/pin/validate`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          pin,
+        }),
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      throw new Error(
+        result.message ||
+          "Invalid Security PIN."
+      );
+    }
+
+    return result;
+  } catch (error) {
+    if (
+      error instanceof TypeError
+    ) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
+
+    throw error;
+  }
+}
+
+// =====================================================
 // BACKEND / DATABASE TEST
 // =====================================================
 

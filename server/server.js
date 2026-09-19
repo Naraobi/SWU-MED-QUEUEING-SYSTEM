@@ -25,6 +25,7 @@ const roleRoutes = require("./routes/roleRoutes");
 const authRoutes = require("./routes/authRoutes");
 const patientRoutes = require("./routes/patientRoutes");
 const staffQueueRoutes = require("./routes/staffQueueRoutes");
+const securityPinRoutes = require("./routes/securityPinRoutes");
 
 const app = express();
 
@@ -81,6 +82,11 @@ app.use(
 app.use(
   "/api/staff-queue",
   staffQueueRoutes
+);
+
+app.use(
+  "/api/security/pin",
+  securityPinRoutes
 );
 
 // =====================================================

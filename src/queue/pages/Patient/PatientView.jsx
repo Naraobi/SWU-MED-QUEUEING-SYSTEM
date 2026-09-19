@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { auth } from '../../../firebase';
+
 import {
   getKiosks,
   getPatientDepartments,
   getWaitingCount,
   createPatientQueue,
-  verifyKioskPin,
+  validateSecurityPin,
 } from '../../services/backendApi';
 
 import {
@@ -637,63 +639,62 @@ function KioskPinScreen({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit() {
-    setError('');
+ async function handleSubmit() {
+  setError('');
 
-    if (!kiosk?.kiosk_id) {
-      setError('Invalid kiosk.');
-      return;
-    }
-
-    if (pin.length !== 4) {
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      const result = await verifyKioskPin(
-        kiosk.kiosk_id,
-        pin
-      );
-
-      if (result?.valid) {
-        unlockKioskForToday(
-          kiosk.kiosk_id
-        );
-
-        onSuccess();
-
-        return;
-      }
-
-      setError(
-        'Incorrect code. Please try again.'
-      );
-
-      setPin('');
-    } catch (error) {
-      console.error(
-        'Kiosk PIN verification error:',
-        error
-      );
-
-      setError(
-        error?.message ||
-          'Unable to verify kiosk code.'
-      );
-
-      setPin('');
-    } finally {
-      setSubmitting(false);
-    }
+  if (!kiosk?.kiosk_id) {
+    setError('Invalid kiosk.');
+    return;
   }
+
+  if (pin.length !== 6) {
+    return;
+  }
+
+  const firebaseUser = auth.currentUser;
+
+  if (!firebaseUser) {
+    setError(
+      'Your authentication session is unavailable. Please log in again.'
+    );
+    return;
+  }
+
+  setSubmitting(true);
+
+  try {
+    await validateSecurityPin(
+      firebaseUser,
+      pin
+    );
+
+    unlockKioskForToday(
+      kiosk.kiosk_id
+    );
+
+    onSuccess();
+  } catch (error) {
+    console.error(
+      'Kiosk Security PIN verification error:',
+      error
+    );
+
+    setError(
+      error?.message ||
+        'Invalid Security PIN. Please try again.'
+    );
+
+    setPin('');
+  } finally {
+    setSubmitting(false);
+  }
+}
 
   function handleDigit(digit) {
     setError('');
 
     setPin((current) =>
-      current.length >= 4
+      current.length >= 6
         ? current
         : current + digit
     );
@@ -716,13 +717,13 @@ function KioskPinScreen({
       </div>
 
       <div className="mb-10 text-center">
-        <h1 className="text-5xl font-extrabold text-slate-900">
-          Enter Kiosk Code
-        </h1>
+      <h1 className="text-5xl font-extrabold text-slate-900">
+        Enter Security PIN
+      </h1>
 
-        <p className="mt-3 text-2xl text-slate-500">
-          Please enter the kiosk code to activate.
-        </p>
+      <p className="mt-3 text-2xl text-slate-500">
+        Enter your 6-digit Security PIN to activate this kiosk.
+      </p>
 
         {kiosk?.name && (
           <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#9D0A0E]/5 px-4 py-2 text-lg font-bold text-[#9D0A0E]">
@@ -733,7 +734,7 @@ function KioskPinScreen({
       </div>
 
       <div className="mb-10 flex justify-center gap-4">
-        {Array.from({ length: 4 }, (_, index) => {
+        {Array.from({ length: 6 }, (_, index) => {
           const filled = index < pin.length;
           const isActive = index === pin.length;
 
@@ -772,7 +773,7 @@ function KioskPinScreen({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={pin.length !== 4 || submitting}
+          disabled={pin.length !== 6 || submitting}
           className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#9D0A0E] py-6 text-2xl font-bold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? 'Activating...' : 'Activate Kiosk'}
@@ -1761,7 +1762,7 @@ async function fetchKiosks() {
       );
     };
   }, [queueId]);
-  
+
   /* =======================================================
      REFRESH KIOSKS WHEN KIOSK SCREEN OPENS
   ======================================================= */
