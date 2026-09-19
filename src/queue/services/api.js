@@ -783,6 +783,12 @@ export async function fetchQueueState(
         Number(
           result.stats?.skipped
         ) || 0
+      ,
+
+      averageServiceMinutes:
+        Number(
+          result.stats?.averageServiceMinutes
+        ) || 0
     }
 
     return {

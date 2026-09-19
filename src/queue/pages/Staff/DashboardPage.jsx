@@ -381,7 +381,6 @@ export default function DashboardPage() {
     waitingQueue,
     currentlyServing,
     stats,
-    loading: queueLoading,
     refresh,
     callNextPatient,
     markPatientArrived,
@@ -634,48 +633,37 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <StaffStatCard
-              label="WAITING"
-              value={filteredWaitingQueue.length}
-              icon={Users}
-            />
-
-            <StaffStatCard
-              label="CURRENTLY SERVING"
-              value={serviceHasStarted && activeServing ? 1 : 0}
-              icon={UserCheck}
-            />
-
-            <StaffStatCard
-              label="COMPLETED"
+              label="TODAY'S COMPLETED"
               value={stats.completed || 0}
               icon={CheckCircle2}
             />
 
             <StaffStatCard
-              label="SKIPPED"
+              label="TODAY'S SKIPPED"
               value={stats.skipped || 0}
               icon={SkipForward}
+            />
+
+            <StaffStatCard
+              label="AVERAGE SERVICE MINUTES"
+              value={`${Number(stats.averageServiceMinutes || 0).toFixed(1)} min`}
+              icon={Clock}
             />
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(350px,1fr)] flex-1 items-start">
             <div className="space-y-6">
-              <div className="rounded-2xl border border-slate-200/90 bg-white p-10 text-center shadow-sm">
+              <div className="select-none rounded-2xl border border-slate-200/90 bg-white p-10 text-center shadow-sm" style={{ caretColor: 'transparent' }}>
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   CURRENTLY SERVING
                 </p>
 
-                {queueLoading ? (
-                  <div className="py-12 text-sm text-slate-400">
-                    <RefreshCw size={24} className="mx-auto mb-3 animate-spin text-[#851010]" />
-                    Loading queue status...
-                  </div>
-                ) : activeServing ? (
+                {activeServing ? (
                   serviceHasStarted ? (
                     <div className="mt-4">
-                      <p className="text-[64px] leading-none font-black text-[#851010] tracking-tight">
+                      <p className="text-[50px] leading-none font-black text-[#851010] tracking-tight">
                         {activeServing.id}
                       </p>
 
@@ -715,7 +703,7 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="mt-4">
-                      <p className="text-[64px] leading-none font-black text-[#851010] tracking-tight">
+                      <p className="text-[50px] leading-none font-black text-[#851010] tracking-tight">
                         {activeServing.id}
                       </p>
 

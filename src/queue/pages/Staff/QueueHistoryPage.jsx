@@ -451,49 +451,6 @@ export default function QueueHistoryPage() {
               icon={CheckCircle2}
             />
 
-            {/* TODAY'S COMPLETED */}
-            <div className="flex h-[100px] items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-6 shadow-sm">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">TODAY'S COMPLETED</p>
-                <p className="mt-2 text-3xl font-extrabold leading-none text-[#1F2937]">{completedCount}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F3F5]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.8">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-            </div>
-
-            {/* TODAY'S SKIPPED */}
-            <div className="flex h-[100px] items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-6 shadow-sm">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">TODAY'S SKIPPED</p>
-                <p className="mt-2 text-3xl font-extrabold leading-none text-[#1F2937]">{skippedCount}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F3F5]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.8">
-                  <circle cx="12" cy="12" r="9"/>
-                  <path d="M15 9l-6 6M9 9l6 6" strokeLinecap="round"/>
-                </svg>
-              </div>
-            </div>
-
-            {/* AVERAGE SERVICE TIME */}
-            <div className="flex h-[100px] items-center justify-between rounded-xl border border-[#E5E7EB] bg-white px-6 shadow-sm">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">AVERAGE SERVICE TIME</p>
-                <p className="mt-2 text-3xl font-extrabold leading-none text-[#1F2937]">{averageServiceTime}</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F3F5]">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="1.8">
-                  <circle cx="12" cy="13" r="8"/>
-                  <path d="M12 9v4l2.5 2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M9.5 2.5h5M12 2.5v2" strokeLinecap="round"/>
-                </svg>
-              </div>
-            </div>
-
             <StaffStatCard
               label="TODAY'S SKIPPED"
               value={skippedCount}

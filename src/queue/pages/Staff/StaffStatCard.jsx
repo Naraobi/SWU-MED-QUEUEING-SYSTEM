@@ -7,7 +7,7 @@ export default function StaffStatCard({ label, value, icon: Icon }) {
         <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
           {label}
         </p>
-        <p className="mt-2 text-4xl font-extrabold text-slate-900">
+        <p className="mt-2 text-3xl font-extrabold text-slate-900">
           {value}
         </p>
       </div>

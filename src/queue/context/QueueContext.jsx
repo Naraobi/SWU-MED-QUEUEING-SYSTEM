@@ -26,6 +26,7 @@ export function QueueProvider({ children }) {
     currentlyServing: 0,
     completed: 0,
     skipped: 0,
+    averageServiceMinutes: 0,
   })
 
   const [loading, setLoading] = useState(true)
@@ -82,6 +83,7 @@ export function QueueProvider({ children }) {
         currentlyServing: 0,
         completed: 0,
         skipped: 0,
+        averageServiceMinutes: 0,
       })
 
       if (!silent) {
@@ -143,22 +145,28 @@ export function QueueProvider({ children }) {
 
         skipped:
           Number(state?.stats?.skipped) || 0,
+
+        averageServiceMinutes:
+          Number(state?.stats?.averageServiceMinutes) || 0,
       })
+
+      // The queue data drives the visible dashboard. Do not make it wait for
+      // the secondary notifications request before leaving the loading state.
+      if (!silent) {
+        setLoading(false)
+      }
 
       /*
        * Notifications currently come through
        * the same department-specific API.
        */
-      const notifs =
-        await api.fetchNotifications(
-          departmentPrefix
-        )
-
-      setNotifications(
-        Array.isArray(notifs)
-          ? notifs
-          : []
-      )
+      api.fetchNotifications(departmentPrefix)
+        .then((notifs) => {
+          setNotifications(Array.isArray(notifs) ? notifs : [])
+        })
+        .catch((notificationError) => {
+          console.warn('Failed to load queue notifications:', notificationError)
+        })
     } catch (error) {
       console.error(
         'Failed to load queue data:',
@@ -181,6 +189,7 @@ export function QueueProvider({ children }) {
           currentlyServing: 0,
           completed: 0,
           skipped: 0,
+          averageServiceMinutes: 0,
         })
       }
     } finally {

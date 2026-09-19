@@ -7,6 +7,7 @@ import {
   createPatientQueue,
   verifyKioskPin,
 } from '../../services/backendApi';
+
 import {
   ArrowRight,
   ArrowLeft,
@@ -29,9 +30,11 @@ import {
   CheckCircle2,
   MapPin,
   ClipboardList,
+  Lock,
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
+import logo from '../../../assets/logo.png';
 
 /* =========================================================
    BRAND THEME
@@ -41,7 +44,9 @@ const BRAND_RED = '#9D0A0E';
 const REGULAR_DARK = '#1F2937';
 
 function getQueueThemeColor(queueType) {
-  return queueType?.key === 'priority' ? BRAND_RED : REGULAR_DARK;
+  return queueType?.key === 'priority'
+    ? BRAND_RED
+    : REGULAR_DARK;
 }
 
 /* =========================================================
@@ -271,10 +276,9 @@ function setActiveKioskForToday(kioskId) {
 }
 
 function getActiveKioskForToday(kiosks) {
-  const activeKioskId =
-    localStorage.getItem(
-      getActiveKioskKeyForToday()
-    );
+  const activeKioskId = localStorage.getItem(
+    getActiveKioskKeyForToday()
+  );
 
   if (!activeKioskId) {
     return null;
@@ -288,9 +292,7 @@ function getActiveKioskForToday(kiosks) {
 
   if (
     !activeKiosk ||
-    !isKioskUnlocked(
-      activeKiosk.kiosk_id
-    )
+    !isKioskUnlocked(activeKiosk.kiosk_id)
   ) {
     return null;
   }
@@ -302,21 +304,35 @@ function getActiveKioskForToday(kiosks) {
    SWUMED WORDMARK
 ========================================================= */
 
-function Wordmark({ size = 'text-xl', compact = false }) {
+function Wordmark({
+  size = 'text-xl',
+  compact = false,
+}) {
+  const logoSize =
+    size === 'text-2xl'
+      ? 'h-14'
+      : size === 'text-lg'
+        ? 'h-10'
+        : size === 'text-base'
+          ? 'h-8'
+          : 'h-9';
+
   return (
     <div
-      className={`inline-flex items-center rounded-xl bg-white shadow-sm ${
-        compact ? 'px-4 py-2' : 'px-8 py-5'
+      className={`inline-flex items-center bg-transparent ${
+        compact
+          ? 'px-4 py-2'
+          : 'px-8 py-5'
       }`}
     >
-      <span className={`${size} font-extrabold leading-none`}>
-        <span className="text-[#9D0A0E]">SWU</span>
-        <span className="text-slate-900">Med</span>
-      </span>
+      <img
+        src={logo}
+        alt="SWUMed Logo"
+        className={`${logoSize} w-auto object-contain mix-blend-multiply`}
+      />
     </div>
   );
 }
-
 /* =========================================================
    KIOSK HEADER
 ========================================================= */
@@ -329,27 +345,24 @@ function KioskHeader() {
     minute: '2-digit',
   });
 
-  const date = now.toLocaleDateString(
-    undefined,
-    {
-      month: 'short',
-      day: '2-digit',
-      year: 'numeric',
-    }
-  );
+  const date = now.toLocaleDateString(undefined, {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  });
 
   return (
-    <div className="mb-10 flex items-center justify-between">
-      <Wordmark size="text-2xl" compact />
+    <div className="mb-6 flex items-center justify-between">
+      <Wordmark size="text-lg" />
 
-      <div className="flex items-center gap-5 text-lg font-semibold text-slate-700">
-        <span className="flex items-center gap-2">
-          <Clock size={20} />
+      <div className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+        <span className="flex items-center gap-1.5">
+          <Clock size={16} />
           {time}
         </span>
 
-        <span className="flex items-center gap-2">
-          <Calendar size={20} />
+        <span className="flex items-center gap-1.5">
+          <Calendar size={16} />
           {date}
         </span>
       </div>
@@ -363,8 +376,11 @@ function KioskHeader() {
 
 function Screen({ children }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA] px-12 py-16 print:hidden">
-      <div className="w-full max-w-[984px]">
+    <div
+      className="flex min-h-screen cursor-default select-none items-center justify-center bg-[#F8F9FA] px-4 py-12 print:hidden"
+      style={{ caretColor: 'transparent' }}
+    >
+      <div className="w-full max-w-md">
         {children}
       </div>
     </div>
@@ -386,7 +402,7 @@ function NavButtons({
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-8 py-5 text-xl font-bold text-slate-600 hover:border-slate-300"
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 hover:border-slate-300"
       >
         <ArrowLeft size={22} />
         Back
@@ -396,7 +412,7 @@ function NavButtons({
         type="button"
         onClick={onContinue}
         disabled={disabled}
-        className="flex items-center gap-2 rounded-xl bg-[#9D0A0E] px-10 py-5 text-xl font-bold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex items-center gap-1.5 rounded-lg bg-[#9D0A0E] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {continueLabel}
         <ArrowRight size={22} />
@@ -413,29 +429,29 @@ function WelcomeScreen({ onStart }) {
   return (
     <Screen>
       <div className="flex flex-col items-center px-2 text-center">
-        <div className="mb-16">
-          <Wordmark size="text-5xl" />
+        <div className="mb-10">
+          <Wordmark size="text-2xl" />
         </div>
 
-        <h1 className="text-6xl font-extrabold text-slate-900">
+        <h1 className="text-3xl font-bold text-slate-900">
           Welcome to
         </h1>
 
-        <h1 className="mb-10 text-6xl font-extrabold text-[#9D0A0E]">
+        <h1 className="mb-6 text-3xl font-bold text-[#9D0A0E]">
           SWU Med Hospital
         </h1>
 
-        <p className="mb-16 text-3xl text-slate-500">
+        <p className="mb-10 text-base text-slate-500">
           Please tap below to get your queue number.
         </p>
 
         <button
           type="button"
           onClick={onStart}
-          className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#9D0A0E] py-8 text-3xl font-bold text-white shadow-sm hover:bg-[#7d0809]"
+          className="flex w-full max-w-[24rem] self-center items-center justify-center gap-2 rounded-none bg-[#9D0A0E] px-12 py-5 text-center text-lg font-semibold text-white shadow-sm hover:bg-[#7d0809]"
         >
-          GET STARTED
-          <ArrowRight size={30} />
+          <span>GET STARTED</span>
+          <ArrowRight size={24} />
         </button>
       </div>
     </Screen>
@@ -446,11 +462,25 @@ function WelcomeScreen({ onStart }) {
    NUMERIC KEYPAD
 ========================================================= */
 
-function NumericKeypad({ onDigit, onBackspace, onClear }) {
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+function NumericKeypad({
+  onDigit,
+  onBackspace,
+  onClear,
+}) {
+  const keys = [
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+  ];
 
   const keyClass =
-    'flex h-20 items-center justify-center rounded-xl border border-slate-200 bg-white text-3xl font-semibold text-slate-800 transition hover:border-slate-300 active:bg-slate-50';
+    'flex h-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-800 transition hover:border-slate-300 active:bg-slate-50';
 
   return (
     <div className="grid grid-cols-3 gap-4">
@@ -508,30 +538,30 @@ function SelectKioskScreen({
     <Screen>
       <KioskHeader />
 
-      <div className="mb-10 text-center">
-        <h1 className="text-5xl font-extrabold text-slate-900">
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold text-slate-900">
           Select Your Kiosk
         </h1>
 
-        <p className="mt-3 text-2xl text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           Please select the kiosk where you are getting your service.
         </p>
       </div>
 
-      <div className="mb-10 space-y-4">
+      <div className="mb-8 space-y-3">
         {loading && (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xl text-slate-400">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-400">
             Loading kiosks...
           </div>
         )}
 
         {!loading && kiosks.length === 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-            <p className="text-xl font-semibold text-slate-700">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
+            <p className="text-sm font-semibold text-slate-700">
               No kiosks are currently available.
             </p>
 
-            <p className="mt-2 text-lg text-slate-400">
+            <p className="mt-1 text-xs text-slate-400">
               Please contact the hospital administrator.
             </p>
           </div>
@@ -559,21 +589,21 @@ function SelectKioskScreen({
                 onClick={() =>
                   onSelect(currentKiosk)
                 }
-                className={`relative flex w-full items-center gap-5 rounded-xl border p-6 text-left transition ${
+                className={`relative flex w-full items-center gap-3 rounded-lg border p-4 text-left transition ${
                   isSelected
                     ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 shadow-sm'
                     : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
                 {isSelected && (
-                  <span className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
-                    <CheckCircle2 size={18} />
+                  <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
+                    <CheckCircle2 size={12} />
                   </span>
                 )}
 
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#9D0A0E]/10">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#9D0A0E]/10">
                   <Icon
-                    size={28}
+                    size={18}
                     className="text-[#9D0A0E]"
                   />
                 </div>
@@ -581,7 +611,7 @@ function SelectKioskScreen({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
                     <p
-                      className={`text-xl font-bold uppercase tracking-wide ${
+                      className={`text-sm font-bold uppercase tracking-wide ${
                         isSelected
                           ? 'text-[#9D0A0E]'
                           : 'text-slate-800'
@@ -591,7 +621,7 @@ function SelectKioskScreen({
                     </p>
 
                     {isUnlocked && (
-                      <span className="shrink-0 rounded-full bg-green-100 px-3 py-1.5 text-sm font-semibold text-green-700">
+                      <span className="shrink-0 rounded-full bg-green-100 px-2 py-1 text-[9px] font-semibold text-green-700">
                         UNLOCKED
                       </span>
                     )}
@@ -626,7 +656,8 @@ function KioskPinScreen({
 }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] =
+    useState(false);
 
   async function handleSubmit() {
     setError('');
@@ -643,10 +674,11 @@ function KioskPinScreen({
     setSubmitting(true);
 
     try {
-      const result = await verifyKioskPin(
-        kiosk.kiosk_id,
-        pin
-      );
+      const result =
+        await verifyKioskPin(
+          kiosk.kiosk_id,
+          pin
+        );
 
       if (result?.valid) {
         unlockKioskForToday(
@@ -654,7 +686,6 @@ function KioskPinScreen({
         );
 
         onSuccess();
-
         return;
       }
 
@@ -692,7 +723,10 @@ function KioskPinScreen({
 
   function handleBackspace() {
     setError('');
-    setPin((current) => current.slice(0, -1));
+
+    setPin((current) =>
+      current.slice(0, -1)
+    );
   }
 
   function handleClear() {
@@ -702,56 +736,69 @@ function KioskPinScreen({
 
   return (
     <Screen>
-      <div className="mb-12 flex justify-center">
-        <Wordmark size="text-4xl" />
+      <div className="mb-8 flex justify-center">
+        <Wordmark size="text-2xl" />
       </div>
 
-      <div className="mb-10 text-center">
-        <h1 className="text-5xl font-extrabold text-slate-900">
+      <div className="mb-6 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#9D0A0E]/10">
+          <Lock
+            size={22}
+            className="text-[#9D0A0E]"
+          />
+        </div>
+
+        <h1 className="text-2xl font-bold text-slate-900">
           Enter Kiosk Code
         </h1>
 
-        <p className="mt-3 text-2xl text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           Please enter the kiosk code to activate.
         </p>
 
         {kiosk?.name && (
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#9D0A0E]/5 px-4 py-2 text-lg font-bold text-[#9D0A0E]">
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#9D0A0E]/5 px-3 py-1.5 text-xs font-bold text-[#9D0A0E]">
             <MapPin size={16} />
             {kiosk.name}
           </div>
         )}
       </div>
 
-      <div className="mb-10 flex justify-center gap-4">
-        {Array.from({ length: 4 }, (_, index) => {
-          const filled = index < pin.length;
-          const isActive = index === pin.length;
+      <div className="mb-6 flex justify-center gap-3">
+        {Array.from(
+          { length: 4 },
+          (_, index) => {
+            const filled =
+              index < pin.length;
 
-          return (
-            <div
-              key={index}
-              className={`flex h-20 w-20 items-center justify-center rounded-xl border-2 bg-white text-2xl font-bold ${
-                isActive
-                  ? 'border-[#9D0A0E]'
-                  : 'border-slate-200'
-              }`}
-            >
-              {filled && (
-                <span className="h-4 w-4 rounded-full bg-slate-800" />
-              )}
-            </div>
-          );
-        })}
+            const isActive =
+              index === pin.length;
+
+            return (
+              <div
+                key={index}
+                className={`flex h-14 w-14 items-center justify-center rounded-lg border-2 bg-white text-lg font-bold ${
+                  isActive
+                    ? 'border-[#9D0A0E]'
+                    : 'border-slate-200'
+                }`}
+              >
+                {filled && (
+                  <span className="h-2.5 w-2.5 rounded-full bg-slate-800" />
+                )}
+              </div>
+            );
+          }
+        )}
       </div>
 
       {error && (
-        <p className="mb-6 text-center text-lg font-medium text-red-500">
+        <p className="mb-4 text-center text-sm font-medium text-red-500">
           {error}
         </p>
       )}
 
-      <div className="mb-10">
+      <div className="mb-6">
         <NumericKeypad
           onDigit={handleDigit}
           onBackspace={handleBackspace}
@@ -759,23 +806,28 @@ function KioskPinScreen({
         />
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={pin.length !== 4 || submitting}
-          className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#9D0A0E] py-6 text-2xl font-bold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={
+            pin.length !== 4 ||
+            submitting
+          }
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#9D0A0E] py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {submitting ? 'Activating...' : 'Activate Kiosk'}
-          <ArrowRight size={24} />
+          {submitting
+            ? 'Activating...'
+            : 'Activate Kiosk'}
+          <ArrowRight size={16} />
         </button>
 
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center justify-center gap-2 text-lg font-medium text-slate-500 hover:text-slate-700"
+          className="flex items-center justify-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft size={14} />
           Back
         </button>
       </div>
@@ -798,24 +850,24 @@ function QueueTypeScreen({
     <Screen>
       <KioskHeader />
 
-      <div className="mb-10 text-center">
-        <h1 className="text-5xl font-extrabold text-slate-900">
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold text-slate-900">
           Select Your Queue Type
         </h1>
 
-        <p className="mt-3 text-2xl text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           Please select the queue type that applies to you.
         </p>
 
         {kiosk && (
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#9D0A0E]/5 px-4 py-2 text-lg font-medium text-[#9D0A0E]">
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#9D0A0E]/5 px-3 py-1.5 text-xs font-medium text-[#9D0A0E]">
             <MapPin size={16} />
             {kiosk.name}
           </div>
         )}
       </div>
 
-      <div className="mb-10 space-y-5">
+      <div className="mb-8 space-y-3">
         {QUEUE_TYPES.map((type) => {
           const isSelected =
             selected?.key === type.key;
@@ -824,21 +876,23 @@ function QueueTypeScreen({
             <button
               key={type.key}
               type="button"
-              onClick={() => onSelect(type)}
-              className={`relative w-full rounded-xl border p-10 text-center transition ${
+              onClick={() =>
+                onSelect(type)
+              }
+              className={`relative mx-auto w-full max-w-sm rounded-lg border px-5 py-4 text-center transition ${
                 isSelected
                   ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 shadow-sm'
                   : 'border-slate-200 bg-white hover:border-slate-300'
               }`}
             >
               {isSelected && (
-                <span className="absolute right-5 top-5 flex h-8 w-8 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
-                  <CheckCircle2 size={18} />
+                <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
+                  <CheckCircle2 size={12} />
                 </span>
               )}
 
               <p
-                className={`text-4xl font-extrabold uppercase tracking-wide ${
+                className={`text-lg font-bold uppercase tracking-wide ${
                   isSelected
                     ? 'text-[#9D0A0E]'
                     : 'text-slate-800'
@@ -861,7 +915,7 @@ function QueueTypeScreen({
 }
 
 /* =========================================================
-   DEPARTMENT (SELECT SERVICES) SCREEN
+   DEPARTMENT SCREEN
 ========================================================= */
 
 function SelectDepartmentScreen({
@@ -877,17 +931,17 @@ function SelectDepartmentScreen({
     <Screen>
       <KioskHeader />
 
-      <div className="mb-8 text-center">
-        <h1 className="text-5xl font-extrabold text-slate-900">
+      <div className="mb-5 text-center">
+        <h1 className="text-2xl font-bold text-slate-900">
           What do you need today?
         </h1>
 
-        <p className="mt-3 text-2xl text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           Please select a service to get your queue number.
         </p>
 
         {kiosk && (
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#9D0A0E]/5 px-4 py-2 text-lg font-medium text-[#9D0A0E]">
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#9D0A0E]/5 px-3 py-1.5 text-xs font-medium text-[#9D0A0E]">
             <MapPin size={16} />
             {kiosk.name}
           </div>
@@ -902,98 +956,116 @@ function SelectDepartmentScreen({
         }}
       >
         {loading && (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xl text-slate-400">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-400">
             Loading services...
           </div>
         )}
 
         {!loading &&
           departments.length === 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-              <p className="text-xl font-semibold text-slate-700">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
+              <p className="text-sm font-semibold text-slate-700">
                 No services are currently available.
               </p>
 
-              <p className="mt-2 text-lg text-slate-400">
+              <p className="mt-1 text-xs text-slate-400">
                 Please contact the hospital administrator.
               </p>
             </div>
           )}
 
-        {!loading && departments.length > 0 && (
-          <div className="grid grid-cols-3 gap-4">
-            {departments.map((department) => {
-              const Icon =
-                getDepartmentIcon(
-                  department.name,
-                  department.classification
-                );
+        {!loading &&
+          departments.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              {departments.map(
+                (department) => {
+                  const Icon =
+                    getDepartmentIcon(
+                      department.name,
+                      department.classification
+                    );
 
-              const isSelected =
-                selected?.department_id ===
-                department.department_id;
+                  const isSelected =
+                    selected?.department_id ===
+                    department.department_id;
 
-              const active = isDepartmentActive(department);
+                  const active =
+                    isDepartmentActive(
+                      department
+                    );
 
-              return (
-                <button
-                  key={department.department_id}
-                  type="button"
-                  disabled={!active}
-                  onClick={() =>
-                    active && onSelect(department)
-                  }
-                  className={`relative flex flex-col items-center gap-3 rounded-xl border p-6 text-center transition ${
-                    !active
-                      ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'
-                      : isSelected
-                        ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  {isSelected && active && (
-                    <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
-                      <CheckCircle2 size={14} />
-                    </span>
-                  )}
-
-                  <div
-                    className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${
-                      !active ? 'bg-slate-200' : 'bg-[#9D0A0E]/10'
-                    }`}
-                  >
-                    <Icon
-                      size={28}
-                      className={
-                        !active
-                          ? 'text-slate-400'
-                          : 'text-[#9D0A0E]'
+                  return (
+                    <button
+                      key={
+                        department.department_id
                       }
-                    />
-                  </div>
+                      type="button"
+                      disabled={!active}
+                      onClick={() =>
+                        active &&
+                        onSelect(
+                          department
+                        )
+                      }
+                      className={`relative flex flex-col items-center gap-2 rounded-none border p-4 text-center transition ${
+                        !active
+                          ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60'
+                          : isSelected
+                            ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 shadow-sm'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      {isSelected &&
+                        active && (
+                          <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
+                            <CheckCircle2
+                              size={14}
+                            />
+                          </span>
+                        )}
 
-                  <p
-                    className={`text-xl font-bold uppercase leading-tight tracking-wide ${
-                      !active
-                        ? 'text-slate-400'
-                        : isSelected
-                          ? 'text-[#9D0A0E]'
-                          : 'text-slate-800'
-                    }`}
-                  >
-                    {department.name}
-                  </p>
+                      <div
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                          !active
+                            ? 'bg-slate-200'
+                            : 'bg-[#9D0A0E]/10'
+                        }`}
+                      >
+                        <Icon
+                          size={17}
+                          className={
+                            !active
+                              ? 'text-slate-400'
+                              : 'text-[#9D0A0E]'
+                          }
+                        />
+                      </div>
 
-                  <p className="text-base leading-tight text-slate-400">
-                    {active
-                      ? getDepartmentDescription(department)
-                      : 'Inactive'}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                      <p
+                        className={`text-xs font-bold uppercase leading-tight tracking-wide ${
+                          !active
+                            ? 'text-slate-400'
+                            : isSelected
+                              ? 'text-[#9D0A0E]'
+                              : 'text-slate-800'
+                        }`}
+                      >
+                        {department.name}
+                      </p>
+
+                      <p className="text-[10px] leading-tight text-slate-400">
+                        {active
+                          ? getDepartmentDescription(
+                              department
+                            )
+                          : 'Inactive'}
+                      </p>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+          )}
       </div>
 
       <p className="mb-8 mt-4 text-center text-lg text-slate-400">
@@ -1026,72 +1098,76 @@ function ConfirmScreen({
   onBack,
   onConfirm,
 }) {
-  const ServiceIcon = service?.icon || ClipboardList;
-  const QueueIcon = queueType?.icon || User;
+  const ServiceIcon =
+    service?.icon || ClipboardList;
+
+  const QueueIcon =
+    queueType?.icon || User;
 
   return (
     <Screen>
       <KioskHeader />
 
-      <div className="mb-8 text-center">
-        <h1 className="text-5xl font-extrabold text-slate-900">
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold text-slate-900">
           Confirm Your Service
         </h1>
 
-        <p className="mt-3 text-2xl text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           Please review your selected service before getting your queue number.
         </p>
       </div>
 
-      <div className="mb-10 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="mb-6 flex flex-col items-center border-b border-slate-100 pb-6 text-center">
-          <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-[#9D0A0E]/10">
+      <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex flex-col items-center border-b border-slate-100 pb-4 text-center">
+          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#9D0A0E]/10">
             <MapPin
-              size={28}
+              size={22}
               className="text-[#9D0A0E]"
             />
           </div>
 
-          <p className="text-2xl font-bold text-slate-900">
+          <p className="text-sm font-bold text-slate-900">
             {kiosk?.name}
           </p>
         </div>
 
-        <div className="mb-6 space-y-4">
-          <div className="flex items-center gap-4 rounded-xl bg-slate-100 px-6 py-5">
+        <div className="mb-4 space-y-2.5">
+          <div className="flex items-center gap-3 rounded-lg bg-slate-100 px-4 py-3">
             <QueueIcon
-              size={24}
+              size={16}
               className="shrink-0 text-slate-700"
             />
 
-            <p className="text-xl font-semibold text-slate-800">
+            <p className="text-sm font-semibold text-slate-800">
               {queueType?.name}
             </p>
           </div>
 
-          <div className="flex items-center gap-4 rounded-xl bg-slate-100 px-6 py-5">
+          <div className="flex items-center gap-3 rounded-lg bg-slate-100 px-4 py-3">
             <ServiceIcon
-              size={24}
+              size={16}
               className="shrink-0 text-slate-700"
             />
 
-            <p className="text-xl font-semibold text-slate-800">
+            <p className="text-sm font-semibold text-slate-800">
               {service?.name}
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 rounded-xl bg-slate-100 px-6 py-5 text-center">
+        <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-100 px-4 py-3 text-center">
           <div>
             <p className="text-sm font-bold uppercase tracking-wide text-slate-400">
               Current Queue
             </p>
 
             <p className="flex items-baseline justify-center gap-2">
-              <span className="text-4xl font-extrabold text-slate-900">
+              <span className="text-2xl font-extrabold text-slate-900">
                 {waitingAhead}
               </span>
-              <span className="text-lg font-semibold text-[#9D0A0E]">
+
+              <span className="text-xs font-semibold text-[#9D0A0E]">
                 people ahead
               </span>
             </p>
@@ -1103,10 +1179,11 @@ function ConfirmScreen({
             </p>
 
             <p className="flex items-baseline justify-center gap-2">
-              <span className="text-4xl font-extrabold text-slate-900">
+              <span className="text-2xl font-extrabold text-slate-900">
                 ~{service?.estMin ?? 0}
               </span>
-              <span className="text-lg font-semibold text-[#9D0A0E]">
+
+              <span className="text-xs font-semibold text-[#9D0A0E]">
                 min
               </span>
             </p>
@@ -1141,76 +1218,79 @@ function TicketScreen({
   onPrint,
   onSkipPrint,
 }) {
-  const themeColor = getQueueThemeColor(queueType);
+  const themeColor =
+    getQueueThemeColor(queueType);
 
   return (
     <Screen>
       <KioskHeader />
 
-      <div className="mb-8 text-center">
-        <h1 className="text-5xl font-extrabold text-slate-900">
+      <div className="mb-5 text-center">
+        <h1 className="text-2xl font-bold text-slate-900">
           Your Queue Number
         </h1>
 
-        <p className="mt-3 text-2xl text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           Please keep this slip until your number is called.
         </p>
       </div>
 
-      <div className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="mx-auto mb-6 w-full max-w-[26rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div
-          className="px-10 py-12 text-center"
-          style={{ backgroundColor: themeColor }}
+          className="px-6 py-6 text-center"
+          style={{
+            backgroundColor: themeColor,
+          }}
         >
-          <p className="mb-6 text-8xl font-extrabold text-white">
+          <p className="mb-3 text-5xl font-bold text-white">
             {queueNumber}
           </p>
 
-          <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-5 py-2 text-base font-bold uppercase tracking-wide text-white">
+          <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
             {queueType?.label}
           </span>
 
-          <p className="mt-4 text-lg text-white/70">
+          <p className="mt-3 text-[11px] text-white/70">
             SERVICE: {service?.name}
           </p>
 
-          <p className="text-lg text-white/70">
-            DEPARTMENT: {kiosk?.name}
+          <p className="text-[11px] text-white/70">
+            DEPARTMENT: {service?.name}
           </p>
         </div>
 
-        <div className="grid grid-cols-[1fr_auto] gap-8 p-8">
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-5 py-4">
+        <div className="grid grid-cols-[1fr_auto] gap-4 p-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
               <Users
-                size={22}
+                size={14}
                 className="text-slate-400"
               />
 
               <div>
-                <p className="text-base text-slate-400">
+                <p className="text-[11px] text-slate-400">
                   Waiting Info
                 </p>
 
-                <p className="text-xl font-semibold text-slate-700">
+                <p className="text-xs font-semibold text-slate-700">
                   {service?.waiting ?? 0}{' '}
                   people waiting
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-5 py-4">
+            <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
               <Hourglass
-                size={22}
+                size={14}
                 className="text-slate-400"
               />
 
               <div>
-                <p className="text-base text-slate-400">
+                <p className="text-[11px] text-slate-400">
                   Estimated Wait
                 </p>
 
-                <p className="text-xl font-semibold text-slate-700">
+                <p className="text-xs font-semibold text-slate-700">
                   ~{service?.estMin ?? 0}{' '}
                   minutes
                 </p>
@@ -1221,19 +1301,19 @@ function TicketScreen({
           <div className="flex flex-col items-center justify-center">
             <QRCodeSVG
               value={getTrackerUrl(queueId)}
-              size={160}
+              size={90}
               level="M"
               includeMargin={true}
             />
 
-            <p className="mt-2 max-w-[160px] text-center text-sm text-slate-400">
+            <p className="mt-1 max-w-[90px] text-center text-[9px] text-slate-400">
               Scan the QR code to track your queue status on your phone.
             </p>
           </div>
         </div>
       </div>
 
-      <p className="mb-5 text-center text-2xl font-medium text-slate-700">
+      <p className="mb-5 text-center text-sm font-medium text-slate-700">
         Would you like to print your ticket?
       </p>
 
@@ -1241,19 +1321,19 @@ function TicketScreen({
         <button
           type="button"
           onClick={onPrint}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#9D0A0E] py-5 text-xl font-bold text-white hover:bg-[#7d0809]"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#9D0A0E] py-3 text-xs font-semibold text-white hover:bg-[#7d0809]"
         >
-          <Printer size={22} />
+          <Printer size={14} />
           PRINT TICKET
         </button>
 
         <button
           type="button"
           onClick={onSkipPrint}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-5 text-xl font-bold text-slate-600 hover:border-slate-300"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-3 text-xs font-semibold text-slate-600 hover:border-slate-300"
         >
           CONTINUE WITHOUT PRINTING
-          <ArrowRight size={22} />
+          <ArrowRight size={14} />
         </button>
       </div>
     </Screen>
@@ -1268,26 +1348,29 @@ function PrintingScreen({
   queueType,
   queueNumber,
 }) {
-  const themeColor = getQueueThemeColor(queueType);
+  const themeColor =
+    getQueueThemeColor(queueType);
 
   return (
     <Screen>
       <KioskHeader />
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-14 text-center shadow-sm">
-        <h2 className="mb-8 text-4xl font-bold text-slate-900">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <h2 className="mb-5 text-base font-bold text-slate-900">
           Printing Your Ticket
         </h2>
 
         <div
-          className="mx-auto mb-8 max-w-[420px] rounded-xl px-8 py-8"
-          style={{ backgroundColor: themeColor }}
+          className="mx-auto mb-5 max-w-[220px] rounded-xl px-4 py-4"
+          style={{
+            backgroundColor: themeColor,
+          }}
         >
-          <p className="text-base uppercase tracking-wide text-white/60">
+          <p className="text-[9px] uppercase tracking-wide text-white/60">
             Your queue number
           </p>
 
-          <p className="text-5xl font-bold text-white">
+          <p className="text-2xl font-bold text-white">
             {queueNumber}
           </p>
         </div>
@@ -1297,19 +1380,24 @@ function PrintingScreen({
           className="mx-auto mb-6 animate-pulse text-slate-300"
         />
 
-        <p className="mb-6 text-xl text-slate-500">
+        <p className="mb-4 text-xs text-slate-500">
           Please wait while your ticket is being printed.
           Take it with you to the waiting area.
         </p>
 
         <p
-          className="flex items-center justify-center gap-2 text-lg font-medium"
-          style={{ color: themeColor }}
+          className="flex items-center justify-center gap-1.5 text-xs font-medium"
+          style={{
+            color: themeColor,
+          }}
         >
           <span
-            className="h-2.5 w-2.5 animate-pulse rounded-full"
-            style={{ backgroundColor: themeColor }}
+            className="h-1.5 w-1.5 animate-pulse rounded-full"
+            style={{
+              backgroundColor: themeColor,
+            }}
           />
+
           Printing...
         </p>
       </div>
@@ -1325,51 +1413,58 @@ function SuccessScreen({
   queueType,
   queueNumber,
 }) {
-  const themeColor = getQueueThemeColor(queueType);
+  const themeColor =
+    getQueueThemeColor(queueType);
 
   return (
     <Screen>
       <KioskHeader />
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-14 text-center shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <div
-          className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full"
-          style={{ backgroundColor: `${themeColor}1A` }}
+          className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full"
+          style={{
+            backgroundColor: `${themeColor}1A`,
+          }}
         >
           <CheckCircle2
-            size={40}
-            style={{ color: themeColor }}
+            size={24}
+            style={{
+              color: themeColor,
+            }}
           />
         </div>
 
-        <h2 className="mb-8 text-4xl font-bold text-slate-900">
+        <h2 className="mb-5 text-base font-bold text-slate-900">
           Ticket Printed Successfully!
         </h2>
 
         <div
-          className="mx-auto mb-8 max-w-[420px] rounded-xl border px-8 py-8"
+          className="mx-auto mb-5 max-w-[220px] rounded-xl border px-4 py-4"
           style={{
             backgroundColor: `${themeColor}0D`,
             borderColor: `${themeColor}33`,
           }}
         >
-          <p className="text-base uppercase tracking-wide text-slate-400">
+          <p className="text-[9px] uppercase tracking-wide text-slate-400">
             Your queue number
           </p>
 
           <p
-            className="text-5xl font-bold"
-            style={{ color: themeColor }}
+            className="text-2xl font-bold"
+            style={{
+              color: themeColor,
+            }}
           >
             {queueNumber}
           </p>
         </div>
 
-        <p className="mb-2 text-xl text-slate-500">
+        <p className="mb-1 text-xs text-slate-500">
           Please take your ticket and proceed to the waiting area.
         </p>
 
-        <p className="text-lg text-slate-400">
+        <p className="text-[11px] text-slate-400">
           Scan the QR code on your ticket to track your queue.
         </p>
       </div>
@@ -1378,7 +1473,7 @@ function SuccessScreen({
 }
 
 /* =========================================================
-   PRINTED TICKET RECEIPT (real printable output)
+   PRINTED TICKET RECEIPT
 ========================================================= */
 
 function PrintedTicketReceipt({
@@ -1392,24 +1487,31 @@ function PrintedTicketReceipt({
     return null;
   }
 
-  const themeColor = getQueueThemeColor(queueType);
+  const themeColor =
+    getQueueThemeColor(queueType);
+
   const now = new Date();
 
-  const dateLabel = now.toLocaleDateString(undefined, {
-    month: 'long',
-    day: '2-digit',
-    year: 'numeric',
-  });
+  const dateLabel =
+    now.toLocaleDateString(undefined, {
+      month: 'long',
+      day: '2-digit',
+      year: 'numeric',
+    });
 
-  const timeLabel = now.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const timeLabel =
+    now.toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
 
   return (
     <div className="hidden print:flex print:min-h-screen print:items-center print:justify-center">
       <div className="w-full max-w-[320px] p-6 text-center">
-        <Wordmark size="text-xl" compact />
+        <Wordmark
+          size="text-xl"
+          compact
+        />
 
         <p className="mt-4 text-base font-bold uppercase tracking-wide text-slate-800">
           {kiosk?.name}
@@ -1421,7 +1523,9 @@ function PrintedTicketReceipt({
 
         <p
           className="text-5xl font-extrabold"
-          style={{ color: themeColor }}
+          style={{
+            color: themeColor,
+          }}
         >
           {queueNumber}
         </p>
@@ -1430,21 +1534,30 @@ function PrintedTicketReceipt({
 
         <div className="space-y-1.5 text-left text-sm">
           <div className="flex items-center justify-between">
-            <span className="text-slate-500">Service:</span>
+            <span className="text-slate-500">
+              Service:
+            </span>
+
             <span className="font-semibold text-slate-800">
               {service?.name}
             </span>
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-slate-500">People Ahead:</span>
+            <span className="text-slate-500">
+              People Ahead:
+            </span>
+
             <span className="font-semibold text-slate-800">
               {service?.waiting ?? 0}
             </span>
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-slate-500">Estimated Wait:</span>
+            <span className="text-slate-500">
+              Estimated Wait:
+            </span>
+
             <span className="font-semibold text-slate-800">
               {service?.estMin ?? 0} minutes
             </span>
@@ -1531,18 +1644,15 @@ export default function PatientView({
     useRef(null);
 
   /*
-    Kiosks are now retrieved through:
+    Kiosks are retrieved through:
 
-      Patient.jsx
+      PatientView
           ↓
       backendApi.js
           ↓
       Node.js
           ↓
       MySQL / Firebase backend logic
-
-    Patient.jsx no longer talks directly to
-    Supabase or Firebase.
   */
 
   async function fetchKiosks() {
@@ -1566,11 +1676,12 @@ export default function PatientView({
                   item?.kiosk_id ||
                   item?.id ||
                   '',
+
                 name:
                   item?.name || '',
+
                 status:
-                  item?.status ??
-                  null,
+                  item?.status ?? null,
               }))
               .filter(
                 (item) =>
@@ -1656,22 +1767,6 @@ export default function PatientView({
     setDepartmentsError,
   ] = useState('');
 
-  /*
-    Loads departments for the selected kiosk through:
-
-      Patient.jsx
-          ↓
-      backendApi.js
-          ↓
-      Node.js
-          ↓
-      MySQL
-
-    Inactive departments are kept in the list (not hidden)
-    so the kiosk can show them greyed-out/disabled, matching
-    the reference design.
-  */
-
   async function fetchDepartments(
     kioskRecord
   ) {
@@ -1684,10 +1779,6 @@ export default function PatientView({
     setDepartmentsError('');
 
     try {
-      /*
-        Get departments assigned to this kiosk.
-      */
-
       const data =
         await getPatientDepartments(
           kioskRecord.kiosk_id
@@ -1696,18 +1787,17 @@ export default function PatientView({
       const allDepartments =
         data || [];
 
-      /*
-        Get current waiting count for
-        each active department.
-      */
-
       const departmentsWithWaiting =
         await Promise.all(
           allDepartments.map(
             async (department) => {
               let waiting = 0;
 
-              if (isDepartmentActive(department)) {
+              if (
+                isDepartmentActive(
+                  department
+                )
+              ) {
                 try {
                   const waitingData =
                     await getWaitingCount(
@@ -1791,11 +1881,6 @@ export default function PatientView({
   ======================================================= */
 
   function handleStart() {
-    /*
-      If PatientView is configured for a specific
-      physical kiosk, use that kiosk.
-    */
-
     const configuredKiosk =
       kioskId
         ? kiosks.find(
@@ -1806,11 +1891,6 @@ export default function PatientView({
               String(kioskId)
           )
         : null;
-
-    /*
-      If the configured kiosk is already
-      unlocked today, go directly to Queue Type.
-    */
 
     const activeKiosk =
       configuredKiosk
@@ -1837,12 +1917,6 @@ export default function PatientView({
       return;
     }
 
-    /*
-      This terminal is bound to a specific kiosk but has
-      not been unlocked yet today — go straight to the
-      kiosk code screen instead of a kiosk picker.
-    */
-
     if (configuredKiosk) {
       setKiosk(configuredKiosk);
       setQueueType(null);
@@ -1856,12 +1930,6 @@ export default function PatientView({
 
       return;
     }
-
-    /*
-      No specific kiosk is configured and no active
-      kiosk has been unlocked today. Patient must
-      select a kiosk.
-    */
 
     setKiosk(null);
     setQueueType(null);
@@ -1885,11 +1953,6 @@ export default function PatientView({
     setQueueType(null);
     setService(null);
 
-    /*
-      If this kiosk was already unlocked today,
-      skip PIN.
-    */
-
     if (
       isKioskUnlocked(
         selectedKiosk.kiosk_id
@@ -1903,11 +1966,6 @@ export default function PatientView({
 
       return;
     }
-
-    /*
-      First use of this kiosk today.
-      Require PIN.
-    */
 
     setStep('kioskPin');
   }
@@ -1925,9 +1983,18 @@ export default function PatientView({
       kiosk.kiosk_id
     );
 
-    setRequiresKioskSelection(
-      true
-    );
+    /*
+      Do NOT change requiresKioskSelection here.
+
+      If the patient selected a kiosk manually,
+      it remains true.
+
+      If this terminal is already configured for a
+      specific kiosk, it remains false.
+
+      This allows the Back button to return to the
+      correct screen.
+    */
 
     setQueueType(null);
     setService(null);
@@ -1942,7 +2009,7 @@ export default function PatientView({
   function handleReset() {
     /*
       IMPORTANT:
-      The daily kiosk unlock is NOT cleared.
+      Daily kiosk unlock is NOT cleared.
 
       This only resets the current patient session.
     */
@@ -2004,10 +2071,6 @@ export default function PatientView({
         );
       }
 
-      /*
-        Extra safety check.
-      */
-
       if (
         String(
           service.kiosk_id
@@ -2046,24 +2109,6 @@ export default function PatientView({
               : 'Regular',
         });
 
-      /*
-        Node.js returns:
-
-        transaction_id
-        queue_id
-        queue_number
-        queue_sequence
-        patient_number
-        department_id
-        department
-        kiosk_id
-        kiosk
-        queue_type
-        is_priority
-        status
-        est_time
-      */
-
       if (!result) {
         throw new Error(
           'The server did not return queue information.'
@@ -2094,11 +2139,6 @@ export default function PatientView({
         result.queue_number
       );
 
-      /*
-        Update the selected service with
-        the latest values returned by Node.
-      */
-
       setService((current) => ({
         ...current,
 
@@ -2113,14 +2153,9 @@ export default function PatientView({
           0,
       }));
 
-      /*
-        Refresh the waiting count once more right after the
-        ticket is created, so the number shown on the ticket
-        screen reflects who is actually still waiting at this
-        moment rather than the snapshot taken earlier in the
-        flow. The freshly created ticket itself is included in
-        that count, so it's subtracted back out.
-      */
+      /* ---------------------------------------------------
+         REFRESH WAITING COUNT
+      --------------------------------------------------- */
 
       try {
         const waitingData =
@@ -2182,26 +2217,18 @@ export default function PatientView({
   }
 
   /* =======================================================
-     PRINTING → TRIGGER REAL PRINT → SUCCESS
+     PRINTING → REAL PRINT → SUCCESS
   ======================================================= */
 
   useEffect(() => {
-    if (
-      step !== 'printing'
-    ) {
+    if (step !== 'printing') {
       return;
     }
 
-    /*
-      Trigger the browser's real print dialog. The printable
-      receipt is rendered by <PrintedTicketReceipt /> below,
-      which is the only thing visible via the print:* classes
-      when printing.
-    */
-
-    const printTimer = setTimeout(() => {
-      window.print();
-    }, 400);
+    const printTimer =
+      setTimeout(() => {
+        window.print();
+      }, 400);
 
     const advanceTimer =
       setTimeout(() => {
@@ -2219,9 +2246,7 @@ export default function PatientView({
   ======================================================= */
 
   useEffect(() => {
-    if (
-      step !== 'success'
-    ) {
+    if (step !== 'success') {
       return;
     }
 
@@ -2235,7 +2260,7 @@ export default function PatientView({
   }, [step]);
 
   /* =======================================================
-     RENDER
+     PRINT RECEIPT
   ======================================================= */
 
   const receipt = (
@@ -2252,16 +2277,13 @@ export default function PatientView({
      WELCOME
   ======================================================= */
 
-  if (
-    step === 'welcome'
-  ) {
+  if (step === 'welcome') {
     return (
       <>
         <WelcomeScreen
-          onStart={
-            handleStart
-          }
+          onStart={handleStart}
         />
+
         {receipt}
       </>
     );
@@ -2271,23 +2293,17 @@ export default function PatientView({
      KIOSK
   ======================================================= */
 
-  if (
-    step === 'kiosk'
-  ) {
+  if (step === 'kiosk') {
     return (
       <>
         <SelectKioskScreen
           kiosks={kiosks}
           selected={kiosk}
-          loading={
-            kiosksLoading
-          }
+          loading={kiosksLoading}
           onSelect={
             handleKioskSelect
           }
-          onBack={
-            handleReset
-          }
+          onBack={handleReset}
           onContinue={() => {
             if (!kiosk) {
               return;
@@ -2345,6 +2361,7 @@ export default function PatientView({
             handleKioskPinSuccess
           }
         />
+
         {receipt}
       </>
     );
@@ -2354,29 +2371,17 @@ export default function PatientView({
      QUEUE TYPE
   ======================================================= */
 
-  if (
-    step === 'queueType'
-  ) {
+  if (step === 'queueType') {
     return (
       <>
         <QueueTypeScreen
-          selected={
-            queueType
-          }
+          selected={queueType}
           kiosk={kiosk}
           onSelect={(type) => {
             setQueueType(type);
             setService(null);
           }}
           onBack={() => {
-            /*
-              If the patient entered through kiosk
-              selection, return to kiosk selection.
-
-              If a physical kiosk was already unlocked,
-              return to welcome.
-            */
-
             if (
               requiresKioskSelection
             ) {
@@ -2394,11 +2399,6 @@ export default function PatientView({
               return;
             }
 
-            /*
-              Refresh departments before moving
-              to department selection.
-            */
-
             fetchDepartments(kiosk);
 
             setStep(
@@ -2406,6 +2406,7 @@ export default function PatientView({
             );
           }}
         />
+
         {receipt}
       </>
     );
@@ -2415,22 +2416,16 @@ export default function PatientView({
      DEPARTMENT
   ======================================================= */
 
-  if (
-    step === 'department'
-  ) {
+  if (step === 'department') {
     return (
       <>
         <SelectDepartmentScreen
           kiosk={kiosk}
-          departments={
-            departments
-          }
+          departments={departments}
           loading={
             departmentsLoading
           }
-          selected={
-            service
-          }
+          selected={service}
           onSelect={(department) => {
             setService(
               department
@@ -2445,15 +2440,6 @@ export default function PatientView({
             if (!service) {
               return;
             }
-
-            /*
-              The waiting count on `service` was fetched once
-              when the kiosk/department list first loaded, so it
-              can be stale by the time the patient reaches this
-              step (staff may have already called people). Refresh
-              it right before showing the confirm screen so the
-              numbers reflect what's actually happening now.
-            */
 
             try {
               const waitingData =
@@ -2500,19 +2486,13 @@ export default function PatientView({
      CONFIRM
   ======================================================= */
 
-  if (
-    step === 'confirm'
-  ) {
+  if (step === 'confirm') {
     return (
       <>
         <ConfirmScreen
-          queueType={
-            queueType
-          }
+          queueType={queueType}
           kiosk={kiosk}
-          service={
-            service
-          }
+          service={service}
           waitingAhead={
             service?.waiting ?? 0
           }
@@ -2528,6 +2508,7 @@ export default function PatientView({
             handleGenerateNumber
           }
         />
+
         {receipt}
       </>
     );
@@ -2537,32 +2518,21 @@ export default function PatientView({
      TICKET
   ======================================================= */
 
-  if (
-    step === 'ticket'
-  ) {
+  if (step === 'ticket') {
     return (
       <>
         <TicketScreen
-          queueType={
-            queueType
-          }
+          queueType={queueType}
           kiosk={kiosk}
-          service={
-            service
-          }
-          queueNumber={
-            queueNumber
-          }
-          queueId={
-            queueId
-          }
-          onPrint={
-            handlePrint
-          }
-          onSkipPrint={() =>
-            handleReset()
+          service={service}
+          queueNumber={queueNumber}
+          queueId={queueId}
+          onPrint={handlePrint}
+          onSkipPrint={
+            handleReset
           }
         />
+
         {receipt}
       </>
     );
@@ -2572,19 +2542,14 @@ export default function PatientView({
      PRINTING
   ======================================================= */
 
-  if (
-    step === 'printing'
-  ) {
+  if (step === 'printing') {
     return (
       <>
         <PrintingScreen
-          queueType={
-            queueType
-          }
-          queueNumber={
-            queueNumber
-          }
+          queueType={queueType}
+          queueNumber={queueNumber}
         />
+
         {receipt}
       </>
     );
@@ -2597,13 +2562,10 @@ export default function PatientView({
   return (
     <>
       <SuccessScreen
-        queueType={
-          queueType
-        }
-        queueNumber={
-          queueNumber
-        }
+        queueType={queueType}
+        queueNumber={queueNumber}
       />
+
       {receipt}
     </>
   );
