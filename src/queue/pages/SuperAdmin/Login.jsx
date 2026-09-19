@@ -182,7 +182,7 @@ async function handlePasswordChangeSuccess(
         backgroundImage: `url(${LoginBG1})`,
       }}
     >
-      <div className="relative z-10 w-full max-w-sm rounded-lg bg-white p-7 shadow-2xl">
+      <div className="relative z-10 w-full max-w-md rounded-lg bg-white p-8 shadow-2xl">
 
         {/* =====================================================
             LOGO + TITLE
@@ -216,7 +216,7 @@ async function handlePasswordChangeSuccess(
               htmlFor="email"
               className="mb-2 block text-sm font-semibold text-[#1F2937]"
             >
-              Email Address
+              Username
             </label>
 
             <input
@@ -226,7 +226,7 @@ async function handlePasswordChangeSuccess(
               onChange={(e) =>
                 setEmail(e.target.value)
               }
-              placeholder="Enter email address"
+              placeholder="example.swu@phinmaed.com"
               autoComplete="email"
               disabled={loading}
               className="w-full rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"

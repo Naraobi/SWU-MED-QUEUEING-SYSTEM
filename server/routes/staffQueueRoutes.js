@@ -275,7 +275,17 @@ async function getQueueState(
           THEN 1
           ELSE 0
         END
-      ) AS skipped
+      ) AS skipped,
+
+      AVG(
+        CASE
+          WHEN qt.status = 'completed'
+            AND qt.service_began_at IS NOT NULL
+            AND qt.completed_at IS NOT NULL
+          THEN TIMESTAMPDIFF(SECOND, qt.service_began_at, qt.completed_at) / 60
+          ELSE NULL
+        END
+      ) AS averageServiceMinutes
 
     FROM queue_ticket qt
 
@@ -303,6 +313,10 @@ async function getQueueState(
 
     skipped: Number(
       statsRows[0]?.skipped || 0
+    ),
+
+    averageServiceMinutes: Number(
+      statsRows[0]?.averageServiceMinutes || 0
     ),
   };
 
