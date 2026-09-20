@@ -1869,36 +1869,39 @@ export async function updateUser(
 /* ----------------------------------------------------------------------------
    DELETE USER
    ---------------------------------------------------------------------------- */
-
-export async function deleteUser(
-  userId
-) {
-  if (!supabase) {
-    demoUsers =
-      demoUsers.filter(
-        row =>
-          row.id !== userId
-      )
-
-    return
+export async function deleteUser(userId, deletionReason = '', deletedBy = 'superadmin') {
+  if (!userId) {
+    throw new Error('User ID is required.')
   }
 
-  const {
-    error
-  } = await supabase
-    .from(USERS_TABLE)
-    .delete()
-    .eq(
-      'user_id',
-      userId
+  try {
+    const response = await fetch(
+      `${API_URL}/users/${encodeURIComponent(userId)}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deletion_reason: deletionReason,
+          deletedBy,
+        }),
+      }
     )
 
-  if (error) {
-    console.error(
-      'Error deleting user:',
-      error
-    )
+    const result = await response.json()
 
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+          result.error ||
+          'Failed to delete user.'
+      )
+    }
+
+    return result.data || result
+  } catch (error) {
+    console.error('Node.js delete user error:', error)
     throw error
   }
 }
