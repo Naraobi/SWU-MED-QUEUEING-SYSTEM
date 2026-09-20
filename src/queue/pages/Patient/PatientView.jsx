@@ -346,7 +346,7 @@ function KioskHeader() {
     <div className="mb-6 flex items-center justify-between">
       <Wordmark size="h-9" />
 
-      <div className="flex items-center gap-3 text-[11px] font-medium text-slate-400">
+      <div className="flex items-center gap-3 text-[11px] font-medium text-[#434655]">
         <span className="flex items-center gap-1">
           <Clock size={12} />
           {time}
@@ -401,7 +401,8 @@ function NavButtons({
         type="button"
         onClick={onContinue}
         disabled={disabled}
-        className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-3 text-sm font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex flex-1 items-center justify-center gap-1.5 rounded-md border-2 bg-white px-4 py-3 text-sm font-semibold text-[#1F2937] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        style={{ borderColor: MUTED_RED }}
       >
         {continueLabel}
         <ArrowRight size={15} />
@@ -562,26 +563,24 @@ function SelectKioskScreen({
                 onClick={() =>
                   onSelect(currentKiosk)
                 }
-                className={`relative flex w-full items-center gap-3 rounded-md border p-3.5 text-left transition ${
-                  isSelected ? '' : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
+                className={`relative flex w-full items-center gap-3 rounded-md border p-3.5 text-left shadow-sm transition ${
+                  isSelected
+                    ? 'border-transparent'
+                    : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
                 }`}
                 style={
                   isSelected
-                    ? { borderColor: BRAND_RED, backgroundColor: SELECTED_BG }
+                    ? { backgroundColor: BRAND_RED }
                     : undefined
                 }
               >
-                {isSelected && (
-                  <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
-                    <CheckCircle2 size={12} />
-                  </span>
-                )}
-
                 <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded"
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center ${
+                    isSelected ? 'rounded-full' : 'rounded'
+                  }`}
                   style={{
                     backgroundColor: isSelected
-                      ? BRAND_RED
+                      ? 'white'
                       : ICON_TINT,
                   }}
                 >
@@ -589,7 +588,7 @@ function SelectKioskScreen({
                     size={18}
                     style={{
                       color: isSelected
-                        ? 'white'
+                        ? '#4B5563'
                         : BRAND_RED,
                     }}
                   />
@@ -600,7 +599,7 @@ function SelectKioskScreen({
                     <p
                       className={`text-sm font-semibold uppercase tracking-wide ${
                         isSelected
-                          ? 'text-[#9D0A0E]'
+                          ? 'text-white'
                           : 'text-slate-800'
                       }`}
                     >
@@ -614,7 +613,7 @@ function SelectKioskScreen({
                     )}
                   </div>
 
-                  <p className="text-xs text-slate-400">
+                  <p className={`text-xs ${isSelected ? 'text-white/70' : 'text-slate-400'}`}>
                     Select this kiosk to continue.
                   </p>
                 </div>
@@ -636,6 +635,8 @@ function SelectKioskScreen({
    KIOSK CODE SCREEN
 ========================================================= */
 
+const KIOSK_PIN_LENGTH = 6;
+
 function KioskPinScreen({
   kiosk,
   onBack,
@@ -653,7 +654,7 @@ function KioskPinScreen({
       return;
     }
 
-    if (pin.length !== 4) {
+    if (pin.length !== KIOSK_PIN_LENGTH) {
       return;
     }
 
@@ -701,7 +702,7 @@ function KioskPinScreen({
     setError('');
 
     setPin((current) =>
-      current.length >= 4
+      current.length >= KIOSK_PIN_LENGTH
         ? current
         : current + digit
     );
@@ -733,8 +734,8 @@ function KioskPinScreen({
         </p>
       </div>
 
-      <div className="mb-5 flex justify-center gap-2.5">
-        {Array.from({ length: 4 }, (_, index) => {
+      <div className="mb-5 flex justify-center gap-2">
+        {Array.from({ length: KIOSK_PIN_LENGTH }, (_, index) => {
           const filled = index < pin.length;
           const isActive = index === pin.length;
 
@@ -784,7 +785,7 @@ function KioskPinScreen({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={pin.length !== 4 || submitting}
+          disabled={pin.length !== KIOSK_PIN_LENGTH || submitting}
           className="flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-3.5 text-base font-semibold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? 'Activating...' : 'Activate Kiosk'}
@@ -838,25 +839,21 @@ function QueueTypeScreen({
               key={type.key}
               type="button"
               onClick={() => onSelect(type)}
-              className={`relative w-full rounded-md border p-5 text-center transition ${
-                isSelected ? '' : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
+              className={`relative w-full rounded-md border p-5 text-center shadow-sm transition ${
+                isSelected
+                  ? 'border-transparent'
+                  : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
               }`}
               style={
                 isSelected
-                  ? { borderColor: BRAND_RED, backgroundColor: SELECTED_BG }
+                  ? { backgroundColor: BRAND_RED }
                   : undefined
               }
             >
-              {isSelected && (
-                <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
-                  <CheckCircle2 size={12} />
-                </span>
-              )}
-
               <p
                 className={`text-lg font-bold uppercase tracking-wide ${
                   isSelected
-                    ? 'text-[#9D0A0E]'
+                    ? 'text-white'
                     : 'text-slate-800'
                 }`}
               >
@@ -951,32 +948,28 @@ function SelectDepartmentScreen({
                   onClick={() =>
                     active && onSelect(department)
                   }
-                  className={`relative flex flex-col items-center gap-1.5 rounded-md border p-3 text-center transition ${
+                  className={`relative flex flex-col items-center gap-1.5 rounded-md border p-3 text-center shadow-sm transition ${
                     !active
-                      ? 'cursor-not-allowed border-[#E5E7EB] bg-[#F8FAFC] opacity-60'
+                      ? 'cursor-not-allowed border-[#E5E7EB] bg-[#F1F3F5] opacity-60'
                       : isSelected
-                        ? ''
+                        ? 'border-transparent'
                         : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
                   }`}
                   style={
                     active && isSelected
-                      ? { borderColor: BRAND_RED, backgroundColor: SELECTED_BG }
+                      ? { backgroundColor: BRAND_RED }
                       : undefined
                   }
                 >
-                  {isSelected && active && (
-                    <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
-                      <CheckCircle2 size={10} />
-                    </span>
-                  )}
-
                   <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded"
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center ${
+                      active && isSelected ? 'rounded-full' : 'rounded'
+                    }`}
                     style={{
                       backgroundColor: !active
                         ? '#E5E7EB'
                         : isSelected
-                          ? BRAND_RED
+                          ? 'white'
                           : ICON_TINT,
                     }}
                   >
@@ -986,7 +979,7 @@ function SelectDepartmentScreen({
                         color: !active
                           ? '#94A3B8'
                           : isSelected
-                            ? 'white'
+                            ? '#4B5563'
                             : BRAND_RED,
                       }}
                     />
@@ -997,14 +990,18 @@ function SelectDepartmentScreen({
                       !active
                         ? 'text-slate-400'
                         : isSelected
-                          ? 'text-[#9D0A0E]'
+                          ? 'text-white'
                           : 'text-slate-800'
                     }`}
                   >
                     {department.name}
                   </p>
 
-                  <p className="text-[9px] leading-tight text-slate-400">
+                  <p
+                    className={`text-[9px] leading-tight ${
+                      active && isSelected ? 'text-white/70' : 'text-slate-400'
+                    }`}
+                  >
                     {active
                       ? getDepartmentDescription(department)
                       : 'Inactive'}
@@ -1394,10 +1391,10 @@ function SuccessScreen({
           className="relative rounded-lg border bg-white p-6 text-center shadow-sm"
           style={{ borderColor: BORDER_DEFAULT }}
         >
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#E5E7EB]">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#DDFFEF]/80">
           <CheckCircle2
             size={24}
-            style={{ color: themeColor }}
+            style={{ color: '#065F46' }}
           />
         </div>
 
