@@ -30,19 +30,20 @@ Your SWU Med Queue System account has been created.
 Temporary Password:
 ${temporaryPassword}
 
-Please log in using your registered email address and the temporary password.
+Please log in using your registered email address and temporary password.
 
-IMPORTANT:
-This temporary password will expire 48 hours after your account is created.
-Please log in and change your password within 48 hours.
+Your temporary password expires 48 hours after your account is created.
+Please change your password within this period.
 
 Login here:
 ${loginUrl}
 
-If the temporary password expires before you change it, you will need to contact the administrator.
+If your temporary password expires before you change it, please contact the administrator.
+
+Once you change your password, the temporary password expiration no longer applies.
 
 Thank you,
-SWU Med System`,
+SWU Med Queue System`,
 
     // HTML version
     html: `
@@ -55,39 +56,19 @@ SWU Med System`,
           Your SWU Med Queue System account has been created.
         </p>
 
-        <p><strong>Your temporary password is:</strong></p>
-
-        <div style="
-          background-color: #f4f4f4;
-          padding: 12px 16px;
-          border-radius: 6px;
-          font-size: 18px;
-          font-weight: bold;
-          display: inline-block;
-          letter-spacing: 1px;
-        ">
-          ${temporaryPassword}
-        </div>
-
-        <div style="
-          margin-top: 20px;
-          padding: 15px;
-          background-color: #fff3cd;
-          border: 1px solid #ffeeba;
-          border-radius: 6px;
-          color: #856404;
-        ">
-          <strong>Important: Temporary Password Expiration</strong>
-          <p style="margin-bottom: 0;">
-            This temporary password will expire
-            <strong>48 hours after your account is created.</strong>
-            Please log in and change your password within 48 hours.
-          </p>
-        </div>
+        <p>
+          <strong>Temporary Password: ${temporaryPassword}</strong>
+        </p>
 
         <p>
-          Please log in using your registered email address and the
-          temporary password above.
+          Please log in using your registered email address and temporary password.
+        </p>
+
+        <p>
+          <strong>
+            Your temporary password expires 48 hours after your account is created.
+          </strong>
+          Please change your password within this period.
         </p>
 
         <p>
@@ -95,15 +76,15 @@ SWU Med System`,
             href="${loginUrl}"
             style="
               display: inline-block;
-              background-color: #0066cc;
-              color: white;
+              background-color: #9D0A0E;
+              color: #ffffff;
               padding: 12px 20px;
               text-decoration: none;
               border-radius: 6px;
               font-weight: bold;
             "
           >
-            Login to SWU Med Queue System
+            Login
           </a>
         </p>
 
@@ -114,16 +95,13 @@ SWU Med System`,
         </p>
 
         <p>
-          <strong>
-            If you do not change your password within 48 hours,
-            your temporary password will expire and you will need
-            to contact the administrator.
-          </strong>
+          If your temporary password expires before you change it,
+          please contact the administrator.
         </p>
 
         <p>
-          Once you successfully change your password, the temporary
-          password expiration will no longer apply.
+          Once you successfully change your password,
+          the temporary password expiration no longer applies.
         </p>
 
         <p>
@@ -133,6 +111,7 @@ SWU Med System`,
       </div>
     `,
   };
+
   console.log(
     "TEMPORARY PASSWORD EMAIL VERSION: 48-HOUR EXPIRATION"
   );
@@ -142,4 +121,4 @@ SWU Med System`,
 
 module.exports = {
   sendTemporaryPasswordEmail,
-};
+};  

@@ -24,10 +24,10 @@ import { StatCard } from './shared';
 import { useLanguage } from './LanguageContext';
 
 const fieldClass =
-  'mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#9D0A0E]';
+  'mt-1 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] outline-none focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/20';
 
 const labelClass =
-  'block text-xs font-semibold text-slate-600';
+  'block text-sm font-semibold text-[#1F2937]';
 
 const EMPTY_FORM = {
   first_name: '',
@@ -1068,12 +1068,6 @@ export default function StaffManagementPage() {
       )
     ) {
       return 'Please enter a valid email address.';
-    }
-
-    if (
-      !form.contact_number.trim()
-    ) {
-      return 'Contact number is required.';
     }
 
     if (!adminDepartment) {
@@ -2180,20 +2174,16 @@ export default function StaffManagementPage() {
 
               {/* SELECT ROLE */}
 
-              <div>
-                <label className={labelClass}>
-                  Select Role
-                </label>
-                <select
-                  className={`${fieldClass} cursor-not-allowed bg-slate-100 text-slate-500`}
-                  value="Staff"
-                  disabled
-                >
-                  <option value="Staff">
+                <div>
+                  <label className={labelClass}>
+                    Select Role
+                  </label>
+                  <div
+                    className={`${fieldClass} bg-[#F1F3F5] text-[#4B5563]`}
+                  >
                     Staff
-                  </option>
-                </select>
-              </div>
+                  </div>
+                </div>
 
             </div>
 
