@@ -195,6 +195,8 @@ export function QueueManagementPage() {
 
   const [terminalLabel, setTerminalLabel] = useState('--');
   const [terminalLoading, setTerminalLoading] = useState(true);
+  const [departmentTerminals, setDepartmentTerminals] = useState([]);
+  const [selectedTerminalId, setSelectedTerminalId] = useState('all');
 
   async function loadTerminalStats() {
     setTerminalLoading(true);
@@ -218,9 +220,11 @@ export function QueueManagementPage() {
       ).length;
 
       setTerminalLabel(`${active}/${departmentTerminals.length}`);
+      setDepartmentTerminals(departmentTerminals);
     } catch (err) {
       console.error('Failed to load terminal stats:', err);
       setTerminalLabel('--');
+      setDepartmentTerminals([]);
     } finally {
       setTerminalLoading(false);
     }
@@ -280,6 +284,28 @@ export function QueueManagementPage() {
 
   const current = currentlyServing || null;
 
+  // Only one ticket can be actively served per department at a time
+  // today, so "switching terminals" means: show that one ticket only
+  // when it was actually called from the selected terminal, and show
+  // an idle state for every other terminal.
+  const displayedCurrent =
+    selectedTerminalId === 'all' || !current
+      ? current
+      : String(current.counterId) === String(selectedTerminalId)
+        ? current
+        : null;
+
+  const selectedTerminalRecord =
+    selectedTerminalId === 'all'
+      ? null
+      : departmentTerminals.find(
+          (terminal) => String(terminal.counter_id) === String(selectedTerminalId)
+        );
+
+  const selectedTerminalLabel = selectedTerminalRecord
+    ? selectedTerminalRecord.prefix || `Terminal ${selectedTerminalRecord.counter_number}`
+    : null;
+
   const totalWaiting = stats?.waiting || waitingQueue.length || 0;
 
   const QUEUE_PAGE_SIZE = 10;
@@ -330,19 +356,35 @@ export function QueueManagementPage() {
         <section className="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold text-[#1F2937]">{t('queue.currentStatus')}</h2>
-            <span className="text-[10px] font-semibold text-slate-400">{t('common.today')}</span>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedTerminalId}
+                onChange={(event) => setSelectedTerminalId(event.target.value)}
+                className="h-7 rounded-md border border-[#E5E7EB] bg-white px-2 text-[10px] font-semibold text-[#4B5563] outline-none focus:border-[#9D0A0E]"
+              >
+                <option value="all">All Terminals</option>
+                {departmentTerminals.map((terminal) => (
+                  <option key={terminal.counter_id} value={terminal.counter_id}>
+                    {terminal.prefix || `Terminal ${terminal.counter_number}`}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] font-semibold text-slate-400">{t('common.today')}</span>
+            </div>
           </div>
 
           <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('queue.nowServing')}</p>
-            <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : current?.id || '--'}</p>
+            <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : displayedCurrent?.id || '--'}</p>
             <p className="mt-2 text-xs text-[#4B5563]">
-              {current
-                ? t('queue.terminalService', { terminal: current.terminal ?? '--', service: current.service || 'Service' }) +
-                  (current.secondsElapsed
-                    ? t('queue.servingFor', { minutes: Math.floor(current.secondsElapsed / 60) })
+              {displayedCurrent
+                ? t('queue.terminalService', { terminal: displayedCurrent.terminal ?? '--', service: displayedCurrent.service || 'Service' }) +
+                  (displayedCurrent.secondsElapsed
+                    ? t('queue.servingFor', { minutes: Math.floor(displayedCurrent.secondsElapsed / 60) })
                     : '')
-                : 'No patient currently being served'}
+                : selectedTerminalLabel
+                  ? `${selectedTerminalLabel} is not currently serving a patient`
+                  : 'No patient currently being served'}
             </p>
           </div>
         </section>

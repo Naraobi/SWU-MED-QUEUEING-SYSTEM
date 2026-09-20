@@ -202,15 +202,18 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
                 filteredList.map((patient, index) => {
                   const isPriority = String(patient.id).startsWith('P-') || patient.service === 'Priority'
                   const originalIndex = waitingQueue.findIndex(p => p.id === patient.id)
-                  
-                  const issuedTime = patient.issuedAt || patient.created_at 
+                  // Within the Priority/Regular tabs, number each type's own
+                  // line separately instead of the combined queue position.
+                  const displayIndex = activeTab === 'All' ? originalIndex : index
+
+                  const issuedTime = patient.issuedAt || patient.created_at
                     ? new Date(patient.issuedAt || patient.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
                     : '8:05 AM'
 
                   return (
                     <tr key={patient.uniqueKey || patient.id || index} className="hover:bg-slate-50/80 transition">
                       <td className={`py-3.5 px-6 font-bold ${originalIndex === 0 ? 'text-[#9D0A0E]' : 'text-slate-700'}`}>
-                        #{originalIndex + 1}
+                        #{displayIndex + 1}
                       </td>
                       <td className={`py-3.5 px-6 font-extrabold ${isPriority ? 'text-[#9D0A0E]' : 'text-slate-900'}`}>
                         {patient.id}
@@ -227,7 +230,7 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
                         )}
                       </td>
                       <td className="py-3.5 px-6 font-medium text-slate-600">
-                        ~{patient.etaMinutes || (originalIndex + 1) * 4} min {originalIndex === 0 ? '(Next in line)' : `(${originalIndex} ahead)`}
+                        ~{patient.etaMinutes || (displayIndex + 1) * 4} min {originalIndex === 0 ? '(Next in line)' : `(${displayIndex} ahead)`}
                       </td>
                       <td className="py-3.5 px-6 text-right font-medium text-slate-500">
                         {issuedTime}
@@ -528,11 +531,29 @@ export default function DashboardPage() {
     )
   }, [waitingQueue, staffPrefix])
 
+  // Only one ticket can be actively served per department at a time,
+  // so if a *different* terminal in this same department called it,
+  // it still matches the department prefix here. Without also
+  // checking counterId, this staff member's dashboard would show
+  // someone else's patient as their own and let them Recall/Start/
+  // Skip/Complete a patient they never called. Tickets called before
+  // terminals were tracked (counterId null) fall back to the old
+  // department-only check so nothing breaks for in-flight data.
+  const belongsToThisTerminal =
+    !currentlyServing?.counterId ||
+    String(currentlyServing.counterId) === String(selectedTerminal?.terminal_id)
+
   const isCurrentForStaff = currentlyServing
-    ? matchesStaffDepartment(currentlyServing.id, staffPrefix)
+    ? matchesStaffDepartment(currentlyServing.id, staffPrefix) && belongsToThisTerminal
     : false
 
   const activeServing = isCurrentForStaff ? currentlyServing : null
+
+  const servedByOtherTerminal = Boolean(
+    currentlyServing &&
+      matchesStaffDepartment(currentlyServing.id, staffPrefix) &&
+      !belongsToThisTerminal
+  )
 
   const nextPatient = filteredWaitingQueue[0] || null
 
@@ -543,6 +564,26 @@ export default function DashboardPage() {
     }
     return filteredWaitingQueue
   }, [filteredWaitingQueue, activeServing])
+
+  // Priority patients are always ordered ahead of regular ones by the
+  // backend (a single combined FIFO), which pushes regular patients'
+  // position numbers forward every time a priority patient is added.
+  // Splitting the upcoming list here gives each type its own count.
+  const upcomingPriority = useMemo(
+    () =>
+      upcomingQueue.filter(
+        (patient) => String(patient.id).startsWith('P-') || patient.service === 'Priority'
+      ),
+    [upcomingQueue]
+  )
+
+  const upcomingRegular = useMemo(
+    () =>
+      upcomingQueue.filter(
+        (patient) => !(String(patient.id).startsWith('P-') || patient.service === 'Priority')
+      ),
+    [upcomingQueue]
+  )
 
   const serviceHasStarted = Boolean(
     activeServing?.serviceBeganAt || activeServing?.service_began_at
@@ -768,6 +809,29 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )
+                ) : servedByOtherTerminal ? (
+                  <div className="mt-6">
+                    <p className="text-sm font-medium text-slate-500">
+                      Service: — &nbsp;|&nbsp; Terminal: {terminalDisplayName}
+                    </p>
+
+                    <p className="mt-8 text-sm font-bold uppercase tracking-wider text-slate-700">
+                      ANOTHER TERMINAL IS SERVING
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {currentlyServing?.terminal || 'Another terminal'} in this department is
+                      currently serving a patient. Please wait for them to finish.
+                    </p>
+
+                    <button
+                      type="button"
+                      disabled
+                      className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-slate-200 px-12 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 cursor-not-allowed"
+                    >
+                      <Play size={18} className="fill-current" />
+                      <span>CALL PATIENT</span>
+                    </button>
+                  </div>
                 ) : (
                   <div className="mt-6">
                     <p className="text-sm font-medium text-slate-500">
@@ -785,7 +849,7 @@ export default function DashboardPage() {
                       onClick={async () => {
                         if (!staffPrefix) return
                         try {
-                          await callNextPatient(staffPrefix)
+                          await callNextPatient(staffPrefix, selectedTerminal?.terminal_id)
                           await refresh(staffPrefix)
                         } catch (err) {
                           console.error('Call next error:', err)
@@ -827,35 +891,61 @@ export default function DashboardPage() {
 
               <div className="divide-y divide-slate-100 overflow-y-auto max-h-[500px]">
                 {upcomingQueue.length > 0 ? (
-                  upcomingQueue.map((patient, index) => {
-                    const isPriority =
-                      String(patient.id).startsWith('P-') ||
-                      patient.service === 'Priority'
-
-                    return (
-                      <div
-                        key={patient.uniqueKey || patient.id || index}
-                        className="flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition"
-                      >
-                        <span className="flex items-center gap-3">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
-                            {index + 2}
-                          </span>
-                          <span
-                            className={`rounded-md bg-slate-100 px-2.5 py-1 text-base font-bold ${
-                              isPriority ? 'text-[#851010]' : 'text-slate-800'
-                            }`}
-                          >
-                            {patient.id}
-                          </span>
-                        </span>
-                        <p className="text-sm font-medium text-slate-400">
-                          ~{patient.etaMinutes || (index + 2) * 4} min ({index + 2}{' '}
-                          ahead)
+                  <>
+                    {upcomingPriority.length > 0 && (
+                      <div>
+                        <p className="bg-red-50/60 px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-[#851010]">
+                          Priority Queue ({upcomingPriority.length})
                         </p>
+                        {upcomingPriority.map((patient, index) => (
+                          <div
+                            key={patient.uniqueKey || patient.id || `priority-${index}`}
+                            className="flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition"
+                          >
+                            <span className="flex items-center gap-3">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-50 text-xs font-bold text-[#851010]">
+                                {index + 1}
+                              </span>
+                              <span className="rounded-md bg-slate-100 px-2.5 py-1 text-base font-bold text-[#851010]">
+                                {patient.id}
+                              </span>
+                            </span>
+                            <p className="text-sm font-medium text-slate-400">
+                              ~{patient.etaMinutes || (index + 1) * 4} min ({index + 1}{' '}
+                              ahead)
+                            </p>
+                          </div>
+                        ))}
                       </div>
-                    )
-                  })
+                    )}
+
+                    {upcomingRegular.length > 0 && (
+                      <div>
+                        <p className="bg-slate-50 px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                          Regular Queue ({upcomingRegular.length})
+                        </p>
+                        {upcomingRegular.map((patient, index) => (
+                          <div
+                            key={patient.uniqueKey || patient.id || `regular-${index}`}
+                            className="flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition"
+                          >
+                            <span className="flex items-center gap-3">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                                {index + 1}
+                              </span>
+                              <span className="rounded-md bg-slate-100 px-2.5 py-1 text-base font-bold text-slate-800">
+                                {patient.id}
+                              </span>
+                            </span>
+                            <p className="text-sm font-medium text-slate-400">
+                              ~{patient.etaMinutes || (index + 1) * 4} min ({index + 1}{' '}
+                              ahead)
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="py-16 text-center text-sm text-slate-400">
                     No patients currently waiting.

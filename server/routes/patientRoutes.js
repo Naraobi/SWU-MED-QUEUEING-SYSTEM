@@ -296,13 +296,14 @@ router.post("/queue", async (req, res) => {
           ) AS last_sequence
         FROM queue_ticket
         WHERE department_id = ?
+          AND is_priority = ?
           AND issued_at >= CURDATE()
           AND issued_at < DATE_ADD(
             CURDATE(),
             INTERVAL 1 DAY
           )
         `,
-        [department_id]
+        [department_id, isPriority ? 1 : 0]
       );
 
 
