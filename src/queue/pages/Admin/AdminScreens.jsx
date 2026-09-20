@@ -1,32 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Camera,
-  Check,
-  CheckCircle2,
-  ClipboardCheck,
-  Clock3,
-  IdCard,
-  Info,
-  Lightbulb,
-  Monitor,
-  Moon,
-  Pipette,
-  Plus,
-  RefreshCw,
-  Search,
-  Sun,
-  Timer,
-  Trash2,
-  TrendingDown,
-  TriangleAlert,
-  Undo2,
-  Users,
-  X,
-  XCircle,
+  Camera, Check, CheckCircle2, ClipboardCheck, Clock3, IdCard, Info, Lightbulb, Monitor,Moon, Pipette, Plus,
+  RefreshCw, Search, Sun, Timer, Trash2,TrendingDown, TriangleAlert, Undo2, Users, X, XCircle,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
-import { getDashboardAnalytics } from '../../services/backendApi';
 
 import { useAuth } from '../../services/Authcontext';
 import { useQueue } from '../../context/QueueContext';
@@ -40,6 +18,7 @@ import {
   updateTerminal,
   deleteTerminal,
   updateDepartment,
+  getDashboardAnalytics,
 } from '../../services/backendApi';
 
 import { fetchNotifications, fetchQueueState } from '../../services/api';

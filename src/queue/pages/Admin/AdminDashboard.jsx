@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { auth } from "../../../firebase";
 
 import {
   Bell,
   CheckCircle2,
   CircleAlert,
+  Clock3,
   Gauge,
   IdCard,
   Info,
@@ -331,36 +332,15 @@ const loadDashboard = async () => {
       throw new Error("Authenticated user is required.");
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+  const selectedRange = dateRangeRef.current;
 
-    let startDate = today;
-    let endDate = today;
+const startDate = toDateKey(
+  selectedRange.start
+);
 
-    if (range === "This Week") {
-      const date = new Date();
-      const day = date.getDay();
-      const diff = day === 0 ? 6 : day - 1;
-
-      const monday = new Date(date);
-      monday.setDate(date.getDate() - diff);
-
-      startDate = monday.toISOString().slice(0, 10);
-      endDate = today;
-    }
-
-    if (range === "This Month") {
-      const date = new Date();
-
-      startDate = new Date(
-        date.getFullYear(),
-        date.getMonth(),
-        1
-      )
-        .toISOString()
-        .slice(0, 10);
-
-      endDate = today;
-    }
+const endDate = toDateKey(
+  selectedRange.end
+);
 
     const firebaseUser = auth.currentUser;
 
@@ -671,7 +651,6 @@ const loadDashboard = async () => {
   departmentPrefix,
   currentDepartmentId,
   isSuperadmin,
-  range,
   user,
 ]);
 

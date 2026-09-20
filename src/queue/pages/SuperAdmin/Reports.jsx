@@ -38,6 +38,20 @@ const statusStyles = {
 };
 
 export default function Reports() {
+
+  const [timeFilter, setTimeFilter] = useState("Today");
+  const [loading, setLoading] = useState(false);
+
+  const [metrics, setMetrics] = useState({
+    totalPatientsServed: 0,
+    totalWaiting: 0,
+    avgWaitTime: "0m",
+    activeTerminals: 0,
+  });
+
+  const [departmentVolume, setDepartmentVolume] = useState([]);
+  const [queueDistribution, setQueueDistribution] = useState([]);
+  const [insights, setInsights] = useState([]);
   const maxVolume = Math.max(...VOLUME.map((v) => v.value));
 
   async function fetchAnalytics() {
@@ -284,7 +298,7 @@ export default function Reports() {
         </div>
 
         {/* Right Column: Recent Activity Log */}
-        
+
         <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-5">
           <div>
             <p className="text-sm text-slate-700">Observation: Cashier 1 has demonstrated high efficiency this week.</p>
