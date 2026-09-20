@@ -119,6 +119,90 @@ SWU Med Queue System`,
   await transporter.sendMail(mailOptions);
 }
 
+async function sendPasswordChangedEmail(recipientEmail, firstName) {
+  const changedAt = new Date().toLocaleString("en-PH", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "Asia/Manila",
+  });
+
+  const mailOptions = {
+    from: `"SWU Med Queue System" <${process.env.EMAIL_USER}>`,
+    to: recipientEmail,
+    subject: "Your SWU Med Queue System Password Was Changed",
+
+    // Plain-text version
+    text: `Hello ${firstName},
+
+Your password for the SWU Med Queue System has been successfully changed.
+
+Password changed: ${changedAt}
+Account: ${recipientEmail}
+
+If you made this change, no further action is required.
+
+If you did not change your password, please contact your system administrator immediately.
+
+Thank you,
+SWU Med Queue System`,
+
+    // HTML version
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2>SWU Med Queue System</h2>
+
+        <p>Hello ${firstName},</p>
+
+        <p>
+          Your password for the SWU Med Queue System
+          has been <strong>successfully changed</strong>.
+        </p>
+
+        <div
+          style="
+            background-color: #f8f9fa;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+          "
+        >
+          <p style="margin: 0 0 8px 0;">
+            <strong>Password changed:</strong> ${changedAt}
+          </p>
+
+          <p style="margin: 0;">
+            <strong>Account:</strong> ${recipientEmail}
+          </p>
+        </div>
+
+        <p>
+          If you made this change, no further action is required.
+        </p>
+
+        <p>
+          <strong>
+            If you did not change your password, please contact
+            your system administrator immediately.
+          </strong>
+        </p>
+
+        <p>
+          Thank you,<br />
+          <strong>SWU Med Queue System</strong>
+        </p>
+      </div>
+    `,
+  };
+
+  console.log(
+    "PASSWORD CHANGED EMAIL: Sending confirmation to",
+    recipientEmail
+  );
+
+  await transporter.sendMail(mailOptions);
+}
 module.exports = {
   sendTemporaryPasswordEmail,
-};  
+  sendPasswordChangedEmail,
+};

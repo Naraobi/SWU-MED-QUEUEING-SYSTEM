@@ -7,6 +7,10 @@ const {
 } = require("../services/userService");
 
 const {
+  sendPasswordChangedEmail,
+} = require("../utils/emailService");
+
+const {
   getAuth,
 } = require("firebase-admin/auth");
 
@@ -373,10 +377,24 @@ router.post(
       |--------------------------------------------------------------------------
       */
 
-      const result =
-        await markPasswordChanged(
-          firebaseUid
+    const result = await markPasswordChanged(firebaseUid);
+
+    // Send password-change confirmation email
+    try {
+      const user = await getUserByFirebaseUid(firebaseUid);
+
+      if (user?.email) {
+        await sendPasswordChangedEmail(
+          user.email,
+          user.first_name || "User"
         );
+      }
+    } catch (emailError) {
+      console.error(
+        "PASSWORD CHANGE CONFIRMATION EMAIL ERROR:",
+        emailError
+      );
+}
 
       /*
       |--------------------------------------------------------------------------
