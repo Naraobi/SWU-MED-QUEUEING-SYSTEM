@@ -1,12 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { auth } from '../../../firebase';
+
 import {
   getKiosks,
   getPatientDepartments,
   getWaitingCount,
   createPatientQueue,
-  verifyKioskPin,
+  validateSecurityPin,
 } from '../../services/backendApi';
+
+import {
+  getOfflineData,
+  saveOfflineData,
+  addPendingOperation,
+} from '../../services/offlineStorage';
+
+import { syncPendingOperations } from '../../services/queueSync';
 
 import {
   ArrowRight,
@@ -646,6 +656,9 @@ function SelectKioskScreen({
 /* =========================================================
    KIOSK CODE SCREEN
 ========================================================= */
+/* =========================================================
+   KIOSK PIN SCREEN
+========================================================= */
 
 const KIOSK_PIN_LENGTH = 6;
 
@@ -668,41 +681,43 @@ function KioskPinScreen({
     }
 
     if (pin.length !== KIOSK_PIN_LENGTH) {
+      setError(
+        'Please enter the 6-digit Security PIN.'
+      );
+      return;
+    }
+
+    const firebaseUser = auth.currentUser;
+
+    if (!firebaseUser) {
+      setError(
+        'Your authentication session is unavailable. Please log in again.'
+      );
       return;
     }
 
     setSubmitting(true);
 
     try {
-      const result =
-        await verifyKioskPin(
-          kiosk.kiosk_id,
-          pin
-        );
-
-      if (result?.valid) {
-        unlockKioskForToday(
-          kiosk.kiosk_id
-        );
-
-        onSuccess();
-        return;
-      }
-
-      setError(
-        'Incorrect code. Please try again.'
+      await validateSecurityPin(
+        firebaseUser,
+        pin
       );
 
-      setPin('');
+      unlockKioskForToday(
+        kiosk.kiosk_id
+      );
+
+      onSuccess();
     } catch (error) {
       console.error(
-        'Kiosk PIN verification error:',
+        'Kiosk Security PIN verification error:',
         error
       );
 
       setError(
         error?.message ||
-          'Unable to verify kiosk code.'
+          'Invalid Security PIN. Please try again.'
       );
 
       setPin('');
@@ -742,54 +757,56 @@ function KioskPinScreen({
 
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-semibold text-slate-900">
-          Enter Kiosk Code
+          Enter Security PIN
         </h1>
 
         <p className="mt-1.5 text-sm text-slate-500">
-          Please enter the kiosk code to activate.
+          Enter your 6-digit Security PIN to activate this kiosk.
         </p>
+
+        {kiosk?.name && (
+          <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#9D0A0E]/5 px-4 py-2 text-sm font-bold text-[#9D0A0E]">
+            <MapPin size={16} />
+            {kiosk.name}
+          </div>
+        )}
       </div>
 
-      <div className="mb-5 flex justify-center gap-2">
-        {Array.from({ length: KIOSK_PIN_LENGTH }, (_, index) => {
-          const filled = index < pin.length;
-          const isActive = index === pin.length;
+      <div className="mb-6 flex justify-center gap-2">
+        {Array.from(
+          { length: KIOSK_PIN_LENGTH },
+          (_, index) => {
+            const filled =
+              index < pin.length;
 
-          return (
-            <div
-              key={index}
-              className="flex h-12 w-12 items-center justify-center rounded border-2 bg-white"
-              style={{
-                backgroundColor: isActive
-                  ? 'white'
-                  : '#F8FAFC',
-                borderColor: isActive
-                  ? MUTED_RED
-                  : filled
-                    ? '#CBD5E1'
-                    : '#E2E8F0',
-                opacity: !filled && !isActive ? 0.5 : 1,
-              }}
-            >
-              {filled && (
-                <span className="h-2.5 w-2.5 rounded-full bg-slate-900" />
-              )}
+            const isActive =
+              index === pin.length;
 
-              {isActive && (
-                <span className="h-6 w-0.5 animate-pulse rounded-full bg-[#B34C4C]" />
-              )}
-            </div>
-          );
-        })}
+            return (
+              <div
+                key={index}
+                className={`flex h-12 w-12 items-center justify-center rounded-md border-2 bg-white ${
+                  isActive
+                    ? 'border-[#9D0A0E]'
+                    : 'border-slate-200'
+                }`}
+              >
+                {filled && (
+                  <span className="h-3 w-3 rounded-full bg-slate-800" />
+                )}
+              </div>
+            );
+          }
+        )}
       </div>
 
       {error && (
-        <p className="mb-3 text-center text-xs font-medium text-red-500">
+        <p className="mb-5 text-center text-sm font-medium text-red-500">
           {error}
         </p>
       )}
 
-      <div className="mb-5">
+      <div className="mb-6">
         <NumericKeypad
           onDigit={handleDigit}
           onBackspace={handleBackspace}
@@ -801,19 +818,26 @@ function KioskPinScreen({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={pin.length !== KIOSK_PIN_LENGTH || submitting}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-3.5 text-base font-semibold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={
+            pin.length !== KIOSK_PIN_LENGTH ||
+            submitting
+          }
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-4 text-base font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {submitting ? 'Activating...' : 'Activate Kiosk'}
+          {submitting
+            ? 'Activating...'
+            : 'Activate Kiosk'}
+
           <ArrowRight size={18} />
         </button>
 
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center justify-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-700"
+          disabled={submitting}
+          className="flex items-center justify-center gap-2 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft size={16} />
           Back
         </button>
       </div>
@@ -821,11 +845,7 @@ function KioskPinScreen({
   );
 }
 
-/* =========================================================
-   QUEUE TYPE SCREEN
-========================================================= */
-
-function QueueTypeScreen({
+  function QueueTypeScreen({
   selected,
   onSelect,
   onBack,
@@ -1576,10 +1596,17 @@ function PrintedTicketReceipt({
 /* =========================================================
    MAIN PATIENT VIEW
 ========================================================= */
+/* =========================================================
+   MAIN PATIENT VIEW
+========================================================= */
 
 export default function PatientView({
   kioskId = null,
 }) {
+  /* =======================================================
+     PATIENT FLOW STATE
+  ======================================================= */
+
   const [step, setStep] =
     useState('welcome');
 
@@ -1613,26 +1640,41 @@ export default function PatientView({
   const [kiosks, setKiosks] =
     useState([]);
 
-  const [kiosksLoading, setKiosksLoading] =
-    useState(true);
+  const [
+    kiosksLoading,
+    setKiosksLoading,
+  ] = useState(true);
 
-  const [kiosksError, setKiosksError] =
-    useState('');
+  const [
+    kiosksError,
+    setKiosksError,
+  ] = useState('');
 
   const kioskFetchRef =
     useRef(null);
 
-  /*
-    Kiosks are retrieved through:
+  /* =======================================================
+     DEPARTMENTS
+  ======================================================= */
 
-      PatientView
-          ↓
-      backendApi.js
-          ↓
-      Node.js
-          ↓
-      MySQL / Firebase backend logic
-  */
+  const [
+    departments,
+    setDepartments,
+  ] = useState([]);
+
+  const [
+    departmentsLoading,
+    setDepartmentsLoading,
+  ] = useState(false);
+
+  const [
+    departmentsError,
+    setDepartmentsError,
+  ] = useState('');
+
+  /* =======================================================
+     FETCH KIOSKS
+  ======================================================= */
 
   async function fetchKiosks() {
     if (kioskFetchRef.current) {
@@ -1645,8 +1687,47 @@ export default function PatientView({
         setKiosksError('');
 
         try {
-          const data =
-            await getKiosks();
+          let data = [];
+
+          try {
+            /* ---------------------------------------------
+               ONLINE
+            --------------------------------------------- */
+
+            data = await getKiosks();
+
+            await saveOfflineData(
+              'kiosks',
+              data || []
+            );
+          } catch (onlineError) {
+            /* ---------------------------------------------
+               OFFLINE FALLBACK
+            --------------------------------------------- */
+
+            console.warn(
+              'Unable to fetch kiosks from backend. Trying offline cache:',
+              onlineError
+            );
+
+            data =
+              await getOfflineData(
+                'kiosks'
+              );
+
+            if (
+              !data ||
+              !Array.isArray(data)
+            ) {
+              throw new Error(
+                'No cached kiosk data is available for offline use.'
+              );
+            }
+          }
+
+          /* ---------------------------------------------
+             NORMALIZE
+          --------------------------------------------- */
 
           const normalizedKiosks =
             (data || [])
@@ -1657,10 +1738,12 @@ export default function PatientView({
                   '',
 
                 name:
-                  item?.name || '',
+                  item?.name ||
+                  '',
 
                 status:
-                  item?.status ?? null,
+                  item?.status ??
+                  null,
               }))
               .filter(
                 (item) =>
@@ -1684,13 +1767,35 @@ export default function PatientView({
           setKiosks(
             normalizedKiosks
           );
+
+          if (
+            normalizedKiosks.length === 0
+          ) {
+            setKiosksError(
+              'No kiosks are currently available.'
+            );
+          }
         } catch (error) {
           console.error(
             'Error fetching kiosks:',
             error
           );
 
-          setKiosks([]);
+          /*
+            Do not destroy already-loaded
+            kiosk data if a refresh fails.
+          */
+          setKiosks(
+            (currentKiosks) => {
+              if (
+                currentKiosks.length > 0
+              ) {
+                return currentKiosks;
+              }
+
+              return [];
+            }
+          );
 
           setKiosksError(
             error?.message ||
@@ -1730,25 +1835,124 @@ export default function PatientView({
   }, [step]);
 
   /* =======================================================
-     DEPARTMENTS
+     AUTOMATIC OFFLINE QUEUE SYNCHRONIZATION
   ======================================================= */
 
-  const [departments, setDepartments] =
-    useState([]);
+  useEffect(() => {
+    console.log(
+      'QUEUE SYNC: initializing...'
+    );
 
-  const [
-    departmentsLoading,
-    setDepartmentsLoading,
-  ] = useState(false);
+    syncPendingOperations();
 
-  const [
-    departmentsError,
-    setDepartmentsError,
-  ] = useState('');
+    const handleOnline = () => {
+      console.log(
+        'QUEUE SYNC: connection restored. Starting synchronization...'
+      );
+
+      syncPendingOperations();
+    };
+
+    window.addEventListener(
+      'online',
+      handleOnline
+    );
+
+    const syncInterval =
+      setInterval(() => {
+        syncPendingOperations();
+      }, 10000);
+
+    return () => {
+      window.removeEventListener(
+        'online',
+        handleOnline
+      );
+
+      clearInterval(
+        syncInterval
+      );
+    };
+  }, []);
+
+  /* =======================================================
+     UPDATE OFFLINE TICKET AFTER SYNC
+  ======================================================= */
+
+  useEffect(() => {
+    const handleQueueSyncSuccess =
+      (event) => {
+        const {
+          local_id,
+          queue_id,
+          queue_number,
+          queue_data,
+        } =
+          event.detail || {};
+
+        if (
+          !local_id ||
+          local_id !== queueId
+        ) {
+          return;
+        }
+
+        console.log(
+          'QUEUE SYNC: updating current ticket with backend queue:',
+          queue_number
+        );
+
+        setQueueId(
+          String(queue_id)
+        );
+
+        setQueueNumber(
+          queue_number
+        );
+
+        setService(
+          (current) => ({
+            ...current,
+
+            estMin:
+              Number(
+                queue_data?.est_time
+              ) ||
+              current?.estMin ||
+              0,
+
+            waiting:
+              current?.waiting ??
+              0,
+          })
+        );
+      };
+
+    window.addEventListener(
+      'queue-sync-success',
+      handleQueueSyncSuccess
+    );
+
+    return () => {
+      window.removeEventListener(
+        'queue-sync-success',
+        handleQueueSyncSuccess
+      );
+    };
+  }, [queueId]);
+
+  /* =======================================================
+     FETCH DEPARTMENTS
+  ======================================================= */
 
   async function fetchDepartments(
     kioskRecord
   ) {
+    console.log(
+      'FETCH DEPARTMENTS STARTED:',
+      kioskRecord
+    );
+
     if (!kioskRecord?.kiosk_id) {
       setDepartments([]);
       return;
@@ -1758,13 +1962,53 @@ export default function PatientView({
     setDepartmentsError('');
 
     try {
-      const data =
-        await getPatientDepartments(
-          kioskRecord.kiosk_id
+      let data = [];
+
+      try {
+        /* ---------------------------------------------
+           ONLINE
+        --------------------------------------------- */
+
+        data =
+          await getPatientDepartments(
+            kioskRecord.kiosk_id
+          );
+
+        await saveOfflineData(
+          `departments_${kioskRecord.kiosk_id}`,
+          data || []
         );
+      } catch (onlineError) {
+        /* ---------------------------------------------
+           OFFLINE FALLBACK
+        --------------------------------------------- */
+
+        console.warn(
+          'Unable to fetch departments from backend. Trying offline cache:',
+          onlineError
+        );
+
+        data =
+          await getOfflineData(
+            `departments_${kioskRecord.kiosk_id}`
+          );
+
+        if (
+          !data ||
+          !Array.isArray(data)
+        ) {
+          throw new Error(
+            'No cached department data is available for offline use.'
+          );
+        }
+      }
 
       const allDepartments =
         data || [];
+
+      /* ---------------------------------------------
+         WAITING COUNTS
+      --------------------------------------------- */
 
       const departmentsWithWaiting =
         await Promise.all(
@@ -1792,8 +2036,6 @@ export default function PatientView({
                     `Unable to get waiting count for ${department.name}:`,
                     error
                   );
-
-                  waiting = 0;
                 }
               }
 
@@ -1824,6 +2066,8 @@ export default function PatientView({
       setDepartments(
         departmentsWithWaiting
       );
+
+      setDepartmentsError('');
     } catch (error) {
       console.error(
         'Error fetching departments:',
@@ -1837,7 +2081,9 @@ export default function PatientView({
           'Unable to load departments.'
       );
     } finally {
-      setDepartmentsLoading(false);
+      setDepartmentsLoading(
+        false
+      );
     }
   }
 
@@ -1882,6 +2128,10 @@ export default function PatientView({
             kiosks
           );
 
+    /* ---------------------------------------------
+       ALREADY UNLOCKED
+    --------------------------------------------- */
+
     if (activeKiosk) {
       setKiosk(activeKiosk);
       setQueueType(null);
@@ -1896,8 +2146,15 @@ export default function PatientView({
       return;
     }
 
+    /* ---------------------------------------------
+       CONFIGURED KIOSK BUT NOT UNLOCKED
+    --------------------------------------------- */
+
     if (configuredKiosk) {
-      setKiosk(configuredKiosk);
+      setKiosk(
+        configuredKiosk
+      );
+
       setQueueType(null);
       setService(null);
 
@@ -1909,6 +2166,10 @@ export default function PatientView({
 
       return;
     }
+
+    /* ---------------------------------------------
+       PATIENT MUST SELECT KIOSK
+    --------------------------------------------- */
 
     setKiosk(null);
     setQueueType(null);
@@ -1928,7 +2189,10 @@ export default function PatientView({
   function handleKioskSelect(
     selectedKiosk
   ) {
-    setKiosk(selectedKiosk);
+    setKiosk(
+      selectedKiosk
+    );
+
     setQueueType(null);
     setService(null);
 
@@ -1962,19 +2226,6 @@ export default function PatientView({
       kiosk.kiosk_id
     );
 
-    /*
-      Do NOT change requiresKioskSelection here.
-
-      If the patient selected a kiosk manually,
-      it remains true.
-
-      If this terminal is already configured for a
-      specific kiosk, it remains false.
-
-      This allows the Back button to return to the
-      correct screen.
-    */
-
     setQueueType(null);
     setService(null);
 
@@ -1988,16 +2239,16 @@ export default function PatientView({
   function handleReset() {
     /*
       IMPORTANT:
-      Daily kiosk unlock is NOT cleared.
-
-      This only resets the current patient session.
+      Do not remove the daily kiosk unlock.
     */
 
     setQueueType(null);
     setKiosk(null);
     setService(null);
+
     setQueueNumber('');
     setQueueId('');
+
     setIsGenerating(false);
 
     setRequiresKioskSelection(
@@ -2022,9 +2273,9 @@ export default function PatientView({
     try {
       setIsGenerating(true);
 
-      /* ---------------------------------------------------
+      /* ---------------------------------------------
          VALIDATE
-      --------------------------------------------------- */
+      --------------------------------------------- */
 
       if (!queueType) {
         throw new Error(
@@ -2063,30 +2314,109 @@ export default function PatientView({
         );
       }
 
-      /* ---------------------------------------------------
-         CREATE QUEUE THROUGH NODE.JS
-      --------------------------------------------------- */
+      /* ---------------------------------------------
+         REQUEST DATA
+      --------------------------------------------- */
 
-      const result =
-        await createPatientQueue({
-          kiosk_id:
-            kiosk.kiosk_id,
+      const requestData = {
+        kiosk_id:
+          kiosk.kiosk_id,
 
-          kiosk_name:
-            kiosk.name,
+        kiosk_name:
+          kiosk.name,
 
-          department_id:
-            service.department_id,
+        department_id:
+          service.department_id,
 
-          department_name:
-            service.name,
+        department_name:
+          service.name,
 
-          queue_type:
-            queueType.key ===
-            'priority'
-              ? 'Priority'
-              : 'Regular',
-        });
+        queue_type:
+          queueType.key ===
+          'priority'
+            ? 'Priority'
+            : 'Regular',
+      };
+
+      /* ---------------------------------------------
+         CREATE QUEUE ONLINE
+      --------------------------------------------- */
+
+      let result;
+
+      try {
+        result =
+          await createPatientQueue(
+            requestData
+          );
+      } catch (onlineError) {
+        console.warn(
+          'Unable to create queue through backend. Saving as pending offline operation:',
+          onlineError
+        );
+
+        /* -------------------------------------------
+           OFFLINE QUEUE
+        ------------------------------------------- */
+
+        const localQueueId =
+          `offline-${crypto.randomUUID()}`;
+
+        const pendingOperation = {
+          type:
+            'CREATE_PATIENT_QUEUE',
+
+          local_id:
+            localQueueId,
+
+          payload:
+            requestData,
+
+          created_at:
+            new Date().toISOString(),
+
+          status:
+            'pending',
+        };
+
+        await addPendingOperation(
+          pendingOperation
+        );
+
+        const offlineQueueNumber =
+          `OFFLINE-${Date.now()}`;
+
+        setQueueId(
+          localQueueId
+        );
+
+        setQueueNumber(
+          offlineQueueNumber
+        );
+
+        setService(
+          (current) => ({
+            ...current,
+
+            waiting:
+              current?.waiting ??
+              0,
+
+            estMin:
+              Number(
+                current?.estMin
+              ) || 0,
+          })
+        );
+
+        setStep('ticket');
+
+        return;
+      }
+
+      /* ---------------------------------------------
+         VALIDATE SERVER RESPONSE
+      --------------------------------------------- */
 
       if (!result) {
         throw new Error(
@@ -2106,35 +2436,44 @@ export default function PatientView({
         );
       }
 
-      /* ---------------------------------------------------
-         SAVE QUEUE INFORMATION
-      --------------------------------------------------- */
+      /* ---------------------------------------------
+         SAVE QUEUE
+      --------------------------------------------- */
 
       setQueueId(
-        String(result.queue_id)
+        String(
+          result.queue_id
+        )
       );
 
       setQueueNumber(
         result.queue_number
       );
 
-      setService((current) => ({
-        ...current,
+      /* ---------------------------------------------
+         UPDATE SERVICE
+      --------------------------------------------- */
 
-        waiting:
-          current?.waiting ?? 0,
+      setService(
+        (current) => ({
+          ...current,
 
-        estMin:
-          Number(
-            result.est_time
-          ) ||
-          current?.estMin ||
-          0,
-      }));
+          waiting:
+            current?.waiting ??
+            0,
 
-      /* ---------------------------------------------------
+          estMin:
+            Number(
+              result.est_time
+            ) ||
+            current?.estMin ||
+            0,
+        })
+      );
+
+      /* ---------------------------------------------
          REFRESH WAITING COUNT
-      --------------------------------------------------- */
+      --------------------------------------------- */
 
       try {
         const waitingData =
@@ -2145,18 +2484,23 @@ export default function PatientView({
         const latestWaiting =
           Math.max(
             0,
-            (Number(
-              waitingData?.waiting_count
-            ) || 0) - 1
+            (
+              Number(
+                waitingData?.waiting_count
+              ) || 0
+            ) - 1
           );
 
-        setService((current) =>
-          current
-            ? {
-                ...current,
-                waiting: latestWaiting,
-              }
-            : current
+        setService(
+          (current) =>
+            current
+              ? {
+                  ...current,
+
+                  waiting:
+                    latestWaiting,
+                }
+              : current
         );
       } catch (error) {
         console.warn(
@@ -2164,10 +2508,6 @@ export default function PatientView({
           error
         );
       }
-
-      /* ---------------------------------------------------
-         SHOW TICKET
-      --------------------------------------------------- */
 
       setStep('ticket');
     } catch (error) {
@@ -2196,7 +2536,7 @@ export default function PatientView({
   }
 
   /* =======================================================
-     PRINTING → REAL PRINT → SUCCESS
+     PRINTING → PRINT → SUCCESS
   ======================================================= */
 
   useEffect(() => {
@@ -2215,8 +2555,13 @@ export default function PatientView({
       }, 2200);
 
     return () => {
-      clearTimeout(printTimer);
-      clearTimeout(advanceTimer);
+      clearTimeout(
+        printTimer
+      );
+
+      clearTimeout(
+        advanceTimer
+      );
     };
   }, [step]);
 
@@ -2278,11 +2623,15 @@ export default function PatientView({
         <SelectKioskScreen
           kiosks={kiosks}
           selected={kiosk}
-          loading={kiosksLoading}
+          loading={
+            kiosksLoading
+          }
           onSelect={
             handleKioskSelect
           }
-          onBack={handleReset}
+          onBack={
+            handleReset
+          }
           onContinue={() => {
             if (!kiosk) {
               return;
@@ -2378,7 +2727,9 @@ export default function PatientView({
               return;
             }
 
-            fetchDepartments(kiosk);
+            fetchDepartments(
+              kiosk
+            );
 
             setStep(
               'department'
@@ -2400,7 +2751,9 @@ export default function PatientView({
       <>
         <SelectDepartmentScreen
           kiosk={kiosk}
-          departments={departments}
+          departments={
+            departments
+          }
           loading={
             departmentsLoading
           }
@@ -2426,16 +2779,18 @@ export default function PatientView({
                   service.department_id
                 );
 
-              setService((current) =>
-                current
-                  ? {
-                      ...current,
-                      waiting:
-                        Number(
-                          waitingData?.waiting_count
-                        ) || 0,
-                    }
-                  : current
+              setService(
+                (current) =>
+                  current
+                    ? {
+                        ...current,
+
+                        waiting:
+                          Number(
+                            waitingData?.waiting_count
+                          ) || 0,
+                      }
+                    : current
               );
             } catch (error) {
               console.warn(
@@ -2469,11 +2824,14 @@ export default function PatientView({
     return (
       <>
         <ConfirmScreen
-          queueType={queueType}
+          queueType={
+            queueType
+          }
           kiosk={kiosk}
           service={service}
           waitingAhead={
-            service?.waiting ?? 0
+            service?.waiting ??
+            0
           }
           isGenerating={
             isGenerating
@@ -2501,12 +2859,20 @@ export default function PatientView({
     return (
       <>
         <TicketScreen
-          queueType={queueType}
+          queueType={
+            queueType
+          }
           kiosk={kiosk}
           service={service}
-          queueNumber={queueNumber}
-          queueId={queueId}
-          onPrint={handlePrint}
+          queueNumber={
+            queueNumber
+          }
+          queueId={
+            queueId
+          }
+          onPrint={
+            handlePrint
+          }
           onSkipPrint={
             handleReset
           }
@@ -2525,8 +2891,12 @@ export default function PatientView({
     return (
       <>
         <PrintingScreen
-          queueType={queueType}
-          queueNumber={queueNumber}
+          queueType={
+            queueType
+          }
+          queueNumber={
+            queueNumber
+          }
         />
 
         {receipt}
@@ -2541,8 +2911,12 @@ export default function PatientView({
   return (
     <>
       <SuccessScreen
-        queueType={queueType}
-        queueNumber={queueNumber}
+        queueType={
+          queueType
+        }
+        queueNumber={
+          queueNumber
+        }
       />
 
       {receipt}

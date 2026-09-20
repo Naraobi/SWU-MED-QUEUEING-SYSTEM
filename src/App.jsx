@@ -10,6 +10,7 @@ import TrackerPage from './queue/pages/WebTracker/TrackerPage';
 import StaffApp from './queue/pages/Staff/StaffApp';
 import TerminalSelectionPage from './queue/pages/Staff/TerminalSelectionPage';
 import { QueueProvider } from './queue/context/QueueContext';
+import OfflineIndicator from './queue/components/OfflineIndicator';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -23,16 +24,23 @@ function RootRedirect() {
   }
 
   if (user && user.role) {
-    const roleName = user.role.role;
+  const roleName =
+    typeof user.role === 'string'
+      ? user.role.trim().toLowerCase()
+      : String(user.role?.role ?? '').trim().toLowerCase();
 
-    if (roleName === 'Superadmin') {
-      return <Navigate to="/superadmin/Dashboard" replace />;
-    } else if (roleName === 'Admin') {
-      return <Navigate to="/admin" replace />;
-    } else if (roleName === 'Staff') {
-      return <Navigate to="/staff" replace />;
-    }
+  if (roleName === 'superadmin') {
+    return <Navigate to="/superadmin/Dashboard" replace />;
   }
+
+  if (roleName === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  if (roleName === 'staff') {
+    return <Navigate to="/staff" replace />;
+  }
+}
 
   return <Navigate to="/patient" replace />;
 }
@@ -42,6 +50,8 @@ function App() {
     <AuthProvider>
       <QueueProvider>
         <BrowserRouter>
+        <OfflineIndicator />
+        
           <Routes>
             <Route path="/" element={<RootRedirect />} />
 
