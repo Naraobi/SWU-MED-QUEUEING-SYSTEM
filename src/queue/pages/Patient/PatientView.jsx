@@ -1568,34 +1568,67 @@ async function fetchKiosks() {
     try {
       let data = [];
 
-      try {
-        // Try the backend first.
-        data = await getKiosks();
+      // =====================================================
+      // OFFLINE-FIRST KIOSK LOADING
+      // =====================================================
+      if (!navigator.onLine) {
+        console.log(
+          'KIOSKS: internet unavailable. Loading directly from offline cache...'
+        );
 
-        // Cache the successful kiosk response for offline use.
-        await saveOfflineData('kiosks', data || []);
-      } catch (onlineError) {
-  console.warn(
-    'Unable to fetch kiosks from backend. Trying offline cache:',
-    onlineError
-  );
+        data = await getOfflineData('kiosks');
 
-  console.log('OFFLINE CACHE: attempting to read kiosks...');
+        console.log(
+          'OFFLINE CACHE: kiosks retrieved:',
+          data
+        );
 
-  data = await getOfflineData('kiosks');
+        if (!data || !Array.isArray(data)) {
+          throw new Error(
+            'No cached kiosk data is available for offline use.'
+          );
+        }
+      } else {
+        // =====================================================
+        // ONLINE: LOAD FRESH DATA FROM BACKEND
+        // =====================================================
+        try {
+          data = await getKiosks();
 
-  console.log(
-    'OFFLINE CACHE: kiosks retrieved:',
-    data
-  );
+          await saveOfflineData(
+            'kiosks',
+            data || []
+          );
+        } catch (onlineError) {
+          console.warn(
+            'Unable to fetch kiosks from backend. Trying offline cache:',
+            onlineError
+          );
 
-  if (!data || !Array.isArray(data)) {
-    throw new Error(
-      'No cached kiosk data is available for offline use.'
-    );
-  }
-}
+          console.log(
+            'OFFLINE CACHE: attempting to read kiosks...'
+          );
 
+          data = await getOfflineData(
+            'kiosks'
+          );
+
+          console.log(
+            'OFFLINE CACHE: kiosks retrieved:',
+            data
+          );
+
+          if (!data || !Array.isArray(data)) {
+            throw new Error(
+              'No cached kiosk data is available for offline use.'
+            );
+          }
+        }
+      }
+
+      // =====================================================
+      // NORMALIZE KIOSK DATA
+      // =====================================================
       const normalizedKiosks = (data || [])
         .map((item) => ({
           kiosk_id:
@@ -1623,41 +1656,48 @@ async function fetchKiosks() {
           a.name.localeCompare(b.name)
         );
 
-      setKiosks(normalizedKiosks);
+      setKiosks(
+        normalizedKiosks
+      );
+
       setKiosksError('');
 
       console.log(
-  'NORMALIZED OFFLINE KIOSKS:',
-  normalizedKiosks
-);
+        'NORMALIZED OFFLINE KIOSKS:',
+        normalizedKiosks
+      );
 
-      if (normalizedKiosks.length === 0) {
+      if (
+        normalizedKiosks.length === 0
+      ) {
         setKiosksError(
           'No kiosks are currently available.'
         );
       }
     } catch (error) {
-  console.error(
-    'Error fetching kiosks:',
-    error
-  );
+      console.error(
+        'Error fetching kiosks:',
+        error
+      );
 
-  // Keep already-loaded kiosk data if it exists.
-  // This prevents a failed refresh from wiping out
-  // valid offline-cached kiosks.
-  setKiosks((currentKiosks) => {
-    if (currentKiosks.length > 0) {
-      return currentKiosks;
-    }
+      // Keep already-loaded kiosk data if it exists.
+      setKiosks(
+        (currentKiosks) => {
+          if (
+            currentKiosks.length > 0
+          ) {
+            return currentKiosks;
+          }
 
-    return [];
-  });
+          return [];
+        }
+      );
 
-  setKiosksError(
-    error?.message ||
-      'Unable to load kiosks.'
-  );
-} finally {
+      setKiosksError(
+        error?.message ||
+          'Unable to load kiosks.'
+      );
+    } finally {
       setKiosksLoading(false);
     }
   })();
@@ -1671,7 +1711,6 @@ async function fetchKiosks() {
     kioskFetchRef.current = null;
   }
 }
-
   /* =======================================================
      INITIAL KIOSK LOAD
   ======================================================= */
@@ -1766,11 +1805,17 @@ async function fetchKiosks() {
      REFRESH KIOSKS WHEN KIOSK SCREEN OPENS
   ======================================================= */
 
-  useEffect(() => {
-    if (step === 'kiosk') {
-      fetchKiosks();
-    }
-  }, [step]);
+useEffect(() => {
+  if (step !== 'kiosk') {
+    return;
+  }
+
+  console.log(
+    'KIOSK SCREEN OPENED — loading kiosks...'
+  );
+
+  fetchKiosks();
+}, [step]);
 
   /* =======================================================
      DEPARTMENTS
@@ -1805,86 +1850,150 @@ async function fetchKiosks() {
     the reference design.
   */
 
-  async function fetchDepartments(
-    kioskRecord
-  ) {
-      console.log(
+async function fetchDepartments(kioskRecord) {
+  console.log(
     'FETCH DEPARTMENTS STARTED:',
     kioskRecord
   );
 
-    if (!kioskRecord?.kiosk_id) {
-      setDepartments([]);
-      return;
-    }
-
-    setDepartmentsLoading(true);
-    setDepartmentsError('');
-
-    try {
-  let data = [];
-
-  try {
-    // Try the backend first.
-    data = await getPatientDepartments(
-  kioskRecord.kiosk_id
-);
-
-console.log(
-  'DEPARTMENTS FROM BACKEND:',
-  data
-);
-
-// Save the successful response for offline use.
-await saveOfflineData(
-  `departments_${kioskRecord.kiosk_id}`,
-  data || []
-);
-
-console.log(
-  'DEPARTMENTS SAVED TO OFFLINE CACHE:',
-  `departments_${kioskRecord.kiosk_id}`
-);
-
-  } catch (onlineError) {
-    console.warn(
-      'Unable to fetch departments from backend. Trying offline cache:',
-      onlineError
-    );
-
-    // Backend unavailable — use the last cached departments.
-    data = await getOfflineData(
-      `departments_${kioskRecord.kiosk_id}`
-    );
-
-    console.log(
-      'OFFLINE CACHE: departments retrieved:',
-      data
-    );
-
-    if (!data || !Array.isArray(data)) {
-      throw new Error(
-        'No cached department data is available for offline use.'
-      );
-    }
+  if (!kioskRecord?.kiosk_id) {
+    setDepartments([]);
+    return;
   }
 
+  setDepartmentsLoading(true);
   setDepartmentsError('');
 
-  const allDepartments = data || [];
+  try {
+    let data = [];
 
+    /* ---------------------------------------------------
+       LOAD DEPARTMENTS
+    --------------------------------------------------- */
+
+    if (!navigator.onLine) {
       /*
-        Get current waiting count for
-        each active department.
+        OFFLINE:
+        Do not attempt the backend.
+        Load directly from IndexedDB.
       */
 
-      const departmentsWithWaiting =
-        await Promise.all(
-          allDepartments.map(
-            async (department) => {
-              let waiting = 0;
+      console.log(
+        'DEPARTMENTS: internet unavailable. Loading directly from offline cache...'
+      );
 
-              if (isDepartmentActive(department)) {
+      data = await getOfflineData(
+        `departments_${kioskRecord.kiosk_id}`
+      );
+
+      console.log(
+        'OFFLINE CACHE: departments retrieved:',
+        data
+      );
+
+      if (!data || !Array.isArray(data)) {
+        throw new Error(
+          'No cached department data is available for offline use.'
+        );
+      }
+    } else {
+      /*
+        ONLINE:
+        Try the backend first.
+      */
+
+      try {
+        data = await getPatientDepartments(
+          kioskRecord.kiosk_id
+        );
+
+        console.log(
+          'DEPARTMENTS FROM BACKEND:',
+          data
+        );
+
+        /*
+          Save the successful backend response
+          for future offline use.
+        */
+
+        await saveOfflineData(
+          `departments_${kioskRecord.kiosk_id}`,
+          data || []
+        );
+
+        console.log(
+          'DEPARTMENTS SAVED TO OFFLINE CACHE:',
+          `departments_${kioskRecord.kiosk_id}`
+        );
+      } catch (onlineError) {
+        /*
+          Browser says online, but backend is unavailable.
+          Fall back to the cached departments.
+        */
+
+        console.warn(
+          'Unable to fetch departments from backend. Trying offline cache:',
+          onlineError
+        );
+
+        data = await getOfflineData(
+          `departments_${kioskRecord.kiosk_id}`
+        );
+
+        console.log(
+          'OFFLINE CACHE: departments retrieved:',
+          data
+        );
+
+        if (!data || !Array.isArray(data)) {
+          throw new Error(
+            'No cached department data is available for offline use.'
+          );
+        }
+      }
+    }
+
+    setDepartmentsError('');
+
+    const allDepartments = data || [];
+
+    /* ---------------------------------------------------
+       GET WAITING COUNTS
+    --------------------------------------------------- */
+
+    const departmentsWithWaiting =
+      await Promise.all(
+        allDepartments.map(
+          async (department) => {
+            let waiting = 0;
+
+            if (
+              isDepartmentActive(
+                department
+              )
+            ) {
+              /*
+                OFFLINE:
+                Use the waiting count stored in
+                the cached department data.
+              */
+
+              if (!navigator.onLine) {
+                console.log(
+                  `WAITING COUNT: internet unavailable. Using cached waiting count for ${department.name}.`
+                );
+
+                waiting =
+                  Number(
+                    department.waiting
+                  ) || 0;
+              } else {
+                /*
+                  ONLINE:
+                  Get the latest waiting count.
+                */
+
                 try {
                   const waitingData =
                     await getWaitingCount(
@@ -1901,53 +2010,63 @@ console.log(
                     error
                   );
 
-                  waiting = 0;
+                  /*
+                    Keep the cached value if the
+                    backend request fails.
+                  */
+
+                  waiting =
+                    Number(
+                      department.waiting
+                    ) || 0;
                 }
               }
-
-              return {
-                ...department,
-
-                queuePrefix:
-                  department.prefix ||
-                  '',
-
-                estMin:
-                  Number(
-                    department.est_time
-                  ) || 0,
-
-                waiting,
-
-                icon:
-                  getDepartmentIcon(
-                    department.name,
-                    department.classification
-                  ),
-              };
             }
-          )
-        );
 
-      setDepartments(
-        departmentsWithWaiting
-      );
-    } catch (error) {
-      console.error(
-        'Error fetching departments:',
-        error
+            return {
+              ...department,
+
+              queuePrefix:
+                department.prefix ||
+                '',
+
+              estMin:
+                Number(
+                  department.est_time
+                ) || 0,
+
+              waiting,
+
+              icon:
+                getDepartmentIcon(
+                  department.name,
+                  department.classification
+                ),
+            };
+          }
+        )
       );
 
-      setDepartments([]);
+    setDepartments(
+      departmentsWithWaiting
+    );
 
-      setDepartmentsError(
-        error?.message ||
-          'Unable to load departments.'
-      );
-    } finally {
-      setDepartmentsLoading(false);
-    }
+  } catch (error) {
+    console.error(
+      'Error fetching departments:',
+      error
+    );
+
+    setDepartments([]);
+
+    setDepartmentsError(
+      error?.message ||
+        'Unable to load departments.'
+    );
+  } finally {
+    setDepartmentsLoading(false);
   }
+}
 
   /* =======================================================
      FETCH DEPARTMENTS WHEN KIOSK CHANGES
@@ -2211,31 +2330,21 @@ async function handleGenerateNumber() {
     };
 
     /* ---------------------------------------------------
-       CREATE QUEUE THROUGH NODE.JS
+       OFFLINE QUEUE HANDLER
     --------------------------------------------------- */
 
-    let result;
-
-    try {
-      result = await createPatientQueue(
-        requestData
-      );
-    } catch (onlineError) {
-      console.warn(
-        'Unable to create queue through backend. Saving as pending offline operation:',
-        onlineError
+    const saveOfflineQueue = async () => {
+      console.log(
+        'QUEUE: internet unavailable. Saving queue offline...'
       );
 
-      /* ---------------------------------------------------
-         OFFLINE QUEUE FALLBACK
-
+      /*
          The backend normally creates the authoritative
-         queue number. Since the backend is unavailable,
-         do NOT invent an official queue sequence.
+         queue number.
 
-         Save the exact request so it can be submitted
-         to the backend when the connection returns.
-      --------------------------------------------------- */
+         Since the backend is unavailable, do NOT create
+         an official queue sequence locally.
+      */
 
       const localQueueId =
         `offline-${crypto.randomUUID()}`;
@@ -2244,7 +2353,8 @@ async function handleGenerateNumber() {
         type: 'CREATE_PATIENT_QUEUE',
         local_id: localQueueId,
         payload: requestData,
-        created_at: new Date().toISOString(),
+        created_at:
+          new Date().toISOString(),
         status: 'pending',
       };
 
@@ -2257,13 +2367,13 @@ async function handleGenerateNumber() {
         pendingOperation
       );
 
-      /* ---------------------------------------------------
-         CREATE A TEMPORARY LOCAL TICKET
+      /*
+         Temporary local ticket number.
 
-         This is NOT an authoritative hospital queue
-         number. It identifies this offline ticket until
-         the backend assigns the real queue number.
-      --------------------------------------------------- */
+         This is NOT the official hospital queue number.
+         The real queue number will be assigned by the
+         backend when the connection returns.
+      */
 
       const offlineQueueNumber =
         `OFFLINE-${Date.now()}`;
@@ -2283,7 +2393,42 @@ async function handleGenerateNumber() {
       }));
 
       setStep('ticket');
+    };
 
+    /* ---------------------------------------------------
+       CHECK INTERNET BEFORE CALLING BACKEND
+    --------------------------------------------------- */
+
+    if (!navigator.onLine) {
+      await saveOfflineQueue();
+      return;
+    }
+
+    /* ---------------------------------------------------
+       CREATE QUEUE THROUGH NODE.JS
+    --------------------------------------------------- */
+
+    let result;
+
+    try {
+      result = await createPatientQueue(
+        requestData
+      );
+    } catch (onlineError) {
+      console.warn(
+        'Unable to create queue through backend. Saving as pending offline operation:',
+        onlineError
+      );
+
+      /*
+         The browser reported that it is online,
+         but the backend request failed.
+
+         Save the queue locally so it can still be
+         synchronized later.
+      */
+
+      await saveOfflineQueue();
       return;
     }
 
@@ -2337,8 +2482,12 @@ async function handleGenerateNumber() {
     }));
 
     /*
-      Refresh the waiting count once more right after
-      the ticket is created.
+      Refresh the waiting count once more
+      right after the ticket is created.
+
+      If offline/backend becomes unavailable,
+      this failure is ignored because the ticket
+      has already been successfully created.
     */
 
     try {
@@ -2376,6 +2525,7 @@ async function handleGenerateNumber() {
     --------------------------------------------------- */
 
     setStep('ticket');
+
   } catch (error) {
     console.error(
       'Queue generation error:',
@@ -2662,47 +2812,65 @@ async function handleGenerateNumber() {
             )
           }
           onContinue={async () => {
-            if (!service) {
-              return;
-            }
+  if (!service) {
+    return;
+  }
 
-            /*
-              The waiting count on `service` was fetched once
-              when the kiosk/department list first loaded, so it
-              can be stale by the time the patient reaches this
-              step (staff may have already called people). Refresh
-              it right before showing the confirm screen so the
-              numbers reflect what's actually happening now.
-            */
+  /*
+    If the internet is unavailable, do not attempt
+    to refresh the waiting count from the backend.
 
-            try {
-              const waitingData =
-                await getWaitingCount(
-                  service.department_id
-                );
+    The waiting count already stored in `service`
+    came from the previously cached department data,
+    so keep that value for offline use.
+  */
+  if (!navigator.onLine) {
+    console.log(
+      'WAITING COUNT: internet unavailable. Using cached waiting count:',
+      service.waiting
+    );
 
-              setService((current) =>
-                current
-                  ? {
-                      ...current,
-                      waiting:
-                        Number(
-                          waitingData?.waiting_count
-                        ) || 0,
-                    }
-                  : current
-              );
-            } catch (error) {
-              console.warn(
-                'Unable to refresh waiting count:',
-                error
-              );
-            }
+    setStep('confirm');
+    return;
+  }
 
-            setStep(
-              'confirm'
-            );
-          }}
+  /*
+    ONLINE:
+    Refresh the waiting count right before showing
+    the confirmation screen so the number is current.
+  */
+  try {
+    const waitingData =
+      await getWaitingCount(
+        service.department_id
+      );
+
+    setService((current) =>
+      current
+        ? {
+            ...current,
+            waiting:
+              Number(
+                waitingData?.waiting_count
+              ) || 0,
+          }
+        : current
+    );
+  } catch (error) {
+    console.warn(
+      'Unable to refresh waiting count:',
+      error
+    );
+
+    /*
+      If the backend becomes unavailable even though
+      the browser reports online, keep the existing
+      cached waiting count and continue.
+    */
+  }
+
+  setStep('confirm');
+}}
         />
 
         {departmentsError && (
