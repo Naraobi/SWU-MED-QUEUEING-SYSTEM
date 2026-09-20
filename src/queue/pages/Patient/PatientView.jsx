@@ -34,16 +34,19 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 
 import logoImage from '../../../assets/logo.png';
+import { THEME } from '../../theme/colors';
 
 /* =========================================================
    BRAND THEME
+   (shared with Admin/Staff via src/queue/theme/colors.js;
+   BORDER_DEFAULT and ICON_TINT are Patient-kiosk-specific)
 ========================================================= */
 
-const BRAND_RED = '#9D0A0E';
-const REGULAR_DARK = '#1F2937';
-const MUTED_RED = '#B34C4C';
+const BRAND_RED = THEME.primary;
+const REGULAR_DARK = THEME.textMain;
+const MUTED_RED = THEME.secondary;
 const BORDER_DEFAULT = '#C3C6D7';
-const SELECTED_BG = '#F1F3F5';
+const SELECTED_BG = THEME.neutral;
 const ICON_TINT = '#F7EEEE';
 
 function getQueueThemeColor(queueType) {
@@ -450,7 +453,7 @@ function NumericKeypad({ onDigit, onBackspace, onClear }) {
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
   const keyClass =
-    'flex h-12 items-center justify-center rounded-md border border-[#E5E7EB] bg-white text-base font-semibold text-slate-800 transition hover:border-slate-300 active:bg-slate-50';
+    'flex h-12 items-center justify-center rounded-md border border-[#E5E7EB] bg-white text-base font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100';
 
   return (
     <div className="grid grid-cols-3 gap-2.5">
@@ -559,15 +562,14 @@ function SelectKioskScreen({
                 onClick={() =>
                   onSelect(currentKiosk)
                 }
-                className="relative flex w-full items-center gap-3 rounded-md border p-3.5 text-left transition"
-                style={{
-                  borderColor: isSelected
-                    ? BRAND_RED
-                    : BORDER_DEFAULT,
-                  backgroundColor: isSelected
-                    ? SELECTED_BG
-                    : 'white',
-                }}
+                className={`relative flex w-full items-center gap-3 rounded-md border p-3.5 text-left transition ${
+                  isSelected ? '' : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
+                }`}
+                style={
+                  isSelected
+                    ? { borderColor: BRAND_RED, backgroundColor: SELECTED_BG }
+                    : undefined
+                }
               >
                 {isSelected && (
                   <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
@@ -836,15 +838,14 @@ function QueueTypeScreen({
               key={type.key}
               type="button"
               onClick={() => onSelect(type)}
-              className="relative w-full rounded-md border p-5 text-center transition"
-              style={{
-                borderColor: isSelected
-                  ? BRAND_RED
-                  : BORDER_DEFAULT,
-                backgroundColor: isSelected
-                  ? SELECTED_BG
-                  : 'white',
-              }}
+              className={`relative w-full rounded-md border p-5 text-center transition ${
+                isSelected ? '' : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
+              }`}
+              style={
+                isSelected
+                  ? { borderColor: BRAND_RED, backgroundColor: SELECTED_BG }
+                  : undefined
+              }
             >
               {isSelected && (
                 <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
@@ -951,20 +952,17 @@ function SelectDepartmentScreen({
                     active && onSelect(department)
                   }
                   className={`relative flex flex-col items-center gap-1.5 rounded-md border p-3 text-center transition ${
-                    !active ? 'cursor-not-allowed opacity-60' : ''
+                    !active
+                      ? 'cursor-not-allowed border-[#E5E7EB] bg-[#F8FAFC] opacity-60'
+                      : isSelected
+                        ? ''
+                        : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
                   }`}
-                  style={{
-                    borderColor: !active
-                      ? '#E5E7EB'
-                      : isSelected
-                        ? BRAND_RED
-                        : BORDER_DEFAULT,
-                    backgroundColor: !active
-                      ? '#F8FAFC'
-                      : isSelected
-                        ? SELECTED_BG
-                        : 'white',
-                  }}
+                  style={
+                    active && isSelected
+                      ? { borderColor: BRAND_RED, backgroundColor: SELECTED_BG }
+                      : undefined
+                  }
                 >
                   {isSelected && active && (
                     <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#9D0A0E] text-white">

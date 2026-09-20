@@ -394,8 +394,8 @@ export function QueueManagementPage() {
               <h2 className="text-lg font-bold text-[#1F2937]">{t('queue.waitingQueue')}</h2>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-[#9D0A0E]/10 px-2.5 py-1 text-[10px] font-bold text-[#9D0A0E]">{t('queue.inLine', { count: waitingQueue.length })}</span>
-                <button type="button" onClick={() => setShowFullQueue(false)} aria-label="Close">
-                  <X size={18} className="text-slate-500" />
+                <button type="button" onClick={() => setShowFullQueue(false)} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                  <X size={18} />
                 </button>
               </div>
             </div>
@@ -882,8 +882,8 @@ export function TerminalManagementPage() {
             <header className="border-b border-[#E5E7EB] px-5 py-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-[#1F2937]">{t('terminal.addModalTitle')}</h2>
-                <button type="button" onClick={closeModal} aria-label="Close">
-                  <X size={19} className="text-slate-500" />
+                <button type="button" onClick={closeModal} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                  <X size={19} />
                 </button>
               </div>
 
@@ -986,8 +986,8 @@ export function TerminalManagementPage() {
           <section className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
             <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
               <h2 className="text-lg font-bold text-[#1F2937]">{t('terminal.editModalTitle')}</h2>
-              <button type="button" onClick={closeModal} aria-label="Close">
-                <X size={19} className="text-slate-500" />
+              <button type="button" onClick={closeModal} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                <X size={19} />
               </button>
             </header>
 
@@ -1318,8 +1318,8 @@ export function ReportsPage() {
           <div className="w-full max-w-lg rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
               <h2 className="text-lg font-bold text-[#1F2937]">{t('reports.recentActivity')}</h2>
-              <button type="button" onClick={() => setShowFullLog(false)} aria-label="Close">
-                <X size={18} className="text-slate-500" />
+              <button type="button" onClick={() => setShowFullLog(false)} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                <X size={18} />
               </button>
             </div>
 
@@ -1414,8 +1414,8 @@ function ChangeProfileModal({ onClose, onSave }) {
       <div className="w-full max-w-sm rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3">
           <h2 className="text-lg font-bold text-[#1F2937]">{t('modal.changeProfile')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} className="text-slate-500" />
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
           </button>
         </header>
 
@@ -1472,8 +1472,8 @@ function DepartmentCustomizationModal({ user, department, onClose, avatar, onAva
       <div className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
           <h2 className="text-lg font-bold text-[#1F2937]">{t('modal.deptCustomization')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} className="text-slate-500" />
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
           </button>
         </header>
 
@@ -1547,8 +1547,8 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
       <div className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
           <h2 className="text-lg font-bold text-[#1F2937]">{t('settings.theme')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} className="text-slate-500" />
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
           </button>
         </header>
 
@@ -1563,8 +1563,8 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
                 key={key}
                 type="button"
                 onClick={() => setMode(key)}
-                className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold ${
-                  mode === key ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 text-[#9D0A0E]' : 'border-[#E5E7EB] text-slate-600'
+                className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold transition ${
+                  mode === key ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 text-[#9D0A0E]' : 'border-[#E5E7EB] text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 <Icon size={14} />
@@ -1579,7 +1579,7 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
                 key={color}
                 type="button"
                 onClick={() => setAccent(color)}
-                className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10"
+                className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10 transition hover:bg-[#B34C4C]/20"
               >
                 <span className="h-9 w-9 rounded-full" style={{ backgroundColor: color }} />
                 {accent === color && (
@@ -1593,7 +1593,7 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
             <button
               type="button"
               onClick={() => colorInputRef.current?.click()}
-              className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10"
+              className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10 transition hover:bg-[#B34C4C]/20"
               title="Custom color"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#9D0A0E] text-white">

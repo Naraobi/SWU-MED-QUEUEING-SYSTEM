@@ -62,7 +62,7 @@ export function AdminHeaderBar({ title }) {
   return (
     <header className="flex h-[74px] items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
       <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#dce8f9] text-sm font-semibold text-slate-700">{departmentPrefix}</span><div className="text-xl font-medium text-slate-600">{headerTitle}</div></div>
-      <div className="flex items-center gap-4"><button type="button" className="text-slate-500 hover:text-slate-700" aria-label="Notifications"><Bell size={20} /></button><button type="button" className="flex items-center gap-2 border-l border-slate-200 pl-4 text-right" aria-label="Profile"><span><span className="block text-xs font-semibold text-slate-800">{profileRole}</span><span className="block text-[10px] text-slate-500">{profileName}</span></span><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#dce8f9] text-xs font-bold text-[#315a91]">{initials}</span></button></div>
+      <div className="flex items-center gap-4"><button type="button" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700" aria-label="Notifications"><Bell size={20} /></button><button type="button" className="flex items-center gap-2 rounded-md border-l border-slate-200 py-1 pl-4 pr-2 text-right transition hover:bg-slate-50" aria-label="Profile"><span><span className="block text-xs font-semibold text-slate-800">{profileRole}</span><span className="block text-[10px] text-slate-500">{profileName}</span></span><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#dce8f9] text-xs font-bold text-[#315a91]">{initials}</span></button></div>
     </header>
   );
 }

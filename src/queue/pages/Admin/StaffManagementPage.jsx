@@ -1847,10 +1847,10 @@ export default function StaffManagementPage() {
                     closeModal
                   }
                   aria-label="Close"
+                  className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                 >
                   <X
                     size={19}
-                    className="text-slate-500"
                   />
                 </button>
 
@@ -2067,10 +2067,10 @@ export default function StaffManagementPage() {
                   closeModal
                 }
                 aria-label="Close"
+                className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
               >
                 <X
                   size={19}
-                  className="text-slate-500"
                 />
               </button>
 
