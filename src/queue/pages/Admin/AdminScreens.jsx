@@ -43,6 +43,9 @@ import {
   deleteTerminal,
   updateDepartment,
   getDashboardAnalytics,
+  getSecurityPinStatus,
+  requestSecurityPinVerification,
+  verifySecurityPinCode,
 } from '../../services/backendApi';
 
 import { fetchNotifications, fetchQueueState } from '../../services/api';
@@ -1690,22 +1693,38 @@ function CreatePinModal({ onClose, onContinue }) {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleContinue = () => {
-    setError('');
+const handleContinue = async () => {
+  setError('');
 
-    if (!/^\d{6}$/.test(pin)) {
-      setError('PIN must be exactly 6 digits.');
-      return;
-    }
+  if (!/^\d{6}$/.test(pin)) {
+    setError('PIN must be exactly 6 digits.');
+    return;
+  }
 
-    if (pin !== confirmPin) {
-      setError('PINs do not match.');
-      return;
-    }
+  if (pin !== confirmPin) {
+    setError('PINs do not match.');
+    return;
+  }
 
-    onContinue();
-  };
+  try {
+    setIsSubmitting(true);
+    await onContinue(pin);
+  } catch (error) {
+    console.error(
+      'SECURITY PIN REQUEST ERROR:',
+      error
+    );
+
+    setError(
+      error.message ||
+        'Failed to send the verification code.'
+    );
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handlePinChange = (value, setter) => {
     const digitsOnly = value.replace(/\D/g, '').slice(0, 6);
@@ -1809,21 +1828,28 @@ function CreatePinModal({ onClose, onContinue }) {
           </button>
 
           <button
-            type="button"
-            onClick={handleContinue}
-            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
-          >
-            Continue
-          </button>
+  type="button"
+  onClick={handleContinue}
+  disabled={isSubmitting}
+  className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+>
+  {isSubmitting ? 'Sending Code...' : 'Continue'}
+</button>
         </div>
       </div>
     </div>
   );
 }
 
-function PinVerificationModal({ onClose, onBack, onSuccess }) {
+function PinVerificationModal({
+  onClose,
+  onBack,
+  onSuccess,
+  pin,
+}) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const handleCodeChange = (value) => {
     const digitsOnly = value.replace(/\D/g, '').slice(0, 6);
@@ -1831,18 +1857,43 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
     setError('');
   };
 
-  const handleVerify = () => {
-    setError('');
+const handleVerify = async () => {
+  setError('');
 
-    if (!/^\d{6}$/.test(code)) {
-      setError('Verification code must be exactly 6 digits.');
-      return;
-    }
+  if (!/^\d{6}$/.test(code)) {
+    setError('Verification code must be exactly 6 digits.');
+    return;
+  }
 
-    // UI-only for now.
-    // Real email verification will be connected later.
+  if (!/^\d{6}$/.test(pin)) {
+    setError('Security PIN is invalid. Please start again.');
+    return;
+  }
+
+  try {
+    setIsVerifying(true);
+
+    await verifySecurityPinCode(
+      auth.currentUser,
+      code,
+      pin
+    );
+
     onSuccess();
-  };
+  } catch (error) {
+    console.error(
+      'SECURITY PIN VERIFICATION ERROR:',
+      error
+    );
+
+    setError(
+      error.message ||
+        'Failed to verify the Security PIN.'
+    );
+  } finally {
+    setIsVerifying(false);
+  }
+};
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
@@ -1907,11 +1958,24 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
 
             <button
               type="button"
-              onClick={() => {
-                setError('');
-                setCode('');
-              }}
-              className="text-[10px] font-semibold text-[#9D0A0E] hover:underline"
+              onClick={async () => {
+  setError('');
+  setCode('');
+
+  try {
+    await requestSecurityPinVerification(auth.currentUser);
+  } catch (error) {
+    console.error(
+      'SECURITY PIN RESEND ERROR:',
+      error
+    );
+
+    setError(
+      error.message ||
+        'Failed to resend the verification code.'
+    );
+  }
+}}
             >
               Resend Code
             </button>
@@ -1936,9 +2000,10 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
           <button
             type="button"
             onClick={handleVerify}
+            disabled={isVerifying}
             className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
           >
-            Verify
+            {isVerifying ? 'Verifying...' : 'Verify'}
           </button>
         </div>
       </div>
@@ -1989,6 +2054,34 @@ export function SettingsPage() {
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [activePinModal, setActivePinModal] = useState(null);
   const [pinConfigured, setPinConfigured] = useState(false);
+  const [activePin, setActivePin] = useState('');
+
+  useEffect(() => {
+  let isMounted = true;
+
+  const loadSecurityPinStatus = async () => {
+    try {
+      const result = await getSecurityPinStatus(auth.currentUser);
+
+      if (isMounted) {
+        setPinConfigured(Boolean(result.configured));
+      }
+    } catch (error) {
+      console.error(
+        'SECURITY PIN STATUS ERROR:',
+        error
+      );
+    }
+  };
+
+  if (auth.currentUser) {
+    loadSecurityPinStatus();
+  }
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
 
   useEffect(() => {
     applyTheme(theme);
@@ -2135,16 +2228,24 @@ export function SettingsPage() {
       )}
 
             {activePinModal === 'createPin' && (
-        <CreatePinModal
-          onClose={() => setActivePinModal(null)}
-          onContinue={() => setActivePinModal('verifyPin')}
-        />
-      )}
+  <CreatePinModal
+    onClose={() => setActivePinModal(null)}
+    onContinue={async (pin) => {
+  await requestSecurityPinVerification(auth.currentUser);
+  setActivePin(pin);
+  setActivePinModal('verifyPin');
+}}
+  />
+)}
 
       {activePinModal === 'verifyPin' && (
         <PinVerificationModal
+        pin={activePin}
           onClose={() => setActivePinModal(null)}
-          onBack={() => setActivePinModal('createPin')}
+          onBack={() => {
+  setActivePin('');
+  setActivePinModal('createPin');
+}}
           onSuccess={() => {
             setPinConfigured(true);
             setActivePinModal('pinSuccess');
