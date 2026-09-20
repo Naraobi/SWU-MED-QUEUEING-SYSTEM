@@ -22,17 +22,12 @@ const INSIGHTS = [
 
 // Placeholder analytics data — needs a real queue/transactions table before this can be live,
 // same as the 6 stat cards were in the old Dashboard.
-const DEPARTMENT_VOLUME = [
-  { name: 'Billing', value: 42, max: 50 },
-  { name: 'Laboratory', value: 18, max: 50 },
-  { name: 'Pharmacy', value: 25, max: 50 },
-  { name: 'Radiology', value: 0, max: 50 },
-];
+const DEPARTMENT_VOLUME = [];
 
 const QUEUE_DISTRIBUTION = [
-  { label: 'Serving', pct: 25, color: '#1F2937' },
-  { label: 'Waiting', pct: 45, color: '#4B5563' },
-  { label: 'Completed', pct: 30, color: '#B34C4C' },
+  { label: 'Serving', pct: 0, color: '#1F2937' },
+  { label: 'Waiting', pct: 0, color: '#4B5563' },
+  { label: 'Completed', pct: 0, color: '#B34C4C' },
 ];
 
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
@@ -331,6 +326,51 @@ export default function Dashboard() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
+  // Frontend-only PIN state until the backend provides real PIN storage and verification.
+  const PIN_STORAGE_KEY = 'superadmin_security_pin_configured';
+  const [pinSetupRequired, setPinSetupRequired] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(PIN_STORAGE_KEY) !== 'true';
+  });
+  const [securityPin, setSecurityPin] = useState('');
+  const [confirmSecurityPin, setConfirmSecurityPin] = useState('');
+  const [showSecurityPin, setShowSecurityPin] = useState(false);
+  const [showConfirmSecurityPin, setShowConfirmSecurityPin] = useState(false);
+  const [pinError, setPinError] = useState('');
+  const [pinSuccess, setPinSuccess] = useState(false);
+  const [pinConfiguredAt, setPinConfiguredAt] = useState(null);
+
+  const updatePinDigit = (setter, currentValue, index, value) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const digits = currentValue.padEnd(6, ' ').split('');
+    digits[index] = digit || ' ';
+    setter(digits.join('').replace(/ /g, ''));
+    setPinError('');
+  };
+
+  const handlePinSetup = () => {
+    if (!/^\d{6}$/.test(securityPin)) {
+      setPinError('Please enter a 6-digit PIN. Only digits (0-9) are accepted.');
+      return;
+    }
+    if (securityPin !== confirmSecurityPin) {
+      setPinError('PINs do not match. Please enter the same PIN in both fields.');
+      return;
+    }
+    const configuredAt = new Date();
+    localStorage.setItem(PIN_STORAGE_KEY, 'true');
+    localStorage.setItem('superadmin_security_pin_configured_at', configuredAt.toISOString());
+    setPinConfiguredAt(configuredAt);
+    setPinSuccess(true);
+    setPinError('');
+  };
+
+  const resetPinForm = () => {
+    setSecurityPin('');
+    setConfirmSecurityPin('');
+    setPinError('');
+  };
+
   async function fetchDepartments() {
     setLoading(true);
     setError(null);
@@ -362,13 +402,18 @@ export default function Dashboard() {
     day: 'numeric',
   });
 
+  // Only Departments has a real source today. The rest need a queue/transactions
+  // table before they can show a number, so they render as "--" instead of a
+  // hardcoded figure that looks live but isn't.
+  const NO_DATA = '--';
+
   const STATS = [
     { label: 'Departments', value: `${activeCount}/${departments.length || 0}`, caption: 'Active departments', icon: Building2 },
-    { label: 'Total Waiting', value: '145', caption: 'Across all departments', icon: Users },
-    { label: 'Average Wait', value: '18m', caption: 'Average wait time', icon: Clock },
-    { label: 'Skipped', value: '16', caption: 'Skipped queuing', icon: RotateCw },
-    { label: 'Completed', value: '255', caption: 'Completed queuing', icon: TrendingUp },
-    { label: 'Terminals', value: '42/64', caption: 'Active terminals', icon: Monitor },
+    { label: 'Total Waiting', value: NO_DATA, caption: 'Across all departments', icon: Users },
+    { label: 'Average Wait', value: NO_DATA, caption: 'Average wait time', icon: Clock },
+    { label: 'Skipped', value: NO_DATA, caption: 'Skipped queuing', icon: RotateCw },
+    { label: 'Completed', value: NO_DATA, caption: 'Completed queuing', icon: TrendingUp },
+    { label: 'Terminals', value: NO_DATA, caption: 'Active terminals', icon: Monitor },
   ];
 
   const calendarLabel = isSameDay(selectedDate, new Date())
@@ -475,6 +520,12 @@ export default function Dashboard() {
         <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-bold text-[#1F2937]">Department Volume</h2>
           <div className="space-y-4">
+            {DEPARTMENT_VOLUME.length === 0 && (
+              <p className="py-6 text-center text-xs text-[#4B5563]">
+                No volume data available yet.
+              </p>
+            )}
+
             {DEPARTMENT_VOLUME.map((dept) => (
               <div key={dept.name}>
                 <div className="mb-1 flex items-center justify-between text-xs">
@@ -507,6 +558,219 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {pinSetupRequired && !pinSuccess && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-3"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="security-pin-title"
+        >
+          <div className="relative w-[300px] scale-[1.25] rounded-[10px] bg-white px-[18px] py-[16px] shadow-[0_12px_35px_rgba(15,23,42,0.18)]">
+            <button
+              type="button"
+              onClick={resetPinForm}
+              className="absolute right-[10px] top-[8px] text-[18px] leading-none text-[#98A2B3] transition hover:text-[#475467]"
+              aria-label="Close security PIN setup"
+            >
+              ×
+            </button>
+
+            <div className="mx-auto flex h-[32px] w-[32px] items-center justify-center rounded-[8px] bg-[#FDE8E8] text-[#A9070B]">
+              <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M7 10V8a5 5 0 0 1 10 0v2" />
+                <rect x="5" y="10" width="14" height="10" rx="2.5" />
+                <path d="M12 14v2" />
+              </svg>
+            </div>
+
+            <div className="mt-[8px] text-center">
+              <h2 id="security-pin-title" className="text-[16px] font-bold leading-[20px] text-[#202938]">
+                Set Up Security PIN
+              </h2>
+              <p className="mx-auto mt-[4px] max-w-[245px] text-[9px] leading-[13px] text-[#667085]">
+                Create an Security PIN to authorize protected system
+                <br />
+                actions such as resetting records.
+              </p>
+            </div>
+
+            <div className="mt-[13px]">
+              <div className="mb-[5px] flex items-center justify-between">
+                <label className="text-[9px] font-semibold text-[#344054]">
+                  New Security PIN <span className="text-[#A9070B]">*</span>
+                </label>
+                <span className="text-[8px] font-medium uppercase tracking-wide text-[#98A2B3]">
+                  6 DIGITS
+                </span>
+              </div>
+
+              <div
+                className={`flex h-[34px] items-center gap-[7px] rounded-[5px] border bg-white px-[7px] transition ${
+                  pinError ? "border-[#344054]" : "border-[#D0D5DD]"
+                }`}
+              >
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <input
+                    key={`new-pin-${index}`}
+                    type={showSecurityPin ? "text" : "password"}
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={securityPin[index] || ""}
+                    onChange={(event) =>
+                      updatePinDigit(setSecurityPin, securityPin, index, event.target.value)
+                    }
+                    className="h-[27px] w-[27px] rounded-[3px] border border-[#D0D5DD] bg-white text-center text-[11px] font-semibold text-[#344054] outline-none transition focus:border-[#A9070B] focus:ring-1 focus:ring-[#A9070B]"
+                    aria-label={`New PIN digit ${index + 1}`}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setShowSecurityPin((value) => !value)}
+                  className="ml-auto shrink-0 text-[#667085] transition hover:text-[#344054]"
+                  aria-label="Show or hide new PIN"
+                >
+                  <svg viewBox="0 0 24 24" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-5Z" />
+                    <circle cx="12" cy="12" r="2.5" />
+                  </svg>
+                </button>
+              </div>
+
+              {pinError && (
+                <div className="mt-[5px] flex items-start gap-1 text-[7px] leading-[10px] text-[#7A7F8C]">
+                  <span className="mt-[1px] font-bold text-[#D92D20]">ⓘ</span>
+                  <span>{pinError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className={`${pinError ? "mt-[9px]" : "mt-[10px]"}`}>
+              <div className="mb-[5px] flex items-center justify-between">
+                <label className="text-[9px] font-semibold text-[#344054]">
+                  Confirm Security PIN <span className="text-[#A9070B]">*</span>
+                </label>
+                <span className="text-[8px] font-medium uppercase tracking-wide text-[#98A2B3]">
+                  MATCH NEW PIN
+                </span>
+              </div>
+
+              <div className="flex h-[34px] items-center gap-[7px] rounded-[5px] border border-[#E4E7EC] bg-[#F8FAFC] px-[7px]">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <input
+                    key={`confirm-pin-${index}`}
+                    type={showConfirmSecurityPin ? "text" : "password"}
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={confirmSecurityPin[index] || ""}
+                    onChange={(event) =>
+                      updatePinDigit(setConfirmSecurityPin, confirmSecurityPin, index, event.target.value)
+                    }
+                    className="h-[27px] w-[27px] rounded-[3px] border border-[#D0D5DD] bg-white text-center text-[11px] font-semibold text-[#344054] outline-none transition focus:border-[#A9070B] focus:ring-1 focus:ring-[#A9070B]"
+                    aria-label={`Confirm PIN digit ${index + 1}`}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmSecurityPin((value) => !value)}
+                  className="ml-auto shrink-0 text-[#667085] transition hover:text-[#344054]"
+                  aria-label="Show or hide confirmed PIN"
+                >
+                  <svg viewBox="0 0 24 24" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-5Z" />
+                    <circle cx="12" cy="12" r="2.5" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-[9px] flex items-center gap-1.5 rounded-[4px] border border-[#E4E7EC] bg-[#F8FAFC] px-[7px] py-[6px] text-[7px] leading-[10px] text-[#667085]">
+              <svg viewBox="0 0 24 24" className="h-[11px] w-[11px] shrink-0 text-[#475467]" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M12 3 5 6v5c0 4.5 2.9 7.9 7 10 4.1-2.1 7-5.5 7-10V6l-7-3Z" />
+                <path d="m9.5 12 1.7 1.7 3.5-3.5" />
+              </svg>
+              <span>Keep your Security PIN private. Do not share it with other users.</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePinSetup}
+              className="mt-[9px] h-[29px] w-full rounded-[3px] bg-[#A9070B] text-[9px] font-semibold text-white transition hover:bg-[#870509]"
+            >
+              Set Up PIN →
+            </button>
+
+            <button
+              type="button"
+              onClick={resetPinForm}
+              className="mt-[4px] h-[27px] w-full rounded-[3px] border border-[#D0D5DD] bg-white text-[8px] font-medium text-[#475467] transition hover:bg-[#F9FAFB]"
+            >
+              Cancel
+            </button>
+
+            <div className="mt-[7px] border-t border-[#F2F4F7] pt-[6px] text-center text-[6px] uppercase tracking-[0.06em] text-[#98A2B3]">
+              <span className="mr-1">♙</span>
+              256-BIT ENCRYPTED HOSPITAL ADMINISTRATION PROTOCOL
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pinSuccess && (
+        <div
+          className="fixed inset-0 z-[101] flex items-center justify-center bg-black/30 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="security-pin-success-title"
+        >
+          <div className="w-full max-w-[430px] rounded-2xl bg-white p-6 text-center shadow-[0_20px_60px_rgba(15,23,42,0.22)]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600">
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="m6 12 4 4 8-8" />
+              </svg>
+            </div>
+
+            <h2 id="security-pin-success-title" className="text-[19px] font-bold text-[#202938]">
+              Security PIN Set Successfully
+            </h2>
+            <p className="mx-auto mt-2 max-w-[320px] text-[11px] leading-4.5 text-[#667085]">
+              Your Security PIN can now be used to authorize protected system actions.
+            </p>
+
+            <div className="mt-5 rounded-md border border-[#E4E7EC] bg-[#F8FAFC] p-3 text-left">
+              <p className="text-[10px] font-semibold text-[#344054]">
+                🛡 Protected Actions Active
+              </p>
+              <p className="mt-1 text-[9px] leading-4 text-[#667085]">
+                Record resets and high-level system overrides will require PIN authorization.
+              </p>
+              {pinConfiguredAt && (
+                <p className="mt-2 text-[8px] text-[#98A2B3]">
+                  Configured on {pinConfiguredAt.toLocaleString()} • Super Admin
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPinSuccess(false);
+                setPinSetupRequired(false);
+                resetPinForm();
+              }}
+              className="mt-5 h-10 w-full rounded-md bg-[#A9070B] text-[10px] font-semibold text-white transition hover:bg-[#870509]"
+            >
+              DONE
+            </button>
+
+            <p className="mt-2 text-[8px] text-[#98A2B3]">
+              You can update your PIN anytime in Settings.
+            </p>
+          </div>
+        </div>
+      )}
+
+
     </div>
   );
 }

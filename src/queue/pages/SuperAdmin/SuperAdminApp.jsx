@@ -16,7 +16,9 @@ export default function SuperAdminApp() {
   return (
     <Layout activePage={activePage} onNavigate={setActivePage}>
       {activePage === 'dashboard' && <Dashboard />}
-      {activePage === 'users' && <UserCrud />}
+      {activePage === 'users' && (
+        <UserCrud onNavigate={setActivePage} />
+      )}
       {activePage === 'roles' && <RoleManagement />}
       {activePage === 'departments' && <DepartmentManagement />}
       {activePage === 'kiosks' && <KioskManagement />}

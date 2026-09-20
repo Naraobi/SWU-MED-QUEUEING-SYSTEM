@@ -202,7 +202,7 @@ function UserModal({
   onClose,
   isEditing,
   saving,
-  onAddDepartment,
+  onAddRole,
   kioskOptions,
   departmentOptions,
   roleOptions,
@@ -538,9 +538,13 @@ function UserModal({
                 <div className="flex items-baseline justify-between gap-2">
                   <FieldLabel required>Role</FieldLabel>
 
-                  <span className="text-xs font-semibold text-[#9D0A0E]">
+                  <button
+                    type="button"
+                    onClick={onAddRole}
+                    className="rounded text-xs font-semibold text-[#9D0A0E] transition hover:underline focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
+                  >
                     + Add role
-                  </span>
+                  </button>
                 </div>
 
                 <select
@@ -608,16 +612,6 @@ function UserModal({
               <div>
                 <div className="flex items-baseline justify-between gap-2">
                   <FieldLabel required>Kiosk</FieldLabel>
-
-                  <span
-                    className={`text-xs font-semibold ${
-                      isSuperadmin
-                        ? 'text-[#9CA3AF]'
-                        : 'text-[#9D0A0E]'
-                    }`}
-                  >
-                    + Add kiosk
-                  </span>
                 </div>
 
                 <select
@@ -674,15 +668,6 @@ function UserModal({
               <div>
                 <div className="flex items-baseline justify-between gap-2">
                   <FieldLabel required>Department</FieldLabel>
-
-                  <button
-                    type="button"
-                    onClick={onAddDepartment}
-                    disabled={isSuperadmin}
-                    className="text-xs font-semibold text-[#9D0A0E] transition hover:underline disabled:cursor-not-allowed disabled:text-[#9CA3AF] disabled:no-underline"
-                  >
-                    + Add department
-                  </button>
                 </div>
 
                 <div className="relative">
@@ -995,7 +980,7 @@ function FieldLabel({ children, required }) {
 ========================================================= */
 
 export default function UserCrud({
-  onAddDepartment,
+  onNavigate,
 }) {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -2720,9 +2705,10 @@ export default function UserCrud({
           onClose={closeModal}
           isEditing={isEditing}
           saving={saving}
-          onAddDepartment={
-            onAddDepartment
-          }
+          onAddRole={() => {
+            closeModal();
+            onNavigate?.('roles');
+          }}
           kioskOptions={kiosks}
           departmentOptions={
             availableDepartments

@@ -1759,3 +1759,153 @@ export async function getDatabaseStatus() {
 
   return response.json();
 }
+// =====================================================
+// POSITION API
+// =====================================================
+//
+// Append this block to src/queue/services/backendApi.js.
+// It follows the same shape as the DEPARTMENT API above:
+// fetch -> { success, data, message } -> return result.data
+//
+// Server routes still to be created:
+//   GET    /api/positions
+//   POST   /api/positions
+//   PUT    /api/positions/:positionId
+//   DELETE /api/positions/:positionId
+//
+// Expected position row:
+//   {
+//     position_id, name, status,          // 'Active' | 'Inactive'
+//     tabs: ['dashboard', 'queue', ...],  // sidebar keys this position can see
+//     users,                              // assigned user count (server-computed)
+//     updated_at
+//   }
+
+export async function getPositions() {
+  const response = await fetch(
+    `${API_URL}/positions`
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to retrieve positions"
+    );
+  }
+
+  const result = await response.json();
+
+  if (!result.success) {
+    throw new Error(
+      result.message ||
+        "Failed to retrieve positions"
+    );
+  }
+
+  return result.data;
+}
+
+export async function createPosition(
+  position
+) {
+  if (!position) {
+    throw new Error(
+      "Position data is required"
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/positions`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(position),
+    }
+  );
+
+  const result = await response.json();
+
+  if (
+    !response.ok ||
+    !result.success
+  ) {
+    throw new Error(
+      result.message ||
+        "Failed to create position"
+    );
+  }
+
+  return result.data;
+}
+
+export async function updatePosition(
+  positionId,
+  position
+) {
+  if (!positionId) {
+    throw new Error(
+      "Position ID is required"
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/positions/${encodeURIComponent(
+      positionId
+    )}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(position),
+    }
+  );
+
+  const result = await response.json();
+
+  if (
+    !response.ok ||
+    !result.success
+  ) {
+    throw new Error(
+      result.message ||
+        "Failed to update position"
+    );
+  }
+
+  return result.data;
+}
+
+export async function deletePosition(
+  positionId
+) {
+  if (!positionId) {
+    throw new Error(
+      "Position ID is required"
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/positions/${encodeURIComponent(
+      positionId
+    )}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  const result = await response.json();
+
+  if (
+    !response.ok ||
+    !result.success
+  ) {
+    throw new Error(
+      result.message ||
+        "Failed to delete position"
+    );
+  }
+
+  return result.data;
+}

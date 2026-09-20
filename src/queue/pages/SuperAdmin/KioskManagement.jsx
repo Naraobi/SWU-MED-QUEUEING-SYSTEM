@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 
+// Kiosk PINs are this many digits. The same rule is enforced on the kiosk
+// activation screen in PatientView.jsx - change both together.
+export const KIOSK_PIN_LENGTH = 6;
+
 import {
   Building2,
   Check,
@@ -288,8 +292,13 @@ export default function KioskManagement() {
       return;
     }
 
-    if (kioskModal.mode === 'add' && !/^\d{4}$/.test(trimmedPin)) {
-      setKioskError('Kiosk PIN must be exactly 4 digits.');
+    if (
+      kioskModal.mode === 'add' &&
+      !new RegExp(`^\\d{${KIOSK_PIN_LENGTH}}$`).test(trimmedPin)
+    ) {
+      setKioskError(
+        `Kiosk PIN must be exactly ${KIOSK_PIN_LENGTH} digits.`
+      );
       return;
     }
 
@@ -1073,16 +1082,16 @@ export default function KioskManagement() {
                       id="kiosk-pin"
                       type={showPin ? 'text' : 'password'}
                       inputMode="numeric"
-                      maxLength={4}
+                      maxLength={KIOSK_PIN_LENGTH}
                       value={kioskPin}
                       onChange={(event) => {
                         const value = event.target.value
                           .replace(/\D/g, '')
-                          .slice(0, 4);
+                          .slice(0, KIOSK_PIN_LENGTH);
 
                         setKioskPin(value);
                       }}
-                      placeholder="Enter 4-digit PIN"
+                      placeholder={`Enter ${KIOSK_PIN_LENGTH}-digit PIN`}
                       className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 pr-10 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
                     />
                     <button
