@@ -995,12 +995,80 @@ export function AuthProvider({
           finalUser.position ??
           null,
       };
-    } catch (error) {
-      console.error(
-        "Firebase authentication error:",
-        error
+      } catch (error) {
+    console.error(
+      "Firebase authentication error:",
+      error
+    );
+
+    // ============================================================
+    // OFFLINE LOGIN FALLBACK
+    // ============================================================
+    // Firebase cannot verify a new password without internet.
+    // If this device already has a previously authorized session,
+    // restore that session instead.
+    // ============================================================
+
+    const isNetworkError =
+      error?.code === "auth/network-request-failed" ||
+      !navigator.onLine;
+
+if (isNetworkError) {
+  try {
+    const savedUser =
+      await getOfflineData("user_profile");
+
+    const savedEmail = String(
+      savedUser?.email ?? ""
+    )
+      .trim()
+      .toLowerCase();
+
+    if (
+      savedUser &&
+      savedEmail ===
+String(email ?? "")
+  .trim()
+  .toLowerCase()
+    ) {
+      setUser(savedUser);
+
+      console.log(
+        "OFFLINE LOGIN SUCCESS:",
+        savedUser
       );
 
+      return {
+        error: null,
+        user: savedUser,
+        role: savedUser.role ?? null,
+        position:
+          savedUser.position ?? null,
+        offline: true,
+      };
+    }
+
+    return {
+      error: {
+        message:
+          "You are offline. No authorized session was found for this email on this device.",
+      },
+    };
+  } catch (offlineError) {
+    console.error(
+      "OFFLINE LOGIN ERROR:",
+      offlineError
+    );
+
+    return {
+      error: {
+        message:
+          offlineError?.message ||
+          "Unable to restore your offline session.",
+      },
+    };
+  }
+}
       /*
       |--------------------------------------------------------------------------
       | FIREBASE ERROR MESSAGES
@@ -1075,33 +1143,32 @@ export function AuthProvider({
   |--------------------------------------------------------------------------
   */
 
-  async function signOut() {
-    try {
-      await firebaseSignOut(
-        auth
-      );
+async function signOut() {
+  try {
+    await firebaseSignOut(auth);
 
-      setUser(null);
+    setUser(null);
 
-      clearLocalUser();
-    } catch (error) {
-      console.error(
-        "Sign-out error:",
-        error
-      );
+    // Clear only the active browser session.
+    // Keep the IndexedDB user_profile so the authorized
+    // account can continue working offline.
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("swumed_staff_terminal");
+  } catch (error) {
+    console.error(
+      "Sign-out error:",
+      error
+    );
 
-      /*
-      |--------------------------------------------------------------------------
-      | EVEN IF FIREBASE SIGN-OUT FAILS
-      | CLEAR THE LOCAL APPLICATION SESSION
-      |--------------------------------------------------------------------------
-      */
+    setUser(null);
 
-      setUser(null);
-
-      clearLocalUser();
-    }
+    // Even if Firebase sign-out fails,
+    // clear the active session but preserve
+    // the IndexedDB offline authorization.
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("swumed_staff_terminal");
   }
+}
 
   /*
   |--------------------------------------------------------------------------

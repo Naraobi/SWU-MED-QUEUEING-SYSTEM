@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+
+import { getOfflineData } from '../../services/offlineStorage'
+
 import {
   Users,
   UserCheck,
@@ -420,74 +423,148 @@ export default function DashboardPage() {
         return
       }
 
-      setDepartmentLoading(true)
+setDepartmentLoading(true)
 
-      try {
-        const directPrefix =
-          user.department_prefix || user.departmentPrefix || user.prefix
+try {
+  const directPrefix =
+    user.department_prefix ||
+    user.departmentPrefix ||
+    user.prefix
 
-        if (directPrefix) {
-          if (!cancelled) {
-            setStaffPrefix(String(directPrefix).trim())
-            setDepartmentLoading(false)
-          }
-          return
-        }
+  if (directPrefix) {
+    if (!cancelled) {
+      setStaffPrefix(String(directPrefix).trim())
+      setDepartmentLoading(false)
+    }
+    return
+  }
 
-        if (user.department_id) {
-          try {
-            const dept = await getDepartmentById(user.department_id)
-            if (cancelled) return
+  // ============================================================
+  // OFFLINE: USE CACHED DEPARTMENT DATA
+  // ============================================================
 
-            if (dept?.prefix) {
-              setStaffPrefix(String(dept.prefix).trim())
-              setDepartmentLoading(false)
-              return
-            }
-          } catch (err) {
-            console.error('Failed to retrieve department by ID:', err)
-          }
-        }
+  if (!navigator.onLine && user.department_id) {
+    try {
+      const cachedDepartments =
+        await getOfflineData(
+          `departments_${user.kiosk_id}`
+        )
 
-        if (user.department) {
-          try {
-            const departments = await getDepartments()
-            if (cancelled) return
+      if (cancelled) return
 
-            const matched = Array.isArray(departments)
-              ? departments.find(
-                  (d) =>
-                    (d.name &&
-                      d.name.trim().toLowerCase() ===
-                        user.department.trim().toLowerCase()) ||
-                    (user.department_id &&
-                      String(d.department_id) === String(user.department_id))
-                )
-              : null
+      const matched = Array.isArray(cachedDepartments)
+        ? cachedDepartments.find(
+            (d) =>
+              String(d.department_id) ===
+              String(user.department_id)
+          )
+        : null
 
-            if (matched?.prefix) {
-              setStaffPrefix(String(matched.prefix).trim())
-              setDepartmentLoading(false)
-              return
-            }
-          } catch (err) {
-            console.error('Failed to retrieve departments list:', err)
-          }
-        }
-
-        if (!cancelled) {
-          setStaffPrefix('')
-        }
-      } catch (error) {
-        console.error('Failed to resolve staff department prefix:', error)
-        if (!cancelled) {
-          setStaffPrefix('')
-        }
-      } finally {
-        if (!cancelled) {
-          setDepartmentLoading(false)
-        }
+      if (matched?.prefix) {
+        setStaffPrefix(
+          String(matched.prefix).trim()
+        )
+        setDepartmentLoading(false)
+        return
       }
+    } catch (offlineError) {
+      console.error(
+        'Failed to retrieve cached department:',
+        offlineError
+      )
+    }
+  }
+
+  // ============================================================
+  // ONLINE: GET DEPARTMENT BY ID
+  // ============================================================
+
+  if (user.department_id) {
+    try {
+      const dept =
+        await getDepartmentById(
+          user.department_id
+        )
+
+      if (cancelled) return
+
+      if (dept?.prefix) {
+        setStaffPrefix(
+          String(dept.prefix).trim()
+        )
+        setDepartmentLoading(false)
+        return
+      }
+    } catch (err) {
+      console.error(
+        'Failed to retrieve department by ID:',
+        err
+      )
+    }
+  }
+
+  // ============================================================
+  // ONLINE: FALLBACK TO DEPARTMENT LIST
+  // ============================================================
+
+  if (user.department) {
+    try {
+      const departments =
+        await getDepartments()
+
+      if (cancelled) return
+
+      const matched =
+        Array.isArray(departments)
+          ? departments.find(
+              (d) =>
+                (d.name &&
+                  d.name
+                    .trim()
+                    .toLowerCase() ===
+                    user.department
+                      .trim()
+                      .toLowerCase()) ||
+                (user.department_id &&
+                  String(d.department_id) ===
+                    String(
+                      user.department_id
+                    ))
+            )
+          : null
+
+      if (matched?.prefix) {
+        setStaffPrefix(
+          String(matched.prefix).trim()
+        )
+        setDepartmentLoading(false)
+        return
+      }
+    } catch (err) {
+      console.error(
+        'Failed to retrieve departments list:',
+        err
+      )
+    }
+  }
+
+  if (!cancelled) {
+    setStaffPrefix('')
+  }
+} catch (error) {
+  console.error(
+    'Failed to resolve staff department prefix:',
+    error
+  )
+
+  if (!cancelled) {
+    setStaffPrefix('')
+  }
+} finally {
+  if (!cancelled) {
+    setDepartmentLoading(false)
+  }
+}
     }
 
     getDepartmentPrefix()
