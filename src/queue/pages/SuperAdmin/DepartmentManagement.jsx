@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 
+import { auth } from '../../../firebase';
+
 import {
   getKiosks,
   getTerminals,
   getDepartments,
   createDepartment,
   updateDepartment,
+  validateSecurityPin,
 } from '../../services/backendApi';
 
 import {
@@ -67,7 +70,6 @@ const STATUS_OPTIONS = [
 
 const PAGE_SIZE = 5;
 
-const RESET_PIN = '2402';
 
 // ===========================================================
 // PAGINATION
@@ -467,6 +469,186 @@ function DepartmentModal({
 }
 
 // ===========================================================
+// RESET DEPARTMENT SELECTION MODAL
+// ===========================================================
+function ResetDepartmentSelectionModal({
+  open,
+  onClose,
+  departments,
+  selectedResetIds,
+  setSelectedResetIds,
+  onContinue,
+}) {
+  if (!open) {
+    return null;
+  }
+
+  function toggleDepartment(departmentId) {
+    setSelectedResetIds((currentIds) => {
+      if (currentIds.includes(departmentId)) {
+        return currentIds.filter(
+          (id) => id !== departmentId
+        );
+      }
+
+      return [
+        ...currentIds,
+        departmentId,
+      ];
+    });
+  }
+
+  function toggleSelectAll() {
+  if (selectedResetIds.length === departments.length) {
+    setSelectedResetIds([]);
+    return;
+  }
+
+  setSelectedResetIds(
+    departments.map((department) => department.id)
+  );
+}
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-[#1F2937]">
+              Reset Departments
+            </h2>
+
+            <p className="mt-1 text-xs text-[#4B5563]">
+              Select the department whose queue display you want to reset.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded text-[#9CA3AF] transition hover:text-[#1F2937]"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="max-h-80 overflow-y-auto px-6 py-5">
+          {departments.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="mb-3 flex w-full items-center justify-between rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3 text-left transition hover:bg-[#F1F3F5]"
+            >
+              <span className="text-sm font-semibold text-[#1F2937]">
+                {selectedResetIds.length === departments.length
+                  ? 'Unselect All'
+                  : 'Select All'}
+              </span>
+
+              <div
+                className={`flex h-5 w-5 items-center justify-center rounded border ${
+                  selectedResetIds.length === departments.length
+                    ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+                    : 'border-[#D1D5DB] bg-white'
+                }`}
+              >
+                {selectedResetIds.length === departments.length && (
+                  <Check size={13} />
+                )}
+              </div>
+            </button>
+          )}
+          {departments.length === 0 ? (
+            <div className="rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-6 text-center text-sm text-[#4B5563]">
+              No departments are available to reset.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {departments.map((department) => {
+                const isSelected =
+                  selectedResetIds.includes(
+                    department.id
+                  );
+
+                return (
+                  <button
+                    key={department.id}
+                    type="button"
+                    onClick={() =>
+                      toggleDepartment(
+                        department.id
+                      )
+                    }
+                    className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
+                      isSelected
+                        ? 'border-[#9D0A0E] bg-[#FBF1F1]'
+                        : 'border-[#E5E7EB] bg-white hover:bg-[#F8F9FA]'
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-[#1F2937]">
+                        {department.department_name}
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-[#4B5563]">
+                        {department.kiosk_name}
+                      </p>
+                    </div>
+
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded border ${
+                        isSelected
+                          ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+                          : 'border-[#D1D5DB] bg-white'
+                      }`}
+                    >
+                      {isSelected && (
+                        <Check size={13} />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+          <span className="text-xs text-[#4B5563]">
+            {selectedResetIds.length} department
+            {selectedResetIds.length === 1
+              ? ''
+              : 's'} selected
+          </span>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={onContinue}
+              disabled={
+                selectedResetIds.length === 0
+              }
+              className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===========================================================
 // RESET PIN MODAL
 // ===========================================================
 
@@ -476,6 +658,7 @@ function ResetPinModal({
   onConfirm,
   pinInput,
   setPinInput,
+  verifying,
 }) {
   if (!open) {
     return null;
@@ -508,7 +691,7 @@ function ResetPinModal({
           <div>
 
             <p className="text-sm text-[#4B5563]">
-              Enter the administrator PIN to reset this department.
+              Enter the administrator PIN to reset the selected departments.
             </p>
 
             <p className="mt-1 text-xs text-[#4B5563]">
@@ -520,13 +703,13 @@ function ResetPinModal({
           <div>
 
             <label className="mb-1.5 block text-xs font-semibold text-[#4B5563]">
-              Admin PIN
+              Security PIN
             </label>
 
             <input
               type="password"
               inputMode="numeric"
-              maxLength={4}
+              maxLength={6}
               value={pinInput}
               onChange={(e) => {
                 const value =
@@ -537,7 +720,7 @@ function ResetPinModal({
 
                 setPinInput(value);
               }}
-              placeholder="Enter 4-digit PIN"
+              placeholder="Enter 6-digit PIN"
               className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
               autoFocus
             />
@@ -560,11 +743,11 @@ function ResetPinModal({
             type="button"
             onClick={onConfirm}
             disabled={
-              pinInput.length !== 4
+              pinInput.length !== 6
             }
             className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Verify PIN
+            {verifying ? 'Verifying...' : 'Verify PIN'}
           </button>
 
         </div>
@@ -626,14 +809,43 @@ export default function DepartmentCrud() {
       ...EMPTY_FORM,
     });
 
-  const [resettingId, setResettingId] =
-    useState(null);
+  const [resetDepartmentIds, setResetDepartmentIds] = useState(() => {
+  try {
+    const stored = localStorage.getItem(
+      'swu_reset_departments'
+    );
+
+    return stored
+      ? JSON.parse(stored)
+      : [];
+  } catch {
+    return [];
+  }
+});
+
+const [selectedResetIds, setSelectedResetIds] = useState([]);
+
+const [showResetSelection, setShowResetSelection] =
+  useState(false);
+
+const [resettingIds, setResettingIds] =
+  useState([]);
 
   const [pinInput, setPinInput] =
     useState('');
 
   const [showResetPin, setShowResetPin] =
     useState(false);
+
+  const [verifyingResetPin, setVerifyingResetPin] =
+  useState(false);  
+
+  useEffect(() => {
+    localStorage.setItem(
+      'swu_reset_departments',
+      JSON.stringify(resetDepartmentIds)
+    );
+  }, [resetDepartmentIds]);
 
   // =========================================================
   // FETCH KIOSKS THROUGH NODE.JS
@@ -1434,49 +1646,48 @@ export default function DepartmentCrud() {
 
     try {
 
-      // =====================================================
-      // DUPLICATE CHECK
-      // =====================================================
+// =====================================================
+// DUPLICATE CHECK
+// =====================================================
 
-      const duplicate =
-        departments.find(
-          (department) => {
+const duplicate = departments.find(
+  (department) => {
+    // Ignore the department currently being edited
+    if (
+      editingId !== 'new' &&
+      String(department.id) === String(editingId)
+    ) {
+      return false;
+    }
 
-            if (
-              editingId !== 'new' &&
-              String(
-                department.id
-              ) ===
-                String(
-                  editingId
-                )
-            ) {
-              return false;
-            }
+    // Ignore departments that have already been reset
+    if (
+      resetDepartmentIds.includes(
+        department.id
+      )
+    ) {
+      return false;
+    }
 
-            const existingName =
-              String(
-                department.department_name ||
-                  ''
-              )
-                .trim()
-                .toLowerCase();
+    const existingName = String(
+      department.department_name || ''
+    )
+      .trim()
+      .toLowerCase();
 
-            return (
-              existingName ===
-              departmentName.toLowerCase()
-            );
-          }
-        );
+    return (
+      existingName ===
+      departmentName.trim().toLowerCase()
+    );
+  }
+);
 
-      if (duplicate) {
-
-        setError(
-          `A department named "${departmentName}" already exists.`
-        );
-
-        return;
-      }
+if (duplicate) {
+  setError(
+    `A department named "${departmentName}" already exists.`
+  );
+  return;
+}
 
       // =====================================================
       // PAYLOAD
@@ -1609,99 +1820,143 @@ export default function DepartmentCrud() {
     }
   }
 
+  function handleResetSelectionContinue() {
+  if (selectedResetIds.length === 0) {
+    return;
+  }
+
+  setResettingIds(selectedResetIds);
+  setPinInput('');
+  setShowResetSelection(false);
+  setShowResetPin(true);
+  setError(null);
+  setSuccess('');
+}
+
+async function handleResetPinConfirm() {
+  if (resettingIds.length === 0) {
+    return;
+  }
+
+  if (pinInput.length !== 6) {
+    return;
+  }
+
+  const firebaseUser = auth.currentUser;
+
+  if (!firebaseUser) {
+    setError(
+      'Your authentication session is unavailable. Please log in again.'
+    );
+    return;
+  }
+
+  setVerifyingResetPin(true);
+  setError(null);
+
+  try {
+    await validateSecurityPin(
+      firebaseUser,
+      pinInput
+    );
+
+    handleReset();
+  } catch (error) {
+    console.error(
+      'Department reset Security PIN verification error:',
+      error
+    );
+
+    setError(
+      error?.message ||
+        'Invalid Security PIN. Please try again.'
+    );
+
+    setPinInput('');
+  } finally {
+    setVerifyingResetPin(false);
+  }
+}
+
   // =========================================================
   // RESET DEPARTMENT
   // =========================================================
 
-  function handleReset() {
-
-    if (!resettingId) {
-      return;
-    }
-
-    const department =
-      departments.find(
-        (dept) =>
-          String(
-            dept.id
-          ) ===
-          String(
-            resettingId
-          )
-      );
-
-    if (!department) {
-
-      setError(
-        'Department not found.'
-      );
-
-      return;
-    }
-
-    setDepartments(
-      (currentDepartments) =>
-        currentDepartments.map(
-          (dept) => {
-
-            if (
-              String(
-                dept.id
-              ) !==
-              String(
-                resettingId
-              )
-            ) {
-              return dept;
-            }
-
-            return {
-
-              ...dept,
-
-              waiting:
-                0,
-
-              current_queue:
-                dept.prefix
-                  ? `${dept.prefix}-0010`
-                  : `${(
-                      dept.department_name ||
-                      'D'
-                    )
-                      .charAt(0)
-                      .toUpperCase()}-0010`,
-
-              active_terminals:
-                dept.active_terminals,
-
-              avg_wait:
-                '15m',
-
-              est_time:
-                15,
-
-            };
-          }
-        )
-    );
-
-    setShowResetPin(
-      false
-    );
-
-    setResettingId(
-      null
-    );
-
-    setPinInput('');
-
-    setError(null);
-
-    setSuccess(
-      'Department queue display has been reset.'
-    );
+function handleReset() {
+  if (resettingIds.length === 0) {
+    return;
   }
+
+  const selectedDepartments = departments.filter(
+    (department) =>
+      resettingIds.some(
+        (id) =>
+          String(id) ===
+          String(department.id)
+      )
+  );
+
+  if (selectedDepartments.length === 0) {
+    setError('No selected departments were found.');
+    return;
+  }
+
+  setResetDepartmentIds((currentIds) => {
+    const newIds = selectedDepartments.map(
+      (department) => department.id
+    );
+
+    return Array.from(
+      new Set([
+        ...currentIds,
+        ...newIds,
+      ])
+    );
+  });
+
+  setDepartments((currentDepartments) =>
+    currentDepartments.map((department) => {
+      const shouldReset = resettingIds.some(
+        (id) =>
+          String(id) ===
+          String(department.id)
+      );
+
+      if (!shouldReset) {
+        return department;
+      }
+
+      return {
+        ...department,
+        waiting: 0,
+        current_queue: department.prefix
+          ? `${department.prefix}-0010`
+          : `${(
+              department.department_name ||
+              'D'
+            )
+              .charAt(0)
+              .toUpperCase()}-0010`,
+        active_terminals:
+          department.active_terminals,
+        avg_wait: '15m',
+        est_time: 15,
+      };
+    })
+  );
+
+  setShowResetPin(false);
+  setResettingIds([]);
+  setSelectedResetIds([]);
+  setPinInput('');
+  setError(null);
+
+  setSuccess(
+    selectedDepartments.length === 1
+      ? 'Department queue display has been reset.'
+      : `${selectedDepartments.length} departments have been reset.`
+  );
+}
 
   // =========================================================
   // SEARCH
@@ -1715,44 +1970,52 @@ export default function DepartmentCrud() {
 
   const filteredDepartments =
     departments.filter(
-      (department) => {
-
-        const search =
-          searchQuery
-            .toLowerCase()
-            .trim();
-
-        const departmentName =
-          String(
-            department.department_name ||
-              ''
-          ).toLowerCase();
-
-        const kioskName =
-          String(
-            department.kiosk_name ||
-              ''
-          ).toLowerCase();
-
-        const status =
-          String(
-            department.status ||
-              ''
-          ).toLowerCase();
-
-        return (
-          departmentName.includes(
-            search
-          ) ||
-          kioskName.includes(
-            search
-          ) ||
-          status.includes(
-            search
-          )
-        );
+    (department) => {
+      // Hide departments that have been reset.
+      if (
+        resetDepartmentIds.includes(
+          department.id
+        )
+      ) {
+        return false;
       }
-    );
+
+      const search =
+        searchQuery
+          .toLowerCase()
+          .trim();
+
+      const departmentName =
+        String(
+          department.department_name ||
+            ''
+        ).toLowerCase();
+
+      const kioskName =
+        String(
+          department.kiosk_name ||
+            ''
+        ).toLowerCase();
+
+      const status =
+        String(
+          department.status ||
+            ''
+        ).toLowerCase();
+
+      return (
+        departmentName.includes(
+          search
+        ) ||
+        kioskName.includes(
+          search
+        ) ||
+        status.includes(
+          search
+        )
+      );
+    }
+  );
 
   // =========================================================
   // PAGINATION
@@ -1879,24 +2142,28 @@ export default function DepartmentCrud() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedResetIds([]);
+              setShowResetSelection(true);
+              setError(null);
+              setSuccess('');
+            }}
+            className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition-colors hover:bg-[#F8F9FA]"
+          >
+            Reset Departments
+          </button>
 
           <button
             type="button"
             onClick={openAdd}
-            disabled={
-              loadingKiosks
-            }
+            disabled={loadingKiosks}
             className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
           >
-
             <Plus size={15} />
-
-            {loadingKiosks
-              ? 'Loading Kiosks...'
-              : 'Add Department'}
-
+            {loadingKiosks ? 'Loading Kiosks...' : 'Add Department'}
           </button>
-
         </div>
 
       </div>
@@ -2124,11 +2391,6 @@ export default function DepartmentCrud() {
                 <th className="px-6 py-3.5 text-right">
                   STATUS
                 </th>
-
-                <th className="px-6 py-3.5 text-right">
-                  ACTION
-                </th>
-
               </tr>
 
             </thead>
@@ -2141,7 +2403,7 @@ export default function DepartmentCrud() {
                 <tr>
 
                   <td
-                    colSpan={8}
+                    colSpan={7}
                     className="px-6 py-8 text-center text-[#4B5563]"
                   >
                     Loading departments from backend...
@@ -2158,7 +2420,7 @@ export default function DepartmentCrud() {
                   <tr>
 
                     <td
-                      colSpan={8}
+                      colSpan={7}
                       className="px-6 py-8 text-center text-[#4B5563]"
                     >
                       No departments found matching your search.
@@ -2279,45 +2541,6 @@ export default function DepartmentCrud() {
                         </span>
 
                       </td>
-
-                      {/* ACTION */}
-
-                      <td className="px-6 py-4 text-right">
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-
-                            e.stopPropagation();
-
-                            setResettingId(
-                              department.id
-                            );
-
-                            setPinInput(
-                              ''
-                            );
-
-                            setShowResetPin(
-                              true
-                            );
-
-                            setError(
-                              null
-                            );
-
-                            setSuccess(
-                              ''
-                            );
-
-                          }}
-                          className="rounded-md border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
-                        >
-                          Reset
-                        </button>
-
-                      </td>
-
                     </tr>
                   )
                 )}
@@ -2485,58 +2708,66 @@ export default function DepartmentCrud() {
         />
       )}
 
+{/* =====================================================
+    RESET DEPARTMENT SELECTION MODAL
+===================================================== */}
+<ResetDepartmentSelectionModal
+  open={showResetSelection}
+  onClose={() => {
+    setShowResetSelection(false);
+    setSelectedResetIds([]);
+  }}
+  departments={departments.filter(
+    (department) =>
+      !resetDepartmentIds.includes(
+        department.id
+      )
+  )}
+  selectedResetIds={selectedResetIds}
+  setSelectedResetIds={
+    setSelectedResetIds
+  }
+  onContinue={
+    handleResetSelectionContinue
+  }
+/>
+
       {/* =====================================================
           RESET PIN MODAL
       ===================================================== */}
 
       <ResetPinModal
-        open={
-          showResetPin
-        }
+  open={
+    showResetPin
+  }
+  onClose={() => {
+    if (verifyingResetPin) {
+      return;
+    }
 
-        onClose={() => {
+    setShowResetPin(
+      false
+    );
 
-          setShowResetPin(
-            false
-          );
+    setResettingIds([]);
 
-          setResettingId(
-            null
-          );
-
-          setPinInput(
-            ''
-          );
-
-        }}
-
-        onConfirm={() => {
-
-          if (
-            pinInput ===
-            RESET_PIN
-          ) {
-
-            handleReset();
-
-          } else {
-
-            setError(
-              'Incorrect PIN.'
-            );
-
-          }
-
-        }}
-
-        pinInput={
-          pinInput
-        }
-
-        setPinInput={
-          setPinInput
-        }
-      />
+    setPinInput(
+      ''
+    );
+  }}
+  onConfirm={
+    handleResetPinConfirm
+  }
+  pinInput={
+    pinInput
+  }
+  setPinInput={
+    setPinInput
+  }
+  verifying={
+    verifyingResetPin
+  }
+/>
 
     </div>
   );

@@ -35,6 +35,20 @@ export default function KioskManagement() {
   const [terminals, setTerminals] = useState([]);
   const [staffOptions, setStaffOptions] = useState([]);
 
+  const [resetDepartmentIds, setResetDepartmentIds] = useState(() => {
+  try {
+    const stored = localStorage.getItem(
+      'swu_reset_departments'
+    );
+
+    return stored
+      ? JSON.parse(stored)
+      : [];
+  } catch {
+    return [];
+  }
+});
+
   // =============================================
   // PAGE STATE
   // =============================================
@@ -723,8 +737,10 @@ export default function KioskManagement() {
         <div className="space-y-4">
           {kiosks.map((kiosk) => {
             const kioskDepartments = departments.filter(
-              (department) => department.kiosk_id === kiosk.kiosk_id
-            );
+  (department) =>
+    department.kiosk_id === kiosk.kiosk_id &&
+    !resetDepartmentIds.includes(department.department_id)
+);
 
             const isKioskExpanded = expandedKiosk === kiosk.kiosk_id;
 
