@@ -19,18 +19,6 @@ import {
   ChevronRight,
 } from 'lucide-react';
 
-const DEPARTMENT_VOLUME = [
-  { name: 'Billing', value: 42, max: 50 },
-  { name: 'Laboratory', value: 18, max: 50 },
-  { name: 'Pharmacy', value: 25, max: 50 },
-  { name: 'Radiology', value: 0, max: 50 },
-];
-
-const QUEUE_DISTRIBUTION = [
-  { label: 'Serving', pct: 25, color: '#1F2937' },
-  { label: 'Waiting', pct: 45, color: '#4B5563' },
-  { label: 'Completed', pct: 30, color: '#B34C4C' },
-];
 
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
@@ -440,116 +428,110 @@ useEffect(() => {
     day: 'numeric',
   });
 
-  const departmentStats = analytics?.departments || {
-  active: 0,
-  total: 0,
-};
 
-const queueStats = analytics?.queue || {
-  waiting: 0,
-  averageWaitMinutes: 0,
-  skipped: 0,
-  completed: 0,
-};
+  const queueStats = analytics?.queue || {
+    waiting: 0,
+    averageWaitMinutes: 0,
+    skipped: 0,
+    completed: 0,
+  };
 
-const terminalStats = analytics?.terminals || {
-  active: 0,
-  total: 0,
-};
+  const terminalStats = analytics?.terminals || {
+    active: 0,
+    total: 0,
+  };
 
+  const resetDepartmentIdSet = new Set(
+    resetDepartmentIds.map((id) => String(id))
+  );
 
-const resetDepartmentIdSet = new Set(
-  resetDepartmentIds.map((id) => String(id))
-);
+  const visibleDepartmentCount = departments.filter(
+    (department) =>
+      !resetDepartmentIdSet.has(
+        String(department.department_id)
+      )
+  ).length;
 
-const visibleDepartmentCount = departments.filter(
-  (department) =>
-    !resetDepartmentIdSet.has(
-      String(department.department_id)
-    )
-).length;
+  const STATS = [
+    {
+      label: 'Departments',
+      value: `${visibleDepartmentCount}/${departments.length}`,
+      caption: 'Active departments',
+      icon: Building2,
+    },
+    {
+      label: 'Total Waiting',
+      value: String(queueStats.waiting),
+      caption: 'Across all departments',
+      icon: Users,
+    },
+    {
+      label: 'Average Wait',
+      value: `${queueStats.averageWaitMinutes}m`,
+      caption: 'Average wait time',
+      icon: Clock,
+    },
+    {
+      label: 'Skipped',
+      value: String(queueStats.skipped),
+      caption: 'Skipped queuing',
+      icon: RotateCw,
+    },
+    {
+      label: 'Completed',
+      value: String(queueStats.completed),
+      caption: 'Completed queuing',
+      icon: TrendingUp,
+    },
+    {
+      label: 'Terminals',
+      value: `${terminalStats.active}/${terminalStats.total}`,
+      caption: 'Active terminals',
+      icon: Monitor,
+    },
+  ];
 
+  const departmentVolume = analytics?.departmentVolume || [];
 
-const STATS = [
-{
-  label: 'Departments',
-  value: `${visibleDepartmentCount}/${departments.length}`,
-  caption: 'Active departments',
-  icon: Building2,
-},
-  {
-    label: 'Total Waiting',
-    value: String(queueStats.waiting),
-    caption: 'Across all departments',
-    icon: Users,
-  },
-  {
-    label: 'Average Wait',
-    value: `${queueStats.averageWaitMinutes}m`,
-    caption: 'Average wait time',
-    icon: Clock,
-  },
-  {
-    label: 'Skipped',
-    value: String(queueStats.skipped),
-    caption: 'Skipped queuing',
-    icon: RotateCw,
-  },
-  {
-    label: 'Completed',
-    value: String(queueStats.completed),
-    caption: 'Completed queuing',
-    icon: TrendingUp,
-  },
-  {
-    label: 'Terminals',
-    value: `${terminalStats.active}/${terminalStats.total}`,
-    caption: 'Active terminals',
-    icon: Monitor,
-  },
-];
+  const queueDistribution = analytics?.queueDistribution || [
+    {
+      label: 'Serving',
+      value: 0,
+      pct: 0,
+      color: '#0B1524',
+    },
+    {
+      label: 'Waiting',
+      value: 0,
+      pct: 0,
+      color: '#94A3B8',
+    },
+    {
+      label: 'Completed',
+      value: 0,
+      pct: 0,
+      color: '#2563EB',
+    },
+  ];
 
-const departmentVolume = analytics?.departmentVolume || [];
+  const insights = analytics?.insights || [];
 
-const queueDistribution = analytics?.queueDistribution || [
-  {
-    label: 'Serving',
-    value: 0,
-    pct: 0,
-    color: '#0B1524',
-  },
-  {
-    label: 'Waiting',
-    value: 0,
-    pct: 0,
-    color: '#94A3B8',
-  },
-  {
-    label: 'Completed',
-    value: 0,
-    pct: 0,
-    color: '#2563EB',
-  },
-];
-
-const insights = analytics?.insights || [];
-
-const calendarLabel = selectedEndDate
-  ? `${selectedStartDate.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-    })} - ${selectedEndDate.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })}`
-  : isSameDay(selectedStartDate, new Date())
-    ? 'Today'
-    : selectedStartDate.toLocaleDateString(undefined, {
+  const calendarLabel = selectedEndDate
+    ? `${selectedStartDate.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      })} - ${selectedEndDate.toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
-      });
+      })}`
+    : isSameDay(selectedStartDate, new Date())
+      ? 'Today'
+      : selectedStartDate.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
 return (
   <div>
     {/* Header */}
@@ -558,14 +540,13 @@ return (
         <h1 className="text-2xl font-semibold text-[#1F2937]">
           System Overview
         </h1>
-
         <p className="text-sm text-[#4B5563]">
           Today &middot; {today}
         </p>
       </div>
 
       <div className="flex items-center gap-2.5">
-        {/* Calendar */}
+        {/* Date Filter */}
         <div className="relative">
           <button
             type="button"
@@ -630,7 +611,7 @@ return (
               appliedEndDate
             )
           }
-          className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:bg-white"
+          className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3.5 py-2 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:bg-white"
         >
           <RotateCw size={12} />
           Refresh
@@ -638,38 +619,38 @@ return (
       </div>
     </div>
 
-    {/* Statistics */}
-    <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-6">
-      {STATS.map((stat) => {
-        const Icon = stat.icon;
+  {/* Statistics */}
+<div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-6">
+  {STATS.map((stat) => {
+    const Icon = stat.icon;
 
-        return (
-          <div
-            key={stat.label}
-            className="min-w-0 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
-                {stat.label}
-              </p>
+    return (
+      <div
+        key={stat.label}
+        className="min-w-0 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
+            {stat.label}
+          </p>
 
-              <Icon
-                size={16}
-                className="text-[#9D0A0E]"
-              />
-            </div>
+          <Icon
+            size={16}
+            className="text-[#9D0A0E]"
+          />
+        </div>
 
-            <p className="text-2xl font-bold text-[#1F2937]">
-              {stat.value}
-            </p>
+        <p className="text-2xl font-bold text-[#1F2937]">
+          {stat.value}
+        </p>
 
-            <p className="mt-1 text-xs uppercase tracking-wide text-[#4B5563]">
-              {stat.caption}
-            </p>
-          </div>
-        );
-      })}
-    </div>
+        <p className="mt-1 text-xs uppercase tracking-wide text-[#4B5563]">
+          {stat.caption}
+        </p>
+      </div>
+    );
+  })}
+</div>
 
     {/* Dashboard Charts / Insights */}
     <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-3">

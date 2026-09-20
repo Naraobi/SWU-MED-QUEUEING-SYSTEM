@@ -204,7 +204,7 @@ function UserModal({
   onClose,
   isEditing,
   saving,
-  onAddDepartment,
+  onAddRole,
   kioskOptions,
   departmentOptions,
   roleOptions,
@@ -543,6 +543,112 @@ function UserModal({
                   <span className="text-xs font-semibold text-[#9D0A0E]">
                     + Add role
                   </span>
+
+                <input
+                  type="text"
+                  maxLength="2"
+                  value={form.mi}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      mi: event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="Enter M.I"
+                />
+              </div>
+
+              <div className="flex-1">
+                <FieldLabel required>Last Name</FieldLabel>
+
+                <input
+                  type="text"
+                  value={form.last_name}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      last_name:
+                        event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="Enter last name"
+                />
+                </div>
+              </div>
+
+            </div>
+
+          </FormSection>
+
+
+          {/* ----- CONTACT ----- */}
+
+          <FormSection title="Contact">
+
+            <div className="grid grid-cols-2 gap-4">
+
+              <div>
+                <FieldLabel required>Contact Number</FieldLabel>
+
+                <input
+                  type="text"
+                  value={form.contact_number}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      contact_number:
+                        event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="09XX XXX XXXX"
+                />
+              </div>
+
+              <div>
+                <FieldLabel required>Email Address</FieldLabel>
+
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      email:
+                        event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="name@gmail.com"
+                />
+              </div>
+
+            </div>
+
+          </FormSection>
+
+
+          {/* ----- ASSIGNMENT ----- */}
+
+          <FormSection title="Assignment">
+
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+
+              {/* ROLE */}
+
+              <div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <FieldLabel required>Role</FieldLabel>
+
+                  <button
+                    type="button"
+                    onClick={onAddRole}
+                    className="rounded text-xs font-semibold text-[#9D0A0E] transition hover:underline focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
+                  >
+                    + Add role
+                  </button>
                 </div>
 
                 <select
@@ -997,7 +1103,7 @@ function FieldLabel({ children, required }) {
 ========================================================= */
 
 export default function UserCrud({
-  onAddDepartment,
+  onNavigate,
 }) {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -2493,7 +2599,7 @@ const filteredUsers = visibleUsers.filter((user) => {
 
         <button
           type="button"
-          onClick={openAdd}
+          onClick={openAdd} 
           className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B]"
         >
           <span className="text-sm leading-none">
@@ -2681,6 +2787,7 @@ const filteredUsers = visibleUsers.filter((user) => {
                       }
                       className="cursor-pointer transition-colors hover:bg-[#F8F9FA]"
                     >
+
                       <td className="px-6 py-4 font-semibold text-[#1F2937]">
                         {user.first_name}{' '}
                         {user.last_name}
@@ -2884,9 +2991,10 @@ const filteredUsers = visibleUsers.filter((user) => {
           onClose={closeModal}
           isEditing={isEditing}
           saving={saving}
-          onAddDepartment={
-            onAddDepartment
-          }
+          onAddRole={() => {
+            closeModal();
+            onNavigate?.('roles');
+          }}
           kioskOptions={kiosks}
           departmentOptions={
             availableDepartments
@@ -2939,27 +3047,27 @@ function SummaryCard({
   icon,
 }) {
   return (
-    <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
-          {title}
-        </span>
+  <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+  <div className="flex items-center justify-between">
+    <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
+      {title}
+    </span>
 
-        <span className="text-[#4B5563]">
-          {icon}
-        </span>
-      </div>
+    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
+      {icon}
+    </span>
+  </div>
 
-      <div className="mt-3">
-        <p className="text-2xl font-bold text-[#1F2937]">
-          {count}
-        </p>
+  <div className="mt-3">
+    <p className="text-2xl font-bold text-[#1F2937]">
+      {count}
+    </p>
 
-        <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
-          {subtitle}
-        </p>
-      </div>
-    </div>
+    <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
+      {subtitle}
+    </p>
+  </div>
+</div>
   );
 }
 

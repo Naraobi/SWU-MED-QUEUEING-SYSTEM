@@ -664,98 +664,82 @@ function ResetPinModal({
     return null;
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+return (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+    <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
 
-      <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
+        <h2 className="text-lg font-bold text-[#1F2937]">
+          Reset Department
+        </h2>
 
-        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[#4B5563] transition hover:text-[#1F2937]"
+          aria-label="Close"
+        >
+          <X size={18} />
+        </button>
+      </div>
 
-          <h2 className="text-lg font-bold text-[#1F2937]">
-            Reset Department
-          </h2>
+      {/* Body */}
+      <div className="space-y-4 px-6 py-5">
+        <div>
+          <p className="text-sm text-[#4B5563]">
+            Enter the administrator PIN to reset the selected departments.
+          </p>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-[#4B5563] transition hover:text-[#4B5563]"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-
+          <p className="mt-1 text-xs text-[#4B5563]">
+            This action only resets the current frontend queue display.
+          </p>
         </div>
 
-        <div className="space-y-4 px-6 py-5">
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-[#4B5563]">
+            Security PIN
+          </label>
 
-          <div>
-
-            <p className="text-sm text-[#4B5563]">
-              Enter the administrator PIN to reset the selected departments.
-            </p>
-
-            <p className="mt-1 text-xs text-[#4B5563]">
-              This action only resets the current frontend queue display.
-            </p>
-
-          </div>
-
-          <div>
-
-            <label className="mb-1.5 block text-xs font-semibold text-[#4B5563]">
-              Security PIN
-            </label>
-
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              value={pinInput}
-              onChange={(e) => {
-                const value =
-                  e.target.value.replace(
-                    /\D/g,
-                    ''
-                  );
-
-                setPinInput(value);
-              }}
-              placeholder="Enter 6-digit PIN"
-              className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-              autoFocus
-            />
-
-          </div>
-
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            value={pinInput}
+            onChange={(e) => {
+              const value = e.target.value.replace(/\D/g, '');
+              setPinInput(value);
+            }}
+            placeholder="Enter 6-digit PIN"
+            className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+            autoFocus
+          />
         </div>
+      </div>
 
-        <div className="flex items-center justify-end gap-3 rounded-b-xl border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+      {/* Footer */}
+      <div className="flex items-center justify-end gap-3 rounded-b-xl border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
+        >
+          Cancel
+        </button>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={
-              pinInput.length !== 6
-            }
-            className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {verifying ? 'Verifying...' : 'Verify PIN'}
-          </button>
-
-        </div>
-
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={pinInput.length !== 6}
+          className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {verifying ? 'Verifying...' : 'Verify PIN'}
+        </button>
       </div>
 
     </div>
-  );
+  </div>
+);
 }
 
 // ===========================================================
@@ -2117,105 +2101,102 @@ const activeDepts = departments.filter(
   // =========================================================
   // RENDER
   // =========================================================
+return (
+  <div className="space-y-6">
 
-  return (
-    <div className="space-y-6">
+    {/* PAGE HEADER */}
 
-      {/* PAGE HEADER */}
+    <div className="flex items-center justify-between">
 
-      <div className="flex items-center justify-between">
+      <div>
+        <h1 className="text-2xl font-bold text-[#1F2937]">
+          Department Management
+        </h1>
 
-        <div>
+        <p className="mt-0.5 text-xs text-[#4B5563]">
+          Configure departments and associate them with hospital kiosks.
+        </p>
+      </div>
 
-          <h1 className="text-2xl font-bold text-[#1F2937]">
-            Department Management
-          </h1>
+      <div className="flex items-center gap-2">
 
-          <p className="mt-0.5 text-xs text-[#4B5563]">
-            Configure departments and associate them with hospital kiosks.
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedResetIds([]);
+            setShowResetSelection(true);
+            setError(null);
+            setSuccess('');
+          }}
+          className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition-colors hover:bg-[#F8F9FA]"
+        >
+          Reset Departments
+        </button>
+
+        <button
+          type="button"
+          onClick={openAdd}
+          disabled={loadingKiosks}
+          className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus size={15} />
+          {loadingKiosks ? 'Loading Kiosks...' : 'Add Department'}
+        </button>
+
+      </div>
+
+    </div>
+
+    {/* ERROR */}
+
+    {error && (
+      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {error}
+      </div>
+    )}
+
+    {/* SUCCESS */}
+
+    {success && (
+      <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        {success}
+      </div>
+    )}
+
+    {/* SUMMARY CARDS */}
+
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+      {/* DEPARTMENT */}
+
+      <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+
+        <div className="flex items-center justify-between">
+
+          <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
+            DEPARTMENT
+          </span>
+
+          <Building2
+            size={18}
+            className="text-[#4B5563]"
+          />
+
+        </div>
+
+        <div className="mt-3">
+
+          <p className="text-2xl font-bold text-[#1F2937]">
+            {activeDepts}/{totalDepts}
+          </p>
+
+          <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
+            ACTIVE DEPARTMENTS
           </p>
 
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedResetIds([]);
-              setShowResetSelection(true);
-              setError(null);
-              setSuccess('');
-            }}
-            className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition-colors hover:bg-[#F8F9FA]"
-          >
-            Reset Departments
-          </button>
-
-          <button
-            type="button"
-            onClick={openAdd}
-            disabled={loadingKiosks}
-            className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Plus size={15} />
-            {loadingKiosks ? 'Loading Kiosks...' : 'Add Department'}
-          </button>
-        </div>
-
       </div>
-
-      {/* ERROR */}
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* SUCCESS */}
-
-      {success && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          {success}
-        </div>
-      )}
-
-      {/* SUMMARY CARDS */}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-        {/* DEPARTMENT */}
-
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
-
-          <div className="flex items-center justify-between">
-
-            <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
-              DEPARTMENT
-            </span>
-
-            <Building2
-              size={18}
-              className="text-[#4B5563]"
-            />
-
-          </div>
-
-          <div className="mt-3">
-
-            <p className="text-2xl font-bold text-[#1F2937]">
-              {activeDepts}/
-              {totalDepts}
-            </p>
-
-            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
-              ACTIVE DEPARTMENTS
-            </p>
-
-          </div>
-
-        </div>
-
         {/* TOTAL WAITING */}
 
         <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
@@ -2426,222 +2407,161 @@ const activeDepts = departments.filter(
                 )}
 
               {/* DEPARTMENTS */}
+              {/* DEPARTMENTS */}
 
               {!loading &&
-                paginatedDepartments.map(
-                  (department) => (
-                    <tr
-                      key={
-                        department.id
-                      }
-                      onClick={() =>
-                        openEdit(
-                          department
-                        )
-                      }
-                      className="cursor-pointer transition-colors hover:bg-[#F8F9FA]"
-                    >
+                paginatedDepartments.map((department) => (
+                  <tr
+                    key={department.id}
+                    onClick={() => openEdit(department)}
+                    className="cursor-pointer transition-colors hover:bg-[#F8F9FA]"
+                  >
+                    {/* DEPARTMENT */}
 
-                      {/* DEPARTMENT */}
+                    <td className="px-6 py-4 font-semibold text-[#1F2937]">
+                      {department.department_name}
+                    </td>
 
-                      <td className="px-6 py-4 font-semibold text-[#1F2937]">
-                        {
-                          department.department_name
-                        }
-                      </td>
+                    {/* KIOSK */}
 
-                      {/* KIOSK */}
-
-                      <td className="px-6 py-4">
-
-                        <div className="flex items-center gap-2">
-
-                          <Monitor
-                            size={14}
-                            className="text-[#4B5563]"
-                          />
-
-                          <span
-                            className={
-                              department.kiosk_name ===
-                              'Unassigned'
-                                ? 'text-[#4B5563]'
-                                : 'font-medium text-[#4B5563]'
-                            }
-                          >
-                            {
-                              department.kiosk_name
-                            }
-                          </span>
-
-                        </div>
-
-                      </td>
-
-                      {/* WAITING */}
-
-                      <td className="px-6 py-4 text-center text-[#1F2937]">
-                        {
-                          department.waiting
-                        }
-                      </td>
-
-                      {/* CURRENT QUEUE */}
-
-                      <td className="px-6 py-4 text-center font-medium text-[#1F2937]">
-                        {
-                          department.current_queue
-                        }
-                      </td>
-
-                      {/* ACTIVE TERMINALS */}
-
-                      <td className="px-6 py-4 text-center text-[#4B5563]">
-                        {
-                          department.active_terminals
-                        }
-                      </td>
-
-                      {/* AVG WAIT */}
-
-                      <td className="px-6 py-4 text-center text-[#4B5563]">
-                        {
-                          department.avg_wait
-                        }
-                      </td>
-
-                      {/* STATUS */}
-
-                      <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Monitor
+                          size={14}
+                          className="text-[#4B5563]"
+                        />
 
                         <span
                           className={
-                            department.status ===
-                            'active'
-                              ? 'font-medium text-[#1F2937]'
+                            department.kiosk_name === 'Unassigned'
+                              ? 'text-[#4B5563]'
                               : 'font-medium text-[#4B5563]'
                           }
                         >
-                          {String(
-                            department.status ||
-                              'active'
-                          )
-                            .charAt(0)
-                            .toUpperCase() +
-                            String(
-                              department.status ||
-                                'active'
-                            ).slice(
-                              1
-                            )}
+                          {department.kiosk_name}
                         </span>
+                      </div>
+                    </td>
 
-                      </td>
-                    </tr>
-                  )
-                )}
+                    {/* WAITING */}
 
+                    <td className="px-6 py-4 text-center text-[#1F2937]">
+                      {department.waiting}
+                    </td>
+
+                    {/* CURRENT QUEUE */}
+
+                    <td className="px-6 py-4 text-center font-medium text-[#1F2937]">
+                      {department.current_queue}
+                    </td>
+
+                    {/* ACTIVE TERMINALS */}
+
+                    <td className="px-6 py-4 text-center text-[#4B5563]">
+                      {department.active_terminals}
+                    </td>
+
+                    {/* AVG WAIT */}
+
+                    <td className="px-6 py-4 text-center text-[#4B5563]">
+                      {department.avg_wait}
+                    </td>
+
+                    {/* STATUS */}
+
+                    <td className="px-6 py-4 text-right">
+                      <span
+                        className={
+                          department.status === 'active'
+                            ? 'font-medium text-[#1F2937]'
+                            : 'font-medium text-[#4B5563]'
+                        }
+                      >
+                        {String(department.status || 'active')
+                          .charAt(0)
+                          .toUpperCase() +
+                          String(department.status || 'active').slice(1)}
+                      </span>
+                    </td>
+
+                    {/* ACTION */}
+
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+
+                          setResettingId(department.id);
+                          setPinInput('');
+                          setShowResetPin(true);
+                          setError(null);
+                          setSuccess('');
+                        }}
+                        className="rounded-md border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
+                      >
+                        Reset
+                      </button>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
-
           </table>
-
         </div>
 
         {/* PAGINATION */}
 
         <div className="flex items-center justify-between border-t border-[#E5E7EB] px-6 py-4 text-xs text-[#4B5563]">
-
           <span>
-
-            {filteredDepartments.length ===
-            0
+            {filteredDepartments.length === 0
               ? 'No departments to show'
-              : `Showing ${
-                  firstIndex + 1
-                } to ${
-                  firstIndex +
-                  paginatedDepartments.length
-                } of ${
-                  filteredDepartments.length
-                } departments`}
-
+              : `Showing ${firstIndex + 1} to ${
+                  firstIndex + paginatedDepartments.length
+                } of ${filteredDepartments.length} departments`}
           </span>
 
           <div className="flex items-center gap-1.5">
-
             <button
               type="button"
               onClick={() =>
-                setPage((p) =>
-                  Math.max(
-                    1,
-                    p - 1
-                  )
-                )
+                setPage((p) => Math.max(1, p - 1))
               }
-              disabled={
-                currentPage ===
-                1
-              }
+              disabled={currentPage === 1}
               className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:text-[#4B5563] disabled:opacity-50"
             >
               Prev
             </button>
 
-            {getPageNumbers(
-              currentPage,
-              totalPages
-            ).map(
-              (number) => (
-                <button
-                  key={number}
-                  type="button"
-                  onClick={() =>
-                    setPage(
-                      number
-                    )
-                  }
-                  aria-current={
-                    number ===
-                    currentPage
-                      ? 'page'
-                      : undefined
-                  }
-                  className={`rounded-md border px-3 py-1 transition ${
-                    number ===
-                    currentPage
-                      ? 'border-[#9D0A0E] bg-[#9D0A0E] font-semibold text-white'
-                      : 'border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#F1F3F5]'
-                  }`}
-                >
-                  {number}
-                </button>
-              )
-            )}
+            {getPageNumbers(currentPage, totalPages).map((number) => (
+              <button
+                key={number}
+                type="button"
+                onClick={() => setPage(number)}
+                aria-current={
+                  number === currentPage ? 'page' : undefined
+                }
+                className={`rounded-md border px-3 py-1 transition ${
+                  number === currentPage
+                    ? 'border-[#9D0A0E] bg-[#9D0A0E] font-semibold text-white'
+                    : 'border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#F1F3F5]'
+                }`}
+              >
+                {number}
+              </button>
+            ))}
 
             <button
               type="button"
               onClick={() =>
-                setPage((p) =>
-                  Math.min(
-                    totalPages,
-                    p + 1
-                  )
-                )
+                setPage((p) => Math.min(totalPages, p + 1))
               }
-              disabled={
-                currentPage ===
-                totalPages
-              }
+              disabled={currentPage === totalPages}
               className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:text-[#4B5563] disabled:opacity-50"
             >
               Next
             </button>
-
           </div>
-
         </div>
-
       </div>
 
       {/* =====================================================
@@ -2649,122 +2569,75 @@ const activeDepts = departments.filter(
       ===================================================== */}
 
       <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-
         <h2 className="text-base font-bold text-[#1F2937]">
           Department Volume
         </h2>
 
         <div className="mt-4 flex h-32 items-center justify-center rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8F9FA]">
-
           <p className="text-xs text-[#4B5563]">
             Department volume charts and activity logs will render here.
           </p>
-
         </div>
+      </div>
+        {/* =====================================================
+            ADD / EDIT DEPARTMENT MODAL
+        ===================================================== */}
+
+        {isModalOpen && (
+          <DepartmentModal
+            open={isModalOpen}
+            form={form}
+            setForm={setForm}
+            onSave={handleSave}
+            onClose={closeModal}
+            isEditing={isEditing}
+            saving={saving}
+            kiosks={kiosks}
+          />
+        )}
+
+        {/* =====================================================
+            RESET DEPARTMENT SELECTION MODAL
+        ===================================================== */}
+
+        <ResetDepartmentSelectionModal
+          open={showResetSelection}
+          onClose={() => {
+            setShowResetSelection(false);
+            setSelectedResetIds([]);
+          }}
+          departments={departments.filter(
+            (department) =>
+              !resetDepartmentIds.includes(
+                department.department_id
+              )
+          )}
+          selectedResetIds={selectedResetIds}
+          setSelectedResetIds={setSelectedResetIds}
+          onContinue={handleResetSelectionContinue}
+        />
+
+        {/* =====================================================
+            RESET PIN MODAL
+        ===================================================== */}
+
+        <ResetPinModal
+          open={showResetPin}
+          onClose={() => {
+            if (verifyingResetPin) {
+              return;
+            }
+
+            setShowResetPin(false);
+            setResettingIds([]);
+            setPinInput('');
+          }}
+          onConfirm={handleResetPinConfirm}
+          pinInput={pinInput}
+          setPinInput={setPinInput}
+          verifying={verifyingResetPin}
+        />
 
       </div>
-
-      {/* =====================================================
-          ADD / EDIT DEPARTMENT MODAL
-      ===================================================== */}
-
-      {isModalOpen && (
-        <DepartmentModal
-          open={
-            isModalOpen
-          }
-
-          form={
-            form
-          }
-
-          setForm={
-            setForm
-          }
-
-          onSave={
-            handleSave
-          }
-
-          onClose={
-            closeModal
-          }
-
-          isEditing={
-            isEditing
-          }
-
-          saving={
-            saving
-          }
-
-          kiosks={
-            kiosks
-          }
-        />
-      )}
-
-{/* =====================================================
-    RESET DEPARTMENT SELECTION MODAL
-===================================================== */}
-<ResetDepartmentSelectionModal
-  open={showResetSelection}
-  onClose={() => {
-    setShowResetSelection(false);
-    setSelectedResetIds([]);
-  }}
-  departments={departments.filter(
-    (department) =>
-      !resetDepartmentIds.includes(
-        department.id
-      )
-  )}
-  selectedResetIds={selectedResetIds}
-  setSelectedResetIds={
-    setSelectedResetIds
-  }
-  onContinue={
-    handleResetSelectionContinue
-  }
-/>
-
-      {/* =====================================================
-          RESET PIN MODAL
-      ===================================================== */}
-
-      <ResetPinModal
-  open={
-    showResetPin
-  }
-  onClose={() => {
-    if (verifyingResetPin) {
-      return;
-    }
-
-    setShowResetPin(
-      false
     );
-
-    setResettingIds([]);
-
-    setPinInput(
-      ''
-    );
-  }}
-  onConfirm={
-    handleResetPinConfirm
-  }
-  pinInput={
-    pinInput
-  }
-  setPinInput={
-    setPinInput
-  }
-  verifying={
-    verifyingResetPin
-  }
-/>
-
-    </div>
-  );
 }

@@ -1,37 +1,79 @@
 import React from 'react'
+import { BellRing } from 'lucide-react'
 
 export default function YourTurnScreen({ ticket }) {
+  // Priority tickets carry a "P-" prefix; they render in brand red.
+  const isPriority = String(ticket.queueNumber || '')
+    .toUpperCase()
+    .startsWith('P-')
+
+  const numberColor = isPriority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 px-4 py-8">
-      <div className="w-full max-w-md rounded-2xl border-2 border-rose-300 bg-gradient-to-b from-white to-blue-50/40 p-8 text-center shadow-xl sm:max-w-lg">
-        <p className="text-xl font-bold">
-          <span className="text-brand-red">SWU</span>
-          <span className="text-slate-800">Med</span>
+    <div className="flex min-h-screen items-center justify-center bg-[#EAF3FB] px-4 py-8">
+      <div className="w-full max-w-md sm:max-w-lg md:max-w-xl">
+
+        <p className="mb-5 text-center text-xl font-bold sm:text-2xl">
+          <span className="text-[#9D0A0E]">SWU</span>
+          <span className="text-[#1F2937]">Med</span>
         </p>
 
-        <div className="mx-auto mt-4 flex h-12 w-12 items-center justify-center text-3xl animate-pulse">
-          🔔
+        <div className="overflow-hidden rounded-2xl border-2 border-[#9D0A0E] bg-white shadow-lg">
+
+          {/* CALL BANNER */}
+
+          <div className="flex items-center justify-center gap-2 bg-[#9D0A0E] px-5 py-3 text-center">
+            <BellRing size={16} className="shrink-0 text-white" />
+
+            <p className="text-sm font-bold uppercase tracking-wide text-white sm:text-base">
+              It&rsquo;s your turn!
+            </p>
+          </div>
+
+          <div className="px-5 py-6 text-center sm:px-8">
+
+            {/* TICKET NUMBER */}
+
+            <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+                Ticket Number
+              </p>
+
+              <p className={`mt-1 text-4xl font-extrabold sm:text-5xl ${numberColor}`}>
+                {ticket.queueNumber}
+              </p>
+            </div>
+
+            <span className="mt-3 inline-block rounded-full bg-[#EBF3FE] px-3 py-1 text-xs font-medium text-[#1D4ED8]">
+              {ticket.department}
+            </span>
+
+            {/* DIRECTION */}
+
+            <p className="mt-4 text-sm leading-6 text-[#4B5563]">
+              Please proceed to the{' '}
+              <span className="font-semibold text-[#1F2937]">
+                {ticket.terminal}
+              </span>
+              .
+            </p>
+
+            {/* NOW SERVING */}
+
+            <p className="mt-5 text-sm font-bold text-[#1F2937]">
+              Now Serving {ticket.queueNumber}
+            </p>
+
+            <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-[#9D0A0E]">
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full bg-[#9D0A0E]"
+              />
+              Your queue is being served
+            </p>
+
+          </div>
         </div>
-
-        <h1 className="mt-2 text-2xl font-extrabold text-slate-800">IT'S YOUR TURN!</h1>
-
-        <div className="mt-5 rounded-xl bg-blue-50 px-5 py-4">
-          <p className="text-xs font-semibold tracking-wide text-slate-400">TICKET NUMBER</p>
-          <p className="mt-1 text-4xl font-extrabold text-brand-blue">{ticket.queueNumber}</p>
-          <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
-            👤 {ticket.department}
-          </span>
-        </div>
-
-        <p className="mt-5 text-sm text-slate-600">
-          Please proceed to the <span className="font-semibold text-brand-blue">{ticket.terminal}</span>.
-        </p>
-
-        <div className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          Now Serving {ticket.queueNumber}
-        </div>
-        <p className="mt-1 text-xs text-slate-400">Your queue is being served</p>
       </div>
     </div>
   )

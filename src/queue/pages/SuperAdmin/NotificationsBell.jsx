@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Bell, Trophy, Users, Info, AlertTriangle } from 'lucide-react';
 
 const ICONS = {
-  recognition: { icon: Trophy, wrap: 'bg-blue-100 text-[#00529B]' },
-  queue: { icon: Users, wrap: 'bg-blue-100 text-[#00529B]' },
-  system: { icon: Info, wrap: 'bg-blue-100 text-[#00529B]' },
-  urgent: { icon: AlertTriangle, wrap: 'bg-red-100 text-red-600' },
+  recognition: { icon: Trophy, wrap: 'bg-[#F1F3F5] text-[#4B5563]' },
+  queue: { icon: Users, wrap: 'bg-[#F1F3F5] text-[#4B5563]' },
+  system: { icon: Info, wrap: 'bg-[#F1F3F5] text-[#4B5563]' },
+  urgent: { icon: AlertTriangle, wrap: 'bg-[#FBF1F1] text-[#9D0A0E]' },
 };
 
 const INITIAL_NOTIFICATIONS = [
@@ -94,7 +94,7 @@ export default function NotificationsBell() {
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="relative text-slate-500 transition hover:text-slate-700"
+        className="relative text-[#4B5563] transition hover:text-[#1F2937]"
         aria-label={
           unreadCount > 0
             ? `Notifications, ${unreadCount} unread`
@@ -105,7 +105,7 @@ export default function NotificationsBell() {
       >
         <Bell size={20} />
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#00529B] ring-2 ring-white" />
+          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#9D0A0E] ring-2 ring-white" />
         )}
       </button>
 
@@ -113,25 +113,25 @@ export default function NotificationsBell() {
         <div
           role="dialog"
           aria-label="Notifications"
-          className="absolute right-0 top-full z-40 mt-2 w-96 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+          className="absolute right-0 top-full z-40 mt-2 w-96 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h2 className="text-base font-bold text-slate-800">Notifications</h2>
+          <div className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-3">
+            <h2 className="text-base font-bold text-[#1F2937]">Notifications</h2>
             <button
               type="button"
               onClick={markAllAsRead}
               disabled={unreadCount === 0}
-              className="text-xs font-semibold text-[#00529B] transition hover:text-[#003F75] disabled:cursor-not-allowed disabled:text-slate-400"
+              className="text-xs font-semibold text-[#9D0A0E] transition hover:text-[#7D080B] disabled:cursor-not-allowed disabled:text-[#9CA3AF]"
             >
               Mark all as read
             </button>
           </div>
 
           {/* List */}
-          <div className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+          <div className="max-h-96 divide-y divide-[#F1F3F5] overflow-y-auto">
             {notifications.length === 0 && (
-              <p className="px-4 py-8 text-center text-xs text-slate-500">
+              <p className="px-4 py-8 text-center text-xs text-[#4B5563]">
                 You have no notifications.
               </p>
             )}
@@ -144,7 +144,7 @@ export default function NotificationsBell() {
                   key={item.id}
                   onClick={() => markAsRead(item.id)}
                   className={`flex cursor-pointer gap-3 px-4 py-3 transition ${
-                    item.read ? 'bg-white hover:bg-slate-50' : 'bg-[#EBF3FE] hover:bg-[#DEEAFC]'
+                    item.read ? 'bg-white hover:bg-[#F8F9FA]' : 'bg-[#FBF1F1] hover:bg-[#F6E7E7]'
                   }`}
                 >
                   <div
@@ -155,28 +155,28 @@ export default function NotificationsBell() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-800">{item.title}</p>
+                      <p className="text-sm font-semibold text-[#1F2937]">{item.title}</p>
 
                       <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
                         <span
-                          className={`text-[11px] ${
-                            item.read ? 'text-slate-400' : 'font-medium text-[#00529B]'
+                          className={`text-xs ${
+                            item.read ? 'text-[#9CA3AF]' : 'font-semibold text-[#9D0A0E]'
                           }`}
                         >
                           {item.time}
                         </span>
                         {!item.read && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-[#00529B]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#9D0A0E]" />
                         )}
                       </div>
                     </div>
 
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{item.body}</p>
+                    <p className="mt-1 text-xs leading-5 text-[#4B5563]">{item.body}</p>
 
                     {item.action && (
                       <button
                         type="button"
-                        className="mt-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                        className="mt-2 rounded-md border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
                       >
                         {item.action}
                       </button>
@@ -188,10 +188,10 @@ export default function NotificationsBell() {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-slate-200 px-4 py-3 text-center">
+          <div className="border-t border-[#E5E7EB] px-4 py-3 text-center">
             <button
               type="button"
-              className="text-xs font-semibold text-slate-700 transition hover:text-[#00529B]"
+              className="text-xs font-semibold text-[#4B5563] transition hover:text-[#9D0A0E]"
             >
               View All Notifications
             </button>

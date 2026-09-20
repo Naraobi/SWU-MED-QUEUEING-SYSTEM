@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useEffect, useState } from 'react';
 import { auth } from '../../../firebase';
 import { getReportsAnalytics } from '../../services/backendApi';
@@ -11,6 +12,9 @@ import {
   TrendingUp,
   Calendar,
 } from 'lucide-react';
+=======
+import { Sparkles } from 'lucide-react';
+>>>>>>> superadmin-ui
 
 const VOLUME = [
   { label: 'CSH', value: 62 },
@@ -18,6 +22,7 @@ const VOLUME = [
   { label: 'PHA', value: 51 },
   { label: 'RAD', value: 22 },
 ];
+<<<<<<< HEAD
 
 const STAFF = [
   { name: 'Cashier 1', avgTime: '2m 15s', ratio: '98%' },
@@ -151,11 +156,35 @@ export default function Reports() {
   useEffect(() => {
     fetchAnalytics();
   }, [timeFilter]);
+=======
+
+const STAFF = [
+  { name: 'Cashier 1', avgTime: '2m 15s', ratio: '98%' },
+  { name: 'Cashier 4', avgTime: '4m 30s', ratio: '85%' },
+  { name: 'Lab Tech 2', avgTime: '5m 00s', ratio: '100%' },
+];
+
+const QUEUE_LOG = [
+  { id: 'Q-1042', dept: 'Cashier', status: 'Completed', wait: '12m', process: '2m' },
+  { id: 'Q-1043', dept: 'Laboratory', status: 'Waiting', wait: '45m', process: '--' },
+  { id: 'Q-1044', dept: 'Pharmacy', status: 'Skipped', wait: '5m', process: '--' },
+];
+
+const statusStyles = {
+  Completed: 'bg-emerald-50 text-emerald-700',
+  Waiting: 'bg-[#FBF1F1] text-[#9D0A0E]',
+  Skipped: 'bg-slate-100 text-slate-500',
+};
+
+export default function Reports() {
+  const maxVolume = Math.max(...VOLUME.map((v) => v.value));
+>>>>>>> superadmin-ui
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-800">System Reports &amp; Analytics</h1>
+<<<<<<< HEAD
       </div>
 
       {/* Filters */}
@@ -300,6 +329,40 @@ export default function Reports() {
         {/* Right Column: Recent Activity Log */}
 
         <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-5">
+=======
+      </div>
+
+      {/* Filters */}
+      <div className="mb-6 flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">Date Range</label>
+          <input type="date" className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#9D0A0E] focus:outline-none" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">Department</label>
+          <select className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#9D0A0E] focus:outline-none">
+            <option>All Departments</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">Staff Member</label>
+          <select className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#9D0A0E] focus:outline-none">
+            <option>All Staff</option>
+          </select>
+        </div>
+        <button type="button" className="ml-auto rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-medium text-white hover:bg-[#7D080B]">
+          Apply Filters
+        </button>
+      </div>
+
+      {/* AI insights */}
+      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <Sparkles size={16} className="text-[#9D0A0E]" />
+          <h2 className="text-sm font-semibold text-slate-800">AI Performance Insights</h2>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+>>>>>>> superadmin-ui
           <div>
             <p className="text-sm text-slate-700">Observation: Cashier 1 has demonstrated high efficiency this week.</p>
             <p className="mt-1 text-xs text-slate-400">Average transaction time reduced by 15% compared to baseline.</p>
