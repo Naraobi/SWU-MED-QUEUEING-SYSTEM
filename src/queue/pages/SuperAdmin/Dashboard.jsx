@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react';
+
+import { getDashboardAnalytics } from "../../services/backendApi";
+import { auth } from "../../../firebase";
+
 import {
   Building2,
   Users,
@@ -14,14 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-const INSIGHTS = [
-  { icon: Info, text: 'Laboratory has a high number of waiting patients (24).' },
-  { icon: TrendingUp, text: 'Cashier 4 (Pharmacy) is 15% faster than average.' },
-  { icon: AlertTriangle, text: 'High skip rate detected in Payment & Billing between 10 AM - 11 AM.' },
-];
 
-// Placeholder analytics data — needs a real queue/transactions table before this can be live,
-// same as the 6 stat cards were in the old Dashboard.
 const DEPARTMENT_VOLUME = [
   { name: 'Billing', value: 42, max: 50 },
   { name: 'Laboratory', value: 18, max: 50 },
@@ -324,25 +321,107 @@ function CalendarPopup({ value, onChange, onClose }) {
 
 export default function Dashboard() {
   const [departments, setDepartments] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+
+const [resetDepartmentIds, setResetDepartmentIds] = useState(() => {
+  try {
+    const stored = localStorage.getItem('swu_reset_departments');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+});
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Calendar UI state only. Existing dashboard data/functions remain unchanged.
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
 
-  async function fetchDepartments() {
+  const todayDate = startOfDay(new Date());
+
+  const [selectedStartDate, setSelectedStartDate] = useState(todayDate);
+  const [selectedEndDate, setSelectedEndDate] = useState(null);
+
+  const [appliedStartDate, setAppliedStartDate] = useState(todayDate);
+  const [appliedEndDate, setAppliedEndDate] = useState(null);
+
+  const [firebaseUser, setFirebaseUser] = useState(null);
+
+async function fetchDashboardData(
+  startDate = appliedStartDate,
+  endDate = appliedEndDate
+) {
+  try {
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase.from('departments').select('*').order('name', { ascending: true });
-    if (error) setError(error.message);
-    else setDepartments(data);
+
+    const user = auth.currentUser;
+
+    if (!user) {
+      throw new Error("You must be signed in to load the dashboard.");
+    }
+
+    setFirebaseUser(user);
+
+    const start = formatDate(startDate);
+    const end = formatDate(endDate || startDate);
+
+    const data = await getDashboardAnalytics(
+      user,
+      start,
+      end
+    );
+
+    setAnalytics(data);
+
+    /*
+     * Department Overview still needs the department records themselves.
+     * The dashboard analytics endpoint supplies aggregate information,
+     * while the existing department endpoint supplies the table data.
+     */
+    const token = await user.getIdToken();
+
+    const departmentResponse = await fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/departments`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const departmentResult = await departmentResponse.json();
+
+    if (!departmentResponse.ok) {
+      throw new Error(
+        departmentResult.message ||
+          "Failed to load departments."
+      );
+    }
+
+    const departmentData =
+      departmentResult.data || departmentResult;
+
+    setDepartments(
+      Array.isArray(departmentData)
+        ? departmentData
+        : []
+    );
+  } catch (err) {
+    console.error("Dashboard loading error:", err);
+    setError(
+      err.message || "Failed to load dashboard data."
+    );
+  } finally {
     setLoading(false);
   }
+}
 
-  useEffect(() => {
-    fetchDepartments();
-  }, []);
+useEffect(() => {
+  fetchDashboardData();
+}, []);
 
   useEffect(() => {
     const handleOutsideClick = () => setCalendarOpen(false);
@@ -354,7 +433,6 @@ export default function Dashboard() {
     return () => document.removeEventListener('click', handleOutsideClick);
   }, [calendarOpen]);
 
-  const activeCount = departments.filter((d) => d.status === 'active').length;
   const today = new Date().toLocaleDateString(undefined, {
     weekday: 'long',
     year: 'numeric',
@@ -362,151 +440,487 @@ export default function Dashboard() {
     day: 'numeric',
   });
 
-  const STATS = [
-    { label: 'Departments', value: `${activeCount}/${departments.length || 0}`, caption: 'Active departments', icon: Building2 },
-    { label: 'Total Waiting', value: '145', caption: 'Across all departments', icon: Users },
-    { label: 'Average Wait', value: '18m', caption: 'Average wait time', icon: Clock },
-    { label: 'Skipped', value: '16', caption: 'Skipped queuing', icon: RotateCw },
-    { label: 'Completed', value: '255', caption: 'Completed queuing', icon: TrendingUp },
-    { label: 'Terminals', value: '42/64', caption: 'Active terminals', icon: Monitor },
-  ];
+  const departmentStats = analytics?.departments || {
+  active: 0,
+  total: 0,
+};
 
-  const calendarLabel = isSameDay(selectedDate, new Date())
+const queueStats = analytics?.queue || {
+  waiting: 0,
+  averageWaitMinutes: 0,
+  skipped: 0,
+  completed: 0,
+};
+
+const terminalStats = analytics?.terminals || {
+  active: 0,
+  total: 0,
+};
+
+
+const resetDepartmentIdSet = new Set(
+  resetDepartmentIds.map((id) => String(id))
+);
+
+const visibleDepartmentCount = departments.filter(
+  (department) =>
+    !resetDepartmentIdSet.has(
+      String(department.department_id)
+    )
+).length;
+
+
+const STATS = [
+{
+  label: 'Departments',
+  value: `${visibleDepartmentCount}/${departments.length}`,
+  caption: 'Active departments',
+  icon: Building2,
+},
+  {
+    label: 'Total Waiting',
+    value: String(queueStats.waiting),
+    caption: 'Across all departments',
+    icon: Users,
+  },
+  {
+    label: 'Average Wait',
+    value: `${queueStats.averageWaitMinutes}m`,
+    caption: 'Average wait time',
+    icon: Clock,
+  },
+  {
+    label: 'Skipped',
+    value: String(queueStats.skipped),
+    caption: 'Skipped queuing',
+    icon: RotateCw,
+  },
+  {
+    label: 'Completed',
+    value: String(queueStats.completed),
+    caption: 'Completed queuing',
+    icon: TrendingUp,
+  },
+  {
+    label: 'Terminals',
+    value: `${terminalStats.active}/${terminalStats.total}`,
+    caption: 'Active terminals',
+    icon: Monitor,
+  },
+];
+
+const departmentVolume = analytics?.departmentVolume || [];
+
+const queueDistribution = analytics?.queueDistribution || [
+  {
+    label: 'Serving',
+    value: 0,
+    pct: 0,
+    color: '#0B1524',
+  },
+  {
+    label: 'Waiting',
+    value: 0,
+    pct: 0,
+    color: '#94A3B8',
+  },
+  {
+    label: 'Completed',
+    value: 0,
+    pct: 0,
+    color: '#2563EB',
+  },
+];
+
+const insights = analytics?.insights || [];
+
+const calendarLabel = selectedEndDate
+  ? `${selectedStartDate.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    })} - ${selectedEndDate.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })}`
+  : isSameDay(selectedStartDate, new Date())
     ? 'Today'
-    : selectedDate.toLocaleDateString(undefined, {
+    : selectedStartDate.toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
       });
+return (
+  <div>
+    {/* Header */}
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold text-[#1F2937]">
+          System Overview
+        </h1>
 
-  return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-[#1F2937]">System Overview</h1>
-          <p className="text-sm text-[#4B5563]">Today &middot; {today}</p>
-        </div>
+        <p className="text-sm text-[#4B5563]">
+          Today &middot; {today}
+        </p>
+      </div>
 
-        <div className="flex items-center gap-2.5">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setCalendarOpen((open) => !open);
-              }}
-              className="flex min-w-32 items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-[#4B5563] focus:outline-none"
-              aria-expanded={calendarOpen}
-              aria-haspopup="dialog"
-            >
-              <span className="flex items-center gap-2">
-                <CalendarDays size={14} className="text-slate-500" />
-                {calendarLabel}
-              </span>
-              <ChevronDown size={13} className="text-slate-500" />
-            </button>
-
-            {calendarOpen && (
-              <CalendarPopup
-                value={selectedDate}
-                onChange={setSelectedDate}
-                onClose={() => setCalendarOpen(false)}
+      <div className="flex items-center gap-2.5">
+        {/* Calendar */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setCalendarOpen((open) => !open);
+            }}
+            className="flex min-w-32 items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-[#4B5563] focus:outline-none"
+            aria-expanded={calendarOpen}
+            aria-haspopup="dialog"
+          >
+            <span className="flex items-center gap-2">
+              <CalendarDays
+                size={14}
+                className="text-slate-500"
               />
-            )}
-          </div>
+              {calendarLabel}
+            </span>
 
-          <button
-            type="button"
-            className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-[#7D080B]"
-          >
-            Apply Filter
+            <ChevronDown
+              size={13}
+              className="text-slate-500"
+            />
           </button>
 
-          <button
-            type="button"
-            onClick={fetchDepartments}
-            className="flex h-10 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 text-xs font-medium text-[#4B5563] shadow-sm transition-colors hover:bg-[#F8F9FA]"
-          >
-            <RotateCw size={12} /> Refresh
-          </button>
+          {calendarOpen && (
+            <CalendarPopup
+              value={selectedStartDate}
+              onChange={(date) => {
+                setSelectedStartDate(date);
+              }}
+              onClose={() => setCalendarOpen(false)}
+            />
+          )}
         </div>
-      </div>
 
-      {/* Note: Departments card is live (from Supabase). Total Waiting / Average Wait /
-          Counters are still placeholders until a real queue/transactions table exists. */}
-      <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-6">
-        {STATS.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.label} className="min-w-0 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">{stat.label}</p>
-                <Icon size={16} className="text-[#9D0A0E]" />
-              </div>
-              <p className="text-2xl font-bold text-[#1F2937]">{stat.value}</p>
-              <p className="mt-1 text-xs uppercase tracking-wide text-[#4B5563]">{stat.caption}</p>
+        {/* Apply Filter */}
+        <button
+          type="button"
+          onClick={() => {
+            setAppliedStartDate(selectedStartDate);
+            setAppliedEndDate(selectedEndDate);
+
+            fetchDashboardData(
+              selectedStartDate,
+              selectedEndDate
+            );
+
+            setCalendarOpen(false);
+          }}
+          className="rounded-lg bg-[#0B2447] px-4 py-2 text-xs font-medium text-white hover:bg-[#0B2447]/90"
+        >
+          Apply Filter
+        </button>
+
+        {/* Refresh */}
+        <button
+          type="button"
+          onClick={() =>
+            fetchDashboardData(
+              appliedStartDate,
+              appliedEndDate
+            )
+          }
+          className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:bg-white"
+        >
+          <RotateCw size={12} />
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    {/* Statistics */}
+    <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-6">
+      {STATS.map((stat) => {
+        const Icon = stat.icon;
+
+        return (
+          <div
+            key={stat.label}
+            className="min-w-0 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
+                {stat.label}
+              </p>
+
+              <Icon
+                size={16}
+                className="text-[#9D0A0E]"
+              />
             </div>
-          );
-        })}
-      </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="rounded-xl border border-[#F0DADA] bg-[#FBF1F1] p-5 shadow-sm">
-          <div className="flex items-center gap-2">
-            <Sparkles size={16} className="text-[#9D0A0E]" />
-            <h2 className="text-sm font-bold text-[#1F2937]">AI-Assisted Insights</h2>
+            <p className="text-2xl font-bold text-[#1F2937]">
+              {stat.value}
+            </p>
+
+            <p className="mt-1 text-xs uppercase tracking-wide text-[#4B5563]">
+              {stat.caption}
+            </p>
           </div>
+        );
+      })}
+    </div>
 
-          <div className="my-4 border-t border-[#EBD5D5]" />
+    {/* Dashboard Charts / Insights */}
+    <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
 
-          <div className="space-y-4">
-            {INSIGHTS.map((insight, i) => {
-              const Icon = insight.icon;
+      {/* AI-Assisted Insights */}
+      <div className="rounded-xl border border-[#F0DADA] bg-[#FBF1F1] p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Sparkles
+            size={16}
+            className="text-[#9D0A0E]"
+          />
+
+          <h2 className="text-sm font-bold text-[#1F2937]">
+            AI-Assisted Insights
+          </h2>
+        </div>
+
+        <div className="my-4 border-t border-[#EBD5D5]" />
+
+        <div className="space-y-4">
+          {insights.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No insights available for the selected period.
+            </p>
+          ) : (
+            insights.map((insight, i) => {
+              const Icon =
+                insight.icon === "trending"
+                  ? TrendingUp
+                  : insight.icon === "alert"
+                    ? AlertTriangle
+                    : Info;
+
               return (
-                <div key={i} className="flex gap-2.5 text-sm text-[#4B5563]">
-                  <Icon size={16} className="mt-0.5 shrink-0 text-[#B34C4C]" />
+                <div
+                  key={`${insight.type}-${i}`}
+                  className="flex gap-2.5 text-sm text-slate-600"
+                >
+                  <Icon
+                    size={16}
+                    className="mt-0.5 shrink-0 text-slate-400"
+                  />
+
                   <p>{insight.text}</p>
                 </div>
               );
-            })}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-bold text-[#1F2937]">Department Volume</h2>
-          <div className="space-y-4">
-            {DEPARTMENT_VOLUME.map((dept) => (
-              <div key={dept.name}>
-                <div className="mb-1 flex items-center justify-between text-xs">
-                  <span className="font-semibold text-[#1F2937]">{dept.name}</span>
-                  <span className="text-[#4B5563]">{dept.value}</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-[#F1F3F5]">
-                  <div
-                    className="h-2 rounded-full bg-[#9D0A0E]"
-                    style={{ width: `${(dept.value / dept.max) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-bold text-[#1F2937]">Queue Status Distribution</h2>
-          <div className="flex items-center gap-6">
-            <DonutChart data={QUEUE_DISTRIBUTION} />
-            <div className="space-y-2 text-xs">
-              {QUEUE_DISTRIBUTION.map((slice) => (
-                <div key={slice.label} className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: slice.color }} />
-                  <span className="text-[#4B5563]">{slice.label} ({slice.pct}%)</span>
-                </div>
-              ))}
-            </div>
-          </div>
+            })
+          )}
         </div>
       </div>
+
+      {/* Department Volume */}
+      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-sm font-bold text-[#1F2937]">
+          Department Volume
+        </h2>
+
+        <div className="space-y-4">
+          {departmentVolume.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No queue volume recorded for the selected period.
+            </p>
+          ) : (
+            departmentVolume.slice(0, 6).map((dept) => {
+              const maxVolume = Math.max(
+                ...departmentVolume.map(
+                  (item) => item.value
+                ),
+                1
+              );
+
+              const percentage = Math.min(
+                100,
+                (dept.value / maxVolume) * 100
+              );
+
+              return (
+                <div key={dept.department_id}>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className="font-medium text-slate-700">
+                      {dept.name}
+                    </span>
+
+                    <span className="text-slate-400">
+                      {dept.value}
+                    </span>
+                  </div>
+
+                  <div className="h-2 w-full rounded-full bg-slate-100">
+                    <div
+                      className="h-2 rounded-full bg-[#0B2447]"
+                      style={{
+                        width: `${percentage}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Queue Status Distribution */}
+      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-sm font-bold text-[#1F2937]">
+          Queue Status Distribution
+        </h2>
+
+      <div className="flex items-center gap-6">
+  <DonutChart data={queueDistribution} />
+
+  <div className="space-y-2 text-xs">
+    {queueDistribution.map((slice) => (
+      <div
+        key={slice.label}
+        className="flex items-center gap-2"
+      >
+        <span
+          className="h-2.5 w-2.5 rounded-full"
+          style={{
+            backgroundColor: slice.color,
+          }}
+        />
+
+        <span className="text-slate-600">
+          {slice.label} ({slice.pct}%)
+        </span>
+      </div>
+    ))}
+  </div>
+</div>
+</div>
+</div>
+
+    {/* Department Overview */}
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <h2 className="text-sm font-semibold text-slate-800">
+          Department Overview
+        </h2>
+
+        <span className="text-xs text-slate-400">
+          Live from Department Management
+        </span>
+      </div>
+
+      {error && (
+        <div className="mx-5 my-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+            <th className="px-5 py-2.5 font-medium">
+              Department
+            </th>
+
+            <th className="px-5 py-2.5 font-medium">
+              Classification
+            </th>
+
+            <th className="px-5 py-2.5 font-medium">
+              Location
+            </th>
+
+            <th className="px-5 py-2.5 font-medium">
+              Prefix
+            </th>
+
+            <th className="px-5 py-2.5 font-medium">
+              Status
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {loading && (
+            <tr>
+              <td
+                colSpan={5}
+                className="px-5 py-8 text-center text-sm text-slate-400"
+              >
+                Loading departments...
+              </td>
+            </tr>
+          )}
+
+          {!loading &&
+            departments.length === 0 &&
+            !error && (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-5 py-8 text-center text-sm text-slate-400"
+                >
+                  No departments yet.
+                </td>
+              </tr>
+            )}
+
+          {!loading &&
+            departments.map((dept) => (
+              <tr
+                key={dept.department_id}
+                className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60"
+              >
+                <td className="px-5 py-3 font-medium text-slate-700">
+                  {dept.name}
+                </td>
+
+                <td className="px-5 py-3 text-slate-500">
+                  {dept.classification}
+                </td>
+
+                <td className="px-5 py-3 text-slate-600">
+                  {dept.location}
+                </td>
+
+                <td className="px-5 py-3 text-slate-600">
+                  {dept.prefix}
+                </td>
+
+                <td className="px-5 py-3">
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-medium ${
+                      dept.status === "active"
+                        ? "text-emerald-600"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        dept.status === "active"
+                          ? "bg-emerald-500"
+                          : "bg-slate-300"
+                      }`}
+                    />
+
+                    {dept.status === "active"
+                      ? "Active"
+                      : "Inactive"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
     </div>
-  );
+  </div>
+);
 }

@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { auth } from "../../../firebase";
+
 import {
   Bell,
   CheckCircle2,
   CircleAlert,
+  Clock3,
   Gauge,
   IdCard,
   Info,
@@ -25,8 +28,8 @@ import {
   getUsers,
   getDepartments,
   getTerminals,
-} from '../../services/backendApi';
-
+  getDashboardAnalytics,
+} from "../../services/backendApi";
 import { useAuth } from '../../services/Authcontext';
 
 import { DateRangePicker, StatCard } from './shared';
@@ -320,62 +323,75 @@ export default function AdminDashboard() {
   // ===================================================
   // LOAD QUEUE + NOTIFICATIONS
   // ===================================================
+const loadDashboard = async () => {
+  try {
+    setRefreshing(true);
+    setError("");
 
-  async function loadDashboard() {
-    setError(null);
-
-    try {
-      const {
-        start,
-        end,
-      } = dateRangeRef.current;
-
-      const [
-        state,
-        notifs,
-      ] = await Promise.all([
-        fetchQueueState(
-          departmentPrefix,
-          {
-            start: toDateKey(start),
-            end: toDateKey(end),
-          }
-        ),
-
-        fetchNotifications(
-          departmentPrefix
-        ),
-      ]);
-
-      setQueueState(
-        state || {
-          waitingQueue: [],
-          currentlyServing: null,
-          stats: {
-            waiting: 0,
-            completed: 0,
-            skipped: 0,
-          },
-        }
-      );
-
-      setNotifications(
-        notifs || []
-      );
-    } catch (err) {
-      console.error(
-        'Dashboard data fetch failed:',
-        err
-      );
-
-      setError(
-        err.message ||
-          'Failed to load dashboard data.'
-      );
-    } finally {
-      setLoading(false);
+    if (!user) {
+      throw new Error("Authenticated user is required.");
     }
+
+  const selectedRange = dateRangeRef.current;
+
+const startDate = toDateKey(
+  selectedRange.start
+);
+
+const endDate = toDateKey(
+  selectedRange.end
+);
+
+    const firebaseUser = auth.currentUser;
+
+    if (!firebaseUser) {
+      throw new Error(
+        "Firebase authentication session is not available."
+      );
+    }
+
+    const analytics = await getDashboardAnalytics(
+      firebaseUser,
+      startDate,
+      endDate
+    );
+
+    setQueueState((previous) => ({
+      ...previous,
+      waitingQueue: [],
+      currentlyServing: null,
+      stats: {
+        waiting: analytics?.queue?.waiting ?? 0,
+        averageWait:
+          analytics?.queue?.averageWaitMinutes ?? 0,
+        completed: analytics?.queue?.completed ?? 0,
+        skipped: analytics?.queue?.skipped ?? 0,
+        terminalStats: {
+          active: analytics?.terminals?.active ?? 0,
+          total: analytics?.terminals?.total ?? 0,
+        },
+      },
+    }));
+
+    const notificationData =
+      await fetchNotifications(departmentPrefix);
+
+    setNotifications(notificationData || []);
+  } catch (err) {
+    console.error(
+      "Admin dashboard load error:",
+      err
+    );
+
+    setError(
+      err?.message ||
+        "Failed to load dashboard data."
+    );
+  } finally {
+    setRefreshing(false);
+    setLoading(false);
   }
+};
 
   // ===================================================
   // LOAD STAFF COUNT
@@ -393,28 +409,33 @@ export default function AdminDashboard() {
   // MySQL / Firebase
   //
   // It no longer queries Supabase.
-  //
-
   async function loadStaffCount() {
-    setStaffLoading(true);
+  setStaffLoading(true);
 
-    try {
-      const [users, departments] =
-        await Promise.all([
-          getUsers(),
-          getDepartments(),
-        ]);
+  try {
+    const firebaseUser = auth.currentUser;
 
-      const userList =
-        Array.isArray(users)
-          ? users
-          : [];
+    if (!firebaseUser) {
+      throw new Error(
+        "Firebase authentication session is not available."
+      );
+    }
 
-      const departmentList =
-        Array.isArray(departments)
-          ? departments
-          : [];
+    const [users, departments] =
+      await Promise.all([
+        getUsers(firebaseUser),
+        getDepartments(),
+      ]);
 
+    const userList =
+      Array.isArray(users)
+        ? users
+        : [];
+
+    const departmentList =
+      Array.isArray(departments)
+        ? departments
+        : [];
       // -----------------------------------------------
       // Find user's department
       // -----------------------------------------------
@@ -627,10 +648,11 @@ export default function AdminDashboard() {
     // department prefix / user scope.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    departmentPrefix,
-    currentDepartmentId,
-    isSuperadmin,
-  ]);
+  departmentPrefix,
+  currentDepartmentId,
+  isSuperadmin,
+  user,
+]);
 
   // ===================================================
   // MANUAL REFRESH / FILTER
@@ -862,11 +884,11 @@ export default function AdminDashboard() {
           icon={Users}
         />
 
-        <StatCard
-          label={t('common.stat.averageWait')}
-          value="18m"
-          caption={t('dashboard.stat.averageWaitTime')}
-          icon={Timer}
+              <StatCard
+          label="Average Wait"
+          value={`${stats.averageWait || 0}m`}
+          caption="Average patient wait"
+          icon={Clock3}
         />
 
         <StatCard
@@ -906,16 +928,12 @@ export default function AdminDashboard() {
           icon={IdCard}
         />
 
-        <StatCard
-          label={t('common.stat.terminal')}
-          value={
-            terminalLoading
-              ? '…'
-              : terminalLabel
-          }
-          caption={t('common.stat.activeTerminals')}
-          icon={Monitor}
-        />
+      <StatCard
+        label="Terminal"
+        value={`${stats.terminalStats?.active || 0}/${stats.terminalStats?.total || 0}`}
+        caption="Active terminals / total"
+        icon={Monitor}
+      />
       </div>
 
       {/* =================================================

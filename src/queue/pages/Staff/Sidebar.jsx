@@ -24,20 +24,20 @@ export default function Sidebar() {
   }, [user, navigate]);
 
   return (
-    <aside className="staff-sidebar sticky top-0 flex h-screen flex-shrink-0 flex-col border-r border-slate-200 bg-white z-40">
-      <div className="flex h-[74px] flex-col items-center justify-center border-b border-slate-200 px-3 text-center">
+    <aside className="staff-sidebar sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white z-40" style={{ fontFamily: 'Inter, sans-serif' }}>
+      <div className="flex h-[74px] flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
         <img src={logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
-        <p className="mt-0.5 text-[9px] font-medium text-slate-400">Queue Terminal</p>
+        <p className="text-xs text-slate-400">Queue Terminal</p>
       </div>
 
-      <nav className="flex-1 space-y-1 px-2 py-7">
+      <nav className="flex-1 space-y-0.5 px-3 py-4">
         {visibleLinks.map(({ key, to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/staff'}
             className={({ isActive }) =>
-              `flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-[11px] font-bold uppercase tracking-wide transition ${
+              `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                 isActive
                   ? 'bg-[#851010] text-white shadow-sm'
                   : 'text-slate-600 hover:bg-slate-50'
@@ -50,11 +50,11 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-slate-200 px-3 py-4">
+      <div className="border-t border-slate-100 p-3">
         <button
           type="button"
           onClick={() => setShowLogout(true)}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50 cursor-pointer"
+          className="flex w-full items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700 cursor-pointer"
         >
           <LogoutIcon />
           <span>Logout</span>

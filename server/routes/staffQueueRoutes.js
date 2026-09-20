@@ -171,6 +171,7 @@ async function getQueueState(
       qt.service_began_at,
       qt.completed_at,
       qt.is_priority,
+      qt.counter_id,
 
       p.transaction_id,
       p.patient_number,
@@ -275,7 +276,17 @@ async function getQueueState(
           THEN 1
           ELSE 0
         END
-      ) AS skipped
+      ) AS skipped,
+
+      AVG(
+        CASE
+          WHEN qt.status = 'completed'
+            AND qt.service_began_at IS NOT NULL
+            AND qt.completed_at IS NOT NULL
+          THEN TIMESTAMPDIFF(SECOND, qt.service_began_at, qt.completed_at) / 60
+          ELSE NULL
+        END
+      ) AS averageServiceMinutes
 
     FROM queue_ticket qt
 
@@ -303,6 +314,10 @@ async function getQueueState(
 
     skipped: Number(
       statsRows[0]?.skipped || 0
+    ),
+
+    averageServiceMinutes: Number(
+      statsRows[0]?.averageServiceMinutes || 0
     ),
   };
 
@@ -456,6 +471,13 @@ router.post(
         departmentPrefix,
       } = req.params;
 
+      // Which physical terminal/counter is calling this patient, so
+      // Admin's Queue Management can later show what each terminal is
+      // actually serving instead of just one department-wide value.
+      // Optional: older staff sessions or callers that don't send it
+      // simply leave the ticket's counter_id null.
+      const { terminalId } = req.body || {};
+
       await connection.beginTransaction();
 
       const [activeRows] =
@@ -505,6 +527,7 @@ router.post(
             qt.service_began_at,
             qt.completed_at,
             qt.is_priority,
+            qt.counter_id,
 
             p.transaction_id,
             p.patient_number,
@@ -555,11 +578,12 @@ router.post(
 
         SET
           status = 'called',
-          called_at = NOW()
+          called_at = NOW(),
+          counter_id = ?
 
         WHERE queue_id = ?
         `,
-        [nextPatient.queue_id]
+        [terminalId || null, nextPatient.queue_id]
       );
 
       await connection.commit();
@@ -608,6 +632,9 @@ router.post(
             null,
 
           secondsElapsed: 0,
+
+          counter_id:
+            terminalId || null,
         },
       });
     } catch (error) {
@@ -664,6 +691,7 @@ router.post(
             qt.service_began_at,
             qt.completed_at,
             qt.is_priority,
+            qt.counter_id,
 
             p.transaction_id,
             p.patient_number,
@@ -728,6 +756,7 @@ router.post(
             qt.service_began_at,
             qt.completed_at,
             qt.is_priority,
+            qt.counter_id,
 
             p.transaction_id,
             p.patient_number,
@@ -905,6 +934,7 @@ router.post(
             qt.service_began_at,
             qt.completed_at,
             qt.is_priority,
+            qt.counter_id,
 
             p.transaction_id,
             p.patient_number,

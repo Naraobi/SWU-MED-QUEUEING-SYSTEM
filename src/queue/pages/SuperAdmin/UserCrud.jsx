@@ -11,7 +11,7 @@ import {
   Lock,
   Check,
 } from 'lucide-react';
-
+import { auth } from '../../../firebase';
 import {
   getUsers,
   createUser,
@@ -19,7 +19,9 @@ import {
   deleteUser,
   getRoles,
   getKiosks,
+  getTerminals,
   getDepartments,
+  validateSecurityPin,
 } from '../../services/backendApi';
 
 
@@ -1000,16 +1002,32 @@ export default function UserCrud({
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [kiosks, setKiosks] = useState([]);
+  const [terminals, setTerminals] = useState([]);
   const [departments, setDepartments] = useState([]);
+
+  const [resetUserIds, setResetUserIds] = useState(() => {
+  try {
+    const stored = localStorage.getItem('swu_reset_users');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+});
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  const [
-    duplicatePopup,
-    setDuplicatePopup,
-  ] = useState(false);
+  const [ duplicatePopup, setDuplicatePopup,  ] = useState(false);
+
+const [selectedResetIds, setSelectedResetIds] = useState([]);
+const [showResetSelection, setShowResetSelection] =
+  useState(false);
+const [resettingIds, setResettingIds] = useState([]);
+const [pinInput, setPinInput] = useState('');
+const [showResetPin, setShowResetPin] = useState(false);
+const [verifyingResetPin, setVerifyingResetPin] =
+  useState(false);
 
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1355,15 +1373,27 @@ export default function UserCrud({
       const [
         roleData,
         kioskData,
+        terminalData,
         departmentData,
       ] = await Promise.all([
         fetchRoles(),
         fetchKiosks(),
+        getTerminals(),
         fetchDepartments(),
       ]);
 
       setRoles(roleData);
       setKiosks(kioskData);
+      const terminalRows =
+        terminalData?.data ??
+        terminalData ??
+        [];
+
+      setTerminals(
+        Array.isArray(terminalRows)
+          ? terminalRows
+          : []
+      );
       setDepartments(
         departmentData
       );
@@ -1515,7 +1545,12 @@ export default function UserCrud({
     loadData();
   }, []);
 
-
+    useEffect(() => {
+      localStorage.setItem(
+        'swu_reset_users',
+        JSON.stringify(resetUserIds)
+      );
+    }, [resetUserIds]);
   /* =======================================================
      DEPARTMENTS FOR SELECTED KIOSK
   ======================================================= */
@@ -2165,57 +2200,169 @@ export default function UserCrud({
      SUMMARY
   ========================================================= */
 
-  const normalizedRoles =
-    users.map(
-      (user) =>
-        normalizeRole(
-          user.role
-        )
-          .toLowerCase()
-          .replace(
-            /[\s\-_]+/g,
-            ''
-          )
+function handleResetSelectionContinue() {
+  if (selectedResetIds.length === 0) {
+    return;
+  }
+
+  setResettingIds(selectedResetIds);
+  setPinInput('');
+  setShowResetSelection(false);
+  setShowResetPin(true);
+  setError(null);
+  setSuccess('');
+}
+
+async function handleResetPinConfirm() {
+  if (resettingIds.length === 0) {
+    return;
+  }
+
+  if (pinInput.length !== 6) {
+    return;
+  }
+
+  const firebaseUser = auth.currentUser;
+
+  if (!firebaseUser) {
+    setError(
+      'Your authentication session is unavailable. Please log in again.'
+    );
+    return;
+  }
+
+  setVerifyingResetPin(true);
+  setError(null);
+
+  try {
+    await validateSecurityPin(
+      firebaseUser,
+      pinInput
     );
 
-  const superAdminCount =
-    normalizedRoles.filter(
-      (role) =>
-        role === 'superadmin'
-    ).length;
+    handleReset();
+  } catch (error) {
+    console.error(
+      'User reset Security PIN verification error:',
+      error
+    );
 
-  const deptAdminCount =
-    normalizedRoles.filter(
-      (role) =>
-        role === 'admin' ||
-        role === 'deptadmin' ||
-        role === 'departmentadmin'
-    ).length;
+    setError(
+      error?.message ||
+        'Invalid Security PIN. Please try again.'
+    );
 
-  const staffCount =
-    normalizedRoles.filter(
-      (role) =>
-        role === 'staff'
-    ).length;
+    setPinInput('');
+  } finally {
+    setVerifyingResetPin(false);
+  }
+}
 
-  const activeCount =
-    users.filter(
-      (user) =>
-        user.status === 'Active'
-    ).length;
+function handleReset() {
+  if (resettingIds.length === 0) {
+    return;
+  }
 
+  const selectedUsers = users.filter(
+    (user) =>
+      resettingIds.some(
+        (id) =>
+          String(id) ===
+          String(user.user_id ?? user.id)
+      )
+  );
 
-  /* =========================================================
-     SEARCH
-  ========================================================= */
+  if (selectedUsers.length === 0) {
+    setError('No selected users were found.');
+    return;
+  }
+
+  setResetUserIds((currentIds) => {
+    const newIds = selectedUsers.map(
+      (user) => user.user_id ?? user.id
+    );
+
+    return Array.from(
+      new Set([
+        ...currentIds,
+        ...newIds,
+      ])
+    );
+  });
+
+  setShowResetPin(false);
+  setResettingIds([]);
+  setSelectedResetIds([]);
+  setPinInput('');
+  setError(null);
+
+  setSuccess(
+    selectedUsers.length === 1
+      ? 'User has been reset.'
+      : `${selectedUsers.length} users have been reset.`
+  );
+}
+
 
   useEffect(() => {
     setPage(1);
   }, [searchQuery]);
 
+const visibleUsers = users.filter(
+  (user) =>
+    !resetUserIds.some(
+      (id) =>
+        String(id) ===
+        String(user.user_id ?? user.id)
+    )
+);
 
-  const filteredUsers =
-    users.filter((user) => {
+const normalizedRoles =
+  visibleUsers.map(
+    (user) =>
+      normalizeRole(
+        user.role
+      )
+        .toLowerCase()
+        .replace(
+          /[\s\-_]+/g,
+          ''
+        )
+  );
+
+const superAdminCount =
+  normalizedRoles.filter(
+    (role) =>
+      role === 'superadmin'
+  ).length;
+
+const deptAdminCount =
+  normalizedRoles.filter(
+    (role) =>
+      role === 'admin' ||
+      role === 'deptadmin' ||
+      role === 'departmentadmin'
+  ).length;
+
+const staffCount =
+  normalizedRoles.filter(
+    (role) =>
+      role === 'staff'
+  ).length;
+
+const activeCount =
+  visibleUsers.filter(
+    (user) =>
+      user.status === 'Active'
+  ).length;
+
+  /* =========================================================
+     SEARCH
+  ========================================================= */
+
+
+
+const filteredUsers = visibleUsers.filter((user) => {
       const fullName =
         `${user.first_name} ${user.last_name}`
           .toLowerCase();
@@ -2330,7 +2477,19 @@ export default function UserCrud({
           </p>
 
         </div>
-
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedResetIds([]);
+              setShowResetSelection(true);
+              setError(null);
+              setSuccess('');
+            }}
+            className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition-colors hover:bg-[#F8F9FA]"
+          >
+            Reset Users
+          </button>
 
         <button
           type="button"
@@ -2343,6 +2502,8 @@ export default function UserCrud({
 
           Add User
         </button>
+
+      </div>
 
       </div>
 
@@ -2399,7 +2560,11 @@ export default function UserCrud({
 
         <SummaryCard
           title="TERMINAL"
-          count={42}
+          count={terminals.filter(
+            (terminal) =>
+              String(terminal.status || '').toLowerCase() ===
+              'active'
+          ).length}
           subtitle="ACTIVE TERMINAL"
           icon={<Monitor size={18} />}
         />
@@ -2516,7 +2681,6 @@ export default function UserCrud({
                       }
                       className="cursor-pointer transition-colors hover:bg-[#F8F9FA]"
                     >
-
                       <td className="px-6 py-4 font-semibold text-[#1F2937]">
                         {user.first_name}{' '}
                         {user.last_name}
@@ -2734,16 +2898,39 @@ export default function UserCrud({
           setShowDeletePrompt={setShowDeletePrompt}
           onDeleteUser={handleDeleteUser}
         />
-      )}
+           )}
 
+      <ResetUserSelectionModal
+        open={showResetSelection}
+        onClose={() => {
+          setShowResetSelection(false);
+          setSelectedResetIds([]);
+        }}
+        users={visibleUsers}
+        selectedResetIds={selectedResetIds}
+        setSelectedResetIds={setSelectedResetIds}
+        onContinue={handleResetSelectionContinue}
+      />
+
+           <ResetPinModal
+        open={showResetPin}
+        onClose={() => {
+          if (verifyingResetPin) {
+            return;
+          }
+
+          setShowResetPin(false);
+          setResettingIds([]);
+          setPinInput('');
+        }}
+        onConfirm={handleResetPinConfirm}
+        pinInput={pinInput}
+        setPinInput={setPinInput}
+        verifying={verifyingResetPin}
+      />
     </div>
   );
 }
-
-
-/* =========================================================
-   SUMMARY CARD
-========================================================= */
 
 function SummaryCard({
   title,
@@ -2753,22 +2940,17 @@ function SummaryCard({
 }) {
   return (
     <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
-
       <div className="flex items-center justify-between">
-
         <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
           {title}
         </span>
 
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
+        <span className="text-[#4B5563]">
           {icon}
         </span>
-
       </div>
 
-
       <div className="mt-3">
-
         <p className="text-2xl font-bold text-[#1F2937]">
           {count}
         </p>
@@ -2776,9 +2958,267 @@ function SummaryCard({
         <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
           {subtitle}
         </p>
-
       </div>
+    </div>
+  );
+}
 
+
+function ResetUserSelectionModal({
+  open,
+  onClose,
+  users,
+  selectedResetIds,
+  setSelectedResetIds,
+  onContinue,
+}) {
+  if (!open) {
+    return null;
+  }
+
+  function toggleUser(userId) {
+    setSelectedResetIds((currentIds) => {
+      if (currentIds.some((id) => String(id) === String(userId))) {
+        return currentIds.filter(
+          (id) => String(id) !== String(userId)
+        );
+      }
+
+      return [...currentIds, userId];
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedResetIds.length === users.length) {
+      setSelectedResetIds([]);
+      return;
+    }
+
+    setSelectedResetIds(
+      users.map((user) => user.user_id ?? user.id)
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-[#1F2937]">
+              Reset Users
+            </h2>
+
+            <p className="mt-1 text-xs text-[#4B5563]">
+              Select the users you want to reset from User Management.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded text-[#9CA3AF] transition hover:text-[#1F2937]"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="max-h-80 overflow-y-auto px-6 py-5">
+          {users.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="mb-3 flex w-full items-center justify-between rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3 text-left transition hover:bg-[#F1F3F5]"
+            >
+              <span className="text-sm font-semibold text-[#1F2937]">
+                {selectedResetIds.length === users.length
+                  ? 'Unselect All'
+                  : 'Select All'}
+              </span>
+
+              <div
+                className={`flex h-5 w-5 items-center justify-center rounded border ${
+                  selectedResetIds.length === users.length
+                    ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+                    : 'border-[#D1D5DB] bg-white'
+                }`}
+              >
+                {selectedResetIds.length === users.length && (
+                  <Check size={13} />
+                )}
+              </div>
+            </button>
+          )}
+
+          {users.length === 0 ? (
+            <div className="rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-6 text-center text-sm text-[#4B5563]">
+              No users are available to reset.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {users.map((user) => {
+                const userId = user.user_id ?? user.id;
+                const isSelected = selectedResetIds.some(
+                  (id) => String(id) === String(userId)
+                );
+
+                return (
+                  <button
+                    key={userId}
+                    type="button"
+                    onClick={() => toggleUser(userId)}
+                    className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
+                      isSelected
+                        ? 'border-[#9D0A0E] bg-[#FBF1F1]'
+                        : 'border-[#E5E7EB] bg-white hover:bg-[#F8F9FA]'
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-[#1F2937]">
+                        {user.first_name} {user.last_name}
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-[#4B5563]">
+                        {user.email}
+                      </p>
+                    </div>
+
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded border ${
+                        isSelected
+                          ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+                          : 'border-[#D1D5DB] bg-white'
+                      }`}
+                    >
+                      {isSelected && <Check size={13} />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+          <span className="text-xs text-[#4B5563]">
+            {selectedResetIds.length} user
+            {selectedResetIds.length === 1 ? '' : 's'} selected
+          </span>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={onContinue}
+              disabled={selectedResetIds.length === 0}
+              className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// =========================================================
+// RESET PIN MODAL
+// =========================================================
+
+function ResetPinModal({
+  open,
+  onClose,
+  onConfirm,
+  pinInput,
+  setPinInput,
+  verifying,
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
+
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
+          <h2 className="text-lg font-bold text-[#1F2937]">
+            Reset Users
+          </h2>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[#4B5563] transition hover:text-[#1F2937]"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-6 py-5">
+          <div>
+            <p className="text-sm text-[#4B5563]">
+              Enter the administrator PIN to reset the selected users.
+            </p>
+
+            <p className="mt-1 text-xs text-[#4B5563]">
+              This action hides the selected users from User Management.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-[#4B5563]">
+              Security PIN
+            </label>
+
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pinInput}
+              onChange={(e) =>
+                setPinInput(e.target.value.replace(/\D/g, ''))
+              }
+              placeholder="Enter 6-digit PIN"
+              className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+              disabled={verifying}
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 rounded-b-xl border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={verifying}
+            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={verifying || pinInput.length !== 6}
+            className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {verifying ? 'Verifying...' : 'Confirm'}
+          </button>
+
+        </div>
+      </div>
     </div>
   );
 }

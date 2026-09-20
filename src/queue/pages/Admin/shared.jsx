@@ -292,7 +292,7 @@ export function DateRangePicker({
                           date
                         )
                       }
-                      className={`relative flex h-8 items-center justify-center text-[11px] ${
+                      className={`group relative flex h-8 items-center justify-center text-[11px] ${
                         inMonth
                           ? 'text-[#1F2937]'
                           : 'text-slate-300'
@@ -311,10 +311,10 @@ export function DateRangePicker({
                       )}
 
                       <span
-                        className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full font-semibold ${
+                        className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full font-semibold transition ${
                           isStart || isEnd
                             ? 'bg-[#9D0A0E] text-white'
-                            : ''
+                            : 'group-hover:bg-slate-100'
                         }`}
                       >
                         {date.getDate()}

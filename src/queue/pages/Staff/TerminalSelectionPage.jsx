@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Info, Monitor, RefreshCw, ShieldAlert } from 'lucide-react'
 
 import { useAuth } from '../../services/Authcontext.jsx'
@@ -114,7 +115,8 @@ function getTerminalStatusMeta(terminal, staffId) {
 // =====================================================
 
 export default function TerminalSelectModal({ departmentName, onConfirm }) {
-  const { user, logout } = useAuth()
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
 
   const [terminals, setTerminals] = useState([])
   const [selectedId, setSelectedId] = useState('')
@@ -254,6 +256,15 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
   }
 
   // ===================================================
+  // LOGOUT
+  // ===================================================
+
+  const handleLogout = async () => {
+    await signOut()
+    navigate('/superadmin/login', { replace: true })
+  }
+
+  // ===================================================
   // CONFIRM / ASSIGN
   // ===================================================
 
@@ -305,10 +316,10 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">
 
         {/* HEADER */}
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-800">
               Select Active Terminal
@@ -320,7 +331,7 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
             </p>
           </div>
 
-          <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+          <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
             Start Station
           </span>
         </div>
@@ -360,7 +371,7 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
             </p>
           </div>
         ) : (
-          <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
             {filteredTerminals.map((terminal) => {
               const terminalId = String(
                 terminal.counter_id ?? terminal.terminal_id ?? terminal.id
@@ -385,7 +396,7 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
                   type="button"
                   onClick={() => chooseTerminal(terminal)}
                   disabled={!meta.selectable || saving}
-                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition-all ${
+                  className={`flex w-full items-center justify-between rounded-md border px-3 py-2.5 text-left transition-all ${
                     isSelected
                       ? 'border-[#c62828] bg-red-50/40'
                       : meta.selectable
@@ -394,7 +405,7 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-500">
                       <Monitor size={16} />
                     </span>
 
@@ -409,7 +420,7 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
                   </div>
 
                   <span
-                    className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold ${meta.pillClass}`}
+                    className={`shrink-0 rounded-md px-2 py-1 text-[9px] font-bold ${meta.pillClass}`}
                   >
                     {meta.label}
                   </span>
@@ -420,7 +431,7 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
         )}
 
         {/* INFO NOTE */}
-        <div className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-[10px] text-slate-500">
+        <div className="mt-3 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-[10px] text-slate-500">
           <Info size={13} className="mt-0.5 shrink-0" />
           <span>
             Logging into this terminal routes new patient tickets directly to
@@ -429,14 +440,14 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
         </div>
 
         {/* FOOTER */}
-        <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4">
-          <button
-            type="button"
-            onClick={() => logout?.()}
-            className="text-xs font-semibold text-[#c62828] hover:underline"
-          >
-            [→ Logout
-          </button>
+        <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3">
+      <button
+  type="button"
+  onClick={handleLogout}
+  className="rounded-md border px-3 py-2 text-xs font-semibold text-[#334155] transition hover:bg-slate-50"
+>
+  [→ Logout
+</button>
 
           <button
             type="button"

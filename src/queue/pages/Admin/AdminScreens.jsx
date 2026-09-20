@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState} from 'react';
 import {
   Camera,
   Check,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
+  LockKeyhole,
   Clock3,
   IdCard,
   Info,
@@ -15,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
   Sun,
   Timer,
   Trash2,
@@ -25,6 +27,8 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+
+import { auth } from '../../../firebase';
 
 import { useAuth } from '../../services/Authcontext';
 import { useQueue } from '../../context/QueueContext';
@@ -38,6 +42,7 @@ import {
   updateTerminal,
   deleteTerminal,
   updateDepartment,
+  getDashboardAnalytics,
 } from '../../services/backendApi';
 
 import { fetchNotifications, fetchQueueState } from '../../services/api';
@@ -196,6 +201,8 @@ export function QueueManagementPage() {
 
   const [terminalLabel, setTerminalLabel] = useState('--');
   const [terminalLoading, setTerminalLoading] = useState(true);
+  const [departmentTerminals, setDepartmentTerminals] = useState([]);
+  const [selectedTerminalId, setSelectedTerminalId] = useState('all');
 
   async function loadTerminalStats() {
     setTerminalLoading(true);
@@ -219,9 +226,11 @@ export function QueueManagementPage() {
       ).length;
 
       setTerminalLabel(`${active}/${departmentTerminals.length}`);
+      setDepartmentTerminals(departmentTerminals);
     } catch (err) {
       console.error('Failed to load terminal stats:', err);
       setTerminalLabel('--');
+      setDepartmentTerminals([]);
     } finally {
       setTerminalLoading(false);
     }
@@ -281,6 +290,28 @@ export function QueueManagementPage() {
 
   const current = currentlyServing || null;
 
+  // Only one ticket can be actively served per department at a time
+  // today, so "switching terminals" means: show that one ticket only
+  // when it was actually called from the selected terminal, and show
+  // an idle state for every other terminal.
+  const displayedCurrent =
+    selectedTerminalId === 'all' || !current
+      ? current
+      : String(current.counterId) === String(selectedTerminalId)
+        ? current
+        : null;
+
+  const selectedTerminalRecord =
+    selectedTerminalId === 'all'
+      ? null
+      : departmentTerminals.find(
+          (terminal) => String(terminal.counter_id) === String(selectedTerminalId)
+        );
+
+  const selectedTerminalLabel = selectedTerminalRecord
+    ? selectedTerminalRecord.prefix || `Terminal ${selectedTerminalRecord.counter_number}`
+    : null;
+
   const totalWaiting = stats?.waiting || waitingQueue.length || 0;
 
   const QUEUE_PAGE_SIZE = 10;
@@ -328,22 +359,38 @@ export function QueueManagementPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <section className="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold text-[#1F2937]">{t('queue.currentStatus')}</h2>
-            <span className="text-[10px] font-semibold text-slate-400">{t('common.today')}</span>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedTerminalId}
+                onChange={(event) => setSelectedTerminalId(event.target.value)}
+                className="h-7 rounded-md border border-[#E5E7EB] bg-white px-2 text-[10px] font-semibold text-[#4B5563] outline-none focus:border-[#9D0A0E]"
+              >
+                <option value="all">All Terminals</option>
+                {departmentTerminals.map((terminal) => (
+                  <option key={terminal.counter_id} value={terminal.counter_id}>
+                    {terminal.prefix || `Terminal ${terminal.counter_number}`}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] font-semibold text-slate-400">{t('common.today')}</span>
+            </div>
           </div>
 
-          <div className="flex flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('queue.nowServing')}</p>
-            <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : current?.id || '--'}</p>
+            <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : displayedCurrent?.id || '--'}</p>
             <p className="mt-2 text-xs text-[#4B5563]">
-              {current
-                ? t('queue.terminalService', { terminal: current.terminal ?? '--', service: current.service || 'Service' }) +
-                  (current.secondsElapsed
-                    ? t('queue.servingFor', { minutes: Math.floor(current.secondsElapsed / 60) })
+              {displayedCurrent
+                ? t('queue.terminalService', { terminal: displayedCurrent.terminal ?? '--', service: displayedCurrent.service || 'Service' }) +
+                  (displayedCurrent.secondsElapsed
+                    ? t('queue.servingFor', { minutes: Math.floor(displayedCurrent.secondsElapsed / 60) })
                     : '')
-                : 'No patient currently being served'}
+                : selectedTerminalLabel
+                  ? `${selectedTerminalLabel} is not currently serving a patient`
+                  : 'No patient currently being served'}
             </p>
           </div>
         </section>
@@ -362,7 +409,7 @@ export function QueueManagementPage() {
                 <div key={row.uniqueKey || `${row.id}-${index}`} className="flex items-center justify-between rounded-md border border-[#E5E7EB] px-3 py-2.5">
                   <span className="flex items-center gap-2 text-xs font-bold text-[#1F2937]">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#F1F3F5] text-[10px] text-slate-500">{index + 1}</span>
-                    {row.id}
+                    <span className="rounded-md bg-[#F1F3F5] px-2 py-1 text-xs">{row.id}</span>
                   </span>
                   <span className="text-[10px] text-[#4B5563]">{t('queue.waitingMinutes', { minutes: row.etaMinutes ?? '~0' })}</span>
                 </div>
@@ -395,8 +442,8 @@ export function QueueManagementPage() {
               <h2 className="text-lg font-bold text-[#1F2937]">{t('queue.waitingQueue')}</h2>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-[#9D0A0E]/10 px-2.5 py-1 text-[10px] font-bold text-[#9D0A0E]">{t('queue.inLine', { count: waitingQueue.length })}</span>
-                <button type="button" onClick={() => setShowFullQueue(false)} aria-label="Close">
-                  <X size={18} className="text-slate-500" />
+                <button type="button" onClick={() => setShowFullQueue(false)} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                  <X size={18} />
                 </button>
               </div>
             </div>
@@ -545,14 +592,6 @@ export function TerminalManagementPage() {
     );
   }, [terminals, adminDepartment]);
 
-  const staffById = useMemo(() => {
-    const map = {};
-    staff.forEach((person) => {
-      map[String(person.user_id)] = person;
-    });
-    return map;
-  }, [staff]);
-
   const departmentStaff = useMemo(() => {
     if (!adminDepartment) {
       return [];
@@ -565,6 +604,19 @@ export function TerminalManagementPage() {
     );
   }, [staff, adminDepartment]);
 
+  // A terminal's assigned_staff_id can point at someone who has since
+  // transferred to another department. Looking them up only within
+  // departmentStaff (rather than the full staff list) makes sure such
+  // stale assignments render as "Unassigned" instead of showing a staff
+  // member who no longer belongs to this terminal's department.
+  const departmentStaffById = useMemo(() => {
+    const map = {};
+    departmentStaff.forEach((person) => {
+      map[String(person.user_id)] = person;
+    });
+    return map;
+  }, [departmentStaff]);
+
   const filteredTerminals = useMemo(() => {
     const search = query.trim().toLowerCase();
 
@@ -573,7 +625,7 @@ export function TerminalManagementPage() {
     }
 
     return departmentTerminals.filter((terminal) => {
-      const assigned = staffById[String(terminal.assigned_staff_id)];
+      const assigned = departmentStaffById[String(terminal.assigned_staff_id)];
       const name = `${assigned?.first_name || ''} ${assigned?.last_name || ''}`.toLowerCase();
       const email = String(assigned?.email || '').toLowerCase();
 
@@ -583,7 +635,7 @@ export function TerminalManagementPage() {
         String(terminal.prefix || '').toLowerCase().includes(search)
       );
     });
-  }, [departmentTerminals, staffById, query]);
+  }, [departmentTerminals, departmentStaffById, query]);
 
   const TERMINAL_PAGE_SIZE = 5;
 
@@ -634,14 +686,24 @@ export function TerminalManagementPage() {
     setForm({
       assigned_staff_id: '',
       counter_number: String(nextCounterNumber()),
+      status: 'active',
     });
     setError(null);
     setModal('add');
   }
 
   function openEdit(terminal) {
+    // A terminal can be left pointing at a staff member who has since
+    // moved to another department. That staff member no longer appears
+    // in `departmentStaff`, so the dropdown can't actually select them -
+    // treat the assignment as unassigned instead of leaving a stale,
+    // unselectable value in the form.
+    const assignedStillInDepartment = departmentStaff.some(
+      (person) => String(person.user_id) === String(terminal.assigned_staff_id)
+    );
+
     setForm({
-      assigned_staff_id: terminal.assigned_staff_id || '',
+      assigned_staff_id: assignedStillInDepartment ? terminal.assigned_staff_id : '',
       counter_number: String(terminal.counter_number ?? ''),
     });
     setError(null);
@@ -674,7 +736,12 @@ export function TerminalManagementPage() {
         counter_number: Number(form.counter_number),
         prefix: `${adminDepartment.prefix || 'T'}-${form.counter_number}`,
         assigned_staff_id: form.assigned_staff_id || null,
-        status: form.assigned_staff_id ? 'active' : 'inactive',
+        status:
+          modal?.type === 'edit'
+            ? form.assigned_staff_id
+              ? 'active'
+              : 'inactive'
+            : form.status || 'active',
       };
 
       if (modal?.type === 'edit') {
@@ -787,7 +854,7 @@ export function TerminalManagementPage() {
 
               {!loading &&
                 pagedTerminals.map((terminal) => {
-                  const assigned = staffById[String(terminal.assigned_staff_id)];
+                  const assigned = departmentStaffById[String(terminal.assigned_staff_id)];
 
                   return (
                     <tr
@@ -799,16 +866,8 @@ export function TerminalManagementPage() {
                       <td className="px-5 py-3 text-slate-700">{assigned ? `${assigned.first_name} ${assigned.last_name}` : t('common.unassigned')}</td>
                       <td className="px-5 py-3 text-slate-600">{adminKiosk?.name || '--'}</td>
                       <td className="px-5 py-3 text-slate-600">{assigned ? t('common.stat.staff') : '--'}</td>
-                      <td className="px-5 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                            normalizeRole(terminal.status) === 'active'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-[#E5E7EB] text-slate-600'
-                          }`}
-                        >
-                          {normalizeRole(terminal.status) === 'active' ? t('common.stat.active') : t('common.stat.inactive')}
-                        </span>
+                      <td className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        {normalizeRole(terminal.status) === 'active' ? t('common.stat.active') : t('common.stat.inactive')}
                       </td>
                     </tr>
                   );
@@ -863,30 +922,124 @@ export function TerminalManagementPage() {
         </div>
       </div>
 
-      {/* ADD / EDIT TERMINAL MODAL */}
+      {/* ADD TERMINAL MODAL */}
 
-      {(modal === 'add' || modal?.type === 'edit') && (
+      {modal === 'add' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <section className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
+            <header className="border-b border-[#E5E7EB] px-5 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-[#1F2937]">{t('terminal.addModalTitle')}</h2>
+                <button type="button" onClick={closeModal} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                  <X size={19} />
+                </button>
+              </div>
+
+              <p className="mt-1 text-xs text-slate-500">{t('terminal.addModalSubtitle')}</p>
+              <p className="text-xs text-slate-500">{t('terminal.requiredNote')}</p>
+            </header>
+
+            <div className="space-y-4 p-5">
+              {adminDepartment && (
+                <div className="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2.5">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <Monitor size={14} className="text-[#9D0A0E]" />
+                    {adminKiosk?.name || t('common.unassigned')} · {adminDepartment.name || adminDepartment}
+                  </span>
+                  <span className="shrink-0 rounded-md border border-[#E5E7EB] bg-white px-2 py-1 text-[10px] font-semibold text-slate-500">
+                    {t('terminal.prefixLabel', { prefix: adminDepartment.prefix || 'T' })}
+                  </span>
+                </div>
+              )}
+
+              {/* TERMINAL NAME */}
+              <label className="block text-sm font-semibold text-slate-600">
+                {t('terminal.terminalName')} <span className="text-[#9D0A0E]">*</span>
+
+                <input
+                  type="number"
+                  min={1}
+                  value={form.counter_number}
+                  onChange={(e) => setForm((f) => ({ ...f, counter_number: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#9D0A0E]"
+                />
+              </label>
+
+              {/* TERMINAL CODE / ID */}
+              <label className="block text-sm font-semibold text-slate-600">
+                <span className="flex items-center justify-between">
+                  <span>{t('terminal.terminalCode')} <span className="text-[#9D0A0E]">*</span></span>
+                  <span className="text-[10px] font-medium text-slate-400">{t('terminal.autoGenerated')}</span>
+                </span>
+
+                <input
+                  value={`${adminDepartment?.prefix || 'T'}-${form.counter_number || ''}`}
+                  disabled
+                  className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-sm text-slate-500 outline-none"
+                />
+              </label>
+
+              <p className="text-[10px] text-slate-400">{t('terminal.codeNote')}</p>
+
+              {/* STATUS */}
+              <div>
+                <p className="mb-2 text-xs font-semibold text-slate-600">{t('common.table.status')}</p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, status: 'active' }))}
+                    className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold ${
+                      form.status === 'active'
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                        : 'border-[#E5E7EB] bg-white text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    {form.status === 'active' && <Check size={13} />}
+                    {t('common.stat.active')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, status: 'inactive' }))}
+                    className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold ${
+                      form.status === 'inactive'
+                        ? 'border-slate-300 bg-slate-100 text-slate-700'
+                        : 'border-[#E5E7EB] bg-white text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    {t('common.stat.inactive')}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <footer className="flex items-center justify-end gap-2 border-t border-[#E5E7EB] px-5 py-3">
+              <button type="button" onClick={closeModal} disabled={saving} className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-sm font-semibold text-slate-600 disabled:opacity-50">
+                {t('common.cancel')}
+              </button>
+              <button type="button" onClick={saveTerminal} disabled={saving} className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#7d0809] disabled:opacity-50">
+                <Plus size={13} />
+                {saving ? t('common.saving') : t('terminal.addButton')}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {/* EDIT ASSIGNED TERMINAL MODAL */}
+
+      {modal?.type === 'edit' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
           <section className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
             <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
-              <h2 className="text-lg font-bold text-[#1F2937]">{modal === 'add' ? t('terminal.addModalTitle') : t('terminal.editModalTitle')}</h2>
-              <button type="button" onClick={closeModal} aria-label="Close">
-                <X size={19} className="text-slate-500" />
+              <h2 className="text-lg font-bold text-[#1F2937]">{t('terminal.editModalTitle')}</h2>
+              <button type="button" onClick={closeModal} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                <X size={19} />
               </button>
             </header>
 
             <div className="space-y-4 p-5">
-              {/* DEPARTMENT / KIOSK CONTEXT */}
-              {adminDepartment && (
-                <div className="flex items-center justify-between gap-3 rounded-md bg-[#9D0A0E]/5 px-3 py-2 text-xs font-semibold text-[#9D0A0E]">
-                  <span className="flex items-center gap-1.5">
-                    <Monitor size={13} />
-                    {adminKiosk?.name || t('common.unassigned')} · {adminDepartment.name || adminDepartment}
-                  </span>
-                  <span className="shrink-0 text-[10px] text-[#9D0A0E]/80">Prefix: {adminDepartment.prefix || 'T'}</span>
-                </div>
-              )}
-
               {/* ASSIGNED TO */}
               <label className="block text-xs font-semibold text-slate-600">
                 {t('terminal.assignedTo')}
@@ -905,6 +1058,21 @@ export function TerminalManagementPage() {
                 </select>
               </label>
 
+              {/* LOCATION */}
+              <label className="block text-xs font-semibold text-slate-600">
+                {t('terminal.location')}
+
+                <select
+                  value="current"
+                  disabled
+                  className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none"
+                >
+                  <option value="current">
+                    {adminKiosk?.name || t('common.unassigned')}
+                  </option>
+                </select>
+              </label>
+
               {/* TERMINAL NUMBER */}
               <label className="block text-xs font-semibold text-slate-600">
                 {t('terminal.terminalNumber')}
@@ -917,30 +1085,18 @@ export function TerminalManagementPage() {
                   className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#9D0A0E]"
                 />
               </label>
-
-              {/* STATUS NOTE */}
-              <div className="rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2">
-                <p className="text-[10px] font-semibold text-slate-600">Status</p>
-                <p className="mt-1 text-[10px] text-slate-500">
-                  {form.assigned_staff_id ? 'Status: Active' : 'Status: Inactive'}
-                </p>
-              </div>
             </div>
 
             <footer className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3">
-              {modal?.type === 'edit' ? (
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(true)}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 rounded-md border border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
-                >
-                  <Trash2 size={13} />
-                  {t('terminal.deleteTerminal')}
-                </button>
-              ) : (
-                <span />
-              )}
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={saving}
+                className="flex items-center gap-1.5 rounded-md border border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                <Trash2 size={13} />
+                {t('terminal.deleteTerminal')}
+              </button>
 
               <div className="flex gap-2">
                 <button type="button" onClick={closeModal} disabled={saving} className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">
@@ -1210,8 +1366,8 @@ export function ReportsPage() {
           <div className="w-full max-w-lg rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
               <h2 className="text-lg font-bold text-[#1F2937]">{t('reports.recentActivity')}</h2>
-              <button type="button" onClick={() => setShowFullLog(false)} aria-label="Close">
-                <X size={18} className="text-slate-500" />
+              <button type="button" onClick={() => setShowFullLog(false)} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                <X size={18} />
               </button>
             </div>
 
@@ -1306,8 +1462,8 @@ function ChangeProfileModal({ onClose, onSave }) {
       <div className="w-full max-w-sm rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3">
           <h2 className="text-lg font-bold text-[#1F2937]">{t('modal.changeProfile')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} className="text-slate-500" />
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
           </button>
         </header>
 
@@ -1364,8 +1520,8 @@ function DepartmentCustomizationModal({ user, department, onClose, avatar, onAva
       <div className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
           <h2 className="text-lg font-bold text-[#1F2937]">{t('modal.deptCustomization')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} className="text-slate-500" />
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
           </button>
         </header>
 
@@ -1398,14 +1554,25 @@ function DepartmentCustomizationModal({ user, department, onClose, avatar, onAva
               onChange={(e) => setName(e.target.value)}
               className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[#9D0A0E]"
             />
-          </label>
+             </label>
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-[#E5E7EB] px-5 py-3">
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"
+          >
             {t('common.cancel')}
           </button>
-          <button type="button" onClick={handleSave} disabled={saving} className="rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:opacity-50">
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:opacity-50"
+          >
             {saving ? t('common.saving') : t('common.save')}
           </button>
         </footer>
@@ -1439,8 +1606,8 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
       <div className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
           <h2 className="text-lg font-bold text-[#1F2937]">{t('settings.theme')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} className="text-slate-500" />
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
           </button>
         </header>
 
@@ -1455,8 +1622,8 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
                 key={key}
                 type="button"
                 onClick={() => setMode(key)}
-                className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold ${
-                  mode === key ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 text-[#9D0A0E]' : 'border-[#E5E7EB] text-slate-600'
+                className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold transition ${
+                  mode === key ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 text-[#9D0A0E]' : 'border-[#E5E7EB] text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 <Icon size={14} />
@@ -1471,7 +1638,7 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
                 key={color}
                 type="button"
                 onClick={() => setAccent(color)}
-                className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10"
+                className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10 transition hover:bg-[#B34C4C]/20"
               >
                 <span className="h-9 w-9 rounded-full" style={{ backgroundColor: color }} />
                 {accent === color && (
@@ -1485,7 +1652,7 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
             <button
               type="button"
               onClick={() => colorInputRef.current?.click()}
-              className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10"
+              className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10 transition hover:bg-[#B34C4C]/20"
               title="Custom color"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
@@ -1519,6 +1686,297 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
   );
 }
 
+function CreatePinModal({ onClose, onContinue }) {
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [error, setError] = useState('');
+
+  const handleContinue = () => {
+    setError('');
+
+    if (!/^\d{6}$/.test(pin)) {
+      setError('PIN must be exactly 6 digits.');
+      return;
+    }
+
+    if (pin !== confirmPin) {
+      setError('PINs do not match.');
+      return;
+    }
+
+    onContinue();
+  };
+
+  const handlePinChange = (value, setter) => {
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 6);
+    setter(digitsOnly);
+    setError('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
+          <div>
+            <h2 className="text-sm font-bold text-slate-800">
+              Create Security PIN
+            </h2>
+            <p className="mt-0.5 text-[10px] text-slate-500">
+              Protect sensitive system operations
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 transition hover:text-slate-600"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <div className="flex items-start gap-3 rounded-lg bg-[#FBF1F1] p-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#9D0A0E]">
+              <ShieldCheck size={16} />
+            </div>
+
+            <p className="text-[11px] leading-4 text-slate-600">
+              Create a 6-digit security PIN. This PIN will be required for
+              protected kiosk and department operations.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="admin-security-pin"
+              className="mb-1.5 block text-xs font-semibold text-slate-700"
+            >
+              New PIN
+            </label>
+
+            <input
+              id="admin-security-pin"
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={6}
+              value={pin}
+              onChange={(e) => handlePinChange(e.target.value, setPin)}
+              placeholder="Enter 6-digit PIN"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm tracking-[0.35em] text-slate-800 outline-none transition placeholder:tracking-normal placeholder:text-slate-400 focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="admin-confirm-security-pin"
+              className="mb-1.5 block text-xs font-semibold text-slate-700"
+            >
+              Confirm PIN
+            </label>
+
+            <input
+              id="admin-confirm-security-pin"
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={6}
+              value={confirmPin}
+              onChange={(e) =>
+                handlePinChange(e.target.value, setConfirmPin)
+              }
+              placeholder="Re-enter 6-digit PIN"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm tracking-[0.35em] text-slate-800 outline-none transition placeholder:tracking-normal placeholder:text-slate-400 focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs font-medium text-red-600">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={handleContinue}
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PinVerificationModal({ onClose, onBack, onSuccess }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+
+  const handleCodeChange = (value) => {
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 6);
+    setCode(digitsOnly);
+    setError('');
+  };
+
+  const handleVerify = () => {
+    setError('');
+
+    if (!/^\d{6}$/.test(code)) {
+      setError('Verification code must be exactly 6 digits.');
+      return;
+    }
+
+    // UI-only for now.
+    // Real email verification will be connected later.
+    onSuccess();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
+          <div>
+            <h2 className="text-sm font-bold text-slate-800">
+              Verify Your Email
+            </h2>
+            <p className="mt-0.5 text-[10px] text-slate-500">
+              Confirm your identity to create the PIN
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 transition hover:text-slate-600"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <div className="flex items-start gap-3 rounded-lg bg-[#FBF1F1] p-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#9D0A0E]">
+              <LockKeyhole size={15} />
+            </div>
+
+            <p className="text-[11px] leading-4 text-slate-600">
+              We've sent a 6-digit verification code to your registered
+              email address.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="admin-pin-verification-code"
+              className="mb-1.5 block text-xs font-semibold text-slate-700"
+            >
+              Verification Code
+            </label>
+
+            <input
+              id="admin-pin-verification-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={code}
+              onChange={(e) => handleCodeChange(e.target.value)}
+              placeholder="Enter 6-digit code"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-center text-sm font-semibold tracking-[0.4em] text-slate-800 outline-none transition placeholder:tracking-normal placeholder:font-normal placeholder:text-slate-400 focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-slate-400">
+              Code expires in 10 minutes.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setError('');
+                setCode('');
+              }}
+              className="text-[10px] font-semibold text-[#9D0A0E] hover:underline"
+            >
+              Resend Code
+            </button>
+          </div>
+
+          {error && (
+            <p className="text-xs font-medium text-red-600">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Back
+          </button>
+
+          <button
+            type="button"
+            onClick={handleVerify}
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+          >
+            Verify
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PinSuccessModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex flex-col items-center px-6 py-7 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
+            <Check size={24} strokeWidth={2.5} />
+          </div>
+
+          <h2 className="mt-4 text-base font-bold text-slate-800">
+            PIN Created
+          </h2>
+
+          <p className="mt-2 max-w-xs text-xs leading-5 text-slate-500">
+            Your security PIN has been successfully created. You can now use
+            it for protected kiosk and department operations.
+          </p>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-6 rounded-md bg-[#9D0A0E] px-6 py-2 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { user } = useAuth();
   const { t, language, setLanguage } = useLanguage();
@@ -1529,6 +1987,8 @@ export function SettingsPage() {
 
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [activePinModal, setActivePinModal] = useState(null);
+  const [pinConfigured, setPinConfigured] = useState(false);
 
   useEffect(() => {
     applyTheme(theme);
@@ -1575,7 +2035,6 @@ export function SettingsPage() {
               className="flex items-center gap-2 rounded-md bg-[#F1F3F5] px-4 py-2.5 text-xs font-semibold text-[#1F2937] hover:bg-slate-200"
             >
               {t('modal.deptCustomization')}
-              <ChevronRight size={13} />
             </button>
 
             <button
@@ -1584,7 +2043,6 @@ export function SettingsPage() {
               className="flex items-center gap-2 rounded-md bg-[#F1F3F5] px-4 py-2.5 text-xs font-semibold text-[#1F2937] hover:bg-slate-200"
             >
               {t('settings.theme')}
-              <ChevronRight size={13} />
             </button>
           </div>
         </section>
@@ -1613,6 +2071,49 @@ export function SettingsPage() {
             {t('settings.languageNote')}
           </p>
         </section>
+
+                <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-800">
+                Security
+              </h2>
+
+              <div className="mt-4 flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
+                  <ShieldCheck size={17} />
+                </div>
+
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-800">
+                    Security PIN
+                  </h3>
+
+                  <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">
+                    {pinConfigured
+                      ? 'Your security PIN is active and protects sensitive kiosk and department operations.'
+                      : 'Create a 6-digit PIN to protect kiosk unlocking and department reset operations.'}
+                  </p>
+
+                  {pinConfigured && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-semibold text-green-700">
+                      <Check size={11} strokeWidth={3} />
+                      Configured
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActivePinModal('createPin')}
+              className="shrink-0 rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+            >
+              {pinConfigured ? 'Change PIN' : 'Create PIN'}
+            </button>
+          </div>
+        </section>
       </div>
 
       {showDeptModal && (
@@ -1630,6 +2131,30 @@ export function SettingsPage() {
           theme={theme}
           onClose={() => setShowThemeModal(false)}
           onSaveTheme={setTheme}
+        />
+      )}
+
+            {activePinModal === 'createPin' && (
+        <CreatePinModal
+          onClose={() => setActivePinModal(null)}
+          onContinue={() => setActivePinModal('verifyPin')}
+        />
+      )}
+
+      {activePinModal === 'verifyPin' && (
+        <PinVerificationModal
+          onClose={() => setActivePinModal(null)}
+          onBack={() => setActivePinModal('createPin')}
+          onSuccess={() => {
+            setPinConfigured(true);
+            setActivePinModal('pinSuccess');
+          }}
+        />
+      )}
+
+      {activePinModal === 'pinSuccess' && (
+        <PinSuccessModal
+          onClose={() => setActivePinModal(null)}
         />
       )}
     </div>

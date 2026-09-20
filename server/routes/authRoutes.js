@@ -7,6 +7,10 @@ const {
 } = require("../services/userService");
 
 const {
+  sendPasswordChangedEmail,
+} = require("../utils/emailService");
+
+const {
   getAuth,
 } = require("firebase-admin/auth");
 
@@ -125,23 +129,41 @@ router.get("/profile", async (req, res) => {
     | CHECK ACCOUNT STATUS
     |--------------------------------------------------------------------------
     */
+const status =
+  String(
+    user.status || ""
+  ).toLowerCase();
 
-    const status =
-      String(
-        user.status || ""
-      ).toLowerCase();
+if (
+  status === "inactive" ||
+  status === "deactivated" ||
+  status === "disabled"
+) {
+  return res.status(403).json({
+    success: false,
+    message:
+      "Your account is inactive. Please contact the administrator.",
+  });
+}
 
-    if (
-      status === "inactive" ||
-      status === "deactivated" ||
-      status === "disabled"
-    ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Your account is inactive. Please contact the administrator.",
-      });
-    }
+/*
+|--------------------------------------------------------------------------
+| CHECK TEMPORARY PASSWORD EXPIRATION
+|--------------------------------------------------------------------------
+*/
+
+if (
+  user.must_change_password === true &&
+  user.temporary_password_expires_at &&
+  new Date(user.temporary_password_expires_at) <= new Date()
+) {
+  return res.status(403).json({
+    success: false,
+    message:
+      "Your temporary password has expired. Please contact the administrator.",
+    code: "TEMPORARY_PASSWORD_EXPIRED",
+  });
+}
 
     /*
     |--------------------------------------------------------------------------
@@ -355,10 +377,24 @@ router.post(
       |--------------------------------------------------------------------------
       */
 
-      const result =
-        await markPasswordChanged(
-          firebaseUid
+    const result = await markPasswordChanged(firebaseUid);
+
+    // Send password-change confirmation email
+    try {
+      const user = await getUserByFirebaseUid(firebaseUid);
+
+      if (user?.email) {
+        await sendPasswordChangedEmail(
+          user.email,
+          user.first_name || "User"
         );
+      }
+    } catch (emailError) {
+      console.error(
+        "PASSWORD CHANGE CONFIRMATION EMAIL ERROR:",
+        emailError
+      );
+}
 
       /*
       |--------------------------------------------------------------------------

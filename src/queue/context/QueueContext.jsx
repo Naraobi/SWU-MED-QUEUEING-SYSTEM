@@ -26,9 +26,12 @@ export function QueueProvider({ children }) {
     currentlyServing: 0,
     completed: 0,
     skipped: 0,
+    averageServiceMinutes: 0,
   })
 
   const [loading, setLoading] = useState(true)
+  const hasLoadedRef = useRef(false)
+  const refreshInFlightRef = useRef(false)
 
   /* ==========================================================================
      NOTIFICATIONS
@@ -68,7 +71,9 @@ export function QueueProvider({ children }) {
    * Firebase / MySQL
    */
 
-  const refresh = useCallback(async (departmentPrefix, range) => {
+  const refresh = useCallback(async (departmentPrefix, range, options = {}) => {
+    const silent = Boolean(options.silent)
+
     if (!departmentPrefix) {
       setWaitingQueue([])
       setCurrentlyServing(null)
@@ -78,14 +83,35 @@ export function QueueProvider({ children }) {
         currentlyServing: 0,
         completed: 0,
         skipped: 0,
+        averageServiceMinutes: 0,
       })
 
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
 
       return
     }
 
-    setLoading(true)
+
+    if (refreshInFlightRef.current) return
+
+    refreshInFlightRef.current = true
+    if (!hasLoadedRef.current) setLoading(true)
+
+    /*
+     * IMPORTANT:
+     *
+     * `loading` drives full-card loading skeletons (e.g. the
+     * Staff dashboard's "Currently Serving" card). Background
+     * polling refreshes must NOT toggle it, or the whole card
+     * flickers back to a loading state every few seconds even
+     * though nothing actually changed. Only explicit/initial
+     * refreshes should show the loading state.
+     */
+    if (!silent) {
+      setLoading(true)
+    }
 
     try {
       const state = await api.fetchQueueState(
@@ -119,22 +145,28 @@ export function QueueProvider({ children }) {
 
         skipped:
           Number(state?.stats?.skipped) || 0,
+
+        averageServiceMinutes:
+          Number(state?.stats?.averageServiceMinutes) || 0,
       })
+
+      // The queue data drives the visible dashboard. Do not make it wait for
+      // the secondary notifications request before leaving the loading state.
+      if (!silent) {
+        setLoading(false)
+      }
 
       /*
        * Notifications currently come through
        * the same department-specific API.
        */
-      const notifs =
-        await api.fetchNotifications(
-          departmentPrefix
-        )
-
-      setNotifications(
-        Array.isArray(notifs)
-          ? notifs
-          : []
-      )
+      api.fetchNotifications(departmentPrefix)
+        .then((notifs) => {
+          setNotifications(Array.isArray(notifs) ? notifs : [])
+        })
+        .catch((notificationError) => {
+          console.warn('Failed to load queue notifications:', notificationError)
+        })
     } catch (error) {
       console.error(
         'Failed to load queue data:',
@@ -142,20 +174,30 @@ export function QueueProvider({ children }) {
       )
 
       /*
-       * Do not leave stale queue information
-       * visible when a refresh fails.
+       * A silent background poll that fails (e.g. a brief network
+       * blip) should NOT wipe out perfectly good data already on
+       * screen — that would flash the currently-serving patient
+       * and waiting queue to empty every time a single poll drops.
+       * Only clear state on an explicit/initial refresh failure.
        */
-      setWaitingQueue([])
-      setCurrentlyServing(null)
+      if (!silent) {
+        setWaitingQueue([])
+        setCurrentlyServing(null)
 
-      setStats({
-        waiting: 0,
-        currentlyServing: 0,
-        completed: 0,
-        skipped: 0,
-      })
+        setStats({
+          waiting: 0,
+          currentlyServing: 0,
+          completed: 0,
+          skipped: 0,
+          averageServiceMinutes: 0,
+        })
+      }
     } finally {
-      setLoading(false)
+      hasLoadedRef.current = true
+      refreshInFlightRef.current = false
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -220,7 +262,8 @@ export function QueueProvider({ children }) {
      ========================================================================== */
 
   const callNextPatient = async (
-    departmentPrefix
+    departmentPrefix,
+    terminalId
   ) => {
     if (!departmentPrefix) {
       throw new Error(
@@ -230,7 +273,8 @@ export function QueueProvider({ children }) {
 
     const state =
       await api.callNextPatient(
-        departmentPrefix
+        departmentPrefix,
+        terminalId
       )
 
     setWaitingQueue(

@@ -20,7 +20,7 @@ body,
 }
 
 .staff-sidebar {
-  width: clamp(160px, 16vw, 210px);
+  width: 16rem;
 }
 
 @media (max-width: 640px) {
@@ -45,6 +45,12 @@ body {
   margin: 0;
   overflow-x: hidden;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Patient kiosk screens match the Figma design's typeface (IBM Plex Sans)
+   instead of the Inter font used by the rest of the app. */
+.patient-kiosk {
+  font-family: 'IBM Plex Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* Admin Settings > Theme: only the shared shell (sidebar/topbar/page

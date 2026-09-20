@@ -1,19 +1,9 @@
 import { formatShortDateLocalized, translate } from './i18n';
+import { THEME } from '../../theme/colors';
 
-// =====================================================
-// THEME
-// =====================================================
-//
-// Brand palette shared across every Admin page.
-//
-export const THEME = {
-  primary: '#9D0A0E',
-  secondary: '#B34C4C',
-  textMain: '#1F2937',
-  textSecondary: '#4B5563',
-  neutral: '#F1F3F5',
-  border: '#E5E7EB',
-};
+// Brand palette shared across Admin, Staff, and Patient pages.
+// Re-exported here so existing Admin imports keep working.
+export { THEME };
 
 // =====================================================
 // DISPLAY PREFERENCES

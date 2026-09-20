@@ -15,6 +15,10 @@ const {
   getDatabaseMode,
 } = require("./databaseService");
 
+const {
+  cleanupStaleAssignments,
+} = require("./counterService");
+
 const USERS_COLLECTION = "users";
 
 /*
@@ -139,13 +143,6 @@ function normalizeUserProfile(user) {
     |--------------------------------------------------------------------------
     | PASSWORD CHANGE STATUS
     |--------------------------------------------------------------------------
-    |
-    | Firebase Authentication owns the actual password.
-    |
-    | MySQL only stores whether the user still needs to change
-    | the temporary password.
-    |
-    |--------------------------------------------------------------------------
     */
 
     must_change_password:
@@ -155,6 +152,16 @@ function normalizeUserProfile(user) {
 
     password_changed_at:
       user.password_changed_at || null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | TEMPORARY PASSWORD EXPIRATION
+    |--------------------------------------------------------------------------
+    */
+
+    temporary_password_expires_at:
+      user.temporary_password_expires_at ||
+      null,
 
     created_at:
       user.created_at || null,
@@ -167,12 +174,6 @@ function normalizeUserProfile(user) {
 /*
 |--------------------------------------------------------------------------
 | GET ALL USERS
-|--------------------------------------------------------------------------
-|
-| MySQL is the PRIMARY application database.
-|
-| Firestore is only used as a fallback if MySQL cannot be reached.
-|
 |--------------------------------------------------------------------------
 */
 
@@ -243,13 +244,14 @@ async function getUsersFromMySQL() {
       u.kiosk_id,
       u.kiosk,
       u.department_id,
-      u.department,
+      COALESCE(d.name, u.department) AS department,
 
       d.prefix AS department_prefix,
 
       u.status,
       u.must_change_password,
       u.password_changed_at,
+      u.temporary_password_expires_at,
       u.created_at,
       u.updated_at
 
@@ -340,13 +342,14 @@ async function getUserFromMySQL(userId) {
       u.kiosk_id,
       u.kiosk,
       u.department_id,
-      u.department,
+      COALESCE(d.name, u.department) AS department,
 
       d.prefix AS department_prefix,
 
       u.status,
       u.must_change_password,
       u.password_changed_at,
+      u.temporary_password_expires_at,
       u.created_at,
       u.updated_at
 
@@ -403,13 +406,14 @@ async function getUserByFirebaseUid(firebaseUid) {
       u.kiosk_id,
       u.kiosk,
       u.department_id,
-      u.department,
+      COALESCE(d.name, u.department) AS department,
 
       d.prefix AS department_prefix,
 
       u.status,
       u.must_change_password,
       u.password_changed_at,
+      u.temporary_password_expires_at,
       u.created_at,
       u.updated_at
 
@@ -440,9 +444,11 @@ async function getUserByFirebaseUid(firebaseUid) {
 | GET AUTHENTICATED USER PROFILE
 |--------------------------------------------------------------------------
 |
-| Firebase Authentication verifies the login.
+| Firebase Authentication verifies the Firebase login.
 |
 | MySQL supplies the application profile.
+|
+| Temporary password expiration is enforced HERE on the backend.
 |
 |--------------------------------------------------------------------------
 */
@@ -529,6 +535,51 @@ async function getAuthenticatedUserProfile(
     throw new Error(
       "This account has been disabled."
     );
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | TEMPORARY PASSWORD EXPIRATION
+  |--------------------------------------------------------------------------
+  |
+  | The expiration applies ONLY while:
+  |
+  | must_change_password = true
+  |
+  | Once the user changes the password,
+  | markPasswordChanged() sets:
+  |
+  | must_change_password = false
+  | temporary_password_expires_at = NULL
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  if (
+    Boolean(user.must_change_password) &&
+    user.temporary_password_expires_at
+  ) {
+    const expirationDate =
+      new Date(
+        user.temporary_password_expires_at
+      );
+
+    if (
+      !Number.isNaN(
+        expirationDate.getTime()
+      ) &&
+      expirationDate <= new Date()
+    ) {
+      const error =
+        new Error(
+          "Your temporary password has expired. Please contact the administrator."
+        );
+
+      error.code =
+        "TEMPORARY_PASSWORD_EXPIRED";
+
+      throw error;
+    }
   }
 
   /*
@@ -645,6 +696,10 @@ async function getAuthenticatedUserProfile(
 
     password_changed_at:
       user.password_changed_at || null,
+
+    temporary_password_expires_at:
+      user.temporary_password_expires_at ||
+      null,
   };
 }
 
@@ -848,6 +903,8 @@ async function authenticateUser() {
 |   ↓
 | Generate temporary password
 |   ↓
+| Generate 48-hour expiration
+|   ↓
 | Firebase Authentication
 |   ↓
 | Firebase UID
@@ -855,21 +912,25 @@ async function authenticateUser() {
 | MySQL profile
 |   ↓
 | Firestore profile copy
+|   ↓
+| Email temporary password
 |
 | IMPORTANT:
 |
-| The temporary password is NEVER stored in:
+| The temporary password itself is NEVER stored in:
 |
 | - MySQL
 | - Firestore
 | - React response
 |
-| It will later be passed to the email service.
-|
 |--------------------------------------------------------------------------
 */
 
 async function createUser(userData) {
+  console.log(
+    "🔥 BACKEND CREATE USER CALLED"
+  );
+
   const userId =
     userData.user_id ||
     randomUUID();
@@ -882,6 +943,23 @@ async function createUser(userData) {
 
   const temporaryPassword =
     generateTemporaryPassword();
+
+  /*
+  |--------------------------------------------------------------------------
+  | TEMPORARY PASSWORD EXPIRES IN 48 HOURS
+  |--------------------------------------------------------------------------
+  */
+
+  const temporaryPasswordExpiresAt =
+    new Date(
+      Date.now() +
+        48 * 60 * 60 * 1000
+    );
+
+  console.log(
+    "TEMPORARY PASSWORD EXPIRATION GENERATED:",
+    temporaryPasswordExpiresAt
+  );
 
   const profile = {
     user_id:
@@ -942,7 +1020,7 @@ async function createUser(userData) {
 
     /*
     |--------------------------------------------------------------------------
-    | NEW ACCOUNT MUST CHANGE PASSWORD
+    | NEW ACCOUNT PASSWORD STATUS
     |--------------------------------------------------------------------------
     */
 
@@ -951,6 +1029,9 @@ async function createUser(userData) {
 
     password_changed_at:
       null,
+
+    temporary_password_expires_at:
+      temporaryPasswordExpiresAt,
   };
 
   if (!profile.email) {
@@ -996,11 +1077,7 @@ async function createUser(userData) {
 
   /*
   |--------------------------------------------------------------------------
-  | MYSQL-ONLY MODE
-  |--------------------------------------------------------------------------
-  |
-  | New login accounts require Firebase Authentication.
-  |
+  | NEW LOGIN ACCOUNTS REQUIRE FIREBASE
   |--------------------------------------------------------------------------
   */
 
@@ -1031,12 +1108,6 @@ async function createUser(userData) {
           email:
             profile.email,
 
-          /*
-          |--------------------------------------------------------------------------
-          | Firebase Authentication OWNS the password.
-          |--------------------------------------------------------------------------
-          */
-
           password:
             temporaryPassword,
 
@@ -1065,24 +1136,12 @@ async function createUser(userData) {
       );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | STEP 2 — SAVE FIREBASE UID
-    |--------------------------------------------------------------------------
-    */
-
     profile.firebase_uid =
       firebaseUser.uid;
 
     /*
     |--------------------------------------------------------------------------
-    | STEP 3 — INSERT MYSQL PROFILE
-    |--------------------------------------------------------------------------
-    |
-    | IMPORTANT:
-    |
-    | The temporary password is NOT inserted into MySQL.
-    |
+    | STEP 2 — CREATE MYSQL PROFILE
     |--------------------------------------------------------------------------
     */
 
@@ -1102,7 +1161,7 @@ async function createUser(userData) {
 
       /*
       |--------------------------------------------------------------------------
-      | ROLLBACK FIREBASE AUTH
+      | ROLLBACK FIREBASE ACCOUNT
       |--------------------------------------------------------------------------
       */
 
@@ -1126,13 +1185,7 @@ async function createUser(userData) {
 
     /*
     |--------------------------------------------------------------------------
-    | STEP 4 — FIRESTORE PROFILE COPY
-    |--------------------------------------------------------------------------
-    |
-    | IMPORTANT:
-    |
-    | temporaryPassword is intentionally NOT included.
-    |
+    | STEP 3 — FIRESTORE PROFILE COPY
     |--------------------------------------------------------------------------
     */
 
@@ -1204,6 +1257,11 @@ async function createUser(userData) {
           password_changed_at:
             null,
 
+          temporary_password_expires_at:
+            profile
+              .temporary_password_expires_at
+              .toISOString(),
+
           created_at:
             now,
 
@@ -1221,48 +1279,40 @@ async function createUser(userData) {
         "FIRESTORE CREATE USER ERROR:",
         firestoreError.message
       );
-
-      /*
-      |--------------------------------------------------------------------------
-      | DO NOT DELETE MYSQL OR FIREBASE AUTH.
-      |--------------------------------------------------------------------------
-      */
     }
-  
+
     /*
     |--------------------------------------------------------------------------
-    | STEP 5 — RETURN CREATED PROFILE
-    |--------------------------------------------------------------------------
-    |
-    | IMPORTANT:
-    |
-    | The temporary password is NOT returned to React.
-    |
-    | The email service will handle sending it.
-    |
+    | STEP 4 — SEND TEMPORARY PASSWORD EMAIL
     |--------------------------------------------------------------------------
     */
-   try {
-  await sendTemporaryPasswordEmail(
-    profile.email,
-    profile.first_name,
-    temporaryPassword
-  );
 
-  console.log(
-    `Temporary password email sent to: ${profile.email}`
-  );
-} catch (emailError) {
-  console.error(
-    "TEMPORARY PASSWORD EMAIL ERROR:",
-    emailError.message
-  );
+    try {
+      await sendTemporaryPasswordEmail(
+        profile.email,
+        profile.first_name,
+        temporaryPassword
+      );
 
-  console.warn(
-    `User account was created, but the temporary password email could not be sent to ${profile.email}.`
-  );
-}
+      console.log(
+        `Temporary password email sent to: ${profile.email}`
+      );
+    } catch (emailError) {
+      console.error(
+        "TEMPORARY PASSWORD EMAIL ERROR:",
+        emailError.message
+      );
 
+      console.warn(
+        `User account was created, but the temporary password email could not be sent to ${profile.email}.`
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | RETURN PROFILE
+    |--------------------------------------------------------------------------
+    */
 
     return {
       ...normalizeUserProfile(
@@ -1294,12 +1344,6 @@ async function createUser(userData) {
 |--------------------------------------------------------------------------
 | INSERT USER INTO MYSQL
 |--------------------------------------------------------------------------
-|
-| Firebase Authentication owns the password.
-|
-| MySQL stores only the application profile and password-change status.
-|
-|--------------------------------------------------------------------------
 */
 
 async function insertUserIntoMySQL(user) {
@@ -1307,6 +1351,11 @@ async function insertUserIntoMySQL(user) {
     toMySQLStatus(
       user.status
     );
+
+  console.log(
+    "TEMP PASSWORD EXPIRATION BEING SAVED:",
+    user.temporary_password_expires_at
+  );
 
   const [result] =
     await pool.execute(
@@ -1327,9 +1376,13 @@ async function insertUserIntoMySQL(user) {
         department,
         status,
         must_change_password,
-        password_changed_at
+        password_changed_at,
+        temporary_password_expires_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?
+      )
       `,
       [
         user.user_id,
@@ -1346,16 +1399,12 @@ async function insertUserIntoMySQL(user) {
         user.department_id || null,
         user.department || null,
         mysqlStatus,
-
-        /*
-        |--------------------------------------------------------------------------
-        | NEW USERS MUST CHANGE TEMPORARY PASSWORD
-        |--------------------------------------------------------------------------
-        */
-
-        user.must_change_password ? 1 : 0,
-
+        user.must_change_password
+          ? 1
+          : 0,
         user.password_changed_at || null,
+        user.temporary_password_expires_at ||
+          null,
       ]
     );
 
@@ -1365,16 +1414,6 @@ async function insertUserIntoMySQL(user) {
 /*
 |--------------------------------------------------------------------------
 | UPDATE USER
-|--------------------------------------------------------------------------
-|
-| UPDATE FLOW:
-|
-| 1. Read existing MySQL profile
-| 2. Validate new profile
-| 3. Update MySQL
-| 4. Update Firebase Authentication
-| 5. Update Firestore copy
-|
 |--------------------------------------------------------------------------
 */
 
@@ -1492,6 +1531,16 @@ async function updateUser(
       userData.password_changed_at ??
       existingUser.password_changed_at ??
       null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRESERVE TEMPORARY PASSWORD EXPIRATION
+    |--------------------------------------------------------------------------
+    */
+
+    temporary_password_expires_at:
+      existingUser.temporary_password_expires_at ||
+      null,
   };
 
   if (!updatedUser.email) {
@@ -1536,13 +1585,7 @@ async function updateUser(
 
   /*
   |--------------------------------------------------------------------------
-  | OPTIONAL PASSWORD
-  |--------------------------------------------------------------------------
-  |
-  | This is retained for existing edit functionality.
-  |
-  | Password is sent ONLY to Firebase Authentication.
-  |
+  | OPTIONAL ADMIN PASSWORD CHANGE
   |--------------------------------------------------------------------------
   */
 
@@ -1557,12 +1600,6 @@ async function updateUser(
       String(
         userData.password
       );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Firebase validates the password itself.
-    |--------------------------------------------------------------------------
-    */
   }
 
   const mode =
@@ -1622,12 +1659,6 @@ async function updateUser(
               updatedUser.status
             ) === "inactive",
         };
-
-        /*
-        |--------------------------------------------------------------------------
-        | OPTIONAL ADMIN PASSWORD CHANGE
-        |--------------------------------------------------------------------------
-        */
 
         if (newPassword) {
           firebaseAuthUpdates.password =
@@ -1711,6 +1742,15 @@ async function updateUser(
                 updatedUser.status
               ),
 
+            temporary_password_expires_at:
+              updatedUser
+                .temporary_password_expires_at
+                ? new Date(
+                    updatedUser
+                      .temporary_password_expires_at
+                  ).toISOString()
+                : null,
+
             updated_at:
               new Date().toISOString(),
           },
@@ -1730,6 +1770,8 @@ async function updateUser(
         firestoreError.message
       );
     }
+
+    await cleanupStaleAssignments();
 
     return {
       ...normalizeUserProfile(
@@ -1758,6 +1800,8 @@ async function updateUser(
       userId,
       updatedUser
     );
+
+    await cleanupStaleAssignments();
 
     return normalizeUserProfile(
       updatedUser
@@ -1804,6 +1848,7 @@ async function updateUserInMySQL(
       status = ?,
       must_change_password = ?,
       password_changed_at = ?,
+      temporary_password_expires_at = ?,
       updated_at = CURRENT_TIMESTAMP
 
     WHERE user_id = ?
@@ -1823,9 +1868,15 @@ async function updateUserInMySQL(
       user.department,
       mysqlStatus,
 
-      user.must_change_password ? 1 : 0,
+      user.must_change_password
+        ? 1
+        : 0,
 
-      user.password_changed_at || null,
+      user.password_changed_at ||
+        null,
+
+      user.temporary_password_expires_at ||
+        null,
 
       userId,
     ]
@@ -1838,7 +1889,9 @@ async function updateUserInMySQL(
 |--------------------------------------------------------------------------
 */
 
-async function restoreUserInMySQL(user) {
+async function restoreUserInMySQL(
+  user
+) {
   const mysqlStatus =
     toMySQLStatus(
       user.status
@@ -1864,6 +1917,7 @@ async function restoreUserInMySQL(user) {
       status = ?,
       must_change_password = ?,
       password_changed_at = ?,
+      temporary_password_expires_at = ?,
       updated_at = CURRENT_TIMESTAMP
 
     WHERE user_id = ?
@@ -1890,6 +1944,9 @@ async function restoreUserInMySQL(user) {
         : 0,
 
       user.password_changed_at ||
+        null,
+
+      user.temporary_password_expires_at ||
         null,
 
       user.user_id,
@@ -1921,6 +1978,12 @@ async function deleteUser(userId) {
 
   const mode =
     await getDatabaseMode();
+
+  /*
+  |--------------------------------------------------------------------------
+  | FIREBASE MODE
+  |--------------------------------------------------------------------------
+  */
 
   if (mode === "firebase") {
     /*
@@ -2251,13 +2314,14 @@ async function getStaffByDepartmentFromMySQL(
         u.kiosk_id,
         u.kiosk,
         u.department_id,
-        u.department,
+        COALESCE(d.name, u.department) AS department,
 
         d.prefix AS department_prefix,
 
         u.status,
         u.must_change_password,
         u.password_changed_at,
+        u.temporary_password_expires_at,
         u.created_at,
         u.updated_at
 
@@ -2392,13 +2456,14 @@ async function getUserByEmailFromMySQL(
         u.kiosk_id,
         u.kiosk,
         u.department_id,
-        u.department,
+        COALESCE(d.name, u.department) AS department,
 
         d.prefix AS department_prefix,
 
         u.status,
         u.must_change_password,
         u.password_changed_at,
+        u.temporary_password_expires_at,
         u.created_at,
         u.updated_at
 
@@ -2427,22 +2492,22 @@ async function getUserByEmailFromMySQL(
   );
 }
 
-
-
 /*
 |--------------------------------------------------------------------------
 | MARK PASSWORD AS CHANGED
 |--------------------------------------------------------------------------
 |
-| Firebase Authentication owns the actual password.
+| This is called AFTER the user successfully changes
+| the temporary password through Firebase Authentication.
 |
-| MySQL only records that the temporary password has
-| been replaced by the user.
+| It permanently removes the 48-hour expiration.
 |
 |--------------------------------------------------------------------------
 */
 
-async function markPasswordChanged(firebaseUid) {
+async function markPasswordChanged(
+  firebaseUid
+) {
   const normalizedUid = String(
     firebaseUid || ""
   ).trim();
@@ -2459,6 +2524,7 @@ async function markPasswordChanged(firebaseUid) {
     SET
       must_change_password = 0,
       password_changed_at = CURRENT_TIMESTAMP,
+      temporary_password_expires_at = NULL,
       updated_at = CURRENT_TIMESTAMP
     WHERE firebase_uid = ?
     `,
@@ -2473,7 +2539,7 @@ async function markPasswordChanged(firebaseUid) {
 
   /*
   |--------------------------------------------------------------------------
-  | Also update the Firestore profile copy
+  | UPDATE FIRESTORE PROFILE COPY
   |--------------------------------------------------------------------------
   */
 
@@ -2485,13 +2551,28 @@ async function markPasswordChanged(firebaseUid) {
 
     if (user) {
       await db
-        .collection(USERS_COLLECTION)
+        .collection(
+          USERS_COLLECTION
+        )
         .doc(user.user_id)
         .set(
           {
-            must_change_password: false,
+            must_change_password:
+              false,
+
             password_changed_at:
               new Date().toISOString(),
+
+            /*
+            |--------------------------------------------------------------------------
+            | IMPORTANT:
+            | Once password changes, expiration is removed.
+            |--------------------------------------------------------------------------
+            */
+
+            temporary_password_expires_at:
+              null,
+
             updated_at:
               new Date().toISOString(),
           },
@@ -2508,7 +2589,7 @@ async function markPasswordChanged(firebaseUid) {
 
     /*
     |--------------------------------------------------------------------------
-    | Do not fail the password change because Firestore failed.
+    | Do not fail password change because Firestore failed.
     |
     | MySQL is the primary application database.
     |--------------------------------------------------------------------------
@@ -2517,8 +2598,15 @@ async function markPasswordChanged(firebaseUid) {
 
   return {
     success: true,
-    firebase_uid: normalizedUid,
-    must_change_password: false,
+
+    firebase_uid:
+      normalizedUid,
+
+    must_change_password:
+      false,
+
+    temporary_password_expires_at:
+      null,
   };
 }
 
