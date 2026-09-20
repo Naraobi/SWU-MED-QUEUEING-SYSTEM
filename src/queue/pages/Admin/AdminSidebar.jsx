@@ -41,11 +41,7 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
           ))}
         </nav>
         <div className="border-t border-slate-100 px-3 py-3">
-<<<<<<< HEAD
-          <button type="button" onClick={() => setShowLogoutModal(true)} className="flex w-full items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700">
-=======
           <button type="button" onClick={() => setShowLogoutModal(true)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#9D0A0E] transition hover:bg-[#9D0A0E]/5">
->>>>>>> jhon-paul-admin-staff-and-patient-number-2
             <LogOut size={17} />{t('nav.logout')}
           </button>
         </div>
