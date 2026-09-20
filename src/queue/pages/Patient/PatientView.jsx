@@ -1416,8 +1416,26 @@ function PrintedTicketReceipt({
   });
 
   return (
-    <div className="hidden print:flex print:min-h-screen print:items-center print:justify-center">
-      <div className="w-full max-w-[320px] p-6 text-center">
+    <div
+  className="hidden print:block"
+  style={{
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: '320px',
+    maxWidth: '100%',
+    boxSizing: 'border-box',
+    textAlign: 'center',
+  }}
+>
+      <div
+  className="px-4 py-5 text-center"
+  style={{
+    width: '100%',
+    boxSizing: 'border-box',
+  }}
+>
         <Wordmark size="text-xl" compact />
 
         <p className="mt-4 text-base font-bold uppercase tracking-wide text-slate-800">
@@ -1429,11 +1447,13 @@ function PrintedTicketReceipt({
         </p>
 
         <p
-          className="text-5xl font-extrabold"
-          style={{ color: themeColor }}
-        >
-          {queueNumber}
-        </p>
+  className="whitespace-nowrap text-[42px] font-extrabold leading-none tracking-tight"
+  style={{
+    color: themeColor,
+  }}
+>
+  {queueNumber}
+</p>
 
         <div className="my-4 border-t border-dashed border-slate-300" />
 
@@ -2375,8 +2395,18 @@ async function handleGenerateNumber() {
          backend when the connection returns.
       */
 
-      const offlineQueueNumber =
-        `OFFLINE-${Date.now()}`;
+      const offlinePrefix =
+  String(service?.queuePrefix || 'OFF')
+    .trim()
+    .toUpperCase();
+
+const offlineSequence =
+  String(
+    Date.now() % 1000
+  ).padStart(3, '0');
+
+const offlineQueueNumber =
+  `OFF-${offlinePrefix}-${offlineSequence}`;
 
       setQueueId(localQueueId);
 
