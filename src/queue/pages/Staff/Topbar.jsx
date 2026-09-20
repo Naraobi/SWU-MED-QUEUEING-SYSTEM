@@ -166,14 +166,14 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
   };
 
   return (
-    <div className="flex h-[84px] min-h-[84px] w-full items-center justify-between border-b border-slate-200 bg-white">
-      <div className="min-w-0 pl-[60px]">
-        <h1 className="truncate text-2xl font-bold text-slate-800">
+    <div className="flex h-[72px] min-h-[72px] w-full items-center justify-between border-b border-slate-200 bg-white">
+      <div className="min-w-0 pl-[48px]">
+        <h1 className="truncate text-xl font-bold text-slate-800">
           Staff · {department}
         </h1>
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-4 pr-8">
+      <div className="flex flex-shrink-0 items-center gap-4 pr-6">
         <div className="relative" ref={panelRef}>
           <button
             onClick={() => setShowPanel((v) => !v)}

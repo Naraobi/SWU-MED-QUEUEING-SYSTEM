@@ -665,9 +665,9 @@ export default function DashboardPage() {
           onOpenTerminalModal={() => setShowTerminalModal(true)}
         />
 
-        <div className="p-8 flex-1 flex flex-col max-w-[1600px] w-full mx-auto">
-          <div className="mb-6">
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+        <div className="p-6 flex-1 flex flex-col max-w-[1600px] w-full mx-auto">
+          <div className="mb-5">
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               Today's Queue
             </h1>
             <p className="mt-1 text-sm text-slate-500">
@@ -675,7 +675,7 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <StaffStatCard
               label="WAITING"
               value={filteredWaitingQueue.length}
@@ -701,9 +701,9 @@ export default function DashboardPage() {
             />
           </div>
 
-          <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(350px,1fr)] flex-1 items-start">
-            <div className="space-y-6">
-              <div className="rounded-2xl border border-slate-200/90 bg-white p-10 text-center shadow-sm">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(350px,1fr)] flex-1 items-start">
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-8 text-center shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   CURRENTLY SERVING
                 </p>
@@ -748,7 +748,7 @@ export default function DashboardPage() {
                               console.error('Complete error:', err)
                             }
                           }}
-                          className="rounded-xl bg-[#851010] px-14 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#6b0d0d] transition cursor-pointer"
+                          className="rounded-xl bg-[#851010] px-12 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#6b0d0d] transition cursor-pointer"
                         >
                           COMPLETE
                         </button>
@@ -785,7 +785,7 @@ export default function DashboardPage() {
                               console.error('Recall error:', err)
                             }
                           }}
-                          className="rounded-xl border border-slate-200 bg-white px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition shadow-sm cursor-pointer"
+                          className="rounded-xl border border-slate-200 bg-white px-8 py-3 text-sm font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition shadow-sm cursor-pointer"
                         >
                           RECALL
                         </button>
@@ -794,7 +794,7 @@ export default function DashboardPage() {
                           type="button"
                           onClick={handleStartService}
                           disabled={startingService}
-                          className="rounded-xl bg-[#851010] px-12 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#6b0d0d] transition cursor-pointer disabled:opacity-50"
+                          className="rounded-xl bg-[#851010] px-10 py-3 text-sm font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#6b0d0d] transition cursor-pointer disabled:opacity-50"
                         >
                           {startingService ? 'STARTING...' : 'START SERVING'}
                         </button>
@@ -802,7 +802,7 @@ export default function DashboardPage() {
                         <button
                           type="button"
                           onClick={() => setShowSkip(true)}
-                          className="rounded-xl border border-red-200 bg-red-50/50 px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-red-600 hover:bg-red-100/50 transition shadow-sm cursor-pointer"
+                          className="rounded-xl border border-red-200 bg-red-50/50 px-8 py-3 text-sm font-bold uppercase tracking-wider text-red-600 hover:bg-red-100/50 transition shadow-sm cursor-pointer"
                         >
                           SKIP
                         </button>
@@ -826,7 +826,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       disabled
-                      className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-slate-200 px-12 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 cursor-not-allowed"
+                      className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-slate-200 px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-slate-400 cursor-not-allowed"
                     >
                       <Play size={18} className="fill-current" />
                       <span>CALL PATIENT</span>
@@ -856,7 +856,7 @@ export default function DashboardPage() {
                         }
                       }}
                       disabled={!nextPatient || !staffPrefix}
-                      className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-[#851010] px-12 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#6b0d0d] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-[#851010] px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#6b0d0d] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Play size={18} className="fill-current" />
                       <span>
@@ -869,18 +869,18 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   NEXT PATIENT
                 </p>
-                <p className="mt-2 text-4xl font-extrabold text-slate-900">
+                <p className="mt-2 text-3xl font-extrabold text-slate-900">
                   {nextPatient ? nextPatient.id : '—'}
                 </p>
               </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <p className="text-lg font-bold text-slate-800">
                   Waiting Queue
                 </p>
@@ -900,7 +900,7 @@ export default function DashboardPage() {
                         {upcomingPriority.map((patient, index) => (
                           <div
                             key={patient.uniqueKey || patient.id || `priority-${index}`}
-                            className="flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition"
+                            className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition"
                           >
                             <span className="flex items-center gap-3">
                               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-50 text-xs font-bold text-[#851010]">
@@ -927,7 +927,7 @@ export default function DashboardPage() {
                         {upcomingRegular.map((patient, index) => (
                           <div
                             key={patient.uniqueKey || patient.id || `regular-${index}`}
-                            className="flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition"
+                            className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition"
                           >
                             <span className="flex items-center gap-3">
                               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">

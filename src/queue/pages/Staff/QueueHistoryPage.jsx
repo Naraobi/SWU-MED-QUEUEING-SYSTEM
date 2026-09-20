@@ -431,18 +431,18 @@ export default function QueueHistoryPage() {
           subtitle={`Managing queue for department: ${user?.department || 'General'}`}
         />
 
-        <div className="px-8 pb-10 pt-8 flex-1 w-full max-w-[1600px] mx-auto">
+        <div className="px-6 pb-8 pt-6 flex-1 w-full max-w-[1600px] mx-auto">
 
           {/* PAGE TITLE */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-extrabold leading-none text-[#1F2937]">Queue History</h1>
+          <div className="mb-6">
+            <h1 className="text-2xl font-extrabold leading-none text-[#1F2937]">Queue History</h1>
             <p className="mt-2 text-sm text-[#4B5563]">
               Review queue transactions handled by your assigned department.
             </p>
           </div>
 
           {/* STAT CARDS */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             <StaffStatCard
               label="TODAY'S COMPLETED"
               value={completedCount}
@@ -463,7 +463,7 @@ export default function QueueHistoryPage() {
           </div>
 
           {/* HISTORY TABLE */}
-          <div className="mt-8 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+          <div className="mt-6 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
 
             {/* SEARCH / FILTER */}
             <div className="flex items-center justify-between gap-6 border-b border-[#E5E7EB] px-5 py-4">
@@ -603,7 +603,7 @@ export default function QueueHistoryPage() {
             </div>
 
             {/* PAGINATION */}
-            <div className="flex h-14 items-center justify-between border-t border-[#E5E7EB] px-5">
+            <div className="flex h-12 items-center justify-between border-t border-[#E5E7EB] px-5">
               <p className="text-xs text-[#4B5563]">
                 Showing{' '}
                 {paginatedRows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}

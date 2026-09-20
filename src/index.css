@@ -20,7 +20,7 @@ body,
 }
 
 .staff-sidebar {
-  width: clamp(160px, 16vw, 210px);
+  width: clamp(150px, 14vw, 190px);
 }
 
 @media (max-width: 640px) {
