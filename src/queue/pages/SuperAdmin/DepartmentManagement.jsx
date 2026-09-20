@@ -2063,18 +2063,14 @@ function handleReset() {
       0
     );
 
-  const activeDepts =
-    departments.filter(
-      (department) =>
-        String(
-          department.status ||
-            ''
-        ).toLowerCase() ===
-        'active'
-    ).length;
+const activeDepts = departments.filter(
+  (department) =>
+    !resetDepartmentIds.some(
+      (id) => String(id) === String(department.id)
+    )
+).length;
 
-  const totalDepts =
-    departments.length;
+  const totalDepts = departments.length;
 
   const averageWait =
     departments.length > 0

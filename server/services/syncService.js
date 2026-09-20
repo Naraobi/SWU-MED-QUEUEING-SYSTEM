@@ -82,7 +82,7 @@ async function syncPendingRecords() {
           const department = rows[0];
 
           await db
-            .collection("departments")
+            .collection("department")
             .doc(department.department_id)
             .set(department);
 
@@ -130,7 +130,7 @@ async function syncPendingRecords() {
           const department = rows[0];
 
           await db
-            .collection("departments")
+            .collection("department")
             .doc(department.department_id)
             .set(department);
 
@@ -156,7 +156,7 @@ async function syncPendingRecords() {
           record.operation === "delete"
         ) {
           await db
-            .collection("departments")
+            .collection("department")
             .doc(record.record_id)
             .delete();
 

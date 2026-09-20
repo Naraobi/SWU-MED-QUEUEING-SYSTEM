@@ -323,6 +323,15 @@ export default function Dashboard() {
   const [departments, setDepartments] = useState([]);
   const [analytics, setAnalytics] = useState(null);
 
+const [resetDepartmentIds, setResetDepartmentIds] = useState(() => {
+  try {
+    const stored = localStorage.getItem('swu_reset_departments');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+});
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -448,13 +457,26 @@ const terminalStats = analytics?.terminals || {
   total: 0,
 };
 
+
+const resetDepartmentIdSet = new Set(
+  resetDepartmentIds.map((id) => String(id))
+);
+
+const visibleDepartmentCount = departments.filter(
+  (department) =>
+    !resetDepartmentIdSet.has(
+      String(department.department_id)
+    )
+).length;
+
+
 const STATS = [
-  {
-    label: 'Departments',
-    value: `${departmentStats.active}/${departmentStats.total}`,
-    caption: 'Active departments',
-    icon: Building2,
-  },
+{
+  label: 'Departments',
+  value: `${visibleDepartmentCount}/${departments.length}`,
+  caption: 'Active departments',
+  icon: Building2,
+},
   {
     label: 'Total Waiting',
     value: String(queueStats.waiting),
