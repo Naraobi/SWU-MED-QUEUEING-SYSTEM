@@ -7,6 +7,7 @@ import StaffStatCard from './StaffStatCard.jsx'
 import QueueDetailsModal from '../../components/modals/QueueDetailsModal.jsx'
 import { useAuth } from '../../services/Authcontext.jsx'
 import * as api from '../../services/backendApi'
+import { getStatusColors } from '../../theme/colors'
 
 const PAGE_SIZE = 8
 
@@ -338,22 +339,19 @@ export default function QueueHistoryPage() {
   // STATUS BADGE
   // ============================================================
 
+  const STATUS_LABELS = {
+    completed: 'Completed',
+    cancelled: 'Skipped',
+    skipped: 'Skipped',
+    waiting: 'Waiting',
+    called: 'Called',
+    serving: 'Serving',
+  }
+
   const StatusBadge = ({ status }) => {
     const s = normalizeStatus(status)
-    let label = status || 'Unknown'
-    let bg = '#F1F3F5'; let text = '#4B5563'; let dot = '#4B5563'
-
-    if (s === 'completed') {
-      label = 'Completed'; bg = '#e4f7ee'; text = '#18864b'; dot = '#18864b'
-    } else if (s === 'cancelled' || s === 'skipped') {
-      label = 'Skipped'; bg = '#fce8e8'; text = '#9D0A0E'; dot = '#9D0A0E'
-    } else if (s === 'waiting') {
-      label = 'Waiting'; bg = '#F1F3F5'; text = '#4B5563'; dot = '#4B5563'
-    } else if (s === 'called') {
-      label = 'Called'; bg = '#fff4df'; text = '#a66a00'; dot = '#a66a00'
-    } else if (s === 'serving') {
-      label = 'Serving'; bg = '#e4f7ee'; text = '#18864b'; dot = '#18864b'
-    }
+    const label = STATUS_LABELS[s] || status || 'Unknown'
+    const { bg, text, dot } = getStatusColors(s)
 
     return (
       <span
@@ -625,12 +623,11 @@ export default function QueueHistoryPage() {
                   <button
                     key={n}
                     onClick={() => setPage(n)}
-                    className="flex h-8 w-8 items-center justify-center rounded-md border text-xs font-semibold transition"
-                    style={{
-                      backgroundColor: n === safePage ? '#9D0A0E' : '#FFFFFF',
-                      borderColor:     n === safePage ? '#9D0A0E' : '#E5E7EB',
-                      color:           n === safePage ? '#FFFFFF'  : '#4B5563',
-                    }}
+                    className={`flex h-8 w-8 items-center justify-center rounded-md border text-xs font-semibold transition ${
+                      n === safePage
+                        ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+                        : 'border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#F1F3F5]'
+                    }`}
                   >
                     {n}
                   </button>

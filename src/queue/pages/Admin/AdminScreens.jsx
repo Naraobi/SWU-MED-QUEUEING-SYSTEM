@@ -195,6 +195,8 @@ export function QueueManagementPage() {
 
   const [terminalLabel, setTerminalLabel] = useState('--');
   const [terminalLoading, setTerminalLoading] = useState(true);
+  const [departmentTerminals, setDepartmentTerminals] = useState([]);
+  const [selectedTerminalId, setSelectedTerminalId] = useState('all');
 
   async function loadTerminalStats() {
     setTerminalLoading(true);
@@ -218,9 +220,11 @@ export function QueueManagementPage() {
       ).length;
 
       setTerminalLabel(`${active}/${departmentTerminals.length}`);
+      setDepartmentTerminals(departmentTerminals);
     } catch (err) {
       console.error('Failed to load terminal stats:', err);
       setTerminalLabel('--');
+      setDepartmentTerminals([]);
     } finally {
       setTerminalLoading(false);
     }
@@ -280,6 +284,28 @@ export function QueueManagementPage() {
 
   const current = currentlyServing || null;
 
+  // Only one ticket can be actively served per department at a time
+  // today, so "switching terminals" means: show that one ticket only
+  // when it was actually called from the selected terminal, and show
+  // an idle state for every other terminal.
+  const displayedCurrent =
+    selectedTerminalId === 'all' || !current
+      ? current
+      : String(current.counterId) === String(selectedTerminalId)
+        ? current
+        : null;
+
+  const selectedTerminalRecord =
+    selectedTerminalId === 'all'
+      ? null
+      : departmentTerminals.find(
+          (terminal) => String(terminal.counter_id) === String(selectedTerminalId)
+        );
+
+  const selectedTerminalLabel = selectedTerminalRecord
+    ? selectedTerminalRecord.prefix || `Terminal ${selectedTerminalRecord.counter_number}`
+    : null;
+
   const totalWaiting = stats?.waiting || waitingQueue.length || 0;
 
   const QUEUE_PAGE_SIZE = 10;
@@ -330,19 +356,35 @@ export function QueueManagementPage() {
         <section className="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-bold text-[#1F2937]">{t('queue.currentStatus')}</h2>
-            <span className="text-[10px] font-semibold text-slate-400">{t('common.today')}</span>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedTerminalId}
+                onChange={(event) => setSelectedTerminalId(event.target.value)}
+                className="h-7 rounded-md border border-[#E5E7EB] bg-white px-2 text-[10px] font-semibold text-[#4B5563] outline-none focus:border-[#9D0A0E]"
+              >
+                <option value="all">All Terminals</option>
+                {departmentTerminals.map((terminal) => (
+                  <option key={terminal.counter_id} value={terminal.counter_id}>
+                    {terminal.prefix || `Terminal ${terminal.counter_number}`}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] font-semibold text-slate-400">{t('common.today')}</span>
+            </div>
           </div>
 
           <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('queue.nowServing')}</p>
-            <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : current?.id || '--'}</p>
+            <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : displayedCurrent?.id || '--'}</p>
             <p className="mt-2 text-xs text-[#4B5563]">
-              {current
-                ? t('queue.terminalService', { terminal: current.terminal ?? '--', service: current.service || 'Service' }) +
-                  (current.secondsElapsed
-                    ? t('queue.servingFor', { minutes: Math.floor(current.secondsElapsed / 60) })
+              {displayedCurrent
+                ? t('queue.terminalService', { terminal: displayedCurrent.terminal ?? '--', service: displayedCurrent.service || 'Service' }) +
+                  (displayedCurrent.secondsElapsed
+                    ? t('queue.servingFor', { minutes: Math.floor(displayedCurrent.secondsElapsed / 60) })
                     : '')
-                : 'No patient currently being served'}
+                : selectedTerminalLabel
+                  ? `${selectedTerminalLabel} is not currently serving a patient`
+                  : 'No patient currently being served'}
             </p>
           </div>
         </section>
@@ -394,8 +436,8 @@ export function QueueManagementPage() {
               <h2 className="text-lg font-bold text-[#1F2937]">{t('queue.waitingQueue')}</h2>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-[#9D0A0E]/10 px-2.5 py-1 text-[10px] font-bold text-[#9D0A0E]">{t('queue.inLine', { count: waitingQueue.length })}</span>
-                <button type="button" onClick={() => setShowFullQueue(false)} aria-label="Close">
-                  <X size={18} className="text-slate-500" />
+                <button type="button" onClick={() => setShowFullQueue(false)} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                  <X size={18} />
                 </button>
               </div>
             </div>
@@ -882,8 +924,8 @@ export function TerminalManagementPage() {
             <header className="border-b border-[#E5E7EB] px-5 py-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-[#1F2937]">{t('terminal.addModalTitle')}</h2>
-                <button type="button" onClick={closeModal} aria-label="Close">
-                  <X size={19} className="text-slate-500" />
+                <button type="button" onClick={closeModal} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                  <X size={19} />
                 </button>
               </div>
 
@@ -986,8 +1028,8 @@ export function TerminalManagementPage() {
           <section className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
             <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
               <h2 className="text-lg font-bold text-[#1F2937]">{t('terminal.editModalTitle')}</h2>
-              <button type="button" onClick={closeModal} aria-label="Close">
-                <X size={19} className="text-slate-500" />
+              <button type="button" onClick={closeModal} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                <X size={19} />
               </button>
             </header>
 
@@ -1318,8 +1360,8 @@ export function ReportsPage() {
           <div className="w-full max-w-lg rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
               <h2 className="text-lg font-bold text-[#1F2937]">{t('reports.recentActivity')}</h2>
-              <button type="button" onClick={() => setShowFullLog(false)} aria-label="Close">
-                <X size={18} className="text-slate-500" />
+              <button type="button" onClick={() => setShowFullLog(false)} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+                <X size={18} />
               </button>
             </div>
 
@@ -1414,8 +1456,8 @@ function ChangeProfileModal({ onClose, onSave }) {
       <div className="w-full max-w-sm rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3">
           <h2 className="text-lg font-bold text-[#1F2937]">{t('modal.changeProfile')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} className="text-slate-500" />
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
           </button>
         </header>
 
@@ -1472,8 +1514,8 @@ function DepartmentCustomizationModal({ user, department, onClose, avatar, onAva
       <div className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
           <h2 className="text-lg font-bold text-[#1F2937]">{t('modal.deptCustomization')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} className="text-slate-500" />
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
           </button>
         </header>
 
@@ -1547,8 +1589,8 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
       <div className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
         <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
           <h2 className="text-lg font-bold text-[#1F2937]">{t('settings.theme')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close">
-            <X size={18} className="text-slate-500" />
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
           </button>
         </header>
 
@@ -1563,8 +1605,8 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
                 key={key}
                 type="button"
                 onClick={() => setMode(key)}
-                className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold ${
-                  mode === key ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 text-[#9D0A0E]' : 'border-[#E5E7EB] text-slate-600'
+                className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold transition ${
+                  mode === key ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 text-[#9D0A0E]' : 'border-[#E5E7EB] text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 <Icon size={14} />
@@ -1579,7 +1621,7 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
                 key={color}
                 type="button"
                 onClick={() => setAccent(color)}
-                className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10"
+                className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10 transition hover:bg-[#B34C4C]/20"
               >
                 <span className="h-9 w-9 rounded-full" style={{ backgroundColor: color }} />
                 {accent === color && (
@@ -1593,7 +1635,7 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
             <button
               type="button"
               onClick={() => colorInputRef.current?.click()}
-              className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10"
+              className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10 transition hover:bg-[#B34C4C]/20"
               title="Custom color"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#9D0A0E] text-white">

@@ -36,12 +36,21 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import logo from '../../../assets/logo.png';
 
+import logoImage from '../../../assets/logo.png';
+import { THEME } from '../../theme/colors';
+
 /* =========================================================
    BRAND THEME
+   (shared with Admin/Staff via src/queue/theme/colors.js;
+   BORDER_DEFAULT and ICON_TINT are Patient-kiosk-specific)
 ========================================================= */
 
-const BRAND_RED = '#9D0A0E';
-const REGULAR_DARK = '#1F2937';
+const BRAND_RED = THEME.primary;
+const REGULAR_DARK = THEME.textMain;
+const MUTED_RED = THEME.secondary;
+const BORDER_DEFAULT = '#C3C6D7';
+const SELECTED_BG = THEME.neutral;
+const ICON_TINT = '#F7EEEE';
 
 function getQueueThemeColor(queueType) {
   return queueType?.key === 'priority'
@@ -304,6 +313,7 @@ function getActiveKioskForToday(kiosks) {
    SWUMED WORDMARK
 ========================================================= */
 
+<<<<<<< HEAD
 function Wordmark({
   size = 'text-xl',
   compact = false,
@@ -331,6 +341,15 @@ function Wordmark({
         className={`${logoSize} w-auto object-contain mix-blend-multiply`}
       />
     </div>
+=======
+function Wordmark({ size = 'h-10' }) {
+  return (
+    <img
+      src={logoImage}
+      alt="SWU Med"
+      className={`${size} w-auto object-contain mix-blend-multiply`}
+    />
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
   );
 }
 /* =========================================================
@@ -353,6 +372,7 @@ function KioskHeader() {
 
   return (
     <div className="mb-6 flex items-center justify-between">
+<<<<<<< HEAD
       <Wordmark size="text-lg" />
 
       <div className="flex items-center gap-3 text-sm font-semibold text-slate-700">
@@ -363,6 +383,18 @@ function KioskHeader() {
 
         <span className="flex items-center gap-1.5">
           <Calendar size={16} />
+=======
+      <Wordmark size="h-9" />
+
+      <div className="flex items-center gap-3 text-[11px] font-medium text-[#434655]">
+        <span className="flex items-center gap-1">
+          <Clock size={12} />
+          {time}
+        </span>
+
+        <span className="flex items-center gap-1">
+          <Calendar size={12} />
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           {date}
         </span>
       </div>
@@ -376,11 +408,16 @@ function KioskHeader() {
 
 function Screen({ children }) {
   return (
+<<<<<<< HEAD
     <div
       className="flex min-h-screen cursor-default select-none items-center justify-center bg-[#F8F9FA] px-4 py-12 print:hidden"
       style={{ caretColor: 'transparent' }}
     >
       <div className="w-full max-w-md">
+=======
+    <div className="patient-kiosk flex min-h-screen items-center justify-center bg-[#F8F9FA] px-6 py-8 print:hidden">
+      <div className="flex w-full max-w-[420px] flex-col">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
         {children}
       </div>
     </div>
@@ -398,13 +435,18 @@ function NavButtons({
   disabled,
 }) {
   return (
-    <div className="flex justify-between">
+    <div className="mt-1 flex items-center gap-3">
       <button
         type="button"
         onClick={onBack}
+<<<<<<< HEAD
         className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 hover:border-slate-300"
+=======
+        className="flex items-center gap-1.5 rounded-md border bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        style={{ borderColor: REGULAR_DARK }}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
       >
-        <ArrowLeft size={22} />
+        <ArrowLeft size={15} />
         Back
       </button>
 
@@ -412,10 +454,15 @@ function NavButtons({
         type="button"
         onClick={onContinue}
         disabled={disabled}
+<<<<<<< HEAD
         className="flex items-center gap-1.5 rounded-lg bg-[#9D0A0E] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+=======
+        className="flex flex-1 items-center justify-center gap-1.5 rounded-md border-2 bg-white px-4 py-3 text-sm font-semibold text-[#1F2937] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        style={{ borderColor: MUTED_RED }}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
       >
         {continueLabel}
-        <ArrowRight size={22} />
+        <ArrowRight size={15} />
       </button>
     </div>
   );
@@ -428,6 +475,7 @@ function NavButtons({
 function WelcomeScreen({ onStart }) {
   return (
     <Screen>
+<<<<<<< HEAD
       <div className="flex flex-col items-center px-2 text-center">
         <div className="mb-10">
           <Wordmark size="text-2xl" />
@@ -442,16 +490,37 @@ function WelcomeScreen({ onStart }) {
         </h1>
 
         <p className="mb-10 text-base text-slate-500">
+=======
+      <div className="flex flex-col items-center px-2 py-10 text-center">
+        <Wordmark size="h-20" />
+
+        <h1 className="mt-8 text-2xl font-semibold text-slate-900">
+          Welcome to
+        </h1>
+
+        <h1 className="text-2xl font-bold text-[#9D0A0E]">
+          SWU Med Hospital
+        </h1>
+
+        <p className="mt-3 text-sm text-slate-500">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           Please tap below to get your queue number.
         </p>
 
         <button
           type="button"
           onClick={onStart}
+<<<<<<< HEAD
           className="flex w-full max-w-[24rem] self-center items-center justify-center gap-2 rounded-none bg-[#9D0A0E] px-12 py-5 text-center text-lg font-semibold text-white shadow-sm hover:bg-[#7d0809]"
         >
           <span>GET STARTED</span>
           <ArrowRight size={24} />
+=======
+          className="mt-8 flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-4 text-base font-semibold text-white shadow-sm hover:bg-[#7d0809]"
+        >
+          GET STARTED
+          <ArrowRight size={18} />
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
         </button>
       </div>
     </Screen>
@@ -480,10 +549,14 @@ function NumericKeypad({
   ];
 
   const keyClass =
+<<<<<<< HEAD
     'flex h-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-800 transition hover:border-slate-300 active:bg-slate-50';
+=======
+    'flex h-12 items-center justify-center rounded-md border border-[#E5E7EB] bg-white text-base font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100';
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-3 gap-2.5">
       {keys.map((key) => (
         <button
           key={key}
@@ -498,7 +571,7 @@ function NumericKeypad({
       <button
         type="button"
         onClick={onClear}
-        className={`${keyClass} text-lg text-slate-400`}
+        className={`${keyClass} text-xs text-slate-400`}
       >
         Clear
       </button>
@@ -514,7 +587,7 @@ function NumericKeypad({
       <button
         type="button"
         onClick={onBackspace}
-        className={`${keyClass} text-lg text-slate-400`}
+        className={`${keyClass} text-xs text-slate-400`}
       >
         &#9003;
       </button>
@@ -538,25 +611,44 @@ function SelectKioskScreen({
     <Screen>
       <KioskHeader />
 
+<<<<<<< HEAD
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold text-slate-900">
           Select Your Kiosk
         </h1>
 
         <p className="mt-1 text-sm text-slate-500">
+=======
+      <div className="mb-5 text-center">
+        <h1 className="text-2xl font-semibold text-slate-900">
+          Select Your Kiosk
+        </h1>
+
+        <p className="mt-1.5 text-sm text-slate-500">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           Please select the kiosk where you are getting your service.
         </p>
       </div>
 
+<<<<<<< HEAD
       <div className="mb-8 space-y-3">
         {loading && (
           <div className="rounded-xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-400">
+=======
+      <div className="mb-5 space-y-2.5">
+        {loading && (
+          <div className="rounded-md border border-[#E5E7EB] bg-white p-4 text-center text-sm text-slate-400">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
             Loading kiosks...
           </div>
         )}
 
         {!loading && kiosks.length === 0 && (
+<<<<<<< HEAD
           <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
+=======
+          <div className="rounded-md border border-[#E5E7EB] bg-white p-4 text-center">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
             <p className="text-sm font-semibold text-slate-700">
               No kiosks are currently available.
             </p>
@@ -589,12 +681,22 @@ function SelectKioskScreen({
                 onClick={() =>
                   onSelect(currentKiosk)
                 }
+<<<<<<< HEAD
                 className={`relative flex w-full items-center gap-3 rounded-lg border p-4 text-left transition ${
+=======
+                className={`relative flex w-full items-center gap-3 rounded-md border p-3.5 text-left shadow-sm transition ${
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
                   isSelected
-                    ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-transparent'
+                    : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
                 }`}
+                style={
+                  isSelected
+                    ? { backgroundColor: BRAND_RED }
+                    : undefined
+                }
               >
+<<<<<<< HEAD
                 {isSelected && (
                   <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
                     <CheckCircle2 size={12} />
@@ -605,15 +707,38 @@ function SelectKioskScreen({
                   <Icon
                     size={18}
                     className="text-[#9D0A0E]"
+=======
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center ${
+                    isSelected ? 'rounded-full' : 'rounded'
+                  }`}
+                  style={{
+                    backgroundColor: isSelected
+                      ? 'white'
+                      : ICON_TINT,
+                  }}
+                >
+                  <Icon
+                    size={18}
+                    style={{
+                      color: isSelected
+                        ? '#4B5563'
+                        : BRAND_RED,
+                    }}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
                   />
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
                     <p
+<<<<<<< HEAD
                       className={`text-sm font-bold uppercase tracking-wide ${
+=======
+                      className={`text-sm font-semibold uppercase tracking-wide ${
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
                         isSelected
-                          ? 'text-[#9D0A0E]'
+                          ? 'text-white'
                           : 'text-slate-800'
                       }`}
                     >
@@ -621,13 +746,17 @@ function SelectKioskScreen({
                     </p>
 
                     {isUnlocked && (
+<<<<<<< HEAD
                       <span className="shrink-0 rounded-full bg-green-100 px-2 py-1 text-[9px] font-semibold text-green-700">
+=======
+                      <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
                         UNLOCKED
                       </span>
                     )}
                   </div>
 
-                  <p className="text-base text-slate-400">
+                  <p className={`text-xs ${isSelected ? 'text-white/70' : 'text-slate-400'}`}>
                     Select this kiosk to continue.
                   </p>
                 </div>
@@ -649,6 +778,8 @@ function SelectKioskScreen({
    KIOSK CODE SCREEN
 ========================================================= */
 
+const KIOSK_PIN_LENGTH = 6;
+
 function KioskPinScreen({
   kiosk,
   onBack,
@@ -667,7 +798,7 @@ function KioskPinScreen({
       return;
     }
 
-    if (pin.length !== 4) {
+    if (pin.length !== KIOSK_PIN_LENGTH) {
       return;
     }
 
@@ -715,7 +846,7 @@ function KioskPinScreen({
     setError('');
 
     setPin((current) =>
-      current.length >= 4
+      current.length >= KIOSK_PIN_LENGTH
         ? current
         : current + digit
     );
@@ -736,6 +867,7 @@ function KioskPinScreen({
 
   return (
     <Screen>
+<<<<<<< HEAD
       <div className="mb-8 flex justify-center">
         <Wordmark size="text-2xl" />
       </div>
@@ -794,11 +926,66 @@ function KioskPinScreen({
 
       {error && (
         <p className="mb-4 text-center text-sm font-medium text-red-500">
+=======
+      <div className="mb-6 flex justify-center">
+        <Wordmark size="h-16" />
+      </div>
+
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-semibold text-slate-900">
+          Enter Kiosk Code
+        </h1>
+
+        <p className="mt-1.5 text-sm text-slate-500">
+          Please enter the kiosk code to activate.
+        </p>
+      </div>
+
+      <div className="mb-5 flex justify-center gap-2">
+        {Array.from({ length: KIOSK_PIN_LENGTH }, (_, index) => {
+          const filled = index < pin.length;
+          const isActive = index === pin.length;
+
+          return (
+            <div
+              key={index}
+              className="flex h-12 w-12 items-center justify-center rounded border-2 bg-white"
+              style={{
+                backgroundColor: isActive
+                  ? 'white'
+                  : '#F8FAFC',
+                borderColor: isActive
+                  ? MUTED_RED
+                  : filled
+                    ? '#CBD5E1'
+                    : '#E2E8F0',
+                opacity: !filled && !isActive ? 0.5 : 1,
+              }}
+            >
+              {filled && (
+                <span className="h-2.5 w-2.5 rounded-full bg-slate-900" />
+              )}
+
+              {isActive && (
+                <span className="h-6 w-0.5 animate-pulse rounded-full bg-[#B34C4C]" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {error && (
+        <p className="mb-3 text-center text-xs font-medium text-red-500">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           {error}
         </p>
       )}
 
+<<<<<<< HEAD
       <div className="mb-6">
+=======
+      <div className="mb-5">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
         <NumericKeypad
           onDigit={handleDigit}
           onBackspace={handleBackspace}
@@ -810,6 +997,7 @@ function KioskPinScreen({
         <button
           type="button"
           onClick={handleSubmit}
+<<<<<<< HEAD
           disabled={
             pin.length !== 4 ||
             submitting
@@ -820,12 +1008,23 @@ function KioskPinScreen({
             ? 'Activating...'
             : 'Activate Kiosk'}
           <ArrowRight size={16} />
+=======
+          disabled={pin.length !== KIOSK_PIN_LENGTH || submitting}
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-3.5 text-base font-semibold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitting ? 'Activating...' : 'Activate Kiosk'}
+          <ArrowRight size={18} />
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
         </button>
 
         <button
           type="button"
           onClick={onBack}
+<<<<<<< HEAD
           className="flex items-center justify-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700"
+=======
+          className="flex items-center justify-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-700"
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
         >
           <ArrowLeft size={14} />
           Back
@@ -844,13 +1043,13 @@ function QueueTypeScreen({
   onSelect,
   onBack,
   onContinue,
-  kiosk,
 }) {
   return (
     <Screen>
       <KioskHeader />
 
       <div className="mb-6 text-center">
+<<<<<<< HEAD
         <h1 className="text-2xl font-bold text-slate-900">
           Select Your Queue Type
         </h1>
@@ -865,6 +1064,15 @@ function QueueTypeScreen({
             {kiosk.name}
           </div>
         )}
+=======
+        <h1 className="text-2xl font-semibold text-slate-900">
+          Select Your Queue Type
+        </h1>
+
+        <p className="mt-1.5 text-sm text-slate-500">
+          Please select the queue type that applies to you.
+        </p>
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
       </div>
 
       <div className="mb-8 space-y-3">
@@ -876,25 +1084,38 @@ function QueueTypeScreen({
             <button
               key={type.key}
               type="button"
+<<<<<<< HEAD
               onClick={() =>
                 onSelect(type)
               }
               className={`relative mx-auto w-full max-w-sm rounded-lg border px-5 py-4 text-center transition ${
+=======
+              onClick={() => onSelect(type)}
+              className={`relative w-full rounded-md border p-5 text-center shadow-sm transition ${
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
                 isSelected
-                  ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                  ? 'border-transparent'
+                  : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
               }`}
+              style={
+                isSelected
+                  ? { backgroundColor: BRAND_RED }
+                  : undefined
+              }
             >
+<<<<<<< HEAD
               {isSelected && (
                 <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
                   <CheckCircle2 size={12} />
                 </span>
               )}
 
+=======
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
               <p
                 className={`text-lg font-bold uppercase tracking-wide ${
                   isSelected
-                    ? 'text-[#9D0A0E]'
+                    ? 'text-white'
                     : 'text-slate-800'
                 }`}
               >
@@ -919,7 +1140,6 @@ function QueueTypeScreen({
 ========================================================= */
 
 function SelectDepartmentScreen({
-  kiosk,
   departments,
   selected,
   onSelect,
@@ -932,6 +1152,7 @@ function SelectDepartmentScreen({
       <KioskHeader />
 
       <div className="mb-5 text-center">
+<<<<<<< HEAD
         <h1 className="text-2xl font-bold text-slate-900">
           What do you need today?
         </h1>
@@ -946,24 +1167,41 @@ function SelectDepartmentScreen({
             {kiosk.name}
           </div>
         )}
+=======
+        <h1 className="text-2xl font-semibold text-slate-900">
+          What do you need today?
+        </h1>
+
+        <p className="mt-1.5 text-sm text-slate-500">
+          Please select a service to get your queue number.
+        </p>
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
       </div>
 
       <div
-        className="mb-4 max-h-[620px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden"
+        className="mb-3 max-h-[380px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden"
         style={{
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
         }}
       >
         {loading && (
+<<<<<<< HEAD
           <div className="rounded-xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-400">
+=======
+          <div className="rounded-md border border-[#E5E7EB] bg-white p-5 text-center text-sm text-slate-400">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
             Loading services...
           </div>
         )}
 
         {!loading &&
           departments.length === 0 && (
+<<<<<<< HEAD
             <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
+=======
+            <div className="rounded-md border border-[#E5E7EB] bg-white p-5 text-center">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
               <p className="text-sm font-semibold text-slate-700">
                 No services are currently available.
               </p>
@@ -974,6 +1212,7 @@ function SelectDepartmentScreen({
             </div>
           )}
 
+<<<<<<< HEAD
         {!loading &&
           departments.length > 0 && (
             <div className="grid grid-cols-2 gap-3">
@@ -984,6 +1223,16 @@ function SelectDepartmentScreen({
                       department.name,
                       department.classification
                     );
+=======
+        {!loading && departments.length > 0 && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {departments.map((department) => {
+              const Icon =
+                getDepartmentIcon(
+                  department.name,
+                  department.classification
+                );
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
 
                   const isSelected =
                     selected?.department_id ===
@@ -994,6 +1243,7 @@ function SelectDepartmentScreen({
                       department
                     );
 
+<<<<<<< HEAD
                   return (
                     <button
                       key={
@@ -1066,9 +1316,82 @@ function SelectDepartmentScreen({
               )}
             </div>
           )}
+=======
+              return (
+                <button
+                  key={department.department_id}
+                  type="button"
+                  disabled={!active}
+                  onClick={() =>
+                    active && onSelect(department)
+                  }
+                  className={`relative flex flex-col items-center gap-1.5 rounded-md border p-3 text-center shadow-sm transition ${
+                    !active
+                      ? 'cursor-not-allowed border-[#E5E7EB] bg-[#F1F3F5] opacity-60'
+                      : isSelected
+                        ? 'border-transparent'
+                        : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
+                  }`}
+                  style={
+                    active && isSelected
+                      ? { backgroundColor: BRAND_RED }
+                      : undefined
+                  }
+                >
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center ${
+                      active && isSelected ? 'rounded-full' : 'rounded'
+                    }`}
+                    style={{
+                      backgroundColor: !active
+                        ? '#E5E7EB'
+                        : isSelected
+                          ? 'white'
+                          : ICON_TINT,
+                    }}
+                  >
+                    <Icon
+                      size={16}
+                      style={{
+                        color: !active
+                          ? '#94A3B8'
+                          : isSelected
+                            ? '#4B5563'
+                            : BRAND_RED,
+                      }}
+                    />
+                  </div>
+
+                  <p
+                    className={`text-[11px] font-bold uppercase leading-tight tracking-wide ${
+                      !active
+                        ? 'text-slate-400'
+                        : isSelected
+                          ? 'text-white'
+                          : 'text-slate-800'
+                    }`}
+                  >
+                    {department.name}
+                  </p>
+
+                  <p
+                    className={`text-[9px] leading-tight ${
+                      active && isSelected ? 'text-white/70' : 'text-slate-400'
+                    }`}
+                  >
+                    {active
+                      ? getDepartmentDescription(department)
+                      : 'Inactive'}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
       </div>
 
-      <p className="mb-8 mt-4 text-center text-lg text-slate-400">
+      <p className="mb-4 mt-2 text-center text-xs text-slate-400">
         &darr; Swipe up for more
       </p>
 
@@ -1108,47 +1431,95 @@ function ConfirmScreen({
     <Screen>
       <KioskHeader />
 
+<<<<<<< HEAD
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold text-slate-900">
           Confirm Your Service
         </h1>
 
         <p className="mt-1 text-sm text-slate-500">
+=======
+      <div className="mb-5 text-center">
+        <h1 className="text-2xl font-semibold text-slate-900">
+          Confirm Your Service
+        </h1>
+
+        <p className="mt-1.5 text-sm text-slate-500">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           Please review your selected service before getting your queue number.
         </p>
       </div>
 
+<<<<<<< HEAD
       <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex flex-col items-center border-b border-slate-100 pb-4 text-center">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[#9D0A0E]/10">
             <MapPin
               size={22}
+=======
+      <div className="mb-6 rounded-lg border border-[#E5E7EB] bg-white p-5 shadow-sm">
+        <div className="mb-3 flex flex-col items-center border-b border-[#C3C6D7]/30 pb-4 text-center">
+          <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[#F7EEEE]">
+            <MapPin
+              size={18}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
               className="text-[#9D0A0E]"
             />
           </div>
 
+<<<<<<< HEAD
           <p className="text-sm font-bold text-slate-900">
+=======
+          <p className="text-base font-semibold text-slate-900">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
             {kiosk?.name}
           </p>
         </div>
 
+<<<<<<< HEAD
         <div className="mb-4 space-y-2.5">
           <div className="flex items-center gap-3 rounded-lg bg-slate-100 px-4 py-3">
             <QueueIcon
               size={16}
               className="shrink-0 text-slate-700"
             />
+=======
+        <div className="space-y-2">
+          <div
+            className="flex items-center gap-3 rounded p-3"
+            style={{ backgroundColor: SELECTED_BG }}
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#E5E7EB]">
+              <QueueIcon
+                size={15}
+                className="text-slate-700"
+              />
+            </div>
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
 
             <p className="text-sm font-semibold text-slate-800">
               {queueType?.name}
             </p>
           </div>
 
+<<<<<<< HEAD
           <div className="flex items-center gap-3 rounded-lg bg-slate-100 px-4 py-3">
             <ServiceIcon
               size={16}
               className="shrink-0 text-slate-700"
             />
+=======
+          <div
+            className="flex items-center gap-3 rounded p-3"
+            style={{ backgroundColor: SELECTED_BG }}
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#E5E7EB]">
+              <ServiceIcon
+                size={15}
+                className="text-slate-700"
+              />
+            </div>
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
 
             <p className="text-sm font-semibold text-slate-800">
               {service?.name}
@@ -1156,17 +1527,31 @@ function ConfirmScreen({
           </div>
         </div>
 
+<<<<<<< HEAD
         <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-100 px-4 py-3 text-center">
+=======
+        <div
+          className="mt-3 grid grid-cols-2 rounded p-4 text-center"
+          style={{ backgroundColor: SELECTED_BG }}
+        >
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           <div>
-            <p className="text-sm font-bold uppercase tracking-wide text-slate-400">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Current Queue
             </p>
 
+<<<<<<< HEAD
             <p className="flex items-baseline justify-center gap-2">
               <span className="text-2xl font-extrabold text-slate-900">
                 {waitingAhead}
               </span>
 
+=======
+            <p className="mt-1 flex items-baseline justify-center gap-1">
+              <span className="text-xl font-bold text-slate-900">
+                {waitingAhead}
+              </span>
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
               <span className="text-xs font-semibold text-[#9D0A0E]">
                 people ahead
               </span>
@@ -1174,15 +1559,22 @@ function ConfirmScreen({
           </div>
 
           <div>
-            <p className="text-sm font-bold uppercase tracking-wide text-slate-400">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Estimated Wait
             </p>
 
+<<<<<<< HEAD
             <p className="flex items-baseline justify-center gap-2">
               <span className="text-2xl font-extrabold text-slate-900">
                 ~{service?.estMin ?? 0}
               </span>
 
+=======
+            <p className="mt-1 flex items-baseline justify-center gap-1">
+              <span className="text-xl font-bold text-slate-900">
+                ~{service?.estMin ?? 0}
+              </span>
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
               <span className="text-xs font-semibold text-[#9D0A0E]">
                 min
               </span>
@@ -1226,15 +1618,24 @@ function TicketScreen({
       <KioskHeader />
 
       <div className="mb-5 text-center">
+<<<<<<< HEAD
         <h1 className="text-2xl font-bold text-slate-900">
           Your Queue Number
         </h1>
 
         <p className="mt-1 text-sm text-slate-500">
+=======
+        <h1 className="text-2xl font-semibold text-slate-900">
+          Your Queue Number
+        </h1>
+
+        <p className="mt-1.5 text-sm text-slate-500">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           Please keep this slip until your number is called.
         </p>
       </div>
 
+<<<<<<< HEAD
       <div className="mx-auto mb-6 w-full max-w-[26rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div
           className="px-6 py-6 text-center"
@@ -1256,11 +1657,36 @@ function TicketScreen({
 
           <p className="text-[11px] text-white/70">
             DEPARTMENT: {service?.name}
+=======
+      <div
+        className="mb-5 overflow-hidden rounded-lg border bg-white shadow-sm"
+        style={{ borderColor: BORDER_DEFAULT }}
+      >
+        <div
+          className="px-6 py-6 text-center"
+          style={{ backgroundColor: themeColor }}
+        >
+          <p className="mb-2 text-5xl font-bold text-white">
+            {queueNumber}
+          </p>
+
+          <span className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+            {queueType?.label}
+          </span>
+
+          <p className="mt-1.5 text-xs text-white/70">
+            SERVICE: {service?.name}
+          </p>
+
+          <p className="text-xs text-white/70">
+            DEPARTMENT: {kiosk?.name}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           </p>
         </div>
 
         <div className="grid grid-cols-[1fr_auto] gap-4 p-4">
           <div className="space-y-2">
+<<<<<<< HEAD
             <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
               <Users
                 size={14}
@@ -1273,12 +1699,32 @@ function TicketScreen({
                 </p>
 
                 <p className="text-xs font-semibold text-slate-700">
+=======
+            <div className="flex items-center gap-2.5 rounded-md bg-[#F3F5F7] px-3 py-2.5">
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded"
+                style={{ backgroundColor: `${themeColor}1A` }}
+              >
+                <Users
+                  size={15}
+                  style={{ color: themeColor }}
+                />
+              </div>
+
+              <div>
+                <p className="text-[10px] text-slate-400">
+                  Waiting Info
+                </p>
+
+                <p className="text-sm font-semibold text-slate-700">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
                   {service?.waiting ?? 0}{' '}
                   people waiting
                 </p>
               </div>
             </div>
 
+<<<<<<< HEAD
             <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
               <Hourglass
                 size={14}
@@ -1291,6 +1737,25 @@ function TicketScreen({
                 </p>
 
                 <p className="text-xs font-semibold text-slate-700">
+=======
+            <div className="flex items-center gap-2.5 rounded-md bg-[#F3F5F7] px-3 py-2.5">
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded"
+                style={{ backgroundColor: `${themeColor}1A` }}
+              >
+                <Hourglass
+                  size={15}
+                  style={{ color: themeColor }}
+                />
+              </div>
+
+              <div>
+                <p className="text-[10px] text-slate-400">
+                  Estimated Wait
+                </p>
+
+                <p className="text-sm font-semibold text-slate-700">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
                   ~{service?.estMin ?? 0}{' '}
                   minutes
                 </p>
@@ -1301,39 +1766,65 @@ function TicketScreen({
           <div className="flex flex-col items-center justify-center">
             <QRCodeSVG
               value={getTrackerUrl(queueId)}
+<<<<<<< HEAD
               size={90}
+=======
+              size={96}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
               level="M"
               includeMargin={true}
             />
 
+<<<<<<< HEAD
             <p className="mt-1 max-w-[90px] text-center text-[9px] text-slate-400">
+=======
+            <p className="mt-1.5 max-w-[110px] text-center text-[10px] text-slate-400">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
               Scan the QR code to track your queue status on your phone.
             </p>
           </div>
         </div>
       </div>
 
+<<<<<<< HEAD
       <p className="mb-5 text-center text-sm font-medium text-slate-700">
+=======
+      <p className="mb-3 text-center text-sm font-medium text-slate-700">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
         Would you like to print your ticket?
       </p>
 
-      <div className="flex gap-4">
+      <div className="flex gap-3">
         <button
           type="button"
           onClick={onPrint}
+<<<<<<< HEAD
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#9D0A0E] py-3 text-xs font-semibold text-white hover:bg-[#7d0809]"
         >
           <Printer size={14} />
+=======
+          className="flex flex-1 items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-3 text-sm font-semibold text-white hover:bg-[#7d0809]"
+        >
+          <Printer size={16} />
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           PRINT TICKET
         </button>
 
         <button
           type="button"
           onClick={onSkipPrint}
+<<<<<<< HEAD
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-3 text-xs font-semibold text-slate-600 hover:border-slate-300"
         >
           CONTINUE WITHOUT PRINTING
           <ArrowRight size={14} />
+=======
+          className="flex flex-1 items-center justify-center gap-2 rounded-md border bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          style={{ borderColor: REGULAR_DARK }}
+        >
+          CONTINUE WITHOUT PRINTING
+          <ArrowRight size={16} />
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
         </button>
       </div>
     </Screen>
@@ -1355,6 +1846,7 @@ function PrintingScreen({
     <Screen>
       <KioskHeader />
 
+<<<<<<< HEAD
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <h2 className="mb-5 text-base font-bold text-slate-900">
           Printing Your Ticket
@@ -1400,6 +1892,54 @@ function PrintingScreen({
 
           Printing...
         </p>
+=======
+      <div className="relative">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-blue-600/5 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-blue-200/20 blur-2xl" />
+
+        <div
+          className="relative rounded-lg border bg-white p-6 text-center shadow-sm"
+          style={{ borderColor: BORDER_DEFAULT }}
+        >
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">
+            Printing Your Ticket
+          </h2>
+
+          <div
+            className="mx-auto mb-4 max-w-[260px] rounded-md px-5 py-5"
+            style={{ backgroundColor: themeColor }}
+          >
+            <p className="text-[10px] uppercase tracking-wide text-white/60">
+              Your queue number
+            </p>
+
+            <p className="text-2xl font-bold text-white">
+              {queueNumber}
+            </p>
+          </div>
+
+          <DoorOpen
+            size={28}
+            className="mx-auto mb-3 animate-pulse text-slate-300"
+          />
+
+          <p className="mb-4 text-sm text-slate-500">
+            Please wait while your ticket is being printed.
+            Take it with you to the waiting area.
+          </p>
+
+          <span
+            className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium text-slate-600"
+            style={{
+              backgroundColor: ICON_TINT,
+              borderColor: BORDER_DEFAULT,
+            }}
+          >
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[#B34C4C]" />
+            Printing...
+          </span>
+        </div>
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
       </div>
     </Screen>
   );
@@ -1420,15 +1960,27 @@ function SuccessScreen({
     <Screen>
       <KioskHeader />
 
+<<<<<<< HEAD
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <div
           className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full"
           style={{
             backgroundColor: `${themeColor}1A`,
           }}
+=======
+      <div className="relative">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-[#9D0A0E]/5 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-[#9D0A0E]/5 blur-2xl" />
+
+        <div
+          className="relative rounded-lg border bg-white p-6 text-center shadow-sm"
+          style={{ borderColor: BORDER_DEFAULT }}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
         >
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#DDFFEF]/80">
           <CheckCircle2
             size={24}
+<<<<<<< HEAD
             style={{
               color: themeColor,
             }}
@@ -1436,10 +1988,18 @@ function SuccessScreen({
         </div>
 
         <h2 className="mb-5 text-base font-bold text-slate-900">
+=======
+            style={{ color: '#065F46' }}
+          />
+        </div>
+
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           Ticket Printed Successfully!
         </h2>
 
         <div
+<<<<<<< HEAD
           className="mx-auto mb-5 max-w-[220px] rounded-xl border px-4 py-4"
           style={{
             backgroundColor: `${themeColor}0D`,
@@ -1447,26 +2007,45 @@ function SuccessScreen({
           }}
         >
           <p className="text-[9px] uppercase tracking-wide text-slate-400">
+=======
+          className="mx-auto mb-4 max-w-[260px] rounded border bg-white px-5 py-5"
+          style={{ borderColor: BORDER_DEFAULT }}
+        >
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
             Your queue number
           </p>
 
           <p
             className="text-2xl font-bold"
+<<<<<<< HEAD
             style={{
               color: themeColor,
             }}
+=======
+            style={{ color: themeColor }}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           >
             {queueNumber}
           </p>
         </div>
 
+<<<<<<< HEAD
         <p className="mb-1 text-xs text-slate-500">
           Please take your ticket and proceed to the waiting area.
         </p>
 
         <p className="text-[11px] text-slate-400">
+=======
+        <p className="mb-1.5 text-sm text-slate-500">
+          Please take your ticket and proceed to the waiting area.
+        </p>
+
+        <p className="text-xs text-slate-400">
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
           Scan the QR code on your ticket to track your queue.
         </p>
+        </div>
       </div>
     </Screen>
   );
@@ -1506,14 +2085,18 @@ function PrintedTicketReceipt({
     });
 
   return (
-    <div className="hidden print:flex print:min-h-screen print:items-center print:justify-center">
+    <div className="patient-kiosk hidden print:flex print:min-h-screen print:items-center print:justify-center">
       <div className="w-full max-w-[320px] p-6 text-center">
+<<<<<<< HEAD
         <Wordmark
           size="text-xl"
           compact
         />
+=======
+        <Wordmark size="h-10" />
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
 
-        <p className="mt-4 text-base font-bold uppercase tracking-wide text-slate-800">
+        <p className="mt-4 text-base font-medium uppercase tracking-wide text-slate-800">
           {kiosk?.name}
         </p>
 
@@ -1522,10 +2105,15 @@ function PrintedTicketReceipt({
         </p>
 
         <p
+<<<<<<< HEAD
           className="text-5xl font-extrabold"
           style={{
             color: themeColor,
           }}
+=======
+          className="text-5xl font-semibold"
+          style={{ color: themeColor }}
+>>>>>>> jhon-paul-admin-staff-and-patient-number-2
         >
           {queueNumber}
         </p>

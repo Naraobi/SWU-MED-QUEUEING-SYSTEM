@@ -244,7 +244,7 @@ async function getUsersFromMySQL() {
       u.kiosk_id,
       u.kiosk,
       u.department_id,
-      u.department,
+      COALESCE(d.name, u.department) AS department,
 
       d.prefix AS department_prefix,
 
@@ -342,7 +342,7 @@ async function getUserFromMySQL(userId) {
       u.kiosk_id,
       u.kiosk,
       u.department_id,
-      u.department,
+      COALESCE(d.name, u.department) AS department,
 
       d.prefix AS department_prefix,
 
@@ -406,7 +406,7 @@ async function getUserByFirebaseUid(firebaseUid) {
       u.kiosk_id,
       u.kiosk,
       u.department_id,
-      u.department,
+      COALESCE(d.name, u.department) AS department,
 
       d.prefix AS department_prefix,
 
@@ -2314,7 +2314,7 @@ async function getStaffByDepartmentFromMySQL(
         u.kiosk_id,
         u.kiosk,
         u.department_id,
-        u.department,
+        COALESCE(d.name, u.department) AS department,
 
         d.prefix AS department_prefix,
 
@@ -2456,7 +2456,7 @@ async function getUserByEmailFromMySQL(
         u.kiosk_id,
         u.kiosk,
         u.department_id,
-        u.department,
+        COALESCE(d.name, u.department) AS department,
 
         d.prefix AS department_prefix,
 

@@ -283,6 +283,9 @@ function mapQueueItem(
         ? `Counter ${row.counter_id}`
         : 'Unassigned',
 
+    counterId:
+      row.counter_id || null,
+
     status:
       row.status || 'waiting',
 
@@ -817,7 +820,8 @@ export async function fetchQueueState(
    ---------------------------------------------------------------------------- */
 
 export async function callNextPatient(
-  departmentPrefix
+  departmentPrefix,
+  terminalId
 ) {
   if (!departmentPrefix) {
     throw new Error(
@@ -836,7 +840,10 @@ export async function callNextPatient(
           headers: {
             'Content-Type':
               'application/json'
-          }
+          },
+          body: JSON.stringify({
+            terminalId: terminalId || null
+          })
         }
       )
 

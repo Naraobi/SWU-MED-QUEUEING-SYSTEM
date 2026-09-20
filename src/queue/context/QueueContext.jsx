@@ -262,7 +262,8 @@ export function QueueProvider({ children }) {
      ========================================================================== */
 
   const callNextPatient = async (
-    departmentPrefix
+    departmentPrefix,
+    terminalId
   ) => {
     if (!departmentPrefix) {
       throw new Error(
@@ -272,7 +273,8 @@ export function QueueProvider({ children }) {
 
     const state =
       await api.callNextPatient(
-        departmentPrefix
+        departmentPrefix,
+        terminalId
       )
 
     setWaitingQueue(
