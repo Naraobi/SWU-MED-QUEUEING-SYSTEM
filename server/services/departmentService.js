@@ -22,80 +22,81 @@
   */
 
   async function getDepartments() {
-    const firebaseAvailable = FORCE_FIREBASE_OFFLINE
-      ? false
-      : await checkFirebaseConnection();
-
     /*
     |--------------------------------------------------------------------------
-    | FIREBASE
+    | MYSQL
+    |--------------------------------------------------------------------------
+    |
+    | MySQL is the PRIMARY application database, same as users. Reading
+    | departments from Firebase first let a stale or unsynced Firebase copy
+    | (e.g. a failed create/update that only got as far as `sync_queue`)
+    | shadow a perfectly valid MySQL department, which made department
+    | admins with a real department assignment get rejected as "not
+    | assigned to a valid department."
+    |
     |--------------------------------------------------------------------------
     */
 
-    if (firebaseAvailable) {
-      try {
-        const snapshot = await db
-          .collection("department")
-          .get();
-
-        const firebaseDepartments = snapshot.docs.map((doc) =>
-          doc.data()
-        );
-
-        if (firebaseDepartments.length > 0) {
-          console.log(
-            `GET departments: ${firebaseDepartments.length} records loaded from Firebase.`
-          );
-
-          return firebaseDepartments;
-        }
-
-        console.log(
-          "Firebase department collection is empty. Loading departments from MySQL..."
-        );
-      } catch (error) {
-        console.error(
-          "Firebase GET departments failed:",
-          error.message
-        );
-
-        console.log(
-          "Falling back to MySQL..."
-        );
-      }
-    } else {
-      console.log(
-        "Firebase unavailable. Loading departments from MySQL..."
+    try {
+      const [rows] = await pool.query(
+        `
+        SELECT
+          department_id,
+          name,
+          classification,
+          location,
+          prefix,
+          est_time,
+          kiosk_id,
+          status
+        FROM department
+        ORDER BY name ASC
+        `
       );
+
+      console.log(
+        `GET departments: ${rows.length} records loaded from MySQL.`
+      );
+
+      return rows;
+    } catch (mysqlError) {
+      console.error(
+        "MYSQL GET DEPARTMENTS ERROR:",
+        mysqlError.message
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | FIREBASE FALLBACK
+      |--------------------------------------------------------------------------
+      */
+
+      const firebaseAvailable = FORCE_FIREBASE_OFFLINE
+        ? false
+        : await checkFirebaseConnection();
+
+      if (!firebaseAvailable) {
+        throw mysqlError;
+      }
+
+      console.log(
+        "Falling back to Firebase..."
+      );
+
+      const snapshot = await db
+        .collection("department")
+        .get();
+
+      const firebaseDepartments = snapshot.docs.map((doc) =>
+        doc.data()
+      );
+
+      console.log(
+        `GET departments: ${firebaseDepartments.length} records loaded from Firebase.`
+      );
+
+      return firebaseDepartments;
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | MYSQL FALLBACK
-    |--------------------------------------------------------------------------
-    */
-
-    const [rows] = await pool.query(
-      `
-      SELECT
-        department_id,
-        name,
-        classification,
-        location,
-        prefix,
-        est_time,
-        kiosk_id,
-        status
-      FROM department
-      ORDER BY name ASC
-      `
-    );
-
-    console.log(
-      `GET departments: ${rows.length} records loaded from MySQL.`
-    );
-
-    return rows;
   }
 
   /*
@@ -105,87 +106,83 @@
   */
 
   async function getDepartmentById(departmentId) {
-    const firebaseAvailable = FORCE_FIREBASE_OFFLINE
-      ? false
-      : await checkFirebaseConnection();
-
     /*
     |--------------------------------------------------------------------------
-    | FIREBASE
+    | MYSQL
     |--------------------------------------------------------------------------
     */
 
-    if (firebaseAvailable) {
-      try {
-        const document = await db
-          .collection("department")
-          .doc(departmentId)
-          .get();
+    try {
+      const [rows] = await pool.query(
+        `
+        SELECT
+          department_id,
+          name,
+          classification,
+          location,
+          prefix,
+          est_time,
+          kiosk_id,
+          status
+        FROM department
+        WHERE department_id = ?
+        LIMIT 1
+        `,
+        [departmentId]
+      );
 
-        if (document.exists) {
-          console.log(
-            `GET department ${departmentId}: loaded from Firebase.`
-          );
-
-          return document.data();
-        }
-
+      if (rows.length === 0) {
         console.log(
-          `Department ${departmentId} not found in Firebase. Checking MySQL...`
-        );
-      } catch (error) {
-        console.error(
-          "Firebase GET department by ID failed:",
-          error.message
+          `Department ${departmentId} was not found in MySQL.`
         );
 
-        console.log(
-          "Falling back to MySQL..."
-        );
+        return null;
       }
-    } else {
+
       console.log(
-        "Firebase unavailable. Loading department from MySQL..."
-      );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | MYSQL FALLBACK
-    |--------------------------------------------------------------------------
-    */
-
-    const [rows] = await pool.query(
-      `
-      SELECT
-        department_id,
-        name,
-        classification,
-        location,
-        prefix,
-        est_time,
-        kiosk_id,
-        status
-      FROM department
-      WHERE department_id = ?
-      LIMIT 1
-      `,
-      [departmentId]
-    );
-
-    if (rows.length === 0) {
-      console.log(
-        `Department ${departmentId} was not found in MySQL.`
+        `GET department ${departmentId}: loaded from MySQL.`
       );
 
-      return null;
+      return rows[0];
+    } catch (mysqlError) {
+      console.error(
+        "MYSQL GET DEPARTMENT BY ID ERROR:",
+        mysqlError.message
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | FIREBASE FALLBACK
+      |--------------------------------------------------------------------------
+      */
+
+      const firebaseAvailable = FORCE_FIREBASE_OFFLINE
+        ? false
+        : await checkFirebaseConnection();
+
+      if (!firebaseAvailable) {
+        throw mysqlError;
+      }
+
+      console.log(
+        "Falling back to Firebase..."
+      );
+
+      const document = await db
+        .collection("department")
+        .doc(departmentId)
+        .get();
+
+      if (!document.exists) {
+        return null;
+      }
+
+      console.log(
+        `GET department ${departmentId}: loaded from Firebase.`
+      );
+
+      return document.data();
     }
-
-    console.log(
-      `GET department ${departmentId}: loaded from MySQL.`
-    );
-
-    return rows[0];
   }
 
   /*
