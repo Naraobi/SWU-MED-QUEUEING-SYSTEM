@@ -27,6 +27,7 @@ const patientRoutes = require("./routes/patientRoutes");
 const staffQueueRoutes = require("./routes/staffQueueRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const securityPinRoutes = require("./routes/securityPinRoutes");
+const positionRoutes = require("./routes/positionRoutes");
 
 const app = express();
 
@@ -89,6 +90,11 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use(
   "/api/security/pin",
   securityPinRoutes
+);
+
+app.use(
+  "/api/positions",
+  positionRoutes
 );
 
 // =====================================================
@@ -355,4 +361,9 @@ app.listen(PORT, () => {
   console.log(
     "Staff Queue API: /api/staff-queue"
   );
+
+  console.log(
+  "Position API: /api/positions"
+);
+
 });
