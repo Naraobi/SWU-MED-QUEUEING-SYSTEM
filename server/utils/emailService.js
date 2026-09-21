@@ -37,6 +37,92 @@ SWU Med Queue System`,
   await transporter.sendMail(mailOptions);
 }
 
+async function sendPinVerificationEmail(
+  recipientEmail,
+  firstName,
+  verificationCode
+) {
+  const mailOptions = {
+    from: `"SWU Med Queue System" <${process.env.EMAIL_USER}>`,
+    to: recipientEmail,
+    subject: "SWU Med Queue Security PIN Verification",
+    text: `Hello ${firstName},
+
+You requested to set or change your Security PIN.
+
+Your verification code is:
+
+${verificationCode}
+
+This code will expire in 10 minutes.
+
+If you did not request this, you can safely ignore this email.
+
+Thank you,
+SWU Med Queue System`,
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
+async function sendPasswordResetCodeEmail(
+  recipientEmail,
+  firstName,
+  verificationCode
+) {
+  const mailOptions = {
+    from: `"SWU Med Queue System" <${process.env.EMAIL_USER}>`,
+    to: recipientEmail,
+    subject: "SWU Med Queue Password Change Verification",
+    text: `Hello ${firstName},
+
+You requested to change your account password.
+
+Your verification code is:
+
+${verificationCode}
+
+This code will expire in 10 minutes.
+
+If you did not request this, you can safely ignore this email.
+
+Thank you,
+SWU Med Queue System`,
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
+async function sendPasswordChangedEmail(
+  recipientEmail,
+  firstName
+) {
+  const changedAt = new Date().toLocaleString("en-US", {
+    timeZone: "Asia/Manila",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  const mailOptions = {
+    from: `"SWU Med Queue System" <${process.env.EMAIL_USER}>`,
+    to: recipientEmail,
+    subject: "Your SWU Med Queue Password Was Changed",
+    text: `Hello ${firstName},
+
+Your SWU Med Queue System password was changed on ${changedAt} (Asia/Manila).
+
+If you did not make this change, please contact the administrator immediately.
+
+Thank you,
+SWU Med Queue System`,
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
 module.exports = {
   sendTemporaryPasswordEmail,
+  sendPinVerificationEmail,
+  sendPasswordResetCodeEmail,
+  sendPasswordChangedEmail,
 };

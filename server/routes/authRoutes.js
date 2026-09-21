@@ -10,7 +10,24 @@ const {
   getAuth,
 } = require("firebase-admin/auth");
 
+const {
+  authenticateRequest,
+} = require("../middleware/authMiddleware");
+
+const {
+  createChallenge,
+  checkChallenge,
+  confirmVerifiedChallenge,
+} = require("../services/verificationCodeService");
+
+const {
+  sendPasswordResetCodeEmail,
+  sendPasswordChangedEmail,
+} = require("../utils/emailService");
+
 const router = express.Router();
+
+const PASSWORD_RESET_PURPOSE = "password_reset";
 
 /*
 |--------------------------------------------------------------------------
@@ -362,6 +379,36 @@ router.post(
 
       /*
       |--------------------------------------------------------------------------
+      | BEST-EFFORT CONFIRMATION EMAIL
+      |--------------------------------------------------------------------------
+      |
+      | A failure here should never fail the request - the password has
+      | already been changed in Firebase by this point.
+      |
+      |--------------------------------------------------------------------------
+      */
+
+      try {
+        const user =
+          await getUserByFirebaseUid(
+            firebaseUid
+          );
+
+        if (user?.email) {
+          await sendPasswordChangedEmail(
+            user.email,
+            user.first_name || "there"
+          );
+        }
+      } catch (emailError) {
+        console.error(
+          "PASSWORD CHANGED EMAIL ERROR:",
+          emailError
+        );
+      }
+
+      /*
+      |--------------------------------------------------------------------------
       | SUCCESS
       |--------------------------------------------------------------------------
       */
@@ -544,6 +591,242 @@ router.post("/login", async (req, res) => {
     });
   }
 });
+
+/*
+|--------------------------------------------------------------------------
+| POST /api/auth/change-password/request-code
+|--------------------------------------------------------------------------
+|
+| Step 1 of the Change Password wizard. Sends a 6-digit verification
+| code to the logged-in user's registered email address.
+|
+|--------------------------------------------------------------------------
+*/
+
+router.post(
+  "/change-password/request-code",
+  authenticateRequest,
+  async (req, res) => {
+    try {
+      if (!req.user.email) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "No registered email address is on file for this account.",
+        });
+      }
+
+      const { code, expiresAt } =
+        await createChallenge(
+          req.user.user_id,
+          PASSWORD_RESET_PURPOSE
+        );
+
+      await sendPasswordResetCodeEmail(
+        req.user.email,
+        req.user.first_name || "there",
+        code
+      );
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "A verification code has been sent to your registered email address.",
+        expiresAt,
+      });
+    } catch (error) {
+      console.error(
+        "CHANGE PASSWORD REQUEST CODE ERROR:",
+        error
+      );
+
+      return res.status(400).json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to send verification code.",
+      });
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| POST /api/auth/change-password/verify-code
+|--------------------------------------------------------------------------
+|
+| Step 2 of the Change Password wizard. Body: { code }
+|
+| Confirms the emailed code. The client then calls Firebase
+| updatePassword() directly for step 3, followed by the existing
+| /password-changed endpoint above to finalize + notify.
+|
+|--------------------------------------------------------------------------
+*/
+
+router.post(
+  "/change-password/verify-code",
+  authenticateRequest,
+  async (req, res) => {
+    try {
+      const { code } = req.body || {};
+
+      await checkChallenge(
+        req.user.user_id,
+        PASSWORD_RESET_PURPOSE,
+        code
+      );
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Code verified successfully.",
+      });
+    } catch (error) {
+      console.error(
+        "CHANGE PASSWORD VERIFY CODE ERROR:",
+        error
+      );
+
+      return res.status(400).json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to verify the code.",
+        attemptsRemaining:
+          error.attemptsRemaining,
+      });
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| VALIDATE NEW PASSWORD STRENGTH
+|--------------------------------------------------------------------------
+|
+| Mirrors the requirements already shown to the user in the Change
+| Password wizard's UI (NewPasswordModal) - enforced here too since the
+| client-side checklist is only a UX aid, not a security boundary.
+|
+|--------------------------------------------------------------------------
+*/
+
+function validateNewPasswordStrength(password) {
+  const value = String(password || "");
+
+  if (value.length < 8) {
+    return "Password must be at least 8 characters long.";
+  }
+
+  if (!/[A-Z]/.test(value)) {
+    return "Password must include at least one uppercase letter.";
+  }
+
+  if (!/\d/.test(value)) {
+    return "Password must include at least one number.";
+  }
+
+  if (!/[^A-Za-z0-9]/.test(value)) {
+    return "Password must include at least one special character.";
+  }
+
+  return null;
+}
+
+/*
+|--------------------------------------------------------------------------
+| POST /api/auth/change-password/finalize
+|--------------------------------------------------------------------------
+|
+| Step 3 of the Change Password wizard. Body: { code, newPassword }
+|
+| Confirms the code already verified in step 2 belongs to this user, then
+| sets the new Firebase Authentication password through the Admin SDK -
+| the same privileged pattern userService.js already uses for admin-driven
+| password changes. This deliberately avoids the client-side Firebase
+| updatePassword(), which requires a "recent" sign-in and fails with
+| auth/requires-recent-login for anyone using this wizard later in a
+| session rather than right after logging in.
+|
+|--------------------------------------------------------------------------
+*/
+
+router.post(
+  "/change-password/finalize",
+  authenticateRequest,
+  async (req, res) => {
+    try {
+      const { code, newPassword } =
+        req.body || {};
+
+      const passwordError =
+        validateNewPasswordStrength(
+          newPassword
+        );
+
+      if (passwordError) {
+        return res.status(400).json({
+          success: false,
+          message: passwordError,
+        });
+      }
+
+      if (!req.user.firebase_uid) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "This account is not linked to Firebase Authentication.",
+        });
+      }
+
+      await confirmVerifiedChallenge(
+        req.user.user_id,
+        PASSWORD_RESET_PURPOSE,
+        code
+      );
+
+      await getAuth().updateUser(
+        req.user.firebase_uid,
+        { password: newPassword }
+      );
+
+      await markPasswordChanged(
+        req.user.firebase_uid
+      );
+
+      try {
+        await sendPasswordChangedEmail(
+          req.user.email,
+          req.user.first_name || "there"
+        );
+      } catch (emailError) {
+        console.error(
+          "PASSWORD CHANGED EMAIL ERROR:",
+          emailError
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Your password has been changed successfully.",
+      });
+    } catch (error) {
+      console.error(
+        "CHANGE PASSWORD FINALIZE ERROR:",
+        error
+      );
+
+      return res.status(400).json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to change your password.",
+      });
+    }
+  }
+);
 
 /*
 |--------------------------------------------------------------------------
