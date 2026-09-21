@@ -88,9 +88,9 @@ function validateKioskPin(pin) {
   const normalizedPin =
     String(pin || "").trim();
 
-  if (!/^\d{4}$/.test(normalizedPin)) {
+  if (!/^\d{6}$/.test(normalizedPin)) {
     throw new Error(
-      "Kiosk PIN must be exactly 4 digits."
+      "Kiosk PIN must be exactly 6 digits."
     );
   }
 
