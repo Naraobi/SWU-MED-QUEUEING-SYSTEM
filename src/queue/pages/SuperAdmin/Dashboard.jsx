@@ -812,11 +812,7 @@ return (
             </th>
 
             <th className="px-5 py-2.5 font-medium">
-              Classification
-            </th>
-
-            <th className="px-5 py-2.5 font-medium">
-              Location
+              Kiosk
             </th>
 
             <th className="px-5 py-2.5 font-medium">
@@ -833,7 +829,7 @@ return (
           {loading && (
             <tr>
               <td
-                colSpan={5}
+                colSpan={4}
                 className="px-5 py-8 text-center text-sm text-slate-400"
               >
                 Loading departments...
@@ -846,7 +842,7 @@ return (
             !error && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={4}
                   className="px-5 py-8 text-center text-sm text-slate-400"
                 >
                   No departments yet.
@@ -862,10 +858,6 @@ return (
               >
                 <td className="px-5 py-3 font-medium text-slate-700">
                   {dept.name}
-                </td>
-
-                <td className="px-5 py-3 text-slate-500">
-                  {dept.classification}
                 </td>
 
                 <td className="px-5 py-3 text-slate-600">

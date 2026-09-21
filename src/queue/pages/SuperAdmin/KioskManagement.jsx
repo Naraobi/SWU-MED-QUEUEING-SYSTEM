@@ -1,16 +1,10 @@
 import { useEffect, useState } from 'react';
 
-// Kiosk PINs are this many digits. The same rule is enforced on the kiosk
-// activation screen in PatientView.jsx - change both together.
-export const KIOSK_PIN_LENGTH = 6;
-
 import {
   Building2,
   Check,
   ChevronDown,
   ChevronRight,
-  Eye,
-  EyeOff,
   MapPin,
   Monitor,
   MoreVertical,
@@ -70,8 +64,6 @@ export default function KioskManagement() {
   const [kioskModal, setKioskModal] = useState(null);
   const [kioskName, setKioskName] = useState('');
   const [kioskLocation, setKioskLocation] = useState('');
-  const [kioskPin, setKioskPin] = useState('');
-  const [showPin, setShowPin] = useState(false);
   const [kioskStatus, setKioskStatus] = useState('active');
 
   const [savingKiosk, setSavingKiosk] = useState(false);
@@ -266,8 +258,6 @@ export default function KioskManagement() {
 
     setKioskName('');
     setKioskLocation('');
-    setKioskPin('');
-    setShowPin(false);
     setKioskStatus('active');
     setKioskError(null);
   }
@@ -284,8 +274,6 @@ export default function KioskManagement() {
 
     setKioskName(kiosk.name || '');
     setKioskLocation(kiosk.location || '');
-    setKioskPin('');
-    setShowPin(false);
     setKioskStatus(kiosk.status || 'inactive');
     setKioskError(null);
   }
@@ -299,17 +287,11 @@ export default function KioskManagement() {
 
     const trimmedName = kioskName.trim();
     const trimmedLocation = kioskLocation.trim();
-    const trimmedPin = kioskPin.trim();
 
     if (!trimmedName) {
       setKioskError('Kiosk name is required.');
       return;
     }
-
-if (kioskModal.mode === 'add' && !/^\d{6}$/.test(trimmedPin)) {
-  setKioskError('Kiosk PIN must be exactly 6 digits.');
-  return;
-}
 
     try {
       setSavingKiosk(true);
@@ -322,8 +304,6 @@ if (kioskModal.mode === 'add' && !/^\d{6}$/.test(trimmedPin)) {
       if (kioskModal.mode === 'add') {
         const newKiosk = await createKiosk({
           name: trimmedName,
-          location: trimmedLocation,
-          kiosk_pin: trimmedPin,
           status: kioskStatus,
         });
 
@@ -332,7 +312,7 @@ if (kioskModal.mode === 'add' && !/^\d{6}$/.test(trimmedPin)) {
           {
             ...newKiosk,
             name: trimmedName,
-            location: trimmedLocation,
+            location: '',
             status: kioskStatus,
           },
         ]);
@@ -368,7 +348,6 @@ if (kioskModal.mode === 'add' && !/^\d{6}$/.test(trimmedPin)) {
       setKioskModal(null);
       setKioskName('');
       setKioskLocation('');
-      setKioskPin('');
       setKioskStatus('active');
     } catch (err) {
       console.error('SAVE KIOSK ERROR:', err);
@@ -1054,72 +1033,6 @@ if (kioskModal.mode === 'add' && !/^\d{6}$/.test(trimmedPin)) {
                   className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
                 />
               </div>
-
-              {/* Location */}
-              {kioskModal.mode === 'add' && (
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[#374151]">
-                    Location <span className="text-[#9D0A0E]">*</span>
-                  </label>
-
-                  <div className="relative flex items-center">
-                    <MapPin
-                      size={18}
-                      className="absolute left-3 text-[#9CA3AF]"
-                    />
-                    <input
-                      type="text"
-                      value={kioskLocation}
-                      onChange={(event) => setKioskLocation(event.target.value)}
-                      placeholder="e.g. Ground Floor"
-                      className="w-full rounded-lg border border-[#E5E7EB] pl-9 pr-3 py-2.5 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
-                    />
-                  </div>
-                </div>
-              )}
-
-               {/* Kiosk PIN */}
-              {kioskModal.mode === 'add' && (
-                <div>
-                  <label
-                    htmlFor="kiosk-pin"
-                    className="mb-1.5 block text-sm font-medium text-[#374151]"
-                  >
-                    Kiosk PIN <span className="text-[#9D0A0E]">*</span>
-                  </label>
-
-                  <div className="relative flex items-center">
-                    <input
-                      id="kiosk-pin"
-                      type={showPin ? 'text' : 'password'}
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={kioskPin}
-                      onChange={(event) => {
-                        const value = event.target.value
-                          .replace(/\D/g, '')
-                          .slice(0, 6);
-
-                        setKioskPin(value);
-                      }}
-                      placeholder="Enter 6-digit PIN"
-                      className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 pr-10 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => setShowPin((prev) => !prev)}
-                      className="absolute right-3 text-[#9CA3AF] hover:text-[#4B5563]"
-                    >
-                      {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-
-                  <p className="mt-1.5 text-xs text-[#6B7280]">
-                    Authorized staff use this PIN to activate the kiosk.
-                  </p>
-                </div>
-              )}
 
               {/* Status Segmented Control */}
               <div>

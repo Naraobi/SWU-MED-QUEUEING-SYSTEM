@@ -2484,25 +2484,6 @@ return (
                       </span>
                     </td>
 
-                    {/* ACTION */}
-
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-
-                          setResettingId(department.id);
-                          setPinInput('');
-                          setShowResetPin(true);
-                          setError(null);
-                          setSuccess('');
-                        }}
-                        className="rounded-md border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
-                      >
-                        Reset
-                      </button>
-                    </td>
                   </tr>
                 ))}
             </tbody>

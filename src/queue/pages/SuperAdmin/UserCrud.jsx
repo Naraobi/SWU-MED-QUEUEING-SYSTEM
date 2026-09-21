@@ -205,6 +205,8 @@ function UserModal({
   isEditing,
   saving,
   onAddRole,
+  onAddKiosk,
+  onAddPosition,
   kioskOptions,
   departmentOptions,
   roleOptions,
@@ -440,6 +442,24 @@ function UserModal({
                 />
               </div>
 
+              <div className="flex-1">
+                <FieldLabel required>Last Name</FieldLabel>
+
+                <input
+                  type="text"
+                  value={form.last_name}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      last_name:
+                        event.target.value,
+                    })
+                  }
+                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                  placeholder="Enter last name"
+                />
+              </div>
+
               <div className="w-20 shrink-0">
                 <FieldLabel>M.I.</FieldLabel>
 
@@ -458,24 +478,6 @@ function UserModal({
                 />
               </div>
 
-              <div className="flex-1">
-                <FieldLabel required>Last Name</FieldLabel>
-
-                <input
-                  type="text"
-                  value={form.last_name}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      last_name:
-                        event.target.value,
-                    })
-                  }
-                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-                  placeholder="Enter last name"
-                />
-              </div>
-
             </div>
 
           </FormSection>
@@ -488,109 +490,7 @@ function UserModal({
             <div className="grid grid-cols-2 gap-4">
 
               <div>
-                <FieldLabel required>Contact Number</FieldLabel>
-
-                <input
-                  type="text"
-                  value={form.contact_number}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      contact_number:
-                        event.target.value,
-                    })
-                  }
-                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-                  placeholder="09XX XXX XXXX"
-                />
-              </div>
-
-              <div>
-                <FieldLabel required>Email Address</FieldLabel>
-
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      email:
-                        event.target.value,
-                    })
-                  }
-                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-                  placeholder="name@gmail.com"
-                />
-              </div>
-
-            </div>
-
-          </FormSection>
-
-
-          {/* ----- ASSIGNMENT ----- */}
-
-          <FormSection title="Assignment">
-
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-
-              {/* ROLE */}
-
-              <div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <FieldLabel required>Role</FieldLabel>
-
-                  <span className="text-xs font-semibold text-[#9D0A0E]">
-                    + Add role
-                  </span>
-
-                <input
-                  type="text"
-                  maxLength="2"
-                  value={form.mi}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      mi: event.target.value,
-                    })
-                  }
-                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-                  placeholder="Enter M.I"
-                />
-              </div>
-
-              <div className="flex-1">
-                <FieldLabel required>Last Name</FieldLabel>
-
-                <input
-                  type="text"
-                  value={form.last_name}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      last_name:
-                        event.target.value,
-                    })
-                  }
-                  className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-                  placeholder="Enter last name"
-                />
-                </div>
-              </div>
-
-            </div>
-
-          </FormSection>
-
-
-          {/* ----- CONTACT ----- */}
-
-          <FormSection title="Contact">
-
-            <div className="grid grid-cols-2 gap-4">
-
-              <div>
-                <FieldLabel required>Contact Number</FieldLabel>
+                <FieldLabel>Contact Number</FieldLabel>
 
                 <input
                   type="text"
@@ -679,7 +579,17 @@ function UserModal({
 
               <div>
                 <div className="flex items-baseline justify-between gap-2">
-                  <FieldLabel required>Position</FieldLabel>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <FieldLabel>Position</FieldLabel>
+
+                    <button
+                      type="button"
+                      onClick={onAddPosition}
+                      className="rounded text-xs font-semibold text-[#9D0A0E] transition hover:underline focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
+                    >
+                      + Add position
+                    </button>
+                  </div>
                 </div>
 
                 <select
@@ -715,17 +625,15 @@ function UserModal({
 
               <div>
                 <div className="flex items-baseline justify-between gap-2">
-                  <FieldLabel required>Kiosk</FieldLabel>
+                  <FieldLabel>Kiosk</FieldLabel>
 
-                  <span
-                    className={`text-xs font-semibold ${
-                      isSuperadmin
-                        ? 'text-[#9CA3AF]'
-                        : 'text-[#9D0A0E]'
-                    }`}
+                  <button
+                    type="button"
+                    onClick={onAddKiosk}
+                    className="rounded text-xs font-semibold text-[#9D0A0E] transition hover:underline focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30 disabled:cursor-not-allowed disabled:text-[#9CA3AF] disabled:no-underline"
                   >
                     + Add kiosk
-                  </span>
+                  </button>
                 </div>
 
                 <select
@@ -781,16 +689,16 @@ function UserModal({
 
               <div>
                 <div className="flex items-baseline justify-between gap-2">
-                  <FieldLabel required>Department</FieldLabel>
+                  <FieldLabel>Department</FieldLabel>
 
-                  <button
-                    type="button"
-                    onClick={onAddDepartment}
-                    disabled={isSuperadmin}
-                    className="text-xs font-semibold text-[#9D0A0E] transition hover:underline disabled:cursor-not-allowed disabled:text-[#9CA3AF] disabled:no-underline"
-                  >
-                    + Add department
-                  </button>
+                <button
+  type="button"
+  disabled
+  className="text-xs font-semibold text-[#9CA3AF] cursor-not-allowed"
+  title="Department management is handled separately"
+>
+  + Add department
+</button>
                 </div>
 
                 <div className="relative">
@@ -1871,19 +1779,11 @@ const [verifyingResetPin, setVerifyingResetPin] =
     }
 
     if (!form.kiosk_id) {
-      setError(
-        'Please select a kiosk.'
-      );
-
-      return false;
+      return true;
     }
 
     if (!form.department_id) {
-      setError(
-        'Please select a department.'
-      );
-
-      return false;
+      return true;
     }
 
     const selectedDepartment =
@@ -2105,7 +2005,9 @@ const [verifyingResetPin, setVerifyingResetPin] =
       const finalKiosk =
         isSuperadmin
           ? 'Whole'
-          : form.kiosk;
+          : form.kiosk_id
+            ? form.kiosk
+            : null;
 
       const finalKioskId =
         isSuperadmin
@@ -2115,7 +2017,9 @@ const [verifyingResetPin, setVerifyingResetPin] =
       const finalDepartment =
         isSuperadmin
           ? 'Whole'
-          : form.department;
+          : form.department_id
+            ? form.department
+            : null;
 
       const finalDepartmentId =
         isSuperadmin
@@ -2994,6 +2898,14 @@ const filteredUsers = visibleUsers.filter((user) => {
           onAddRole={() => {
             closeModal();
             onNavigate?.('roles');
+          }}
+          onAddKiosk={() => {
+            closeModal();
+            onNavigate?.('kiosks');
+          }}
+          onAddPosition={() => {
+            closeModal();
+            onNavigate?.('positions');
           }}
           kioskOptions={kiosks}
           departmentOptions={
