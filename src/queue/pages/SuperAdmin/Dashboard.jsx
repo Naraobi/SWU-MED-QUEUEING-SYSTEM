@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { getDashboardAnalytics } from "../../services/backendApi";
+import { getDashboardAnalytics, getKiosks,} from "../../services/backendApi";
 import { auth } from "../../../firebase";
 
 import {
@@ -309,6 +309,7 @@ function CalendarPopup({ value, onChange, onClose }) {
 
 export default function Dashboard() {
   const [departments, setDepartments] = useState([]);
+  const [kiosks, setKiosks] = useState([]);
   const [analytics, setAnalytics] = useState(null);
 
 const [resetDepartmentIds, setResetDepartmentIds] = useState(() => {
@@ -397,6 +398,15 @@ async function fetchDashboardData(
         ? departmentData
         : []
     );
+
+const kioskData = await getKiosks();
+
+setKiosks(
+  Array.isArray(kioskData)
+    ? kioskData
+    : []
+);
+
   } catch (err) {
     console.error("Dashboard loading error:", err);
     setError(
@@ -861,8 +871,12 @@ return (
                 </td>
 
                 <td className="px-5 py-3 text-slate-600">
-                  {dept.location}
-                </td>
+              {kiosks.find(
+                (kiosk) =>
+                  String(kiosk.kiosk_id) ===
+                  String(dept.kiosk_id)
+              )?.name || "--"}
+            </td>
 
                 <td className="px-5 py-3 text-slate-600">
                   {dept.prefix}

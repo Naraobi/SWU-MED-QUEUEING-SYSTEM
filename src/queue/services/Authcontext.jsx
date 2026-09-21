@@ -102,6 +102,96 @@ function normalizeDepartmentPrefix(prefix) {
 
 /*
 |--------------------------------------------------------------------------
+| NORMALIZE POSITION TABS
+|--------------------------------------------------------------------------
+|
+| Position tabs come from the position table.
+|
+| Expected:
+|
+| [
+|   "dashboard",
+|   "users",
+|   "queue"
+| ]
+|
+| This also safely handles JSON strings because cached/offline data
+| may contain the tabs as a string.
+|
+|--------------------------------------------------------------------------
+*/
+
+function normalizePositionTabs(tabs) {
+  /*
+  |----------------------------------------------------------------------
+  | Already an array
+  |----------------------------------------------------------------------
+  */
+
+  if (Array.isArray(tabs)) {
+    return tabs
+      .map((tab) =>
+        String(tab ?? "")
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean);
+  }
+
+  /*
+  |----------------------------------------------------------------------
+  | JSON string or comma-separated string
+  |----------------------------------------------------------------------
+  */
+
+  if (typeof tabs === "string") {
+    const value = tabs.trim();
+
+    if (!value) {
+      return [];
+    }
+
+    /*
+    |--------------------------------------------------------------------
+    | Try JSON first
+    |--------------------------------------------------------------------
+    */
+
+    try {
+      const parsed = JSON.parse(value);
+
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((tab) =>
+            String(tab ?? "")
+              .trim()
+              .toLowerCase()
+          )
+          .filter(Boolean);
+      }
+    } catch {
+      /*
+      |------------------------------------------------------------------
+      | Not JSON. Continue as comma-separated data.
+      |------------------------------------------------------------------
+      */
+    }
+
+    return value
+      .split(",")
+      .map((tab) =>
+        tab
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+/*
+|--------------------------------------------------------------------------
 | VALIDATE USER ACCESS
 |--------------------------------------------------------------------------
 */
@@ -190,6 +280,7 @@ function validateUserAccess(userData) {
 | Firebase UID is preserved as:
 |
 | - firebase_uid
+| - firebaseUid
 | - uid
 |
 |--------------------------------------------------------------------------
@@ -213,6 +304,23 @@ function buildFinalUser(
       userData?.department_prefix ??
       userData?.departmentPrefix ??
       userData?.prefix
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | POSITION TABS
+  |--------------------------------------------------------------------------
+  |
+  | These are the permissions assigned to the user's position.
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  const positionTabs =
+    normalizePositionTabs(
+      userData?.position_tabs ??
+      userData?.positionTabs ??
+      userData?.tabs
     );
 
   /*
@@ -330,6 +438,47 @@ function buildFinalUser(
 
     /*
     |--------------------------------------------------------------------------
+    | POSITION ID
+    |--------------------------------------------------------------------------
+    */
+
+    position_id:
+      userData?.position_id ??
+      null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | POSITION NAME
+    |--------------------------------------------------------------------------
+    */
+
+    position_name:
+      userData?.position_name ??
+      userData?.position ??
+      null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | POSITION TABS
+    |--------------------------------------------------------------------------
+    |
+    | This is the important new property.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    position_tabs:
+      positionTabs,
+
+    /*
+    | Alias for compatibility.
+    */
+
+    positionTabs:
+      positionTabs,
+
+    /*
+    |--------------------------------------------------------------------------
     | KIOSK
     |--------------------------------------------------------------------------
     */
@@ -348,18 +497,18 @@ function buildFinalUser(
     |--------------------------------------------------------------------------
     */
 
- status:
-  userData?.status ??
-  "Active",
+    status:
+      userData?.status ??
+      "Active",
 
-must_change_password:
-  Number(
-    userData?.must_change_password
-  ) === 1,
+    must_change_password:
+      Number(
+        userData?.must_change_password
+      ) === 1,
 
-password_changed_at:
-  userData?.password_changed_at ??
-  null,
+    password_changed_at:
+      userData?.password_changed_at ??
+      null,
   };
 }
 
@@ -370,12 +519,21 @@ password_changed_at:
 */
 
 const saveUserLocally = async (userData) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(userData)
+  );
 
   try {
-    await saveOfflineData('user_profile', userData);
+    await saveOfflineData(
+      "user_profile",
+      userData
+    );
   } catch (error) {
-    console.warn('Could not save offline user profile:', error);
+    console.warn(
+      "Could not save offline user profile:",
+      error
+    );
   }
 };
 
@@ -402,52 +560,104 @@ function clearLocalUser() {
 */
 
 const loadSavedUser = async () => {
+  /*
+  |--------------------------------------------------------------------------
+  | LOCAL STORAGE
+  |--------------------------------------------------------------------------
+  */
+
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved =
+      localStorage.getItem(
+        STORAGE_KEY
+      );
 
     if (saved) {
-      const parsed = JSON.parse(saved);
+      const parsed =
+        JSON.parse(saved);
 
       if (
         parsed?.status &&
-        ['inactive', 'deactivated', 'disabled'].includes(
-          String(parsed.status).trim().toLowerCase()
+        [
+          "inactive",
+          "deactivated",
+          "disabled",
+        ].includes(
+          String(parsed.status)
+            .trim()
+            .toLowerCase()
         )
       ) {
         clearLocalUser();
         return null;
       }
 
-      const validated = validateUserAccess(parsed);
+      const validated =
+        validateUserAccess(
+          parsed
+        );
 
       if (validated.valid) {
-        return buildFinalUser(parsed, null);
+        return buildFinalUser(
+          parsed,
+          null
+        );
       }
     }
   } catch (error) {
-    console.warn('Could not load local user:', error);
+    console.warn(
+      "Could not load local user:",
+      error
+    );
   }
 
+  /*
+  |--------------------------------------------------------------------------
+  | OFFLINE STORAGE
+  |--------------------------------------------------------------------------
+  */
+
   try {
-    const offlineUser = await getOfflineData('user_profile');
+    const offlineUser =
+      await getOfflineData(
+        "user_profile"
+      );
 
     if (offlineUser) {
       if (
         offlineUser?.status &&
-        ['inactive', 'deactivated', 'disabled'].includes(
-          String(offlineUser.status).trim().toLowerCase()
+        [
+          "inactive",
+          "deactivated",
+          "disabled",
+        ].includes(
+          String(
+            offlineUser.status
+          )
+            .trim()
+            .toLowerCase()
         )
       ) {
         clearLocalUser();
         return null;
       }
 
-      if (validateUserAccess(offlineUser)) {
-        return buildFinalUser(offlineUser, null);
+      if (
+        validateUserAccess(
+          offlineUser
+        ).valid
+      ) {
+        return buildFinalUser(
+          offlineUser,
+          null
+        );
       }
     }
   } catch (error) {
-    console.warn('Could not load offline user profile:', error);
+    console.warn(
+      "Could not load offline user profile:",
+      error
+    );
   }
 
   return null;
@@ -473,8 +683,7 @@ export function AuthProvider({
   | FIREBASE AUTH SESSION
   |--------------------------------------------------------------------------
   |
-  | Firebase is now responsible for maintaining the authentication
-  | session.
+  | Firebase is responsible for maintaining the authentication session.
   |
   | MySQL is NOT required for Firebase authentication.
   |
@@ -496,6 +705,7 @@ export function AuthProvider({
             setUser(null);
             clearLocalUser();
             setLoading(false);
+
             return;
           }
 
@@ -507,7 +717,7 @@ export function AuthProvider({
             |
             | Firebase has already authenticated the user.
             |
-            | Now we retrieve application information such as:
+            | The backend provides:
             |
             | - role
             | - department
@@ -515,6 +725,9 @@ export function AuthProvider({
             | - department_prefix
             | - kiosk
             | - position
+            | - position_id
+            | - position_name
+            | - position_tabs
             | - status
             |
             |--------------------------------------------------------------------------
@@ -618,6 +831,12 @@ export function AuthProvider({
               finalUser
             );
 
+            /*
+            |--------------------------------------------------------------------------
+            | DEBUG
+            |--------------------------------------------------------------------------
+            */
+
             console.log(
               "Firebase authenticated user:",
               {
@@ -639,75 +858,102 @@ export function AuthProvider({
                 department_prefix:
                   finalUser.department_prefix,
 
+                position:
+                  finalUser.position,
+
+                position_id:
+                  finalUser.position_id,
+
+                position_name:
+                  finalUser.position_name,
+
+                position_tabs:
+                  finalUser.position_tabs,
+
                 kiosk:
                   finalUser.kiosk,
               }
             );
           } catch (error) {
-  console.error(
-    "Error loading authenticated user profile:",
-    error
-  );
+            console.error(
+              "Error loading authenticated user profile:",
+              error
+            );
 
-  /*
-  |--------------------------------------------------------------------------
-  | OFFLINE FALLBACK
-  |--------------------------------------------------------------------------
-  |
-  | Firebase authentication succeeded, but the backend/database
-  | may currently be unavailable.
-  |
-  | Firebase remains the authentication authority.
-  | If Firebase still has an authenticated user, we can safely
-  | restore the previously cached application profile.
-  |
-  |--------------------------------------------------------------------------
-  */
+            /*
+            |--------------------------------------------------------------------------
+            | OFFLINE FALLBACK
+            |--------------------------------------------------------------------------
+            |
+            | Firebase authentication succeeded, but the backend/database
+            | may currently be unavailable.
+            |
+            | Firebase remains the authentication authority.
+            |
+            |--------------------------------------------------------------------------
+            */
 
-  console.warn(
-    "Backend unavailable. Attempting to restore saved offline session."
-  );
+            console.warn(
+              "Backend unavailable. Attempting to restore saved offline session."
+            );
 
-  const savedUser = await loadSavedUser();
+            const savedUser =
+              await loadSavedUser();
 
-  if (savedUser) {
-    const finalUser = buildFinalUser(
-      savedUser,
-      firebaseUser
-    );
+            if (savedUser) {
+              const finalUser =
+                buildFinalUser(
+                  savedUser,
+                  firebaseUser
+                );
 
-    setUser(finalUser);
+              setUser(finalUser);
 
-    console.log(
-      "Offline session restored:",
-      {
-        firebase_uid:
-          finalUser.firebase_uid,
-        email:
-          finalUser.email,
-        role:
-          finalUser.role,
-        department:
-          finalUser.department,
-        department_id:
-          finalUser.department_id,
-        department_prefix:
-          finalUser.department_prefix,
-        kiosk:
-          finalUser.kiosk,
-      }
-    );
-  } else {
-    console.warn(
-      "No saved offline session is available."
-    );
+              console.log(
+                "Offline session restored:",
+                {
+                  firebase_uid:
+                    finalUser.firebase_uid,
 
-    setUser(null);
-    clearLocalUser();
-  }
-} finally {
-  setLoading(false);
-}
+                  email:
+                    finalUser.email,
+
+                  role:
+                    finalUser.role,
+
+                  department:
+                    finalUser.department,
+
+                  department_id:
+                    finalUser.department_id,
+
+                  department_prefix:
+                    finalUser.department_prefix,
+
+                  position:
+                    finalUser.position,
+
+                  position_id:
+                    finalUser.position_id,
+
+                  position_tabs:
+                    finalUser.position_tabs,
+
+                  kiosk:
+                    finalUser.kiosk,
+                }
+              );
+            } else {
+              console.warn(
+                "No saved offline session is available."
+              );
+
+              setUser(null);
+              clearLocalUser();
+            }
+          } finally {
+            setLoading(false);
+          }
         }
       );
 
@@ -806,7 +1052,8 @@ export function AuthProvider({
       |
       | Firebase has verified the credentials.
       |
-      | The backend now provides the user's application information.
+      | The backend provides the user's application information,
+      | including position_tabs.
       |
       |--------------------------------------------------------------------------
       */
@@ -971,6 +1218,18 @@ export function AuthProvider({
           department_prefix:
             finalUser.department_prefix,
 
+          position:
+            finalUser.position,
+
+          position_id:
+            finalUser.position_id,
+
+          position_name:
+            finalUser.position_name,
+
+          position_tabs:
+            finalUser.position_tabs,
+
           kiosk:
             finalUser.kiosk,
         }
@@ -994,6 +1253,13 @@ export function AuthProvider({
         position:
           finalUser.position ??
           null,
+
+        position_id:
+          finalUser.position_id ??
+          null,
+
+        position_tabs:
+          finalUser.position_tabs ?? [],
       };
     } catch (error) {
       console.error(
@@ -1004,11 +1270,6 @@ export function AuthProvider({
       /*
       |--------------------------------------------------------------------------
       | FIREBASE ERROR MESSAGES
-      |--------------------------------------------------------------------------
-      |
-      | Convert Firebase's technical error codes into messages that
-      | make sense on the login page.
-      |
       |--------------------------------------------------------------------------
       */
 
@@ -1120,6 +1381,14 @@ export function AuthProvider({
     position:
       user?.position ??
       null,
+
+    position_id:
+      user?.position_id ??
+      null,
+
+    position_tabs:
+      user?.position_tabs ??
+      [],
 
     loading,
 

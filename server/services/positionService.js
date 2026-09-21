@@ -1,6 +1,15 @@
 const { randomUUID } = require("crypto");
 
 const pool = require("../config/mysql");
+const { db } = require("../config/firebase");
+
+/*
+|--------------------------------------------------------------------------
+| FIRESTORE COLLECTION
+|--------------------------------------------------------------------------
+*/
+
+const POSITION_COLLECTION = "position";
 
 /*
 |--------------------------------------------------------------------------
@@ -29,7 +38,10 @@ function formatPosition(row) {
 
   if (Array.isArray(row.tabs)) {
     tabs = row.tabs;
-  } else if (typeof row.tabs === "string" && row.tabs.trim()) {
+  } else if (
+    typeof row.tabs === "string" &&
+    row.tabs.trim()
+  ) {
     try {
       const parsed = JSON.parse(row.tabs);
 
@@ -65,13 +77,19 @@ function formatPosition(row) {
 */
 
 function validatePositionData(positionData = {}) {
-  const name = String(positionData.name || "").trim();
+  const name = String(
+    positionData.name || ""
+  ).trim();
 
   if (!name) {
-    throw new Error("Position name is required.");
+    throw new Error(
+      "Position name is required."
+    );
   }
 
-  const tabs = Array.isArray(positionData.tabs)
+  const tabs = Array.isArray(
+    positionData.tabs
+  )
     ? positionData.tabs
     : [];
 
@@ -83,7 +101,9 @@ function validatePositionData(positionData = {}) {
 
   return {
     name,
-    status: normalizeStatus(positionData.status),
+    status: normalizeStatus(
+      positionData.status
+    ),
     tabs,
   };
 }
@@ -111,19 +131,137 @@ async function positionNameExists(
       AND position_id <> ?
     `;
 
-    params.push(excludePositionId);
+    params.push(
+      excludePositionId
+    );
   }
 
   sql += `
     LIMIT 1
   `;
 
-  const [rows] = await pool.query(
-    sql,
-    params
-  );
+  const [rows] =
+    await pool.query(
+      sql,
+      params
+    );
 
   return rows.length > 0;
+}
+
+/*
+|--------------------------------------------------------------------------
+| SAVE POSITION TO FIREBASE
+|--------------------------------------------------------------------------
+|
+| MySQL remains the primary database for Position Management.
+|
+| Firebase receives the same position using:
+|
+| collection: position
+| document ID: position_id
+|
+| If Firebase is temporarily unavailable, the MySQL operation
+| is NOT failed. The error is logged so the position can still
+| be saved to the primary database.
+|
+|--------------------------------------------------------------------------
+*/
+
+async function savePositionToFirebase(
+  position
+) {
+  if (!position?.position_id) {
+    throw new Error(
+      "Position ID is required for Firebase synchronization."
+    );
+  }
+
+  try {
+    await db
+      .collection(
+        POSITION_COLLECTION
+      )
+      .doc(position.position_id)
+      .set({
+        position_id:
+          position.position_id,
+
+        name:
+          position.name || "",
+
+        status:
+          normalizeStatus(
+            position.status
+          ),
+
+        tabs:
+          Array.isArray(
+            position.tabs
+          )
+            ? position.tabs
+            : [],
+
+        created_at:
+          position.created_at ||
+          null,
+
+        updated_at:
+          position.updated_at ||
+          null,
+      });
+
+    console.log(
+      `Position ${position.position_id} synchronized to Firebase.`
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      `FIREBASE SAVE POSITION ERROR [${position.position_id}]:`,
+      error.message
+    );
+
+    return false;
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| DELETE POSITION FROM FIREBASE
+|--------------------------------------------------------------------------
+*/
+
+async function deletePositionFromFirebase(
+  positionId
+) {
+  if (!positionId) {
+    throw new Error(
+      "Position ID is required for Firebase deletion."
+    );
+  }
+
+  try {
+    await db
+      .collection(
+        POSITION_COLLECTION
+      )
+      .doc(positionId)
+      .delete();
+
+    console.log(
+      `Position ${positionId} deleted from Firebase.`
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      `FIREBASE DELETE POSITION ERROR [${positionId}]:`,
+      error.message
+    );
+
+    return false;
+  }
 }
 
 /*
@@ -133,28 +271,31 @@ async function positionNameExists(
 */
 
 async function getPositions() {
-  const [rows] = await pool.query(`
-    SELECT
-      position_id,
-      name,
-      status,
-      tabs,
-      created_at,
-      updated_at
-    FROM \`position\`
-    ORDER BY name ASC
-  `);
+  const [rows] =
+    await pool.query(`
+      SELECT
+        position_id,
+        name,
+        status,
+        tabs,
+        created_at,
+        updated_at
+      FROM \`position\`
+      ORDER BY name ASC
+    `);
 
   /*
    * User count is intentionally handled separately for now.
    * This keeps Position Management independent from the current
    * user table structure.
    */
-  return rows.map((row) =>
-    formatPosition({
-      ...row,
-      users: 0,
-    })
+
+  return rows.map(
+    (row) =>
+      formatPosition({
+        ...row,
+        users: 0,
+      })
   );
 }
 
@@ -164,22 +305,25 @@ async function getPositions() {
 |--------------------------------------------------------------------------
 */
 
-async function getPositionById(positionId) {
-  const [rows] = await pool.query(
-    `
-    SELECT
-      position_id,
-      name,
-      status,
-      tabs,
-      created_at,
-      updated_at
-    FROM \`position\`
-    WHERE position_id = ?
-    LIMIT 1
-    `,
-    [positionId]
-  );
+async function getPositionById(
+  positionId
+) {
+  const [rows] =
+    await pool.query(
+      `
+      SELECT
+        position_id,
+        name,
+        status,
+        tabs,
+        created_at,
+        updated_at
+      FROM \`position\`
+      WHERE position_id = ?
+      LIMIT 1
+      `,
+      [positionId]
+    );
 
   if (rows.length === 0) {
     return null;
@@ -197,7 +341,9 @@ async function getPositionById(positionId) {
 |--------------------------------------------------------------------------
 */
 
-async function createPosition(positionData = {}) {
+async function createPosition(
+  positionData = {}
+) {
   const {
     name,
     status,
@@ -206,8 +352,14 @@ async function createPosition(positionData = {}) {
     positionData
   );
 
+  /*
+   * Check duplicate name in MySQL.
+   */
+
   const duplicate =
-    await positionNameExists(name);
+    await positionNameExists(
+      name
+    );
 
   if (duplicate) {
     throw new Error(
@@ -215,7 +367,17 @@ async function createPosition(positionData = {}) {
     );
   }
 
-  const positionId = randomUUID();
+  /*
+   * Generate one ID that will be used
+   * in BOTH MySQL and Firebase.
+   */
+
+  const positionId =
+    randomUUID();
+
+  /*
+   * Save to MySQL.
+   */
 
   await pool.query(
     `
@@ -235,7 +397,31 @@ async function createPosition(positionData = {}) {
     ]
   );
 
-  return getPositionById(positionId);
+  /*
+   * Get the newly created position
+   * using the same formatter used elsewhere.
+   */
+
+  const position =
+    await getPositionById(
+      positionId
+    );
+
+  /*
+   * Synchronize to Firebase.
+   */
+
+  if (position) {
+    await savePositionToFirebase(
+      position
+    );
+  }
+
+  /*
+   * Return the MySQL position to the frontend.
+   */
+
+  return position;
 }
 
 /*
@@ -262,14 +448,24 @@ async function updatePosition(
     positionData
   );
 
+  /*
+   * Make sure the position exists.
+   */
+
   const existing =
-    await getPositionById(positionId);
+    await getPositionById(
+      positionId
+    );
 
   if (!existing) {
     throw new Error(
       "Position not found."
     );
   }
+
+  /*
+   * Check duplicate name.
+   */
 
   const duplicate =
     await positionNameExists(
@@ -282,6 +478,10 @@ async function updatePosition(
       "A position with this name already exists."
     );
   }
+
+  /*
+   * Update MySQL.
+   */
 
   await pool.query(
     `
@@ -300,7 +500,31 @@ async function updatePosition(
     ]
   );
 
-  return getPositionById(positionId);
+  /*
+   * Get the updated position.
+   */
+
+  const updatedPosition =
+    await getPositionById(
+      positionId
+    );
+
+  /*
+   * Synchronize the updated record
+   * to the same Firebase document.
+   */
+
+  if (updatedPosition) {
+    await savePositionToFirebase(
+      updatedPosition
+    );
+  }
+
+  /*
+   * Return the updated MySQL position.
+   */
+
+  return updatedPosition;
 }
 
 /*
@@ -309,21 +533,33 @@ async function updatePosition(
 |--------------------------------------------------------------------------
 */
 
-async function deletePosition(positionId) {
+async function deletePosition(
+  positionId
+) {
   if (!positionId) {
     throw new Error(
       "Position ID is required."
     );
   }
 
+  /*
+   * Verify the position exists.
+   */
+
   const existing =
-    await getPositionById(positionId);
+    await getPositionById(
+      positionId
+    );
 
   if (!existing) {
     throw new Error(
       "Position not found."
     );
   }
+
+  /*
+   * Delete from MySQL.
+   */
 
   await pool.query(
     `
@@ -333,8 +569,17 @@ async function deletePosition(positionId) {
     [positionId]
   );
 
+  /*
+   * Delete the matching Firebase document.
+   */
+
+  await deletePositionFromFirebase(
+    positionId
+  );
+
   return {
-    position_id: positionId,
+    position_id:
+      positionId,
     deleted: true,
   };
 }
