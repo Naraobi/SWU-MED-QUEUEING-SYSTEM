@@ -5,25 +5,33 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock3,
+  Eye,
+  EyeOff,
   IdCard,
   Info,
   Lightbulb,
+  LockKeyhole,
+  Mail,
   Monitor,
   Moon,
   Pipette,
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
   Sun,
   Timer,
   Trash2,
   TrendingDown,
   TriangleAlert,
   Undo2,
+  Upload,
   Users,
   X,
   XCircle,
 } from 'lucide-react';
+
+import { auth } from '../../../firebase';
 
 import { useAuth } from '../../services/Authcontext';
 import { useQueue } from '../../context/QueueContext';
@@ -37,6 +45,13 @@ import {
   updateTerminal,
   deleteTerminal,
   updateDepartment,
+  getSecurityPinStatus,
+  requestSecurityPinVerification,
+  verifySecurityPinCode,
+  validateSecurityPin,
+  requestPasswordChangeCode,
+  verifyPasswordChangeCode,
+  finalizePasswordChange,
 } from '../../services/backendApi';
 
 import { fetchNotifications, fetchQueueState } from '../../services/api';
@@ -52,6 +67,8 @@ import {
   applyAccent,
   loadStoredAvatar,
   saveStoredAvatar,
+  loadStoredClockFormat,
+  saveStoredClockFormat,
 } from './adminHelpers';
 
 import { useLanguage } from './LanguageContext';
@@ -197,14 +214,17 @@ export function QueueManagementPage() {
   const [terminalLoading, setTerminalLoading] = useState(true);
   const [departmentTerminals, setDepartmentTerminals] = useState([]);
   const [selectedTerminalId, setSelectedTerminalId] = useState('all');
+  const [departmentStaffById, setDepartmentStaffById] = useState({});
+  const [staffLabel, setStaffLabel] = useState('--');
 
   async function loadTerminalStats() {
     setTerminalLoading(true);
 
     try {
-      const [terminalData, departmentData] = await Promise.all([
+      const [terminalData, departmentData, staffData] = await Promise.all([
         getTerminals(),
         getDepartments(),
+        getUsers(),
       ]);
 
       const department = findDepartmentForUser(departmentData, user);
@@ -221,10 +241,36 @@ export function QueueManagementPage() {
 
       setTerminalLabel(`${active}/${departmentTerminals.length}`);
       setDepartmentTerminals(departmentTerminals);
+
+      // A terminal's assigned_staff_id can point at someone who has since
+      // transferred to another department - scoping the lookup to this
+      // department's staff keeps stale assignments from resolving to the
+      // wrong person.
+      const departmentStaff = department
+        ? (staffData || []).filter(
+            (person) =>
+              normalizeRole(getRoleName(person)) === 'staff' &&
+              String(person.department_id) === String(department.department_id)
+          )
+        : [];
+
+      const staffMap = {};
+      departmentStaff.forEach((person) => {
+        staffMap[String(person.user_id)] = person;
+      });
+      setDepartmentStaffById(staffMap);
+
+      const activeStaff = departmentStaff.filter(
+        (person) => normalizeRole(person.status) === 'active'
+      ).length;
+
+      setStaffLabel(`${activeStaff}/${departmentStaff.length}`);
     } catch (err) {
       console.error('Failed to load terminal stats:', err);
       setTerminalLabel('--');
       setDepartmentTerminals([]);
+      setDepartmentStaffById({});
+      setStaffLabel('--');
     } finally {
       setTerminalLoading(false);
     }
@@ -344,18 +390,21 @@ export function QueueManagementPage() {
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-6">
         <StatCard label={t('common.stat.totalWaiting')} value={loading ? '…' : String(totalWaiting)} caption={t('common.stat.forThisDepartment')} icon={Users} />
         <StatCard label={t('common.stat.averageWait')} value="18m" caption={t('common.stat.noColumnYet')} icon={Timer} />
         <StatCard label={t('common.stat.skipped')} value={loading ? '…' : String(stats?.skipped || 0)} caption={t('common.stat.totalSkipped')} icon={Undo2} />
         <StatCard label={t('common.stat.completed')} value={loading ? '…' : String(stats?.completed || 0)} caption={t('common.stat.completedQueuing')} icon={CheckCircle2} />
+        <StatCard label={t('common.stat.staff')} value={terminalLoading ? '…' : staffLabel} caption={t('common.stat.activeStaffTotal')} icon={IdCard} />
         <StatCard label={t('common.stat.terminal')} value={terminalLoading ? '…' : terminalLabel} caption={t('common.stat.activeTerminals')} icon={Monitor} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
         <section className="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-[#1F2937]">{t('queue.currentStatus')}</h2>
+            <h2 className="text-sm font-bold text-[#1F2937]">
+              {selectedTerminalId === 'all' ? t('queue.currentStatus') : t('queue.nowServing')}
+            </h2>
             <div className="flex items-center gap-2">
               <select
                 value={selectedTerminalId}
@@ -373,20 +422,85 @@ export function QueueManagementPage() {
             </div>
           </div>
 
-          <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('queue.nowServing')}</p>
-            <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : displayedCurrent?.id || '--'}</p>
-            <p className="mt-2 text-xs text-[#4B5563]">
-              {displayedCurrent
-                ? t('queue.terminalService', { terminal: displayedCurrent.terminal ?? '--', service: displayedCurrent.service || 'Service' }) +
-                  (displayedCurrent.secondsElapsed
-                    ? t('queue.servingFor', { minutes: Math.floor(displayedCurrent.secondsElapsed / 60) })
-                    : '')
-                : selectedTerminalLabel
-                  ? `${selectedTerminalLabel} is not currently serving a patient`
-                  : 'No patient currently being served'}
-            </p>
-          </div>
+          {selectedTerminalId === 'all' && departmentTerminals.length > 0 ? (
+            <div className="grid flex-1 grid-cols-1 gap-3 content-start sm:grid-cols-2">
+              {departmentTerminals.map((terminal) => {
+                const isServingHere =
+                  current && String(current.counterId) === String(terminal.counter_id);
+
+                const isActive = normalizeRole(terminal.status) === 'active';
+
+                const assignedStaff =
+                  departmentStaffById[String(terminal.assigned_staff_id)];
+
+                const staffName = assignedStaff
+                  ? `${assignedStaff.first_name || ''} ${assignedStaff.last_name || ''}`.trim()
+                  : null;
+
+                return (
+                  <div
+                    key={terminal.counter_id}
+                    className="rounded-lg border border-[#E5E7EB] bg-white p-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#1F2937]">
+                        {terminal.prefix || `Terminal ${terminal.counter_number}`}
+                      </span>
+
+                      {isServingHere && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                            current.isPriority
+                              ? 'bg-[#FEE2E2] text-[#9D0A0E]'
+                              : 'bg-[#F1F3F5] text-[#4B5563]'
+                          }`}
+                        >
+                          {current.isPriority ? 'Priority' : 'Regular'}
+                        </span>
+                      )}
+                    </div>
+
+                    {isServingHere ? (
+                      <>
+                        <p className="mt-2 text-xl font-extrabold text-[#9D0A0E]">{current.id}</p>
+                        <p className="mt-1 truncate text-[10px] text-[#6B7280]">
+                          {staffName || t('common.unassigned')}
+                          {current.secondsElapsed
+                            ? t('queue.servingFor', { minutes: Math.floor(current.secondsElapsed / 60) })
+                            : ''}
+                        </p>
+                        <span className="mt-1 inline-block text-[9px] font-semibold text-emerald-600">
+                          Serving
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-2 text-xl font-extrabold text-slate-300">--</p>
+                        <span className="mt-1 inline-block text-[9px] font-semibold text-slate-400">
+                          {isActive ? 'Not serving' : 'Counter Closed'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('queue.nowServing')}</p>
+              <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : displayedCurrent?.id || '--'}</p>
+              <p className="mt-2 text-xs text-[#4B5563]">
+                {displayedCurrent
+                  ? t('queue.terminalService', { terminal: displayedCurrent.terminal ?? '--', service: displayedCurrent.service || 'Service' }) +
+                    (displayedCurrent.secondsElapsed
+                      ? t('queue.servingFor', { minutes: Math.floor(displayedCurrent.secondsElapsed / 60) })
+                      : '')
+                  : selectedTerminalLabel
+                    ? `${selectedTerminalLabel} is not currently serving a patient`
+                    : 'No patient currently being served'}
+              </p>
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
@@ -403,7 +517,13 @@ export function QueueManagementPage() {
                 <div key={row.uniqueKey || `${row.id}-${index}`} className="flex items-center justify-between rounded-md border border-[#E5E7EB] px-3 py-2.5">
                   <span className="flex items-center gap-2 text-xs font-bold text-[#1F2937]">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#F1F3F5] text-[10px] text-slate-500">{index + 1}</span>
-                    <span className="rounded-md bg-[#F1F3F5] px-2 py-1 text-xs">{row.id}</span>
+                    <span
+                      className={`rounded-md px-2 py-1 text-xs ${
+                        row.isPriority ? 'bg-[#FEE2E2] text-[#9D0A0E]' : 'bg-[#F1F3F5] text-[#1F2937]'
+                      }`}
+                    >
+                      {row.id}
+                    </span>
                   </span>
                   <span className="text-[10px] text-[#4B5563]">{t('queue.waitingMinutes', { minutes: row.etaMinutes ?? '~0' })}</span>
                 </div>
@@ -447,7 +567,13 @@ export function QueueManagementPage() {
                 <div key={row.uniqueKey || `${row.id}-${index}`} className="flex items-center justify-between px-5 py-3">
                   <span className="flex items-center gap-3 text-sm font-bold text-[#1F2937]">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#F1F3F5] text-[11px] text-slate-500">{(queuePage - 1) * QUEUE_PAGE_SIZE + index + 1}</span>
-                    <span className="rounded-md bg-[#F1F3F5] px-2 py-1 text-xs">{row.id}</span>
+                    <span
+                      className={`rounded-md px-2 py-1 text-xs ${
+                        row.isPriority ? 'bg-[#FEE2E2] text-[#9D0A0E]' : 'bg-[#F1F3F5] text-[#1F2937]'
+                      }`}
+                    >
+                      {row.id}
+                    </span>
                   </span>
                   <span className="text-xs text-[#4B5563]">{t('queue.waitingMinutes', { minutes: row.etaMinutes ?? '~0' })}</span>
                 </div>
@@ -1482,188 +1608,738 @@ function ChangeProfileModal({ onClose, onSave }) {
   );
 }
 
-function DepartmentCustomizationModal({ user, department, onClose, avatar, onAvatarChange }) {
-  const { t } = useLanguage();
-  const [name, setName] = useState(department?.name || '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [changingPhoto, setChangingPhoto] = useState(false);
+/* ---------------- Shared: 6-digit box input ---------------- */
 
-  async function handleSave() {
-    if (!department?.department_id) {
-      setError('Your department could not be determined.');
+function DigitBoxInput({ length, value, onChange, autoFocus, hasError, masked, idPrefix }) {
+  const refs = useRef([]);
+
+  function setDigit(index, char) {
+    const chars = value.padEnd(length, ' ').split('');
+    chars[index] = char;
+    onChange(chars.join('').replace(/ /g, '').slice(0, length));
+  }
+
+  function handleChange(index, rawValue) {
+    const digit = rawValue.replace(/\D/g, '').slice(-1) || '';
+    setDigit(index, digit);
+
+    if (digit && index < length - 1) {
+      refs.current[index + 1]?.focus();
+    }
+  }
+
+  function handleKeyDown(index, event) {
+    if (event.key === 'Backspace') {
+      if (value[index]) {
+        setDigit(index, '');
+      } else if (index > 0) {
+        refs.current[index - 1]?.focus();
+        setDigit(index - 1, '');
+      }
       return;
     }
 
-    setSaving(true);
-    setError(null);
+    if (event.key === 'ArrowLeft' && index > 0) {
+      refs.current[index - 1]?.focus();
+    }
+
+    if (event.key === 'ArrowRight' && index < length - 1) {
+      refs.current[index + 1]?.focus();
+    }
+  }
+
+  function handlePaste(event) {
+    event.preventDefault();
+    const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
+    if (!pasted) return;
+    onChange(pasted);
+    refs.current[Math.min(pasted.length, length - 1)]?.focus();
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      {Array.from({ length }).map((_, index) => (
+        <input
+          key={index}
+          id={idPrefix ? `${idPrefix}-${index}` : undefined}
+          ref={(el) => (refs.current[index] = el)}
+          type={masked ? 'password' : 'text'}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={1}
+          autoFocus={autoFocus && index === 0}
+          value={value[index] || ''}
+          onChange={(event) => handleChange(index, event.target.value)}
+          onKeyDown={(event) => handleKeyDown(index, event)}
+          onPaste={handlePaste}
+          className={`h-11 w-10 rounded-md border text-center text-lg font-bold text-[#1F2937] outline-none focus:border-[#9D0A0E] ${
+            hasError ? 'border-red-400' : 'border-[#D1D5DB]'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function formatDateTime(date) {
+  if (!date) return '';
+  const parsed = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return parsed.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+/* ---------------- Shared: verification code modal ---------------- */
+
+function VerificationCodeModal({ icon: Icon, title, subtitle, verifyLabel, onClose, onBack, onVerify, onResend }) {
+  const { t } = useLanguage();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(30);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) return undefined;
+    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [secondsLeft]);
+
+  async function handleVerify() {
+    setError('');
+    setMessage('');
+
+    if (!/^\d{6}$/.test(code)) {
+      setError('Verification code must be exactly 6 digits.');
+      return;
+    }
+
+    setVerifying(true);
 
     try {
-      await updateDepartment(department.department_id, { name });
-      onClose();
+      await onVerify(code);
     } catch (err) {
-      console.error('Failed to update department:', err);
-      setError(err?.message || 'Failed to update department.');
+      setError(err?.message || 'Failed to verify the code. Please try again.');
     } finally {
-      setSaving(false);
+      setVerifying(false);
+    }
+  }
+
+  async function handleResend() {
+    setError('');
+    setMessage('');
+    setResending(true);
+
+    try {
+      await onResend();
+      setCode('');
+      setSecondsLeft(30);
+      setMessage('A new verification code has been sent to your registered email.');
+    } catch (err) {
+      setError(err?.message || 'Failed to resend the verification code.');
+    } finally {
+      setResending(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
-        <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
-          <h2 className="text-lg font-bold text-[#1F2937]">{t('modal.deptCustomization')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+        <div className="flex items-center justify-end px-4 pt-4">
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
-        </header>
-
-        <div className="space-y-4 p-5">
-          {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
-
-          <div className="flex items-center gap-3">
-            {avatar ? (
-              <img src={avatar} alt="Profile" className="h-12 w-12 rounded-full object-cover" />
-            ) : (
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#dce8f9] text-sm font-semibold text-slate-700">
-                {getInitials(user)}
-              </span>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setChangingPhoto(true)}
-              className="rounded-md bg-[#F1F3F5] px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200"
-            >
-              {t('common.change')}
-            </button>
-          </div>
-
-          <label className="block text-xs font-semibold text-slate-600">
-            {t('modal.departmentName')}
-
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[#9D0A0E]"
-            />
-          </label>
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-[#E5E7EB] px-5 py-3">
-          <button type="button" onClick={onClose} disabled={saving} className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">
-            {t('common.cancel')}
+        <div className="px-6 pb-6 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#FEF2F2] text-[#9D0A0E]">
+            <Icon size={22} />
+          </div>
+
+          <h2 className="mt-4 text-lg font-bold text-[#1F2937]">{title}</h2>
+          <p className="mx-auto mt-1 max-w-xs text-xs text-[#6B7280]">{subtitle}</p>
+
+          <div className="mt-5">
+            <DigitBoxInput length={6} value={code} onChange={setCode} autoFocus hasError={Boolean(error)} idPrefix="verify-code" />
+          </div>
+
+          {error && <p className="mt-3 text-xs font-semibold text-red-600">{error}</p>}
+          {message && !error && <p className="mt-3 text-xs font-semibold text-emerald-600">{message}</p>}
+
+          <div className="mt-4">
+            {secondsLeft > 0 ? (
+              <p className="text-xs text-[#9CA3AF]">{t('passwordWizard.resendIn', { time: `00:${String(secondsLeft).padStart(2, '0')}` })}</p>
+            ) : (
+              <button type="button" onClick={handleResend} disabled={resending} className="text-xs font-semibold text-[#9D0A0E] hover:underline disabled:opacity-50">
+                {resending ? t('wizard.sending') : t('passwordWizard.resendCode')}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 border-t border-[#E5E7EB] bg-[#F9FAFB] px-6 py-4">
+          <button type="button" onClick={onBack} className="flex-1 rounded-lg border border-[#D1D5DB] bg-white px-4 py-2.5 text-xs font-semibold text-[#4B5563] hover:bg-slate-50">
+            {t('wizard.back')}
           </button>
-          <button type="button" onClick={handleSave} disabled={saving} className="rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:opacity-50">
-            {saving ? t('common.saving') : t('common.save')}
+          <button
+            type="button"
+            onClick={handleVerify}
+            disabled={verifying || code.length !== 6}
+            className="flex-1 rounded-lg bg-[#9D0A0E] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {verifying ? t('wizard.verifying') : verifyLabel}
           </button>
-        </footer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Security PIN wizard ---------------- */
+
+function CreatePinModal({ title, submitLabel, onClose, onContinue }) {
+  const { t } = useLanguage();
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleContinue() {
+    setError('');
+
+    if (!/^\d{6}$/.test(pin)) {
+      setError(t('pinWizard.digitsOnlyError'));
+      return;
+    }
+
+    if (pin !== confirmPin) {
+      setError(t('pinWizard.mismatchError'));
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      await onContinue(pin);
+    } catch (err) {
+      setError(err?.message || 'Failed to send verification code.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+        <div className="flex items-center justify-end px-5 pt-5">
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-8 pb-2 text-center">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[#9CA3AF]">{t('pinWizard.adminCredentials')}</span>
+
+          <div className="mx-auto mt-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FEE2E2] text-[#9D0A0E]">
+            <ShieldCheck size={26} />
+          </div>
+
+          <h2 className="mt-4 text-lg font-bold text-[#1F2937]">{title}</h2>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-[#6B7280]">{t('pinWizard.subtitle')}</p>
+        </div>
+
+        <div className="space-y-4 px-8 pb-2 pt-4">
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-semibold text-[#374151]">{t('pinWizard.newPin')} *</label>
+              <button type="button" onClick={() => setShowPin((v) => !v)} className="flex items-center gap-1 text-[10px] font-medium text-[#6B7280] hover:text-[#374151]">
+                {showPin ? <EyeOff size={12} /> : <Eye size={12} />}
+                {t('pinWizard.digitsHint')}
+              </button>
+            </div>
+            <DigitBoxInput length={6} value={pin} onChange={setPin} autoFocus masked={!showPin} hasError={Boolean(error)} idPrefix="new-pin" />
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-semibold text-[#374151]">{t('pinWizard.confirmPin')} *</label>
+              <span className="text-[10px] font-medium text-[#9CA3AF]">{t('pinWizard.matchHint')}</span>
+            </div>
+            <DigitBoxInput length={6} value={confirmPin} onChange={setConfirmPin} masked={!showPin} hasError={Boolean(error)} idPrefix="confirm-pin" />
+          </div>
+
+          {error && (
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-red-600">
+              <Info size={12} />
+              {error}
+            </p>
+          )}
+
+          <div className="flex items-start gap-2 rounded-lg bg-[#F9FAFB] px-3 py-2.5 text-[10px] text-[#6B7280]">
+            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-[#9CA3AF]" />
+            {t('pinWizard.privacyNote')}
+          </div>
+        </div>
+
+        <div className="space-y-2 px-8 pb-6 pt-3">
+          <button
+            type="button"
+            onClick={handleContinue}
+            disabled={submitting}
+            className="w-full rounded-lg bg-[#9D0A0E] py-3 text-sm font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? t('wizard.sending') : `${submitLabel} →`}
+          </button>
+          <button type="button" onClick={onClose} className="w-full rounded-lg border border-[#D1D5DB] bg-white py-2.5 text-sm font-semibold text-[#4B5563] hover:bg-slate-50">
+            {t('wizard.cancel')}
+          </button>
+        </div>
+
+        <p className="border-t border-[#E5E7EB] bg-[#F9FAFB] py-2.5 text-center text-[9px] font-medium uppercase tracking-wide text-[#9CA3AF]">
+          {t('pinWizard.protocolNote')}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PinSuccessModal({ onClose }) {
+  const { t } = useLanguage();
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+        <div className="px-6 pb-2 pt-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <Check size={28} strokeWidth={3} />
+          </div>
+
+          <h2 className="mt-4 text-lg font-bold text-[#1F2937]">{t('pinWizard.successTitle')}</h2>
+          <p className="mt-1 text-xs text-[#6B7280]">{t('pinWizard.successBody')}</p>
+
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2.5 text-left text-[11px] text-emerald-800">
+            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-600" />
+            <div>
+              <p className="font-semibold">{t('pinWizard.successProtected')}</p>
+              <p className="mt-0.5 text-emerald-700">{t('pinWizard.successConfiguredAt', { date: formatDateTime(new Date()) })}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 pt-4">
+          <button type="button" onClick={onClose} className="w-full rounded-lg bg-[#9D0A0E] py-3 text-sm font-semibold uppercase text-white hover:bg-[#7d0809]">
+            {t('wizard.done')}
+          </button>
+          <p className="mt-3 text-center text-[10px] text-[#9CA3AF]">{t('pinWizard.successFooter')}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Security PIN gate (shown right after login) ---------------- */
+//
+// Sits in front of the rest of the Admin app for any admin who has a
+// Security PIN configured, so it's the first thing they see after
+// signing in - not just something buried in Settings. Admins who
+// haven't set up a PIN yet aren't blocked by it; nothing exists yet
+// to check them against.
+//
+// "Forgot your PIN?" reuses the same email-verification-code flow as
+// the Settings wizard (CreatePinModal + VerificationCodeModal +
+// PinSuccessModal) so an admin who's locked themselves out isn't
+// stuck - Settings, where that flow normally lives, is itself behind
+// this gate.
+
+export function SecurityPinGate({ onUnlock }) {
+  const { t } = useLanguage();
+  const { user, signOut } = useAuth();
+
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [recoveryStep, setRecoveryStep] = useState(null);
+  const [pendingPin, setPendingPin] = useState('');
+
+  async function handleUnlock() {
+    setError('');
+
+    if (!/^\d{6}$/.test(pin)) {
+      setError(t('pinWizard.digitsOnlyError'));
+      return;
+    }
+
+    setVerifying(true);
+
+    try {
+      await validateSecurityPin(auth.currentUser, pin);
+      onUnlock();
+    } catch (err) {
+      setPin('');
+      setError(err?.message || 'Invalid Security PIN.');
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  function closeRecovery() {
+    setRecoveryStep(null);
+    setPendingPin('');
+  }
+
+  async function handleRecoveryContinue(newPin) {
+    setPendingPin(newPin);
+    await requestSecurityPinVerification(auth.currentUser);
+    setRecoveryStep('verify');
+  }
+
+  async function handleRecoveryResend() {
+    await requestSecurityPinVerification(auth.currentUser);
+  }
+
+  async function handleRecoveryVerify(code) {
+    await verifySecurityPinCode(auth.currentUser, code, pendingPin);
+    setPendingPin('');
+    setRecoveryStep('success');
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+        <div className="px-8 pb-2 pt-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FEE2E2] text-[#9D0A0E]">
+            <ShieldCheck size={26} />
+          </div>
+
+          <h2 className="mt-4 text-lg font-bold text-[#1F2937]">{t('pinGate.title')}</h2>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-[#6B7280]">{t('pinGate.subtitle')}</p>
+
+          {user?.email && (
+            <p className="mt-2 text-[11px] font-semibold text-[#9CA3AF]">
+              {t('pinGate.signedInAs', { email: user.email })}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-4 px-8 pb-2 pt-4">
+          <DigitBoxInput
+            length={6}
+            value={pin}
+            onChange={(value) => {
+              setPin(value);
+              if (error) setError('');
+            }}
+            autoFocus
+            masked
+            hasError={Boolean(error)}
+            idPrefix="pin-gate"
+          />
+
+          {error && (
+            <p className="flex items-center justify-center gap-1.5 text-center text-xs font-semibold text-red-600">
+              <Info size={12} />
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-3 px-8 pb-8 pt-3">
+          <button
+            type="button"
+            onClick={handleUnlock}
+            disabled={verifying || pin.length !== 6}
+            className="w-full rounded-lg bg-[#9D0A0E] py-3 text-sm font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {verifying ? t('wizard.verifying') : t('pinGate.unlock')}
+          </button>
+
+          <div className="flex items-center justify-between text-[11px]">
+            <button
+              type="button"
+              onClick={() => setRecoveryStep('create')}
+              className="font-semibold text-[#9D0A0E] hover:underline"
+            >
+              {t('pinGate.forgotPin')}
+            </button>
+
+            <span className="text-[#9CA3AF]">
+              {t('pinGate.notYou')}{' '}
+              <button type="button" onClick={signOut} className="font-semibold text-[#374151] hover:underline">
+                {t('pinGate.signOut')}
+              </button>
+            </span>
+          </div>
+        </div>
       </div>
 
-      {changingPhoto && (
-        <ChangeProfileModal
-          onClose={() => setChangingPhoto(false)}
-          onSave={onAvatarChange}
+      {recoveryStep === 'create' && (
+        <CreatePinModal
+          title={t('pinWizard.changeTitle')}
+          submitLabel={t('pinWizard.submitChange')}
+          onClose={closeRecovery}
+          onContinue={handleRecoveryContinue}
+        />
+      )}
+
+      {recoveryStep === 'verify' && (
+        <VerificationCodeModal
+          icon={ShieldCheck}
+          title={t('pinWizard.verifyTitle')}
+          subtitle={t('pinWizard.verifySubtitle')}
+          verifyLabel={t('wizard.continue')}
+          onClose={closeRecovery}
+          onBack={() => setRecoveryStep('create')}
+          onVerify={handleRecoveryVerify}
+          onResend={handleRecoveryResend}
+        />
+      )}
+
+      {recoveryStep === 'success' && (
+        <PinSuccessModal
+          onClose={() => {
+            closeRecovery();
+            onUnlock();
+          }}
         />
       )}
     </div>
   );
 }
 
-function ThemeModal({ theme, onClose, onSaveTheme }) {
-  const { t } = useLanguage();
-  const [mode, setMode] = useState(theme);
-  const [accent, setAccent] = useState(loadStoredAccent());
-  const colorInputRef = useRef(null);
+/* ---------------- Change Password wizard ---------------- */
 
-  function handleSave() {
-    applyTheme(mode);
-    onSaveTheme(mode);
-    applyAccent(accent);
-    onClose();
+function ChangePasswordEmailModal({ email, onClose, onContinue }) {
+  const { t } = useLanguage();
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSend() {
+    setError('');
+    setSending(true);
+
+    try {
+      await onContinue();
+    } catch (err) {
+      setError(err?.message || 'Failed to send verification code.');
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
-        <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-3">
-          <h2 className="text-lg font-bold text-[#1F2937]">{t('settings.theme')}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+        <div className="flex items-center justify-between px-5 pt-5">
+          <span className="rounded-full bg-[#F3F4F6] px-3 py-1 text-[9px] font-bold uppercase tracking-wide text-[#6B7280]">
+            {t('wizard.stepOf', { current: 1, total: 3 })}
+          </span>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
             <X size={18} />
           </button>
-        </header>
-
-        <div className="p-5">
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { key: 'light', labelKey: 'modal.light', icon: Sun },
-              { key: 'dark', labelKey: 'modal.dark', icon: Moon },
-              { key: 'device', labelKey: 'modal.device', icon: Monitor },
-            ].map(({ key, labelKey, icon: Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setMode(key)}
-                className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold transition ${
-                  mode === key ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 text-[#9D0A0E]' : 'border-[#E5E7EB] text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <Icon size={14} />
-                {t(labelKey)}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-4 grid grid-cols-4 gap-3">
-            {ACCENT_SWATCHES.map((color) => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => setAccent(color)}
-                className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10 transition hover:bg-[#B34C4C]/20"
-              >
-                <span className="h-9 w-9 rounded-full" style={{ backgroundColor: color }} />
-                {accent === color && (
-                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white">
-                    <Check size={12} />
-                  </span>
-                )}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => colorInputRef.current?.click()}
-              className="relative flex h-14 items-center justify-center rounded-xl bg-[#B34C4C]/10 transition hover:bg-[#B34C4C]/20"
-              title="Custom color"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
-                <Pipette size={16} />
-              </span>
-              <input
-                ref={colorInputRef}
-                type="color"
-                value={accent}
-                onChange={(e) => setAccent(e.target.value)}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              />
-            </button>
-          </div>
-
-          <p className="mt-4 text-[10px] text-slate-400">
-            {t('modal.themeNote')}
-          </p>
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-[#E5E7EB] px-5 py-3">
-          <button type="button" onClick={onClose} className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600">
-            {t('common.cancel')}
+        <div className="px-6 pb-2 pt-3 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#FEF2F2] text-[#9D0A0E]">
+            <LockKeyhole size={22} />
+          </div>
+
+          <h2 className="mt-4 text-lg font-bold text-[#1F2937]">{t('passwordWizard.title')}</h2>
+          <p className="mx-auto mt-1 max-w-xs text-xs text-[#6B7280]">{t('passwordWizard.emailSubtitle')}</p>
+        </div>
+
+        <div className="space-y-3 px-6 pb-2 pt-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[#374151]">{t('passwordWizard.emailLabel')}</label>
+            <div className="flex items-center gap-2 rounded-md border border-[#D1D5DB] px-3 py-2.5">
+              <Mail size={14} className="text-[#9CA3AF]" />
+              <span className="truncate text-sm text-[#1F2937]">{email || '—'}</span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 rounded-md border border-[#DBEAFE] bg-[#EFF6FF] px-3 py-2.5 text-[10px] text-[#3B82F6]">
+            <Info size={13} className="mt-0.5 shrink-0" />
+            {t('passwordWizard.emailNote')}
+          </div>
+
+          {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
+        </div>
+
+        <div className="space-y-2 px-6 pb-6 pt-4">
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={sending || !email}
+            className="w-full rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {sending ? t('wizard.sending') : `${t('passwordWizard.sendCode')} →`}
           </button>
-          <button type="button" onClick={handleSave} className="rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7d0809]">
-            {t('common.save')}
+          <button type="button" onClick={onClose} className="w-full rounded-lg border border-[#D1D5DB] bg-white py-2.5 text-sm font-semibold text-[#4B5563] hover:bg-slate-50">
+            {t('wizard.cancel')}
           </button>
-        </footer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewPasswordModal({ onClose, onSubmit }) {
+  const { t } = useLanguage();
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const requirements = [
+    { key: 'reqLength', met: newPassword.length >= 8 },
+    { key: 'reqUppercase', met: /[A-Z]/.test(newPassword) },
+    { key: 'reqNumber', met: /\d/.test(newPassword) },
+    { key: 'reqSpecial', met: /[^A-Za-z0-9]/.test(newPassword) },
+  ];
+
+  async function handleSubmit() {
+    setError('');
+
+    if (!requirements.every((req) => req.met)) {
+      setError('Please meet all password requirements.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      await onSubmit(newPassword);
+    } catch (err) {
+      setError(err?.message || 'Failed to change password.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+        <div className="flex items-center justify-between px-5 pt-5">
+          <span className="rounded-full bg-[#F3F4F6] px-3 py-1 text-[9px] font-bold uppercase tracking-wide text-[#6B7280]">
+            {t('wizard.stepOf', { current: 3, total: 3 })}
+          </span>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-6 pb-2 pt-3 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#FEF2F2] text-[#9D0A0E]">
+            <LockKeyhole size={22} />
+          </div>
+          <h2 className="mt-4 text-lg font-bold text-[#1F2937]">{t('passwordWizard.newTitle')}</h2>
+          <p className="mx-auto mt-1 max-w-xs text-xs text-[#6B7280]">{t('passwordWizard.newSubtitle')}</p>
+        </div>
+
+        <div className="space-y-3 px-6 pb-2 pt-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[#374151]">{t('passwordWizard.newPassword')} *</label>
+            <div className="relative">
+              <input
+                type={showNew ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full rounded-md border border-[#D1D5DB] px-3 py-2.5 pr-9 text-sm text-[#1F2937] outline-none focus:border-[#9D0A0E]"
+              />
+              <button type="button" onClick={() => setShowNew((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#4B5563]">
+                {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[#374151]">{t('passwordWizard.confirmPassword')} *</label>
+            <div className="relative">
+              <input
+                type={showConfirm ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full rounded-md border border-[#D1D5DB] px-3 py-2.5 pr-9 text-sm text-[#1F2937] outline-none focus:border-[#9D0A0E]"
+              />
+              <button type="button" onClick={() => setShowConfirm((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#4B5563]">
+                {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-md bg-[#F9FAFB] px-3 py-2.5">
+            <p className="mb-1.5 text-[10px] font-semibold text-[#374151]">{t('passwordWizard.requirements')}</p>
+            <ul className="space-y-1">
+              {requirements.map((req) => (
+                <li key={req.key} className={`flex items-center gap-1.5 text-[10px] ${req.met ? 'text-emerald-600' : 'text-[#9CA3AF]'}`}>
+                  {req.met ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+                  {t(`passwordWizard.${req.key}`)}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
+        </div>
+
+        <div className="space-y-2 px-6 pb-6 pt-4">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="w-full rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? t('passwordWizard.changing') : `${t('passwordWizard.submit')} →`}
+          </button>
+          <button type="button" onClick={onClose} className="w-full rounded-lg border border-[#D1D5DB] bg-white py-2.5 text-sm font-semibold text-[#4B5563] hover:bg-slate-50">
+            {t('wizard.cancel')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PasswordChangedSuccessModal({ onClose }) {
+  const { t } = useLanguage();
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-xl">
+        <div className="px-6 pb-2 pt-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <Check size={28} strokeWidth={3} />
+          </div>
+
+          <h2 className="mt-4 text-lg font-bold text-[#1F2937]">{t('passwordWizard.successTitle')}</h2>
+          <p className="mt-1 text-xs text-[#6B7280]">{t('passwordWizard.successBody')}</p>
+
+          <div className="mt-4 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2 text-[11px] text-[#4B5563]">
+            {t('passwordWizard.successUpdatedAt', { date: formatDateTime(new Date()) })}
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 pt-4">
+          <button type="button" onClick={onClose} className="w-full rounded-lg bg-[#9D0A0E] py-3 text-sm font-semibold text-white hover:bg-[#7d0809]">
+            {t('passwordWizard.continueButton')} →
+          </button>
+          <p className="mt-3 text-center text-[10px] text-[#9CA3AF]">{t('passwordWizard.successNote')}</p>
+        </div>
       </div>
     </div>
   );
@@ -1676,9 +2352,24 @@ export function SettingsPage() {
   const [theme, setTheme] = useState(loadStoredTheme());
   const [avatar, setAvatar] = useState(loadStoredAvatar());
   const [departments, setDepartments] = useState([]);
+  const [departmentNameDraft, setDepartmentNameDraft] = useState(null);
+  const [savingDepartment, setSavingDepartment] = useState(false);
+  const [departmentError, setDepartmentError] = useState(null);
+  const [departmentSaved, setDepartmentSaved] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
-  const [showDeptModal, setShowDeptModal] = useState(false);
-  const [showThemeModal, setShowThemeModal] = useState(false);
+  const [accent, setAccent] = useState(loadStoredAccent());
+  const colorInputRef = useRef(null);
+
+  const [clockFormat, setClockFormat] = useState(loadStoredClockFormat());
+
+  const [pinConfigured, setPinConfigured] = useState(false);
+  const [pinStatusLoading, setPinStatusLoading] = useState(true);
+  const [activePinModal, setActivePinModal] = useState(null);
+  const [pendingPin, setPendingPin] = useState('');
+
+  const [activePasswordModal, setActivePasswordModal] = useState(null);
+  const [pendingPasswordCode, setPendingPasswordCode] = useState('');
 
   useEffect(() => {
     applyTheme(theme);
@@ -1702,9 +2393,126 @@ export function SettingsPage() {
     [departments, user]
   );
 
+  const departmentName = departmentNameDraft ?? (adminDepartment?.name || '');
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPinStatus() {
+      try {
+        const configured = await getSecurityPinStatus(auth.currentUser);
+        if (mounted) setPinConfigured(configured);
+      } catch (err) {
+        console.error('Failed to load Security PIN status:', err);
+      } finally {
+        if (mounted) setPinStatusLoading(false);
+      }
+    }
+
+    loadPinStatus();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   function handleAvatarChange(dataUrl) {
     setAvatar(dataUrl);
     saveStoredAvatar(dataUrl);
+  }
+
+  async function handleSaveDepartmentName() {
+    if (!adminDepartment?.department_id || departmentName === adminDepartment.name) {
+      return;
+    }
+
+    setSavingDepartment(true);
+    setDepartmentError(null);
+    setDepartmentSaved(false);
+
+    try {
+      await updateDepartment(adminDepartment.department_id, { name: departmentName });
+
+      setDepartments((current) =>
+        current.map((department) =>
+          department.department_id === adminDepartment.department_id
+            ? { ...department, name: departmentName }
+            : department
+        )
+      );
+
+      setDepartmentNameDraft(null);
+      setDepartmentSaved(true);
+      setTimeout(() => setDepartmentSaved(false), 2000);
+    } catch (err) {
+      console.error('Failed to update department:', err);
+      setDepartmentError(err?.message || 'Failed to update department name.');
+    } finally {
+      setSavingDepartment(false);
+    }
+  }
+
+  function handleAccentChange(hex) {
+    setAccent(hex);
+    applyAccent(hex);
+  }
+
+  function handleClockFormatChange(format) {
+    setClockFormat(format);
+    saveStoredClockFormat(format);
+  }
+
+  function closePinFlow() {
+    setPendingPin('');
+    setActivePinModal(null);
+  }
+
+  async function handlePinContinue(pin) {
+    setPendingPin(pin);
+    await requestSecurityPinVerification(auth.currentUser);
+    setActivePinModal('verify');
+  }
+
+  async function handlePinResend() {
+    await requestSecurityPinVerification(auth.currentUser);
+  }
+
+  async function handlePinVerify(code) {
+    await verifySecurityPinCode(auth.currentUser, code, pendingPin);
+    setPendingPin('');
+    setPinConfigured(true);
+    setActivePinModal('success');
+  }
+
+  function closePasswordFlow() {
+    setActivePasswordModal(null);
+    setPendingPasswordCode('');
+  }
+
+  async function handlePasswordRequestCode() {
+    await requestPasswordChangeCode(auth.currentUser);
+    setActivePasswordModal('verify');
+  }
+
+  async function handlePasswordResend() {
+    await requestPasswordChangeCode(auth.currentUser);
+  }
+
+  async function handlePasswordVerify(code) {
+    await verifyPasswordChangeCode(auth.currentUser, code);
+    setPendingPasswordCode(code);
+    setActivePasswordModal('new');
+  }
+
+  async function handlePasswordSubmit(newPassword) {
+    // Finalizes server-side through the Firebase Admin SDK rather than
+    // the client-side updatePassword(), which requires a "recent" sign-in
+    // and would fail with auth/requires-recent-login for anyone using
+    // this wizard later in their session instead of right after logging
+    // in - the normal case for a voluntary password change from Settings.
+    await finalizePasswordChange(auth.currentUser, pendingPasswordCode, newPassword);
+    setPendingPasswordCode('');
+    setActivePasswordModal('success');
   }
 
   return (
@@ -1715,71 +2523,288 @@ export function SettingsPage() {
       </div>
 
       <div className="space-y-4">
+        {/* Branding & Identity */}
         <section className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold text-[#1F2937]">{t('settings.appearance')}</h2>
+          <h2 className="text-sm font-bold text-[#1F2937]">{t('settings.brandingIdentity')}</h2>
+          <p className="mt-0.5 text-xs text-[#6B7280]">{t('settings.brandingIdentityNote')}</p>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setShowDeptModal(true)}
-              className="flex items-center gap-2 rounded-md bg-[#F1F3F5] px-4 py-2.5 text-xs font-semibold text-[#1F2937] hover:bg-slate-200"
-            >
-              {t('modal.deptCustomization')}
-            </button>
+          <div className="mt-4 space-y-5">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[#374151]">{t('settings.departmentName')}</label>
+              <div className="flex max-w-md items-center gap-2">
+                <input
+                  value={departmentName}
+                  onChange={(e) => setDepartmentNameDraft(e.target.value)}
+                  onBlur={handleSaveDepartmentName}
+                  className="w-full rounded-md border border-[#D1D5DB] px-3 py-2 text-sm text-[#1F2937] outline-none focus:border-[#9D0A0E]"
+                />
+                {savingDepartment && <RefreshCw size={14} className="shrink-0 animate-spin text-slate-400" />}
+                {departmentSaved && <Check size={16} className="shrink-0 text-emerald-500" />}
+              </div>
+              {departmentError && <p className="mt-1 text-xs font-semibold text-red-600">{departmentError}</p>}
+              <p className="mt-1 text-[10px] text-slate-400">{t('settings.departmentNameNote')}</p>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setShowThemeModal(true)}
-              className="flex items-center gap-2 rounded-md bg-[#F1F3F5] px-4 py-2.5 text-xs font-semibold text-[#1F2937] hover:bg-slate-200"
-            >
-              {t('settings.theme')}
-            </button>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[#374151]">{t('settings.logo')}</label>
+              <div className="flex items-center gap-3">
+                {avatar ? (
+                  <img src={avatar} alt="Logo" className="h-12 w-12 rounded-lg object-cover" />
+                ) : (
+                  <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#FBF1F1] text-sm font-semibold text-[#9D0A0E]">
+                    {getInitials(user)}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoModal(true)}
+                  className="flex items-center gap-1.5 rounded-md bg-[#F1F3F5] px-3 py-2 text-xs font-semibold text-[#1F2937] hover:bg-slate-200"
+                >
+                  <Upload size={13} />
+                  {t('settings.uploadNewLogo')}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[#374151]">{t('settings.primaryAccentColor')}</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 rounded-md border border-[#D1D5DB] px-2.5 py-1.5">
+                  <span className="h-5 w-5 rounded-full border border-black/10" style={{ backgroundColor: accent }} />
+                  <span className="text-xs font-semibold uppercase text-[#374151]">{accent}</span>
+                </div>
+
+                {ACCENT_SWATCHES.slice(0, 5).map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => handleAccentChange(color)}
+                    aria-label={color}
+                    className={`relative h-7 w-7 rounded-full border ${accent === color ? 'border-[#1F2937]' : 'border-black/10'}`}
+                    style={{ backgroundColor: color }}
+                  >
+                    {accent === color && <Check size={12} strokeWidth={3} className="absolute inset-0 m-auto text-white" />}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => colorInputRef.current?.click()}
+                  className="relative flex h-7 w-7 items-center justify-center rounded-full border border-[#D1D5DB] bg-white text-[#9CA3AF] hover:text-[#4B5563]"
+                  title="Custom color"
+                >
+                  <Pipette size={12} />
+                  <input
+                    ref={colorInputRef}
+                    type="color"
+                    value={accent}
+                    onChange={(e) => handleAccentChange(e.target.value)}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  />
+                </button>
+              </div>
+              <p className="mt-1.5 text-[10px] text-slate-400">{t('settings.accentColorNote')}</p>
+            </div>
           </div>
         </section>
 
+        {/* Password & Security */}
         <section className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold text-[#1F2937]">{t('settings.language')}</h2>
+          <h2 className="text-sm font-bold text-[#1F2937]">{t('settings.passwordSecurity')}</h2>
+          <p className="mt-0.5 text-xs text-[#6B7280]">{t('settings.passwordSecurityNote')}</p>
 
-          <div className="flex flex-wrap gap-3">
-            {['English', 'Filipino', 'Cebuano'].map((option) => (
+          <div className="mt-4 divide-y divide-[#E5E7EB]">
+            <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div>
+                <p className="text-xs font-semibold text-[#1F2937]">{t('settings.password')}</p>
+                <p className="mt-0.5 text-[11px] text-[#6B7280]">{t('settings.passwordNote')}</p>
+                <p className="mt-0.5 text-[10px] text-slate-400">
+                  {user?.password_changed_at
+                    ? t('settings.passwordLastChanged', { date: formatDateTime(user.password_changed_at) })
+                    : t('settings.passwordNeverChanged')}
+                </p>
+              </div>
               <button
-                key={option}
                 type="button"
-                onClick={() => setLanguage(option)}
-                className={`rounded-md border px-4 py-2 text-xs font-semibold ${
-                  language === option
-                    ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 text-[#9D0A0E]'
-                    : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-slate-50'
-                }`}
+                onClick={() => setActivePasswordModal('email')}
+                className="flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-3.5 py-2 text-xs font-semibold text-[#374151] hover:bg-slate-50"
               >
-                {option}
+                <LockKeyhole size={13} />
+                {t('settings.changePassword')}
               </button>
-            ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div>
+                <p className="text-xs font-semibold text-[#1F2937]">{t('settings.securityPin')}</p>
+                <p className="mt-0.5 text-[11px] text-[#6B7280]">{t('settings.securityPinNote')}</p>
+                <span className={`mt-1 inline-flex items-center gap-1 text-[10px] font-semibold ${pinConfigured ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${pinConfigured ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  {pinStatusLoading ? t('common.loading') : pinConfigured ? t('settings.pinSet') : t('settings.pinNotSet')}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivePinModal('create')}
+                disabled={pinStatusLoading}
+                className="flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-3.5 py-2 text-xs font-semibold text-[#374151] hover:bg-slate-50 disabled:opacity-50"
+              >
+                <ShieldCheck size={13} />
+                {pinConfigured ? t('settings.changePin') : t('settings.setUpPin')}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Appearance */}
+        <section className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-bold text-[#1F2937]">{t('settings.appearance')}</h2>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { key: 'light', icon: Sun, labelKey: 'settings.lightMode', captionKey: 'settings.lightModeCaption' },
+              { key: 'dark', icon: Moon, labelKey: 'settings.darkMode', captionKey: 'settings.darkModeCaption' },
+              { key: 'device', icon: Monitor, labelKey: 'settings.systemDefault', captionKey: 'settings.systemDefaultCaption' },
+            ].map(({ key, icon: Icon, labelKey, captionKey }) => {
+              const isActive = theme === key;
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setTheme(key)}
+                  className={`rounded-xl border p-3.5 text-left transition ${
+                    isActive ? 'border-[#9D0A0E] ring-1 ring-[#9D0A0E]' : 'border-[#E5E7EB] hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-[#1F2937]">
+                      <Icon size={13} />
+                      {t(labelKey)}
+                    </span>
+                    <span className={`flex h-4 w-4 items-center justify-center rounded-full border ${isActive ? 'border-[#9D0A0E] bg-[#9D0A0E]' : 'border-[#D1D5DB]'}`}>
+                      {isActive && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-[#9CA3AF]">{t(captionKey)}</p>
+
+                  <div
+                    className={`mt-3 h-10 rounded-md p-1.5 ${
+                      key === 'dark' ? 'bg-slate-800' : key === 'device' ? 'bg-gradient-to-r from-white to-slate-800' : 'border border-[#E5E7EB] bg-white'
+                    }`}
+                  >
+                    <div className={`h-1.5 w-2/3 rounded-full ${key === 'light' ? 'bg-slate-300' : 'bg-slate-500'}`} />
+                    <div className="mt-1.5 h-1.5 w-1/3 rounded-full bg-[#9D0A0E]" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Language & Regional Settings */}
+        <section className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-bold text-[#1F2937]">{t('settings.languageRegional')}</h2>
+          <p className="mt-0.5 text-xs text-[#6B7280]">{t('settings.languageRegionalNote')}</p>
+
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-semibold text-[#374151]">{t('settings.primaryLanguage')}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {['English', 'Filipino', 'Cebuano'].map((option) => {
+                const isActive = language === option;
+
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setLanguage(option)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold ${
+                      isActive ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white' : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {isActive && <Check size={12} />}
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[10px] text-slate-400">{t('settings.primaryLanguageNote')}</p>
           </div>
 
-          <p className="mt-3 text-[10px] text-slate-400">
-            {t('settings.languageNote')}
-          </p>
+          <div className="mt-5">
+            <p className="mb-2 text-xs font-semibold text-[#374151]">{t('settings.clockFormat')}</p>
+            <select
+              value={clockFormat}
+              onChange={(e) => handleClockFormatChange(e.target.value)}
+              className="w-full max-w-xs rounded-md border border-[#D1D5DB] px-3 py-2 text-sm text-[#1F2937] outline-none focus:border-[#9D0A0E]"
+            >
+              <option value="12h">{t('settings.clockFormat12')}</option>
+              <option value="24h">{t('settings.clockFormat24')}</option>
+            </select>
+            <p className="mt-1.5 text-[10px] text-slate-400">{t('settings.clockFormatNote')}</p>
+          </div>
         </section>
       </div>
 
-      {showDeptModal && (
-        <DepartmentCustomizationModal
-          user={user}
-          department={adminDepartment}
-          avatar={avatar}
-          onAvatarChange={handleAvatarChange}
-          onClose={() => setShowDeptModal(false)}
+      {showPhotoModal && (
+        <ChangeProfileModal
+          onClose={() => setShowPhotoModal(false)}
+          onSave={handleAvatarChange}
         />
       )}
 
-      {showThemeModal && (
-        <ThemeModal
-          theme={theme}
-          onClose={() => setShowThemeModal(false)}
-          onSaveTheme={setTheme}
+      {/* Change Password wizard */}
+      {activePasswordModal === 'email' && (
+        <ChangePasswordEmailModal
+          email={user?.email}
+          onClose={closePasswordFlow}
+          onContinue={handlePasswordRequestCode}
         />
       )}
+
+      {activePasswordModal === 'verify' && (
+        <VerificationCodeModal
+          icon={LockKeyhole}
+          title={t('passwordWizard.verifyTitle')}
+          subtitle={t('passwordWizard.verifySubtitle')}
+          verifyLabel={t('passwordWizard.verifyCode')}
+          onClose={closePasswordFlow}
+          onBack={() => setActivePasswordModal('email')}
+          onVerify={handlePasswordVerify}
+          onResend={handlePasswordResend}
+        />
+      )}
+
+      {activePasswordModal === 'new' && (
+        <NewPasswordModal onClose={closePasswordFlow} onSubmit={handlePasswordSubmit} />
+      )}
+
+      {activePasswordModal === 'success' && <PasswordChangedSuccessModal onClose={closePasswordFlow} />}
+
+      {/* Security PIN wizard */}
+      {activePinModal === 'create' && (
+        <CreatePinModal
+          title={pinConfigured ? t('pinWizard.changeTitle') : t('pinWizard.setupTitle')}
+          submitLabel={pinConfigured ? t('pinWizard.submitChange') : t('pinWizard.submitSetup')}
+          onClose={closePinFlow}
+          onContinue={handlePinContinue}
+        />
+      )}
+
+      {activePinModal === 'verify' && (
+        <VerificationCodeModal
+          icon={ShieldCheck}
+          title={t('pinWizard.verifyTitle')}
+          subtitle={t('pinWizard.verifySubtitle')}
+          verifyLabel={t('wizard.continue')}
+          onClose={closePinFlow}
+          onBack={() => setActivePinModal('create')}
+          onVerify={handlePinVerify}
+          onResend={handlePinResend}
+        />
+      )}
+
+      {activePinModal === 'success' && <PinSuccessModal onClose={closePinFlow} />}
     </div>
   );
 }

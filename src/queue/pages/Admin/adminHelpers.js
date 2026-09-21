@@ -21,6 +21,7 @@ const THEME_STORAGE_KEY = 'swumed_admin_theme';
 const ACCENT_STORAGE_KEY = 'swumed_admin_accent';
 const LANGUAGE_STORAGE_KEY = 'swumed_admin_language';
 const AVATAR_STORAGE_KEY = 'swumed_admin_avatar';
+const CLOCK_FORMAT_STORAGE_KEY = 'swumed_admin_clock_format';
 
 export function loadStoredTheme() {
   try {
@@ -88,6 +89,22 @@ export function loadStoredAvatar() {
 export function saveStoredAvatar(dataUrl) {
   try {
     localStorage.setItem(AVATAR_STORAGE_KEY, dataUrl);
+  } catch {
+    // Ignore storage issues in private mode or restricted browsers.
+  }
+}
+
+export function loadStoredClockFormat() {
+  try {
+    return localStorage.getItem(CLOCK_FORMAT_STORAGE_KEY) || '12h';
+  } catch {
+    return '12h';
+  }
+}
+
+export function saveStoredClockFormat(value) {
+  try {
+    localStorage.setItem(CLOCK_FORMAT_STORAGE_KEY, value);
   } catch {
     // Ignore storage issues in private mode or restricted browsers.
   }

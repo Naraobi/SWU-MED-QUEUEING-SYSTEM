@@ -1638,6 +1638,192 @@ export async function markPasswordChanged(
   }
 }
 
+// =====================================================
+// SECURITY PIN API
+// =====================================================
+
+async function authorizedRequest(firebaseUser, path, options = {}) {
+  if (!firebaseUser) {
+    throw new Error(
+      "Firebase user is required"
+    );
+  }
+
+  try {
+    const token =
+      await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}${path}`,
+      {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+      }
+    );
+
+    let result;
+
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(
+        "The server returned an invalid response."
+      );
+    }
+
+    if (!response.ok || !result.success) {
+      const error = new Error(
+        result.message || "Request failed."
+      );
+
+      error.attemptsRemaining =
+        result.attemptsRemaining;
+
+      throw error;
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Unable to connect to the backend server.",
+        { cause: error }
+      );
+    }
+
+    throw error;
+  }
+}
+
+// -----------------------------------------------------
+// GET /api/security/pin/status
+// -----------------------------------------------------
+
+export async function getSecurityPinStatus(
+  firebaseUser
+) {
+  const result = await authorizedRequest(
+    firebaseUser,
+    "/security/pin/status"
+  );
+
+  return result.configured;
+}
+
+// -----------------------------------------------------
+// POST /api/security/pin/request
+// -----------------------------------------------------
+
+export async function requestSecurityPinVerification(
+  firebaseUser
+) {
+  return authorizedRequest(
+    firebaseUser,
+    "/security/pin/request",
+    { method: "POST" }
+  );
+}
+
+// -----------------------------------------------------
+// POST /api/security/pin/verify
+// Body: { code, pin }
+// -----------------------------------------------------
+
+export async function verifySecurityPinCode(
+  firebaseUser,
+  code,
+  pin
+) {
+  return authorizedRequest(
+    firebaseUser,
+    "/security/pin/verify",
+    {
+      method: "POST",
+      body: JSON.stringify({ code, pin }),
+    }
+  );
+}
+
+// -----------------------------------------------------
+// POST /api/security/pin/validate
+// Body: { pin }
+// -----------------------------------------------------
+
+export async function validateSecurityPin(
+  firebaseUser,
+  pin
+) {
+  return authorizedRequest(
+    firebaseUser,
+    "/security/pin/validate",
+    {
+      method: "POST",
+      body: JSON.stringify({ pin }),
+    }
+  );
+}
+
+// =====================================================
+// CHANGE PASSWORD WIZARD API
+// =====================================================
+
+// -----------------------------------------------------
+// POST /api/auth/change-password/request-code
+// -----------------------------------------------------
+
+export async function requestPasswordChangeCode(
+  firebaseUser
+) {
+  return authorizedRequest(
+    firebaseUser,
+    "/auth/change-password/request-code",
+    { method: "POST" }
+  );
+}
+
+// -----------------------------------------------------
+// POST /api/auth/change-password/verify-code
+// Body: { code }
+// -----------------------------------------------------
+
+export async function verifyPasswordChangeCode(
+  firebaseUser,
+  code
+) {
+  return authorizedRequest(
+    firebaseUser,
+    "/auth/change-password/verify-code",
+    {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }
+  );
+}
+
+// -----------------------------------------------------
+// POST /api/auth/change-password/finalize
+// Body: { code, newPassword }
+// -----------------------------------------------------
+
+export async function finalizePasswordChange(
+  firebaseUser,
+  code,
+  newPassword
+) {
+  return authorizedRequest(
+    firebaseUser,
+    "/auth/change-password/finalize",
+    {
+      method: "POST",
+      body: JSON.stringify({ code, newPassword }),
+    }
+  );
+}
+
 // -----------------------------------------------------
 // LEGACY LOGIN
 // POST /api/auth/login
