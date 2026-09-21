@@ -43,6 +43,12 @@ import {
   deleteTerminal,
   updateDepartment,
   getDashboardAnalytics,
+  getSecurityPinStatus,
+  requestSecurityPinVerification,
+  verifySecurityPinCode,
+  validateSecurityPin,
+  requestPasswordChangeCode,
+  verifyPasswordChangeCode,
 } from '../../services/backendApi';
 
 import { fetchNotifications, fetchQueueState } from '../../services/api';
@@ -1690,8 +1696,9 @@ function CreatePinModal({ onClose, onContinue }) {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     setError('');
 
     if (!/^\d{6}$/.test(pin)) {
@@ -1704,7 +1711,15 @@ function CreatePinModal({ onClose, onContinue }) {
       return;
     }
 
-    onContinue();
+    setSubmitting(true);
+
+    try {
+      await onContinue(pin);
+    } catch (err) {
+      setError(err?.message || 'Failed to send verification code.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handlePinChange = (value, setter) => {
@@ -1803,7 +1818,8 @@ function CreatePinModal({ onClose, onContinue }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            disabled={submitting}
+            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
           >
             Cancel
           </button>
@@ -1811,9 +1827,10 @@ function CreatePinModal({ onClose, onContinue }) {
           <button
             type="button"
             onClick={handleContinue}
-            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+            disabled={submitting}
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Continue
+            {submitting ? 'Sending…' : 'Continue'}
           </button>
         </div>
       </div>
@@ -1821,17 +1838,30 @@ function CreatePinModal({ onClose, onContinue }) {
   );
 }
 
-function PinVerificationModal({ onClose, onBack, onSuccess }) {
+function EmailCodeModal({
+  icon: Icon = LockKeyhole,
+  title = 'Verify Your Email',
+  subtitle = "We've sent a 6-digit verification code to your registered email address.",
+  verifyLabel = 'Verify',
+  onClose,
+  onBack,
+  onVerify,
+  onResend,
+}) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
 
   const handleCodeChange = (value) => {
     const digitsOnly = value.replace(/\D/g, '').slice(0, 6);
     setCode(digitsOnly);
     setError('');
+    setResent(false);
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     setError('');
 
     if (!/^\d{6}$/.test(code)) {
@@ -1839,9 +1869,30 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
       return;
     }
 
-    // UI-only for now.
-    // Real email verification will be connected later.
-    onSuccess();
+    setVerifying(true);
+
+    try {
+      await onVerify(code);
+    } catch (err) {
+      setError(err?.message || 'Failed to verify the code.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setError('');
+    setResending(true);
+
+    try {
+      await onResend();
+      setCode('');
+      setResent(true);
+    } catch (err) {
+      setError(err?.message || 'Failed to resend the verification code.');
+    } finally {
+      setResending(false);
+    }
   };
 
   return (
@@ -1850,10 +1901,10 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
           <div>
             <h2 className="text-sm font-bold text-slate-800">
-              Verify Your Email
+              {title}
             </h2>
             <p className="mt-0.5 text-[10px] text-slate-500">
-              Confirm your identity to create the PIN
+              Confirm your identity to continue
             </p>
           </div>
 
@@ -1870,25 +1921,24 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
         <div className="space-y-4 px-5 py-5">
           <div className="flex items-start gap-3 rounded-lg bg-[#FBF1F1] p-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#9D0A0E]">
-              <LockKeyhole size={15} />
+              <Icon size={15} />
             </div>
 
             <p className="text-[11px] leading-4 text-slate-600">
-              We've sent a 6-digit verification code to your registered
-              email address.
+              {subtitle}
             </p>
           </div>
 
           <div>
             <label
-              htmlFor="admin-pin-verification-code"
+              htmlFor="admin-email-verification-code"
               className="mb-1.5 block text-xs font-semibold text-slate-700"
             >
               Verification Code
             </label>
 
             <input
-              id="admin-pin-verification-code"
+              id="admin-email-verification-code"
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -1907,15 +1957,19 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
 
             <button
               type="button"
-              onClick={() => {
-                setError('');
-                setCode('');
-              }}
-              className="text-[10px] font-semibold text-[#9D0A0E] hover:underline"
+              onClick={handleResend}
+              disabled={resending}
+              className="text-[10px] font-semibold text-[#9D0A0E] hover:underline disabled:opacity-50"
             >
-              Resend Code
+              {resending ? 'Sending…' : 'Resend Code'}
             </button>
           </div>
+
+          {resent && !error && (
+            <p className="text-xs font-medium text-emerald-600">
+              A new verification code has been sent.
+            </p>
+          )}
 
           {error && (
             <p className="text-xs font-medium text-red-600">
@@ -1928,7 +1982,8 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
           <button
             type="button"
             onClick={onBack}
-            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            disabled={verifying}
+            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
           >
             Back
           </button>
@@ -1936,9 +1991,10 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
           <button
             type="button"
             onClick={handleVerify}
-            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+            disabled={verifying}
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Verify
+            {verifying ? 'Verifying…' : verifyLabel}
           </button>
         </div>
       </div>
@@ -1946,7 +2002,11 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
   );
 }
 
-function PinSuccessModal({ onClose }) {
+function SuccessModal({
+  title = 'PIN Created',
+  subtitle = 'Your security PIN has been successfully created. You can now use it for protected kiosk and department operations.',
+  onClose,
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
@@ -1956,12 +2016,11 @@ function PinSuccessModal({ onClose }) {
           </div>
 
           <h2 className="mt-4 text-base font-bold text-slate-800">
-            PIN Created
+            {title}
           </h2>
 
           <p className="mt-2 max-w-xs text-xs leading-5 text-slate-500">
-            Your security PIN has been successfully created. You can now use
-            it for protected kiosk and department operations.
+            {subtitle}
           </p>
 
           <button
@@ -1973,6 +2032,340 @@ function PinSuccessModal({ onClose }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function NewPasswordModal({ onClose, onContinue }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const requirements = [
+    { label: 'At least 8 characters', met: newPassword.length >= 8 },
+    { label: 'One uppercase letter', met: /[A-Z]/.test(newPassword) },
+    { label: 'One number', met: /\d/.test(newPassword) },
+    { label: 'One special character', met: /[^A-Za-z0-9]/.test(newPassword) },
+  ];
+
+  const handleContinue = async () => {
+    setError('');
+
+    if (!requirements.every((req) => req.met)) {
+      setError('Please meet all password requirements.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      await onContinue(newPassword);
+    } catch (err) {
+      setError(err?.message || 'Failed to send verification code.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
+          <div>
+            <h2 className="text-sm font-bold text-slate-800">
+              Change Password
+            </h2>
+            <p className="mt-0.5 text-[10px] text-slate-500">
+              Choose a new account password
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 transition hover:text-slate-600"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <div className="flex items-start gap-3 rounded-lg bg-[#FBF1F1] p-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#9D0A0E]">
+              <LockKeyhole size={16} />
+            </div>
+
+            <p className="text-[11px] leading-4 text-slate-600">
+              We'll email a verification code to confirm it's really you
+              before this takes effect.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="admin-new-password"
+              className="mb-1.5 block text-xs font-semibold text-slate-700"
+            >
+              New Password
+            </label>
+
+            <input
+              id="admin-new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                setError('');
+              }}
+              placeholder="Enter new password"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="admin-confirm-new-password"
+              className="mb-1.5 block text-xs font-semibold text-slate-700"
+            >
+              Confirm Password
+            </label>
+
+            <input
+              id="admin-confirm-new-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                setError('');
+              }}
+              placeholder="Re-enter new password"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+            />
+          </div>
+
+          <ul className="space-y-1">
+            {requirements.map((req) => (
+              <li
+                key={req.label}
+                className={`flex items-center gap-1.5 text-[10px] ${
+                  req.met ? 'text-emerald-600' : 'text-slate-400'
+                }`}
+              >
+                <Check size={11} strokeWidth={3} className={req.met ? '' : 'opacity-30'} />
+                {req.label}
+              </li>
+            ))}
+          </ul>
+
+          {error && (
+            <p className="text-xs font-medium text-red-600">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={handleContinue}
+            disabled={submitting}
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? 'Sending…' : 'Continue'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Security PIN gate (shown right after login) ---------------- */
+//
+// Sits in front of the rest of the Admin app for any admin who has a
+// Security PIN configured, so it's the first thing they see after
+// signing in - not just something buried in Settings. Admins who
+// haven't set up a PIN yet aren't blocked by it; nothing exists yet
+// to check them against.
+//
+// "Forgot your PIN?" reuses the same email-verification-code flow as
+// Settings (CreatePinModal + EmailCodeModal + SuccessModal) so an
+// admin who's locked themselves out isn't stuck - Settings, where
+// that flow normally lives, is itself behind this gate.
+
+export function SecurityPinGate({ onUnlock }) {
+  const { user, signOut } = useAuth();
+
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [recoveryStep, setRecoveryStep] = useState(null);
+  const [pendingPin, setPendingPin] = useState('');
+
+  async function handleUnlock() {
+    setError('');
+
+    if (!/^\d{6}$/.test(pin)) {
+      setError('PIN must be exactly 6 digits.');
+      return;
+    }
+
+    setVerifying(true);
+
+    try {
+      await validateSecurityPin(auth.currentUser, pin);
+      onUnlock();
+    } catch (err) {
+      setPin('');
+      setError(err?.message || 'Invalid Security PIN.');
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  function closeRecovery() {
+    setRecoveryStep(null);
+    setPendingPin('');
+  }
+
+  async function handleRecoveryContinue(newPin) {
+    setPendingPin(newPin);
+    await requestSecurityPinVerification(auth.currentUser);
+    setRecoveryStep('verify');
+  }
+
+  async function handleRecoveryResend() {
+    await requestSecurityPinVerification(auth.currentUser);
+  }
+
+  async function handleRecoveryVerify(code) {
+    await verifySecurityPinCode(auth.currentUser, code, pendingPin);
+    setPendingPin('');
+    setRecoveryStep('success');
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex flex-col items-center px-6 pb-2 pt-8 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
+            <ShieldCheck size={22} />
+          </div>
+
+          <h2 className="mt-4 text-base font-bold text-slate-800">
+            Enter Security PIN
+          </h2>
+
+          <p className="mt-1 max-w-xs text-xs leading-5 text-slate-500">
+            For your protection, enter your 6-digit Security PIN to continue.
+          </p>
+
+          {user?.email && (
+            <p className="mt-2 text-[10px] font-semibold text-slate-400">
+              Signed in as {user.email}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-4 px-6 pb-2 pt-4">
+          <input
+            id="admin-pin-gate-input"
+            type="password"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            autoFocus
+            value={pin}
+            onChange={(e) => {
+              setPin(e.target.value.replace(/\D/g, '').slice(0, 6));
+              setError('');
+            }}
+            placeholder="Enter 6-digit PIN"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-center text-sm tracking-[0.35em] text-slate-800 outline-none transition placeholder:tracking-normal placeholder:text-slate-400 focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+          />
+
+          {error && (
+            <p className="text-center text-xs font-medium text-red-600">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-3 px-6 pb-6 pt-3">
+          <button
+            type="button"
+            onClick={handleUnlock}
+            disabled={verifying || pin.length !== 6}
+            className="w-full rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-semibold text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {verifying ? 'Verifying…' : 'Unlock'}
+          </button>
+
+          <div className="flex items-center justify-between text-[11px]">
+            <button
+              type="button"
+              onClick={() => setRecoveryStep('create')}
+              className="font-semibold text-[#9D0A0E] hover:underline"
+            >
+              Forgot your PIN?
+            </button>
+
+            <span className="text-slate-400">
+              Not you?{' '}
+              <button type="button" onClick={signOut} className="font-semibold text-slate-700 hover:underline">
+                Sign out
+              </button>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {recoveryStep === 'create' && (
+        <CreatePinModal
+          onClose={closeRecovery}
+          onContinue={handleRecoveryContinue}
+        />
+      )}
+
+      {recoveryStep === 'verify' && (
+        <EmailCodeModal
+          icon={ShieldCheck}
+          title="Verify Your Email"
+          verifyLabel="Continue"
+          onClose={closeRecovery}
+          onBack={() => setRecoveryStep('create')}
+          onVerify={handleRecoveryVerify}
+          onResend={handleRecoveryResend}
+        />
+      )}
+
+      {recoveryStep === 'success' && (
+        <SuccessModal
+          title="PIN Created"
+          subtitle="Your new security PIN is ready to use."
+          onClose={() => {
+            closeRecovery();
+            onUnlock();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1989,6 +2382,11 @@ export function SettingsPage() {
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [activePinModal, setActivePinModal] = useState(null);
   const [pinConfigured, setPinConfigured] = useState(false);
+  const [pinStatusLoading, setPinStatusLoading] = useState(true);
+  const [pendingPin, setPendingPin] = useState('');
+
+  const [activePasswordModal, setActivePasswordModal] = useState(null);
+  const [pendingPassword, setPendingPassword] = useState('');
 
   useEffect(() => {
     applyTheme(theme);
@@ -2007,6 +2405,27 @@ export function SettingsPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPinStatus() {
+      try {
+        const result = await getSecurityPinStatus(auth.currentUser);
+        if (mounted) setPinConfigured(Boolean(result?.configured));
+      } catch (err) {
+        console.error('Failed to load Security PIN status:', err);
+      } finally {
+        if (mounted) setPinStatusLoading(false);
+      }
+    }
+
+    loadPinStatus();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const adminDepartment = useMemo(
     () => findDepartmentForUser(departments, user),
     [departments, user]
@@ -2015,6 +2434,49 @@ export function SettingsPage() {
   function handleAvatarChange(dataUrl) {
     setAvatar(dataUrl);
     saveStoredAvatar(dataUrl);
+  }
+
+  function closePinFlow() {
+    setActivePinModal(null);
+    setPendingPin('');
+  }
+
+  async function handlePinContinue(pin) {
+    setPendingPin(pin);
+    await requestSecurityPinVerification(auth.currentUser);
+    setActivePinModal('verifyPin');
+  }
+
+  async function handlePinResend() {
+    await requestSecurityPinVerification(auth.currentUser);
+  }
+
+  async function handlePinVerify(code) {
+    await verifySecurityPinCode(auth.currentUser, code, pendingPin);
+    setPendingPin('');
+    setPinConfigured(true);
+    setActivePinModal('pinSuccess');
+  }
+
+  function closePasswordFlow() {
+    setActivePasswordModal(null);
+    setPendingPassword('');
+  }
+
+  async function handlePasswordContinue(newPassword) {
+    setPendingPassword(newPassword);
+    await requestPasswordChangeCode(auth.currentUser);
+    setActivePasswordModal('verify');
+  }
+
+  async function handlePasswordResend() {
+    await requestPasswordChangeCode(auth.currentUser);
+  }
+
+  async function handlePasswordVerify(code) {
+    await verifyPasswordChangeCode(auth.currentUser, code, pendingPassword);
+    setPendingPassword('');
+    setActivePasswordModal('success');
   }
 
   return (
@@ -2108,9 +2570,37 @@ export function SettingsPage() {
             <button
               type="button"
               onClick={() => setActivePinModal('createPin')}
-              className="shrink-0 rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+              disabled={pinStatusLoading}
+              className="shrink-0 rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pinConfigured ? 'Change PIN' : 'Create PIN'}
+            </button>
+          </div>
+
+          <div className="mt-5 flex items-start justify-between gap-4 border-t border-slate-100 pt-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
+                <LockKeyhole size={17} />
+              </div>
+
+              <div>
+                <h3 className="text-xs font-semibold text-slate-800">
+                  Password
+                </h3>
+
+                <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">
+                  Change your account password. We'll email a verification
+                  code to confirm it's you first.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActivePasswordModal('new')}
+              className="shrink-0 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              Change Password
             </button>
           </div>
         </section>
@@ -2136,25 +2626,55 @@ export function SettingsPage() {
 
             {activePinModal === 'createPin' && (
         <CreatePinModal
-          onClose={() => setActivePinModal(null)}
-          onContinue={() => setActivePinModal('verifyPin')}
+          onClose={closePinFlow}
+          onContinue={handlePinContinue}
         />
       )}
 
       {activePinModal === 'verifyPin' && (
-        <PinVerificationModal
-          onClose={() => setActivePinModal(null)}
+        <EmailCodeModal
+          icon={ShieldCheck}
+          title="Verify Your Email"
+          verifyLabel="Verify"
+          onClose={closePinFlow}
           onBack={() => setActivePinModal('createPin')}
-          onSuccess={() => {
-            setPinConfigured(true);
-            setActivePinModal('pinSuccess');
-          }}
+          onVerify={handlePinVerify}
+          onResend={handlePinResend}
         />
       )}
 
       {activePinModal === 'pinSuccess' && (
-        <PinSuccessModal
-          onClose={() => setActivePinModal(null)}
+        <SuccessModal
+          title="PIN Created"
+          subtitle="Your security PIN has been successfully created. You can now use it for protected kiosk and department operations."
+          onClose={closePinFlow}
+        />
+      )}
+
+      {activePasswordModal === 'new' && (
+        <NewPasswordModal
+          onClose={closePasswordFlow}
+          onContinue={handlePasswordContinue}
+        />
+      )}
+
+      {activePasswordModal === 'verify' && (
+        <EmailCodeModal
+          icon={LockKeyhole}
+          title="Verify Your Email"
+          verifyLabel="Change Password"
+          onClose={closePasswordFlow}
+          onBack={() => setActivePasswordModal('new')}
+          onVerify={handlePasswordVerify}
+          onResend={handlePasswordResend}
+        />
+      )}
+
+      {activePasswordModal === 'success' && (
+        <SuccessModal
+          title="Password Changed"
+          subtitle="Your password has been changed successfully. A confirmation email has been sent to your registered email address."
+          onClose={closePasswordFlow}
         />
       )}
     </div>

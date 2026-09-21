@@ -2064,6 +2064,136 @@ export async function validateSecurityPin(
 }
 
 // =====================================================
+// CHANGE PASSWORD WIZARD API
+// =====================================================
+
+// -----------------------------------------------------
+// REQUEST CHANGE PASSWORD VERIFICATION CODE
+// POST /api/auth/change-password/request
+// -----------------------------------------------------
+
+export async function requestPasswordChangeCode(
+  firebaseUser
+) {
+  if (!firebaseUser) {
+    throw new Error(
+      "Firebase user is required"
+    );
+  }
+
+  try {
+    const token =
+      await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}/auth/change-password/request`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type":
+            "application/json",
+        },
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      throw new Error(
+        result.message ||
+          "Failed to send the verification code."
+      );
+    }
+
+    return result;
+  } catch (error) {
+    if (
+      error instanceof TypeError
+    ) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
+
+    throw error;
+  }
+}
+
+// -----------------------------------------------------
+// VERIFY EMAIL CODE AND CHANGE PASSWORD
+// POST /api/auth/change-password/verify
+// -----------------------------------------------------
+
+export async function verifyPasswordChangeCode(
+  firebaseUser,
+  code,
+  newPassword
+) {
+  if (!firebaseUser) {
+    throw new Error(
+      "Firebase user is required"
+    );
+  }
+
+  try {
+    const token =
+      await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}/auth/change-password/verify`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          code,
+          newPassword,
+        }),
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      const error =
+        new Error(
+          result.message ||
+            "Failed to change your password."
+        );
+
+      error.attemptsRemaining =
+        result.attemptsRemaining;
+
+      throw error;
+    }
+
+    return result;
+  } catch (error) {
+    if (
+      error instanceof TypeError
+    ) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
+
+    throw error;
+  }
+}
+
+// =====================================================
 // BACKEND / DATABASE TEST
 // =====================================================
 
