@@ -232,8 +232,87 @@ SWU Med Queue System`,
   await transporter.sendMail(mailOptions);
 }
 
+async function sendPasswordResetCodeEmail(
+  recipientEmail,
+  firstName,
+  verificationCode
+) {
+  const mailOptions = {
+    from: `"SWU Med Queue System" <${process.env.EMAIL_USER}>`,
+    to: recipientEmail,
+    subject: "SWU Med Queue Password Change Verification",
+
+    // Plain-text version
+    text: `Hello ${firstName},
+
+You requested to change your password for the SWU Med Queue System.
+
+Your verification code is:
+
+${verificationCode}
+
+This code will expire in 10 minutes.
+
+If you did not request this change, please ignore this email and contact your system administrator.
+
+Thank you,
+SWU Med Queue System`,
+
+    // HTML version
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2>SWU Med Queue System</h2>
+
+        <p>Hello ${firstName},</p>
+
+        <p>
+          You requested to change your password for the SWU Med Queue System.
+        </p>
+
+        <div
+          style="
+            background-color: #f8f9fa;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+          "
+        >
+          <p style="margin: 0 0 8px 0; font-size: 13px; color: #6b7280;">
+            Your verification code
+          </p>
+
+          <p style="margin: 0; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #9D0A0E;">
+            ${verificationCode}
+          </p>
+        </div>
+
+        <p>
+          This code will expire in 10 minutes.
+        </p>
+
+        <p>
+          <strong>
+            If you did not request this change, please ignore this
+            email and contact your system administrator.
+          </strong>
+        </p>
+
+        <p>
+          Thank you,<br />
+          <strong>SWU Med Queue System</strong>
+        </p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
 module.exports = {
   sendTemporaryPasswordEmail,
   sendPinVerificationEmail,
-    sendPasswordChangedEmail,
+  sendPasswordChangedEmail,
+  sendPasswordResetCodeEmail,
 };

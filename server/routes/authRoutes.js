@@ -8,11 +8,21 @@ const {
 
 const {
   sendPasswordChangedEmail,
+  sendPasswordResetCodeEmail,
 } = require("../utils/emailService");
 
 const {
   getAuth,
 } = require("firebase-admin/auth");
+
+const {
+  authenticateRequest,
+} = require("../middleware/authMiddleware");
+
+const {
+  createPasswordResetChallenge,
+  verifyPasswordResetCode,
+} = require("../services/passwordResetService");
 
 const router = express.Router();
 
@@ -580,6 +590,199 @@ router.post("/login", async (req, res) => {
     });
   }
 });
+
+/*
+|--------------------------------------------------------------------------
+| VALIDATE NEW PASSWORD STRENGTH
+|--------------------------------------------------------------------------
+|
+| Mirrors the requirements shown to the user in the Change Password
+| wizard's UI - enforced here too since the client-side checklist is
+| only a UX aid, not a security boundary.
+|
+|--------------------------------------------------------------------------
+*/
+
+function validateNewPasswordStrength(password) {
+  const value = String(password || "");
+
+  if (value.length < 8) {
+    return "Password must be at least 8 characters long.";
+  }
+
+  if (!/[A-Z]/.test(value)) {
+    return "Password must include at least one uppercase letter.";
+  }
+
+  if (!/\d/.test(value)) {
+    return "Password must include at least one number.";
+  }
+
+  if (!/[^A-Za-z0-9]/.test(value)) {
+    return "Password must include at least one special character.";
+  }
+
+  return null;
+}
+
+/*
+|--------------------------------------------------------------------------
+| POST /api/auth/change-password/request
+|--------------------------------------------------------------------------
+|
+| Step 1 of the Change Password wizard. Sends a 6-digit verification
+| code to the logged-in user's registered email address.
+|
+|--------------------------------------------------------------------------
+*/
+
+router.post(
+  "/change-password/request",
+  authenticateRequest,
+  async (req, res) => {
+    try {
+      if (!req.user.email) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "No registered email address is on file for this account.",
+        });
+      }
+
+      const { code, expiresAt } =
+        await createPasswordResetChallenge(
+          req.user.user_id
+        );
+
+      await sendPasswordResetCodeEmail(
+        req.user.email,
+        req.user.first_name || "there",
+        code
+      );
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "A verification code has been sent to your registered email address.",
+        expiresAt,
+      });
+    } catch (error) {
+      console.error(
+        "CHANGE PASSWORD REQUEST ERROR:",
+        error
+      );
+
+      return res.status(400).json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to send verification code.",
+      });
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| POST /api/auth/change-password/verify
+|--------------------------------------------------------------------------
+|
+| Step 2 of the Change Password wizard. Body: { code, newPassword }
+|
+| Confirms the emailed code, then sets the new Firebase Authentication
+| password through the Admin SDK rather than the client-side
+| updatePassword(), which requires a "recent" sign-in and would fail
+| with auth/requires-recent-login for anyone using this wizard later in
+| a session rather than right after logging in - the normal case for a
+| voluntary password change from Settings.
+|
+|--------------------------------------------------------------------------
+*/
+
+router.post(
+  "/change-password/verify",
+  authenticateRequest,
+  async (req, res) => {
+    try {
+      const { code, newPassword } =
+        req.body || {};
+
+      const passwordError =
+        validateNewPasswordStrength(
+          newPassword
+        );
+
+      if (passwordError) {
+        return res.status(400).json({
+          success: false,
+          message: passwordError,
+        });
+      }
+
+      if (!req.user.firebase_uid) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "This account is not linked to Firebase Authentication.",
+        });
+      }
+
+      const verificationResult =
+        await verifyPasswordResetCode(
+          req.user.user_id,
+          code
+        );
+
+      if (!verificationResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: verificationResult.message,
+          attemptsRemaining:
+            verificationResult.attemptsRemaining,
+        });
+      }
+
+      await getAuth().updateUser(
+        req.user.firebase_uid,
+        { password: newPassword }
+      );
+
+      await markPasswordChanged(
+        req.user.firebase_uid
+      );
+
+      try {
+        await sendPasswordChangedEmail(
+          req.user.email,
+          req.user.first_name || "there"
+        );
+      } catch (emailError) {
+        console.error(
+          "PASSWORD CHANGED EMAIL ERROR:",
+          emailError
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Your password has been changed successfully.",
+      });
+    } catch (error) {
+      console.error(
+        "CHANGE PASSWORD VERIFY ERROR:",
+        error
+      );
+
+      return res.status(400).json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to change your password.",
+      });
+    }
+  }
+);
 
 /*
 |--------------------------------------------------------------------------
