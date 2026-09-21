@@ -75,6 +75,13 @@ function formatKiosk(
 |--------------------------------------------------------------------------
 | VALIDATE KIOSK PIN
 |--------------------------------------------------------------------------
+|
+| This is kept for EXISTING kiosk PIN verification
+| and optional PIN updates.
+|
+| NEW kiosks no longer require a kiosk PIN.
+|
+|--------------------------------------------------------------------------
 */
 
 function validateKioskPin(pin) {
@@ -460,6 +467,16 @@ async function kioskNameExists(
 |--------------------------------------------------------------------------
 | CREATE KIOSK
 |--------------------------------------------------------------------------
+|
+| NEW KIOSKS DO NOT REQUIRE A KIOSK PIN.
+|
+| The kiosk PIN has been moved to the centralized
+| Admin Security PIN / reset logic.
+|
+| Existing kiosk PINs are still supported separately
+| for backwards compatibility.
+|
+|--------------------------------------------------------------------------
 */
 
 async function createKiosk(
@@ -493,17 +510,6 @@ async function createKiosk(
 
   /*
   |--------------------------------------------------------------------------
-  | VALIDATE PIN
-  |--------------------------------------------------------------------------
-  */
-
-  const kioskPin =
-    validateKioskPin(
-      kioskData.kiosk_pin
-    );
-
-  /*
-  |--------------------------------------------------------------------------
   | CHECK DUPLICATE NAME
   |--------------------------------------------------------------------------
   */
@@ -521,15 +527,14 @@ async function createKiosk(
 
   /*
   |--------------------------------------------------------------------------
-  | HASH PIN
+  | CREATE KIOSK DATA
+  |--------------------------------------------------------------------------
+  |
+  | IMPORTANT:
+  | No kiosk_pin is created here.
+  |
   |--------------------------------------------------------------------------
   */
-
-  const kioskPinHash =
-    await bcrypt.hash(
-      kioskPin,
-      10
-    );
 
   const now =
     new Date().toISOString();
@@ -541,9 +546,6 @@ async function createKiosk(
     name,
 
     status,
-
-    kiosk_pin:
-      kioskPinHash,
 
     created_at:
       now,
@@ -575,9 +577,6 @@ async function createKiosk(
           name,
 
           status,
-
-          kiosk_pin:
-            kioskPinHash,
 
           created_at:
             now,
@@ -619,7 +618,7 @@ async function createKiosk(
 
   /*
   |--------------------------------------------------------------------------
-  | MYSQL OFFLINE
+  | MYSQL
   |--------------------------------------------------------------------------
   */
 
@@ -646,6 +645,13 @@ async function createKiosk(
 |--------------------------------------------------------------------------
 | INSERT KIOSK INTO MYSQL
 |--------------------------------------------------------------------------
+|
+| NEW KIOSKS ARE INSERTED WITHOUT kiosk_pin.
+|
+| This requires kiosk.kiosk_pin to allow NULL
+| or have a default value in MySQL.
+|
+|--------------------------------------------------------------------------
 */
 
 async function insertKioskIntoMySQL(
@@ -657,17 +663,15 @@ async function insertKioskIntoMySQL(
       kiosk_id,
       name,
       status,
-      kiosk_pin,
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?)
     `,
     [
       kiosk.kiosk_id,
       kiosk.name,
       kiosk.status,
-      kiosk.kiosk_pin,
       kiosk.created_at ||
         null,
       kiosk.updated_at ||
@@ -679,6 +683,16 @@ async function insertKioskIntoMySQL(
 /*
 |--------------------------------------------------------------------------
 | UPDATE KIOSK
+|--------------------------------------------------------------------------
+|
+| Existing kiosk PINs are preserved.
+|
+| If a new PIN is supplied:
+|   validate → hash → replace old hash
+|
+| If no PIN is supplied:
+|   keep the existing hash
+|
 |--------------------------------------------------------------------------
 */
 
@@ -806,6 +820,8 @@ async function updateKiosk(
   | PIN
   |--------------------------------------------------------------------------
   |
+  | Existing kiosk PIN behavior is preserved.
+  |
   | If a new PIN is supplied:
   |   validate → hash → replace old hash
   |
@@ -840,6 +856,12 @@ async function updateKiosk(
         10
       );
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | UPDATED KIOSK
+  |--------------------------------------------------------------------------
+  */
 
   const updatedAt =
     new Date().toISOString();
@@ -887,9 +909,9 @@ async function updateKiosk(
       };
 
       /*
-      |----------------------------------------------------------------------
-      | Only update PIN when a new PIN was provided.
-      |----------------------------------------------------------------------
+      |--------------------------------------------------------------------------
+      | ONLY UPDATE PIN WHEN A NEW PIN WAS PROVIDED
+      |--------------------------------------------------------------------------
       */
 
       if (hasNewPin) {
@@ -942,7 +964,7 @@ async function updateKiosk(
 
   /*
   |--------------------------------------------------------------------------
-  | MYSQL OFFLINE
+  | MYSQL
   |--------------------------------------------------------------------------
   */
 
@@ -991,6 +1013,12 @@ async function updateKioskInMySQL(
     kiosk.status,
   ];
 
+  /*
+  |--------------------------------------------------------------------------
+  | ONLY UPDATE PIN WHEN REQUESTED
+  |--------------------------------------------------------------------------
+  */
+
   if (updatePin) {
     sql += `,
       kiosk_pin = ?
@@ -1017,7 +1045,7 @@ async function updateKioskInMySQL(
 
   /*
   |--------------------------------------------------------------------------
-  | If MySQL row does not exist, insert it.
+  | IF MYSQL ROW DOES NOT EXIST, INSERT IT
   |--------------------------------------------------------------------------
   */
 
@@ -1039,17 +1067,8 @@ async function updateKioskInMySQL(
 |
 | POST /api/kiosks/:id/verify-pin
 |
-| The frontend sends:
-|
-| {
-|   pin: "1234"
-| }
-|
-| The backend:
-|
-| 1. Gets the stored bcrypt hash.
-| 2. Compares the entered PIN.
-| 3. Returns true/false.
+| Existing kiosks that still have a kiosk PIN
+| can continue to use this function.
 |
 |--------------------------------------------------------------------------
 */
@@ -1066,7 +1085,7 @@ async function verifyKioskPin(
 
   /*
   |--------------------------------------------------------------------------
-  | Validate entered PIN
+  | VALIDATE ENTERED PIN
   |--------------------------------------------------------------------------
   */
 
@@ -1107,7 +1126,7 @@ async function verifyKioskPin(
 
       /*
       |--------------------------------------------------------------------------
-      | If Firebase has no PIN, check MySQL.
+      | IF FIREBASE HAS NO PIN, CHECK MYSQL
       |--------------------------------------------------------------------------
       */
 
@@ -1129,7 +1148,7 @@ async function verifyKioskPin(
 
       /*
       |--------------------------------------------------------------------------
-      | Firebase failed → MySQL fallback
+      | FIREBASE FAILED → MYSQL FALLBACK
       |--------------------------------------------------------------------------
       */
 
@@ -1146,7 +1165,7 @@ async function verifyKioskPin(
 
   /*
   |--------------------------------------------------------------------------
-  | MYSQL OFFLINE
+  | MYSQL
   |--------------------------------------------------------------------------
   */
 
@@ -1163,7 +1182,7 @@ async function verifyKioskPin(
 
   /*
   |--------------------------------------------------------------------------
-  | No PIN found
+  | NO PIN FOUND
   |--------------------------------------------------------------------------
   */
 
@@ -1255,7 +1274,7 @@ async function deleteKiosk(
 
   /*
   |--------------------------------------------------------------------------
-  | MYSQL OFFLINE
+  | MYSQL
   |--------------------------------------------------------------------------
   */
 
