@@ -1,34 +1,28 @@
-<<<<<<< HEAD
 import { useEffect, useState } from 'react';
-import { X, Sun, Moon, Monitor, Check, Pipette, ShieldCheck, LockKeyhole } from 'lucide-react';
-
-import { auth } from '../../../firebase';
 import {
-  getSecurityPinStatus,
-  requestSecurityPinVerification,
-  verifySecurityPinCode,
-} from '../../services/backendApi';
-=======
-import { useState } from 'react';
-import {
-  Palette,
-  ShieldCheck,
+  X,
   Sun,
   Moon,
   Monitor,
   Check,
-  Upload,
+  Pipette,
+  ShieldCheck,
+  LockKeyhole,
+  Palette,
   Copy,
-  KeyRound,
-  Clock,
+  Upload,
 } from 'lucide-react';
+
+import { auth } from '../../../firebase';
+import {
+
+  getSecurityPinStatus,
+  requestSecurityPinVerification,
+  verifySecurityPinCode,
+} from '../../services/backendApi';
 
 import ChangePasswordModal from '../../components/changePasswordModal';
 import Logo from '../../../assets/logo.png';
-
-/* =========================================================
-   OPTIONS
-========================================================= */
 
 const ACCENT_PRESETS = [
   '#9D0A0E',
@@ -38,36 +32,11 @@ const ACCENT_PRESETS = [
   '#4B5563',
 ];
 
-const THEME_MODES = [
-  {
-    key: 'light',
-    label: 'Light Mode',
-    caption: 'Default hospital theme',
-    icon: Sun,
-  },
-  {
-    key: 'dark',
-    label: 'Dark Mode',
-    caption: 'Dimmed high contrast',
-    icon: Moon,
-  },
-  {
-    key: 'system',
-    label: 'System Default',
-    caption: 'Follows OS preference',
-    icon: Monitor,
-  },
-];
->>>>>>> superadmin-ui
-
-const LANGUAGES = ['English', 'Filipino', 'Cebuano'];
-
 const CLOCK_FORMATS = [
   '12-Hour (1:30 PM)',
   '24-Hour (13:30)',
 ];
 
-<<<<<<< HEAD
 // Each swatch is a 4-quadrant preview circle.
 const THEME_SWATCHES = [
   { key: 'blue', colors: ['#9D0A0E', '#D4B0B1', '#7D080B', '#F0DADA'] },
@@ -99,11 +68,68 @@ function quadrantGradient(colors) {
 
 function DepartmentCustomizationModal({ onClose }) {
   const [departmentName, setDepartmentName] = useState('Billing Department');
-=======
-/* =========================================================
-   SECTION SHELL
-========================================================= */
->>>>>>> superadmin-ui
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 className="text-sm font-bold text-[#1F2937]">
+              Department Customization
+            </h2>
+            <p className="mt-0.5 text-xs text-[#4B5563]">
+              Customize department settings.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="space-y-4 px-5 py-5">
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-[#4B5563]">
+              Department Name
+            </label>
+
+            <input
+              type="text"
+              value={departmentName}
+              onChange={(e) => setDepartmentName(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function SettingsSection({
   icon: Icon,
@@ -114,26 +140,13 @@ function SettingsSection({
 }) {
   return (
     <section className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
-
-<<<<<<< HEAD
-        {/* Body */}
-        <div className="space-y-4 px-5 py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FBF1F1] text-xs font-semibold text-[#9D0A0E]">
-              JD
-            </div>
-            <button
-              type="button"
-              className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
-            >
-              Change
-            </button>
-          </div>
-=======
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 px-6 py-5">
         <div className="flex items-start gap-2.5">
-          <Icon size={16} className="mt-0.5 shrink-0 text-[#9D0A0E]" />
->>>>>>> superadmin-ui
+          <Icon
+            size={16}
+            className="mt-0.5 shrink-0 text-[#9D0A0E]"
+          />
 
           <div>
             <h2 className="text-sm font-bold text-[#1F2937]">
@@ -146,48 +159,41 @@ function SettingsSection({
           </div>
         </div>
 
-<<<<<<< HEAD
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
-          >
-            Save
-          </button>
-        </div>
-=======
         {badge && (
           <span className="shrink-0 rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-2.5 py-1 text-xs font-medium text-[#4B5563]">
             {badge}
           </span>
         )}
->>>>>>> superadmin-ui
       </div>
 
+      {/* Body */}
       <div className="border-t border-[#E5E7EB] px-6 py-5">
         {children}
       </div>
-
     </section>
   );
 }
-
 function FieldLabel({ children }) {
   return (
-<<<<<<< HEAD
+    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#4B5563]">
+      {children}
+    </p>
+  );
+}
+
+function ThemeModal({ onClose, onOpenColorPicker }) {
+  const [mode, setMode] = useState('system');
+  const [selectedSwatch, setSelectedSwatch] = useState('blue');
+
+  return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-[280px] overflow-hidden rounded-xl bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
-          <h2 className="text-sm font-bold text-slate-800">Theme</h2>
+          <h2 className="text-sm font-bold text-slate-800">
+            Theme
+          </h2>
+
           <button
             type="button"
             onClick={onClose}
@@ -238,8 +244,11 @@ function FieldLabel({ children }) {
                 >
                   <span
                     className="block h-8 w-8 rounded-full"
-                    style={{ background: quadrantGradient(colors) }}
+                    style={{
+                      background: quadrantGradient(colors),
+                    }}
                   />
+
                   {isSelected && (
                     <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
                       <Check size={10} strokeWidth={3} />
@@ -272,8 +281,10 @@ function FieldLabel({ children }) {
           >
             Cancel
           </button>
+
           <button
             type="button"
+            onClick={onClose}
             className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
           >
             Save
@@ -281,11 +292,6 @@ function FieldLabel({ children }) {
         </div>
       </div>
     </div>
-=======
-    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#4B5563]">
-      {children}
-    </p>
->>>>>>> superadmin-ui
   );
 }
 
@@ -297,7 +303,6 @@ function Hint({ children }) {
   );
 }
 
-<<<<<<< HEAD
 /* ---------------- Create PIN Modal ---------------- */
 
 function CreatePinModal({ onClose, onContinue }) {
@@ -672,11 +677,6 @@ function PinSuccessModal({ onClose }) {
 }
 
 /* ---------------- Settings Page ---------------- */
-=======
-/* =========================================================
-   SETTINGS PAGE
-========================================================= */
->>>>>>> superadmin-ui
 
 export default function Settings() {
   const [systemName, setSystemName] = useState(
@@ -689,7 +689,6 @@ export default function Settings() {
 
   const [themeMode, setThemeMode] = useState('light');
   const [language, setLanguage] = useState('English');
-<<<<<<< HEAD
   const [activeModal, setActiveModal] = useState(null);
   const [pinConfigured, setPinConfigured] = useState(false);
   const [pinStatusLoading, setPinStatusLoading] = useState(true);
@@ -745,7 +744,6 @@ export default function Settings() {
     isMounted = false;
   };
 }, []);
-=======
   const [clockFormat, setClockFormat] = useState(
     CLOCK_FORMATS[0]
   );
@@ -764,7 +762,6 @@ export default function Settings() {
       })
       .catch(() => setCopied(false));
   }
->>>>>>> superadmin-ui
 
   return (
     <div className="space-y-5">
@@ -873,8 +870,8 @@ export default function Settings() {
 
           </div>
         </div>
+    </SettingsSection>
 
-<<<<<<< HEAD
       {/* Security */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
@@ -1003,315 +1000,6 @@ export default function Settings() {
           onClose={() => setActiveModal(null)}
         />
       )}
-=======
-        {/* PRIMARY ACCENT COLOR */}
-
-        <div className="mt-6">
-          <FieldLabel>Primary Accent Color</FieldLabel>
-
-          <div className="flex flex-wrap items-center gap-4">
-
-            <div className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] px-3 py-2">
-              <span
-                aria-hidden="true"
-                className="h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10"
-                style={{ backgroundColor: accentColor }}
-              />
-
-              <span className="text-xs font-semibold uppercase text-[#1F2937]">
-                Hex {accentColor}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[#4B5563]">
-                Presets:
-              </span>
-
-              {ACCENT_PRESETS.map((preset) => {
-                const isSelected = accentColor === preset;
-
-                return (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setAccentColor(preset)}
-                    aria-label={`Accent ${preset}`}
-                    aria-pressed={isSelected}
-                    className={`h-6 w-6 rounded-full transition ${
-                      isSelected
-                        ? 'ring-2 ring-[#9D0A0E] ring-offset-2'
-                        : 'ring-1 ring-black/10 hover:ring-[#9CA3AF]'
-                    }`}
-                    style={{ backgroundColor: preset }}
-                  />
-                );
-              })}
-            </div>
-
-          </div>
-
-          <Hint>
-            Applies to primary action buttons, active navigation markers, kiosk
-            highlighted badges, and key queue alerts.
-          </Hint>
-        </div>
-
-      </SettingsSection>
-
-      {/* =====================================================
-          PASSWORD & SECURITY
-      ===================================================== */}
-
-      <SettingsSection
-        icon={ShieldCheck}
-        title="Password &amp; Security"
-        subtitle="Manage your account password and Admin PIN."
-      >
-
-        <div className="divide-y divide-[#E5E7EB]">
-
-          {/* PASSWORD */}
-
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-5">
-            <div>
-              <p className="text-sm font-bold text-[#1F2937]">
-                Password
-              </p>
-
-              <p className="mt-0.5 text-xs text-[#4B5563]">
-                Keep your account secure by regularly updating your password.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                setShowChangePassword(true)
-              }
-              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
-            >
-              <KeyRound size={14} />
-              Change Password
-            </button>
-          </div>
-
-          {/* SECURITY PIN */}
-
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-5">
-            <div>
-              <p className="text-sm font-bold text-[#1F2937]">
-                Security PIN
-              </p>
-
-              <p className="mt-0.5 text-xs text-[#4B5563]">
-                Used to authorize protected system actions such as resetting
-                records.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              disabled
-              title="Security PIN storage is not available yet."
-              className="flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#9CA3AF]"
-            >
-              <KeyRound size={14} />
-              Change PIN
-            </button>
-          </div>
-
-        </div>
-
-      </SettingsSection>
-
-      {/* =====================================================
-          APPEARANCE
-      ===================================================== */}
-
-      <SettingsSection
-        icon={Monitor}
-        title="Appearance"
-        subtitle="Choose default theme settings for admin and kiosk interfaces."
-      >
-
-        <FieldLabel>Theme Mode</FieldLabel>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {THEME_MODES.map(
-            ({ key, label, caption, icon: Icon }) => {
-              const isSelected = themeMode === key;
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setThemeMode(key)}
-                  aria-pressed={isSelected}
-                  className={`rounded-xl border p-4 text-left transition ${
-                    isSelected
-                      ? 'border-[#9D0A0E] ring-1 ring-[#9D0A0E]'
-                      : 'border-[#E5E7EB] hover:border-[#9CA3AF]'
-                  }`}
-                >
-
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2">
-                      <Icon
-                        size={14}
-                        className="mt-0.5 shrink-0 text-[#4B5563]"
-                      />
-
-                      <div>
-                        <p className="text-xs font-bold text-[#1F2937]">
-                          {label}
-                        </p>
-
-                        <p className="mt-0.5 text-xs text-[#9CA3AF]">
-                          {caption}
-                        </p>
-                      </div>
-                    </div>
-
-                    <span
-                      aria-hidden="true"
-                      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                        isSelected
-                          ? 'border-[#9D0A0E] bg-[#9D0A0E]'
-                          : 'border-[#9CA3AF] bg-white'
-                      }`}
-                    >
-                      {isSelected && (
-                        <Check
-                          size={10}
-                          strokeWidth={3}
-                          className="text-white"
-                        />
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Preview thumbnail */}
-
-                  <div
-                    aria-hidden="true"
-                    className={`mt-3 overflow-hidden rounded-md border border-[#E5E7EB] ${
-                      key === 'dark'
-                        ? 'bg-[#1F2937]'
-                        : key === 'system'
-                          ? 'bg-gradient-to-r from-white to-[#1F2937]'
-                          : 'bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 px-3 py-3">
-                      <span
-                        className="h-3 w-10 rounded-sm"
-                        style={{ backgroundColor: accentColor }}
-                      />
-
-                      <span
-                        className={`h-3 flex-1 rounded-sm ${
-                          key === 'dark'
-                            ? 'bg-white/20'
-                            : 'bg-[#E5E7EB]'
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                </button>
-              );
-            }
-          )}
-        </div>
-
-      </SettingsSection>
-
-      {/* =====================================================
-          LANGUAGE & REGIONAL SETTINGS
-      ===================================================== */}
-
-      <SettingsSection
-        icon={Clock}
-        title="Language &amp; Regional Settings"
-        subtitle="Configure default language and regional time displays across touchpoints."
-      >
-
-        {/* PRIMARY LANGUAGE */}
-
-        <div>
-          <FieldLabel>Primary Language</FieldLabel>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {LANGUAGES.map((lang) => {
-              const isSelected = language === lang;
-
-              return (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => setLanguage(lang)}
-                  aria-pressed={isSelected}
-                  className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-semibold transition ${
-                    isSelected
-                      ? 'bg-[#9D0A0E] text-white'
-                      : 'bg-[#F1F3F5] text-[#4B5563] hover:bg-[#E5E7EB]'
-                  }`}
-                >
-                  {isSelected && <Check size={12} />}
-                  {lang}
-                </button>
-              );
-            })}
-          </div>
-
-          <Hint>
-            Sets the initial default locale for patient kiosk prompts and
-            printed slips.
-          </Hint>
-        </div>
-
-        {/* CLOCK FORMAT */}
-
-        <div className="mt-6">
-          <FieldLabel>Clock Format</FieldLabel>
-
-          <select
-            value={clockFormat}
-            onChange={(e) =>
-              setClockFormat(e.target.value)
-            }
-            aria-label="Clock format"
-            className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-          >
-            {CLOCK_FORMATS.map((format) => (
-              <option key={format} value={format}>
-                {format}
-              </option>
-            ))}
-          </select>
-
-          <Hint>
-            Applied to TV Queue displays, timestamp audits, and ticket issuance
-            times.
-          </Hint>
-        </div>
-
-      </SettingsSection>
-
-      {/* =====================================================
-          CHANGE PASSWORD MODAL (existing, real)
-      ===================================================== */}
-
-      {showChangePassword && (
-        <ChangePasswordModal
-          onSuccess={() =>
-            setShowChangePassword(false)
-          }
-        />
-      )}
-
->>>>>>> superadmin-ui
     </div>
   );
 }
