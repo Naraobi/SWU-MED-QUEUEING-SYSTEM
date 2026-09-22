@@ -694,40 +694,6 @@ export function ResetPassword() {
     }
   }
 
-  /*
-   * User reached this page without successfully
-   * completing the OTP verification.
-   */
-  if (!resetToken || !accountEmail) {
-    return (
-      <RecoveryShell>
-        <CardHeader
-          icon={AlertTriangle}
-          title="Reset Session Expired"
-          description="Your password reset session is missing or has expired. Please request a new verification code."
-        />
-
-        <div className="px-7 pb-7">
-          <PrimaryButton
-            onClick={() =>
-              navigate('/forgot-password')
-            }
-          >
-            Request New Code
-            <ArrowRight size={16} />
-          </PrimaryButton>
-
-          <SecondaryButton
-            onClick={() =>
-              navigate('/superadmin/login')
-            }
-          >
-            Back to Login
-          </SecondaryButton>
-        </div>
-      </RecoveryShell>
-    );
-  }
 
   if (completedAt) {
     return (
@@ -763,6 +729,41 @@ export function ResetPassword() {
     );
   }
 
+
+  /*
+   * User reached this page without successfully
+   * completing the OTP verification.
+   */
+  if (!resetToken || !accountEmail) {
+    return (
+      <RecoveryShell>
+        <CardHeader
+          icon={AlertTriangle}
+          title="Reset Session Expired"
+          description="Your password reset session is missing or has expired. Please request a new verification code."
+        />
+
+        <div className="px-7 pb-7">
+          <PrimaryButton
+            onClick={() =>
+              navigate('/forgot-password')
+            }
+          >
+            Request New Code
+            <ArrowRight size={16} />
+          </PrimaryButton>
+
+          <SecondaryButton
+            onClick={() =>
+              navigate('/superadmin/login')
+            }
+          >
+            Back to Login
+          </SecondaryButton>
+        </div>
+      </RecoveryShell>
+    );
+  }
   return (
     <RecoveryShell>
       <div className="flex items-center gap-3 border-b border-[#E5E7EB] px-7 py-5">

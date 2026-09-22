@@ -57,13 +57,13 @@ async function sendPasswordResetCode(email) {
     throw new Error("No account was found with that email address.");
   }
 
-  // Only active accounts can reset their password
-  if (user.status !== "active") {
-    throw new Error(
-      "This account is inactive. Please contact your system administrator."
-    );
-  }
-
+if (
+  String(user.status || "").toLowerCase() !== "active"
+) {
+  throw new Error(
+    "This account is inactive. Please contact your system administrator."
+  );
+}
   // Make sure the Firebase account exists
   let firebaseUser;
 
