@@ -41,6 +41,7 @@ import {
   MapPin,
   ClipboardList,
   Lock,
+  Check,
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
@@ -333,10 +334,92 @@ function Wordmark({ size = 'h-10' }) {
   );
 }
 /* =========================================================
+   STEP PROGRESS
+   Lets a patient see how many steps remain before their number
+   is issued, instead of moving through an unlabeled sequence of
+   screens with no sense of where they are.
+========================================================= */
+
+const KIOSK_STEPS = [
+  { key: 'queueType', label: 'Queue Type' },
+  { key: 'department', label: 'Service' },
+  { key: 'confirm', label: 'Confirm' },
+  { key: 'ticket', label: 'Ticket' },
+];
+
+function StepProgress({ currentStep }) {
+  const currentIndex = KIOSK_STEPS.findIndex(
+    (item) => item.key === currentStep
+  );
+
+  // Once the ticket is issued there is nothing left to do, so every
+  // step reads as complete instead of leaving the last one looking
+  // "in progress" on a screen the patient is already done with.
+  const allDone = currentStep === 'ticket';
+
+  return (
+    <div className="mt-5 flex items-start">
+      {KIOSK_STEPS.map((stepItem, index) => {
+        const isLast = index === KIOSK_STEPS.length - 1;
+        const isComplete = allDone || index < currentIndex;
+        const isCurrent = !allDone && index === currentIndex;
+
+        return (
+          <div
+            key={stepItem.key}
+            className={`flex items-center ${isLast ? '' : 'flex-1'}`}
+          >
+            <div className="flex flex-col items-center">
+              <div
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-all duration-300 ease-out ${
+                  isComplete
+                    ? 'bg-[#9D0A0E] text-white'
+                    : isCurrent
+                      ? 'border-2 border-[#9D0A0E] text-[#9D0A0E] step-current-pulse'
+                      : 'border border-[#D0D5DD] text-[#98A2B3]'
+                }`}
+              >
+                {isComplete ? (
+                  <span className="step-check-pop flex items-center justify-center">
+                    <Check size={12} />
+                  </span>
+                ) : (
+                  index + 1
+                )}
+              </div>
+
+              <span
+                className={`mt-1 whitespace-nowrap text-[8px] font-semibold uppercase tracking-wide transition-colors duration-300 ease-out ${
+                  isCurrent
+                    ? 'text-[#9D0A0E]'
+                    : isComplete
+                      ? 'text-[#1F2937]'
+                      : 'text-[#98A2B3]'
+                }`}
+              >
+                {stepItem.label}
+              </span>
+            </div>
+
+            {!isLast && (
+              <div
+                className={`mx-1.5 mb-4 h-0.5 flex-1 rounded-full transition-colors duration-500 ease-out ${
+                  isComplete ? 'bg-[#9D0A0E]' : 'bg-[#E5E7EB]'
+                }`}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* =========================================================
    KIOSK HEADER
 ========================================================= */
 
-function KioskHeader() {
+function KioskHeader({ step = null }) {
   const [now] = useState(new Date());
 
   const time = now.toLocaleTimeString([], {
@@ -351,20 +434,24 @@ function KioskHeader() {
   });
 
   return (
-    <div className="mb-6 flex items-center justify-between">
-      <Wordmark size="h-9" />
+    <div className="mb-6">
+      <div className="flex items-center justify-between">
+        <Wordmark size="h-9" />
 
-      <div className="flex items-center gap-3 text-[11px] font-medium text-[#434655]">
-        <span className="flex items-center gap-1">
-          <Clock size={12} />
-          {time}
-        </span>
+        <div className="flex items-center gap-3 text-[11px] font-medium text-[#434655]">
+          <span className="flex items-center gap-1">
+            <Clock size={12} />
+            {time}
+          </span>
 
-        <span className="flex items-center gap-1">
-          <Calendar size={12} />
-          {date}
-        </span>
+          <span className="flex items-center gap-1">
+            <Calendar size={12} />
+            {date}
+          </span>
+        </div>
       </div>
+
+      {step && <StepProgress currentStep={step} />}
     </div>
   );
 }
@@ -853,7 +940,7 @@ function KioskPinScreen({
 }) {
   return (
     <Screen>
-      <KioskHeader />
+      <KioskHeader step="queueType" />
 
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-semibold text-slate-900">
@@ -923,7 +1010,7 @@ function SelectDepartmentScreen({
 }) {
   return (
     <Screen>
-      <KioskHeader />
+      <KioskHeader step="department" />
 
       <div className="mb-5 text-center">
         <h1 className="text-2xl font-semibold text-slate-900">
@@ -1090,7 +1177,7 @@ function ConfirmScreen({
 
   return (
     <Screen>
-      <KioskHeader />
+      <KioskHeader step="confirm" />
 
       <div className="mb-5 text-center">
         <h1 className="text-2xl font-semibold text-slate-900">
@@ -1218,7 +1305,7 @@ function TicketScreen({
 
   return (
     <Screen>
-      <KioskHeader />
+      <KioskHeader step="ticket" />
 
       <div className="mb-5 text-center">
         <h1 className="text-2xl font-semibold text-slate-900">
@@ -1360,7 +1447,7 @@ function PrintingScreen({
 
   return (
     <Screen>
-      <KioskHeader />
+      <KioskHeader step="ticket" />
 
       <div className="relative">
         <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-blue-600/5 blur-2xl" />
@@ -1426,7 +1513,7 @@ function SuccessScreen({
 
   return (
     <Screen>
-      <KioskHeader />
+      <KioskHeader step="ticket" />
 
       <div className="relative">
         <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-[#9D0A0E]/5 blur-2xl" />

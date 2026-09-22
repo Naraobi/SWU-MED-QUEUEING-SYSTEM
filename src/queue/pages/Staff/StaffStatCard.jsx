@@ -2,7 +2,7 @@
 // pages render identical sizing/typography instead of drifting apart.
 export default function StaffStatCard({ label, value, icon: Icon }) {
   return (
-    <div className="flex h-28 items-center justify-between rounded-2xl border border-slate-200/90 bg-white px-6 shadow-sm">
+    <div className="flex h-28 items-center justify-between rounded-2xl border border-slate-200/90 bg-white px-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-[#9D0A0E]/30 hover:shadow-md">
       <div>
         <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
           {label}

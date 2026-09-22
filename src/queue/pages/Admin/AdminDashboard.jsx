@@ -29,11 +29,17 @@ import {
   getDepartments,
   getTerminals,
   getDashboardAnalytics,
+  getSecurityPinStatus,
+  setupSecurityPin,
 } from "../../services/backendApi";
 import { useAuth } from '../../services/Authcontext';
 import { useQueue } from '../../context/QueueContext';
 
 import { DateRangePicker, StatCard } from './shared';
+import {
+  SettingsExactCreatePinModal,
+  SettingsExactPinSuccessModal,
+} from './AdminScreens';
 
 import {
   THEME,
@@ -248,6 +254,24 @@ function DonutChart({ slices }) {
 // ADMIN DASHBOARD
 // =====================================================
 
+
+// Dashboard metric card — mirrors the exact Queue Management typography,
+// spacing, borders, and sizing without changing the shared StatCard.
+function DashboardStatCard({ label, value, caption, icon: Icon, highlight = false }) {
+  return (
+    <div className={`flex h-[152px] flex-col justify-between rounded-xl border bg-white p-[25px] transition-all duration-200 hover:-translate-y-1 hover:border-[#9D0A0E]/40 hover:shadow-lg ${highlight ? 'border-[#E6E6E6]' : 'border-[#C3C6D7]'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#1F2937]">{label}</p>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7EEEE] text-[#9D0A0E]">
+          <Icon size={18} />
+        </span>
+      </div>
+      <p className="text-[30px] font-bold leading-[38px] tracking-[-0.6px] text-[#212B3A]">{value}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#5F6368]">{caption}</p>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { t, langCode } = useLanguage();
@@ -276,6 +300,68 @@ export default function AdminDashboard() {
     user?.department_prefix ||
     user?.departmentPrefix ||
     FALLBACK_DEPARTMENT_PREFIX;
+
+  // ===================================================
+  // FIRST-LOGIN SECURITY PIN SETUP
+  // ===================================================
+  //
+  // A brand-new Admin/Superadmin account has no Security PIN yet.
+  // This reuses the exact same "is a PIN configured?" check Settings
+  // already runs (GET /security/pin/status, backed by the existing
+  // security_pin table) — no separate "already asked" flag. That
+  // means the prompt reappears on the next login if the admin
+  // cancels without setting one, and stops for good once a PIN
+  // actually exists.
+
+  const [showPinSetupModal, setShowPinSetupModal] = useState(false);
+  const [showPinSetupSuccess, setShowPinSetupSuccess] = useState(false);
+  const [pinSetupSaving, setPinSetupSaving] = useState(false);
+  const [pinSetupError, setPinSetupError] = useState('');
+  const pinSetupCheckedRef = useRef(false);
+
+  useEffect(() => {
+    if (pinSetupCheckedRef.current) return;
+    if (currentRole !== 'admin' && currentRole !== 'superadmin') return;
+
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return;
+
+    pinSetupCheckedRef.current = true;
+
+    getSecurityPinStatus(firebaseUser)
+      .then((result) => {
+        if (!result?.configured) {
+          setShowPinSetupModal(true);
+        }
+      })
+      .catch((error) => {
+        console.warn('Unable to check Security PIN status:', error);
+      });
+  }, [currentRole, user]);
+
+  async function handlePinSetupContinue(pin) {
+    const firebaseUser = auth.currentUser;
+
+    if (!firebaseUser) {
+      setPinSetupError('Your authentication session is unavailable. Please log in again.');
+      return;
+    }
+
+    try {
+      setPinSetupError('');
+      setPinSetupSaving(true);
+
+      await setupSecurityPin(firebaseUser, pin);
+
+      setShowPinSetupModal(false);
+      setShowPinSetupSuccess(true);
+    } catch (error) {
+      console.error('Failed to set up Security PIN:', error);
+      setPinSetupError(error?.message || 'Failed to set up your Security PIN.');
+    } finally {
+      setPinSetupSaving(false);
+    }
+  }
 
   // ===================================================
   // STATE
@@ -916,11 +1002,11 @@ const endDate = toDateKey(
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
 
         <div>
-          <h1 className="text-2xl font-bold text-[#1F2937]">
+          <h1 className="text-[30px] font-bold leading-[38px] tracking-[-0.6px] text-[#212B3A]">
             {t('dashboard.title')}
           </h1>
 
-          <p className="mt-0.5 text-xs text-[#4B5563]">
+          <p className="mt-1 text-base text-[#44474C]">
             {rangeSubtitle}
           </p>
         </div>
@@ -942,7 +1028,7 @@ const endDate = toDateKey(
               handleApplyFilter
             }
             disabled={refreshing}
-            className="flex h-9 items-center gap-2 rounded-md bg-[#9D0A0E] px-4 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-70"
+            className="flex h-[50px] items-center gap-2 rounded-lg bg-[#9D0A0E] px-6 text-sm font-bold tracking-[0.6px] text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {refreshing && (
               <RefreshCw
@@ -964,7 +1050,7 @@ const endDate = toDateKey(
               handleReset
             }
             disabled={refreshing}
-            className="flex h-9 items-center rounded-md border border-[#E5E7EB] bg-white px-4 text-xs font-semibold text-[#4B5563] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-70"
+            className="flex h-[50px] items-center rounded-lg border border-[#C3C6D7] bg-white px-5 text-sm font-semibold text-[#4B5563] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {t('common.reset')}
           </button>
@@ -985,9 +1071,9 @@ const endDate = toDateKey(
           STAT CARDS
       ================================================= */}
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
 
-        <StatCard
+        <DashboardStatCard
           label={t('common.stat.totalWaiting')}
           value={
             loading
@@ -1000,14 +1086,14 @@ const endDate = toDateKey(
           icon={Users}
         />
 
-              <StatCard
+              <DashboardStatCard
           label="Average Wait"
           value={`${stats.averageWait || 0}m`}
           caption="Average patient wait"
           icon={Clock3}
         />
 
-        <StatCard
+        <DashboardStatCard
           label={t('common.stat.skipped')}
           value={
             loading
@@ -1020,7 +1106,7 @@ const endDate = toDateKey(
           icon={Undo2}
         />
 
-        <StatCard
+        <DashboardStatCard
           label={t('common.stat.completed')}
           value={
             loading
@@ -1033,7 +1119,7 @@ const endDate = toDateKey(
           icon={CheckCircle2}
         />
 
-        <StatCard
+        <DashboardStatCard
           label={t('common.stat.staff')}
           value={
             staffLoading
@@ -1044,7 +1130,7 @@ const endDate = toDateKey(
           icon={IdCard}
         />
 
-      <StatCard
+      <DashboardStatCard
         label="Terminal"
         value={`${stats.terminalStats?.active || 0}/${stats.terminalStats?.total || 0}`}
         caption="Active terminals / total"
@@ -1062,7 +1148,7 @@ const endDate = toDateKey(
             AI-ASSISTED INSIGHTS
         ================================================= */}
 
-        <section className="rounded-lg border border-[#E5E7EB] bg-[#B34C4C]/10 p-4 shadow-sm">
+        <section className="rounded-xl border border-[#C3C6D7] bg-white p-5">
 
           <div className="mb-3 flex items-center gap-2">
 
@@ -1071,7 +1157,7 @@ const endDate = toDateKey(
               className="text-[#9D0A0E]"
             />
 
-            <h2 className="text-sm font-bold text-[#1F2937]">
+            <h2 className="text-lg font-semibold text-[#1F2937]">
               {t('dashboard.aiInsights')}
             </h2>
           </div>
@@ -1089,7 +1175,7 @@ const endDate = toDateKey(
                 ({ icon: InsightIcon, message }, index) => (
                   <li
                     key={index}
-                    className="flex items-start gap-2 text-[11px] text-[#4B5563]"
+                    className="flex items-start gap-2 text-sm text-[#4B5563]"
                   >
                     <InsightIcon
                       size={13}
@@ -1110,11 +1196,11 @@ const endDate = toDateKey(
             RECENT ALERTS
         ================================================= */}
 
-        <section className="rounded-lg border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-[#C3C6D7] bg-white p-5">
 
           <div className="mb-3 flex items-center justify-between">
 
-            <h2 className="text-sm font-bold text-[#1F2937]">
+            <h2 className="text-lg font-semibold text-[#1F2937]">
               {t('dashboard.recentAlerts')}
             </h2>
 
@@ -1127,7 +1213,7 @@ const endDate = toDateKey(
           <div className="space-y-2">
 
             {loading && (
-              <p className="py-4 text-center text-xs text-slate-400">
+              <p className="py-6 text-center text-xs text-slate-400">
                 {t('dashboard.loadingAlerts')}
               </p>
             )}
@@ -1177,12 +1263,12 @@ const endDate = toDateKey(
                       />
 
                       <div>
-                        <p className="text-[10px] font-bold">
+                        <p className="text-xs font-semibold">
                           {alert.title ||
                             t('dashboard.alertFallback')}
                         </p>
 
-                        <p className="mt-0.5 text-[9px] text-[#4B5563]">
+                        <p className="mt-0.5 text-xs text-[#4B5563]">
                           {alert.message ||
                             ''}
                         </p>
@@ -1195,7 +1281,7 @@ const endDate = toDateKey(
             {!loading &&
               notifications.length ===
                 0 && (
-                <p className="py-4 text-center text-xs text-slate-400">
+                <p className="py-6 text-center text-xs text-slate-400">
                   {t('dashboard.noRecentAlerts')}
                 </p>
               )}
@@ -1206,13 +1292,13 @@ const endDate = toDateKey(
             QUEUE STATUS DISTRIBUTION
         ================================================= */}
 
-        <section className="rounded-lg border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-[#C3C6D7] bg-white p-5">
 
           <h2 className="mb-4 text-sm font-bold text-[#1F2937]">
             {t('dashboard.queueDistribution')}
           </h2>
 
-          <div className="flex items-center justify-center gap-5 py-3">
+          <div className="flex items-center justify-center gap-8 py-5">
 
             <DonutChart
               slices={
@@ -1220,7 +1306,7 @@ const endDate = toDateKey(
               }
             />
 
-            <div className="space-y-3 text-[11px] font-semibold text-[#4B5563]">
+            <div className="space-y-3 text-sm font-semibold text-[#4B5563]">
 
               {distribution.map(
                 (slice) => (
@@ -1268,12 +1354,12 @@ const endDate = toDateKey(
           TERMINAL DISPATCH LOG
       ================================================= */}
 
-      <section className="mt-4 rounded-lg border border-[#E5E7EB] bg-white p-4 shadow-sm">
+      <section className="mt-4 rounded-xl border border-[#C3C6D7] bg-white p-5">
 
         <div className="mb-3 flex items-center justify-between">
 
           <div>
-            <h2 className="text-sm font-bold text-[#1F2937]">
+            <h2 className="text-lg font-semibold text-[#1F2937]">
               Terminal Dispatch Log
             </h2>
             <p className="mt-0.5 text-[11px] text-[#4B5563]">
@@ -1373,7 +1459,7 @@ const endDate = toDateKey(
           FOOTER STATUS
       ================================================= */}
 
-      <div className="mt-4 flex items-center gap-2 text-[10px] text-slate-400">
+      <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
 
         <Bell size={12} />
 
@@ -1381,6 +1467,31 @@ const endDate = toDateKey(
           {t('dashboard.footer', { prefix: departmentPrefix })}
         </span>
       </div>
+
+      {/* =================================================
+          FIRST-LOGIN SECURITY PIN SETUP
+      ================================================= */}
+
+      {showPinSetupModal && (
+        <SettingsExactCreatePinModal
+          requireVerificationCode={false}
+          showStepBadge={false}
+          ctaLabel="Set Up PIN"
+          saving={pinSetupSaving}
+          serverError={pinSetupError}
+          onClose={() => setShowPinSetupModal(false)}
+          onContinue={handlePinSetupContinue}
+        />
+      )}
+
+      {showPinSetupSuccess && (
+        <SettingsExactPinSuccessModal
+          title="Admin PIN Set Successfully"
+          message="Your Admin PIN can now be used to authorize protected system actions."
+          configuredByLabel={isSuperadmin ? 'Super Admin' : 'Admin'}
+          onClose={() => setShowPinSetupSuccess(false)}
+        />
+      )}
     </div>
   );
 }

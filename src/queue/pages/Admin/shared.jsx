@@ -150,17 +150,17 @@ export function DateRangePicker({
             ? setIsOpen(false)
             : openPicker()
         }
-        className="flex h-9 items-center gap-2 rounded-md border border-[#E5E7EB] bg-white px-3 text-xs text-[#4B5563] outline-none hover:border-[#9D0A0E] focus:border-[#9D0A0E]"
+        className="flex h-[50px] items-center gap-2 rounded-lg border border-[#C3C6D7] bg-white px-4 text-sm font-semibold text-[#4B5563] outline-none hover:border-[#9D0A0E] focus:border-[#9D0A0E]"
       >
         <CalendarDays
-          size={14}
+          size={16}
           className="text-[#4B5563]"
         />
 
         {formatRangeLabel(value, langCode)}
 
         <ChevronDown
-          size={13}
+          size={15}
           className="text-slate-400"
         />
       </button>
