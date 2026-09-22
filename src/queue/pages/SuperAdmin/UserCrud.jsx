@@ -20,8 +20,9 @@ import {
   getRoles,
   getKiosks,
   getTerminals,
-  getDepartments,
-  validateSecurityPin,
+ getDepartments,
+getPositions,
+validateSecurityPin,
 } from '../../services/backendApi';
 
 
@@ -114,31 +115,6 @@ const DEFAULT_ROLE_OPTIONS = [
   'Superadmin',
 ];
 
-
-/* =========================================================
-   POSITION OPTIONS
-========================================================= */
-
-const POSITION_OPTIONS = [
-  {
-    value: 'President',
-    label: 'President',
-  },
-  {
-    value: 'Manager',
-    label: 'Manager',
-  },
-  {
-    value: 'Vice President',
-    label: 'Vice President',
-  },
-  {
-    value: null,
-    label: 'Null',
-  },
-];
-
-
 /* =========================================================
    STATUS OPTIONS
 ========================================================= */
@@ -210,6 +186,7 @@ function UserModal({
   kioskOptions,
   departmentOptions,
   roleOptions,
+  positions,
   deleteReason,
   setDeleteReason,
   showDeletePrompt,
@@ -605,18 +582,18 @@ function UserModal({
                   }
                   className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
                 >
-                  {POSITION_OPTIONS.map(
-                    (position) => (
-                      <option
-                        key={position.label}
-                        value={
-                          position.value ?? ''
-                        }
-                      >
-                        {position.label}
-                      </option>
-                    )
-                  )}
+             <option value="">
+                  No Position
+                </option>
+
+                {positions.map((position) => (
+                  <option
+                    key={position.id}
+                    value={position.name}
+                  >
+                    {position.name}
+                  </option>
+))}
                 </select>
               </div>
 
@@ -1015,6 +992,7 @@ export default function UserCrud({
 }) {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [positions, setPositions] = useState([]);
   const [kiosks, setKiosks] = useState([]);
   const [terminals, setTerminals] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -1111,6 +1089,48 @@ const [verifyingResetPin, setVerifyingResetPin] =
     return formattedRoles;
   }
 
+
+  /* =======================================================
+   FETCH POSITIONS
+   NODE.JS → MYSQL
+======================================================= */
+
+async function fetchPositions() {
+  const response = await getPositions();
+
+  const positionRows =
+    response?.data ??
+    response ??
+    [];
+
+  return (
+    Array.isArray(positionRows)
+      ? positionRows
+      : []
+  )
+    .map((position) => ({
+      id:
+        position.position_id ??
+        position.id,
+
+      name:
+        position.name ??
+        position.position_name ??
+        '',
+
+      status:
+        position.status ??
+        'active',
+    }))
+    .filter(
+      (position) =>
+        position.name &&
+        String(position.status).toLowerCase() !== 'inactive'
+    )
+    .sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+}
 
   /* =======================================================
      FETCH KIOSKS
@@ -1384,19 +1404,22 @@ const [verifyingResetPin, setVerifyingResetPin] =
     setError(null);
 
     try {
-      const [
-        roleData,
-        kioskData,
-        terminalData,
-        departmentData,
-      ] = await Promise.all([
-        fetchRoles(),
-        fetchKiosks(),
-        getTerminals(),
-        fetchDepartments(),
-      ]);
+  const [
+  roleData,
+  positionData,
+  kioskData,
+  terminalData,
+  departmentData,
+] = await Promise.all([
+  fetchRoles(),
+  fetchPositions(),
+  fetchKiosks(),
+  getTerminals(),
+  fetchDepartments(),
+]);
 
       setRoles(roleData);
+      setPositions(positionData);
       setKiosks(kioskData);
       const terminalRows =
         terminalData?.data ??
@@ -2888,36 +2911,35 @@ const filteredUsers = visibleUsers.filter((user) => {
       {/* USER MODAL */}
 
       {isModalOpen && (
-        <UserModal
-          form={form}
-          setForm={setForm}
-          onSave={handleSave}
-          onClose={closeModal}
-          isEditing={isEditing}
-          saving={saving}
-          onAddRole={() => {
-            closeModal();
-            onNavigate?.('roles');
-          }}
-          onAddKiosk={() => {
-            closeModal();
-            onNavigate?.('kiosks');
-          }}
-          onAddPosition={() => {
-            closeModal();
-            onNavigate?.('positions');
-          }}
-          kioskOptions={kiosks}
-          departmentOptions={
-            availableDepartments
-          }
-          roleOptions={roles}
-          deleteReason={deleteReason}
-          setDeleteReason={setDeleteReason}
-          showDeletePrompt={showDeletePrompt}
-          setShowDeletePrompt={setShowDeletePrompt}
-          onDeleteUser={handleDeleteUser}
-        />
+     <UserModal
+  form={form}
+  setForm={setForm}
+  onSave={handleSave}
+  onClose={closeModal}
+  isEditing={isEditing}
+  saving={saving}
+  onAddRole={() => {
+    closeModal();
+    onNavigate?.('roles');
+  }}
+  onAddKiosk={() => {
+    closeModal();
+    onNavigate?.('kiosks');
+  }}
+  onAddPosition={() => {
+    closeModal();
+    onNavigate?.('positions');
+  }}
+  kioskOptions={kiosks}
+  departmentOptions={availableDepartments}
+  roleOptions={roles}
+  positions={positions}
+  deleteReason={deleteReason}
+  setDeleteReason={setDeleteReason}
+  showDeletePrompt={showDeletePrompt}
+  setShowDeletePrompt={setShowDeletePrompt}
+  onDeleteUser={handleDeleteUser}
+/>
            )}
 
       <ResetUserSelectionModal

@@ -9,15 +9,25 @@ import {
 
 import {
   onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
+  linkWithCredential,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
 } from "firebase/auth";
 
-import { auth } from "../../firebase";
-
 import {
   getCurrentUserProfile,
 } from "./backendApi";
+
+import { auth } from "../../firebase";
+
+const googleProvider = new GoogleAuthProvider();
+
+googleProvider.setCustomParameters({
+  prompt: "select_account",
+});
+
 
 const AuthContext = createContext(null);
 
@@ -98,6 +108,96 @@ function normalizeDepartmentPrefix(prefix) {
   }
 
   return value;
+}
+
+/*
+|--------------------------------------------------------------------------
+| NORMALIZE POSITION TABS
+|--------------------------------------------------------------------------
+|
+| Position tabs come from the position table.
+|
+| Expected:
+|
+| [
+|   "dashboard",
+|   "users",
+|   "queue"
+| ]
+|
+| This also safely handles JSON strings because cached/offline data
+| may contain the tabs as a string.
+|
+|--------------------------------------------------------------------------
+*/
+
+function normalizePositionTabs(tabs) {
+  /*
+  |----------------------------------------------------------------------
+  | Already an array
+  |----------------------------------------------------------------------
+  */
+
+  if (Array.isArray(tabs)) {
+    return tabs
+      .map((tab) =>
+        String(tab ?? "")
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean);
+  }
+
+  /*
+  |----------------------------------------------------------------------
+  | JSON string or comma-separated string
+  |----------------------------------------------------------------------
+  */
+
+  if (typeof tabs === "string") {
+    const value = tabs.trim();
+
+    if (!value) {
+      return [];
+    }
+
+    /*
+    |--------------------------------------------------------------------
+    | Try JSON first
+    |--------------------------------------------------------------------
+    */
+
+    try {
+      const parsed = JSON.parse(value);
+
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((tab) =>
+            String(tab ?? "")
+              .trim()
+              .toLowerCase()
+          )
+          .filter(Boolean);
+      }
+    } catch {
+      /*
+      |------------------------------------------------------------------
+      | Not JSON. Continue as comma-separated data.
+      |------------------------------------------------------------------
+      */
+    }
+
+    return value
+      .split(",")
+      .map((tab) =>
+        tab
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean);
+  }
+
+  return [];
 }
 
 /*
@@ -190,6 +290,7 @@ function validateUserAccess(userData) {
 | Firebase UID is preserved as:
 |
 | - firebase_uid
+| - firebaseUid
 | - uid
 |
 |--------------------------------------------------------------------------
@@ -213,6 +314,23 @@ function buildFinalUser(
       userData?.department_prefix ??
       userData?.departmentPrefix ??
       userData?.prefix
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | POSITION TABS
+  |--------------------------------------------------------------------------
+  |
+  | These are the permissions assigned to the user's position.
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  const positionTabs =
+    normalizePositionTabs(
+      userData?.position_tabs ??
+      userData?.positionTabs ??
+      userData?.tabs
     );
 
   /*
@@ -330,6 +448,47 @@ function buildFinalUser(
 
     /*
     |--------------------------------------------------------------------------
+    | POSITION ID
+    |--------------------------------------------------------------------------
+    */
+
+    position_id:
+      userData?.position_id ??
+      null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | POSITION NAME
+    |--------------------------------------------------------------------------
+    */
+
+    position_name:
+      userData?.position_name ??
+      userData?.position ??
+      null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | POSITION TABS
+    |--------------------------------------------------------------------------
+    |
+    | This is the important new property.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    position_tabs:
+      positionTabs,
+
+    /*
+    | Alias for compatibility.
+    */
+
+    positionTabs:
+      positionTabs,
+
+    /*
+    |--------------------------------------------------------------------------
     | KIOSK
     |--------------------------------------------------------------------------
     */
@@ -348,18 +507,18 @@ function buildFinalUser(
     |--------------------------------------------------------------------------
     */
 
- status:
-  userData?.status ??
-  "Active",
+    status:
+      userData?.status ??
+      "Active",
 
-must_change_password:
-  Number(
-    userData?.must_change_password
-  ) === 1,
+    must_change_password:
+      Number(
+        userData?.must_change_password
+      ) === 1,
 
-password_changed_at:
-  userData?.password_changed_at ??
-  null,
+    password_changed_at:
+      userData?.password_changed_at ??
+      null,
   };
 }
 
@@ -370,12 +529,21 @@ password_changed_at:
 */
 
 const saveUserLocally = async (userData) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(userData)
+  );
 
   try {
-    await saveOfflineData('user_profile', userData);
+    await saveOfflineData(
+      "user_profile",
+      userData
+    );
   } catch (error) {
-    console.warn('Could not save offline user profile:', error);
+    console.warn(
+      "Could not save offline user profile:",
+      error
+    );
   }
 };
 
@@ -402,52 +570,104 @@ function clearLocalUser() {
 */
 
 const loadSavedUser = async () => {
+  /*
+  |--------------------------------------------------------------------------
+  | LOCAL STORAGE
+  |--------------------------------------------------------------------------
+  */
+
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved =
+      localStorage.getItem(
+        STORAGE_KEY
+      );
 
     if (saved) {
-      const parsed = JSON.parse(saved);
+      const parsed =
+        JSON.parse(saved);
 
       if (
         parsed?.status &&
-        ['inactive', 'deactivated', 'disabled'].includes(
-          String(parsed.status).trim().toLowerCase()
+        [
+          "inactive",
+          "deactivated",
+          "disabled",
+        ].includes(
+          String(parsed.status)
+            .trim()
+            .toLowerCase()
         )
       ) {
         clearLocalUser();
         return null;
       }
 
-      const validated = validateUserAccess(parsed);
+      const validated =
+        validateUserAccess(
+          parsed
+        );
 
       if (validated.valid) {
-        return buildFinalUser(parsed, null);
+        return buildFinalUser(
+          parsed,
+          null
+        );
       }
     }
   } catch (error) {
-    console.warn('Could not load local user:', error);
+    console.warn(
+      "Could not load local user:",
+      error
+    );
   }
 
+  /*
+  |--------------------------------------------------------------------------
+  | OFFLINE STORAGE
+  |--------------------------------------------------------------------------
+  */
+
   try {
-    const offlineUser = await getOfflineData('user_profile');
+    const offlineUser =
+      await getOfflineData(
+        "user_profile"
+      );
 
     if (offlineUser) {
       if (
         offlineUser?.status &&
-        ['inactive', 'deactivated', 'disabled'].includes(
-          String(offlineUser.status).trim().toLowerCase()
+        [
+          "inactive",
+          "deactivated",
+          "disabled",
+        ].includes(
+          String(
+            offlineUser.status
+          )
+            .trim()
+            .toLowerCase()
         )
       ) {
         clearLocalUser();
         return null;
       }
 
-      if (validateUserAccess(offlineUser)) {
-        return buildFinalUser(offlineUser, null);
+      if (
+        validateUserAccess(
+          offlineUser
+        ).valid
+      ) {
+        return buildFinalUser(
+          offlineUser,
+          null
+        );
       }
     }
   } catch (error) {
-    console.warn('Could not load offline user profile:', error);
+    console.warn(
+      "Could not load offline user profile:",
+      error
+    );
   }
 
   return null;
@@ -468,19 +688,6 @@ export function AuthProvider({
   const [loading, setLoading] =
     useState(true);
 
-  /*
-  |--------------------------------------------------------------------------
-  | FIREBASE AUTH SESSION
-  |--------------------------------------------------------------------------
-  |
-  | Firebase is now responsible for maintaining the authentication
-  | session.
-  |
-  | MySQL is NOT required for Firebase authentication.
-  |
-  |--------------------------------------------------------------------------
-  */
-
   useEffect(() => {
     const unsubscribe =
       onAuthStateChanged(
@@ -496,6 +703,7 @@ export function AuthProvider({
             setUser(null);
             clearLocalUser();
             setLoading(false);
+
             return;
           }
 
@@ -507,7 +715,7 @@ export function AuthProvider({
             |
             | Firebase has already authenticated the user.
             |
-            | Now we retrieve application information such as:
+            | The backend provides:
             |
             | - role
             | - department
@@ -515,6 +723,9 @@ export function AuthProvider({
             | - department_prefix
             | - kiosk
             | - position
+            | - position_id
+            | - position_name
+            | - position_tabs
             | - status
             |
             |--------------------------------------------------------------------------
@@ -618,6 +829,12 @@ export function AuthProvider({
               finalUser
             );
 
+            /*
+            |--------------------------------------------------------------------------
+            | DEBUG
+            |--------------------------------------------------------------------------
+            */
+
             console.log(
               "Firebase authenticated user:",
               {
@@ -639,75 +856,102 @@ export function AuthProvider({
                 department_prefix:
                   finalUser.department_prefix,
 
+                position:
+                  finalUser.position,
+
+                position_id:
+                  finalUser.position_id,
+
+                position_name:
+                  finalUser.position_name,
+
+                position_tabs:
+                  finalUser.position_tabs,
+
                 kiosk:
                   finalUser.kiosk,
               }
             );
           } catch (error) {
-  console.error(
-    "Error loading authenticated user profile:",
-    error
-  );
+            console.error(
+              "Error loading authenticated user profile:",
+              error
+            );
 
-  /*
-  |--------------------------------------------------------------------------
-  | OFFLINE FALLBACK
-  |--------------------------------------------------------------------------
-  |
-  | Firebase authentication succeeded, but the backend/database
-  | may currently be unavailable.
-  |
-  | Firebase remains the authentication authority.
-  | If Firebase still has an authenticated user, we can safely
-  | restore the previously cached application profile.
-  |
-  |--------------------------------------------------------------------------
-  */
+            /*
+            |--------------------------------------------------------------------------
+            | OFFLINE FALLBACK
+            |--------------------------------------------------------------------------
+            |
+            | Firebase authentication succeeded, but the backend/database
+            | may currently be unavailable.
+            |
+            | Firebase remains the authentication authority.
+            |
+            |--------------------------------------------------------------------------
+            */
 
-  console.warn(
-    "Backend unavailable. Attempting to restore saved offline session."
-  );
+            console.warn(
+              "Backend unavailable. Attempting to restore saved offline session."
+            );
 
-  const savedUser = await loadSavedUser();
+            const savedUser =
+              await loadSavedUser();
 
-  if (savedUser) {
-    const finalUser = buildFinalUser(
-      savedUser,
-      firebaseUser
-    );
+            if (savedUser) {
+              const finalUser =
+                buildFinalUser(
+                  savedUser,
+                  firebaseUser
+                );
 
-    setUser(finalUser);
+              setUser(finalUser);
 
-    console.log(
-      "Offline session restored:",
-      {
-        firebase_uid:
-          finalUser.firebase_uid,
-        email:
-          finalUser.email,
-        role:
-          finalUser.role,
-        department:
-          finalUser.department,
-        department_id:
-          finalUser.department_id,
-        department_prefix:
-          finalUser.department_prefix,
-        kiosk:
-          finalUser.kiosk,
-      }
-    );
-  } else {
-    console.warn(
-      "No saved offline session is available."
-    );
+              console.log(
+                "Offline session restored:",
+                {
+                  firebase_uid:
+                    finalUser.firebase_uid,
 
-    setUser(null);
-    clearLocalUser();
-  }
-} finally {
-  setLoading(false);
-}
+                  email:
+                    finalUser.email,
+
+                  role:
+                    finalUser.role,
+
+                  department:
+                    finalUser.department,
+
+                  department_id:
+                    finalUser.department_id,
+
+                  department_prefix:
+                    finalUser.department_prefix,
+
+                  position:
+                    finalUser.position,
+
+                  position_id:
+                    finalUser.position_id,
+
+                  position_tabs:
+                    finalUser.position_tabs,
+
+                  kiosk:
+                    finalUser.kiosk,
+                }
+              );
+            } else {
+              console.warn(
+                "No saved offline session is available."
+              );
+
+              setUser(null);
+              clearLocalUser();
+            }
+          } finally {
+            setLoading(false);
+          }
         }
       );
 
@@ -715,24 +959,6 @@ export function AuthProvider({
       unsubscribe();
     };
   }, []);
-
-  /*
-  |--------------------------------------------------------------------------
-  | SIGN IN
-  |--------------------------------------------------------------------------
-  |
-  | React
-  |   ↓
-  | Firebase Authentication
-  |   ↓
-  | Firebase verifies email/password
-  |   ↓
-  | Firebase UID
-  |   ↓
-  | Application profile
-  |
-  |--------------------------------------------------------------------------
-  */
 
   async function signIn(
     email,
@@ -768,17 +994,6 @@ export function AuthProvider({
         };
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | STEP 1
-      | FIREBASE AUTHENTICATION
-      |--------------------------------------------------------------------------
-      |
-      | MySQL is NOT contacted here.
-      |
-      |--------------------------------------------------------------------------
-      */
-
       const credential =
         await signInWithEmailAndPassword(
           auth,
@@ -806,7 +1021,8 @@ export function AuthProvider({
       |
       | Firebase has verified the credentials.
       |
-      | The backend now provides the user's application information.
+      | The backend provides the user's application information,
+      | including position_tabs.
       |
       |--------------------------------------------------------------------------
       */
@@ -971,6 +1187,18 @@ export function AuthProvider({
           department_prefix:
             finalUser.department_prefix,
 
+          position:
+            finalUser.position,
+
+          position_id:
+            finalUser.position_id,
+
+          position_name:
+            finalUser.position_name,
+
+          position_tabs:
+            finalUser.position_tabs,
+
           kiosk:
             finalUser.kiosk,
         }
@@ -994,6 +1222,13 @@ export function AuthProvider({
         position:
           finalUser.position ??
           null,
+
+        position_id:
+          finalUser.position_id ??
+          null,
+
+        position_tabs:
+          finalUser.position_tabs ?? [],
       };
     } catch (error) {
       console.error(
@@ -1004,11 +1239,6 @@ export function AuthProvider({
       /*
       |--------------------------------------------------------------------------
       | FIREBASE ERROR MESSAGES
-      |--------------------------------------------------------------------------
-      |
-      | Convert Firebase's technical error codes into messages that
-      | make sense on the login page.
-      |
       |--------------------------------------------------------------------------
       */
 
@@ -1065,6 +1295,460 @@ export function AuthProvider({
     }
   }
 
+  async function signInWithGoogle(
+  email,
+  password
+) {
+  let pendingGoogleCredential = null;
+
+  try {
+    /*
+    |--------------------------------------------------------------------------
+    | NORMALIZE EMAIL
+    |--------------------------------------------------------------------------
+    */
+
+    const normalizedEmail =
+      String(email ?? "")
+        .trim()
+        .toLowerCase();
+
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 1
+    | TRY GOOGLE LOGIN
+    |--------------------------------------------------------------------------
+    */
+
+    let googleResult;
+
+    try {
+      googleResult =
+        await signInWithPopup(
+          auth,
+          googleProvider
+        );
+    } catch (googleError) {
+
+      /*
+      |--------------------------------------------------------------------------
+      | EXISTING EMAIL/PASSWORD ACCOUNT
+      |--------------------------------------------------------------------------
+      |
+      | Firebase tells us that this email already belongs to another
+      | sign-in provider.
+      |
+      | Since Superadmin-created users already have email/password,
+      | we sign into that existing account and link Google to it.
+      |
+      */
+
+      if (
+        googleError?.code ===
+        "auth/account-exists-with-different-credential"
+      ) {
+
+        pendingGoogleCredential =
+          GoogleAuthProvider
+            .credentialFromError(
+              googleError
+            );
+
+        const googleEmail =
+          googleError?.customData?.email;
+
+        if (
+          !googleEmail
+        ) {
+          return {
+            error: {
+              message:
+                "Unable to determine the Google account email.",
+            },
+          };
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | VERIFY EMAIL MATCH
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+          normalizedEmail &&
+          normalizedEmail !==
+            String(
+              googleEmail
+            )
+              .trim()
+              .toLowerCase()
+        ) {
+          return {
+            error: {
+              message:
+                "The Google account email does not match the SWU Med account email.",
+            },
+          };
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | PASSWORD IS REQUIRED FOR FIRST-TIME LINKING
+        |--------------------------------------------------------------------------
+        */
+
+        if (!password) {
+          return {
+            error: {
+              message:
+                "Enter your temporary password in the password field, then continue with Google to connect your account.",
+            },
+          };
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SIGN INTO EXISTING FIREBASE ACCOUNT
+        |--------------------------------------------------------------------------
+        */
+
+        const existingCredential =
+          await signInWithEmailAndPassword(
+            auth,
+            googleEmail,
+            password
+          );
+
+        const existingFirebaseUser =
+          existingCredential.user;
+
+        if (
+          !existingFirebaseUser
+        ) {
+          return {
+            error: {
+              message:
+                "Unable to sign in to your existing SWU Med account.",
+            },
+          };
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | LINK GOOGLE TO EXISTING FIREBASE USER
+        |--------------------------------------------------------------------------
+        */
+
+        try {
+          await linkWithCredential(
+            existingFirebaseUser,
+            pendingGoogleCredential
+          );
+        } catch (linkError) {
+
+          console.error(
+            "Failed to link Google account:",
+            linkError
+          );
+
+          if (
+            linkError?.code ===
+            "auth/provider-already-linked"
+          ) {
+            // Google is already linked.
+          } else {
+            await firebaseSignOut(
+              auth
+            );
+
+            clearLocalUser();
+            setUser(null);
+
+            return {
+              error: {
+                message:
+                  "The Google account could not be linked to your SWU Med account.",
+              },
+            };
+          }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | GOOGLE IS NOW LINKED
+        |--------------------------------------------------------------------------
+        */
+
+        googleResult = {
+          user:
+            existingFirebaseUser,
+        };
+      } else {
+
+        throw googleError;
+      }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 2
+    | GET FIREBASE USER
+    |--------------------------------------------------------------------------
+    */
+
+    const firebaseUser =
+      googleResult?.user;
+
+    if (!firebaseUser) {
+      return {
+        error: {
+          message:
+            "Google authentication failed.",
+        },
+      };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 3
+    | GET SWU MED APPLICATION PROFILE
+    |--------------------------------------------------------------------------
+    */
+
+    let userData;
+
+    try {
+      userData =
+        await getCurrentUserProfile(
+          firebaseUser
+        );
+    } catch (profileError) {
+
+      console.error(
+        "Failed to retrieve application profile after Google login:",
+        profileError
+      );
+
+      await firebaseSignOut(
+        auth
+      );
+
+      clearLocalUser();
+      setUser(null);
+
+      return {
+        error: {
+          message:
+            "This Google account is not registered in the SWU Med system.",
+        },
+      };
+    }
+
+    if (!userData) {
+
+      await firebaseSignOut(
+        auth
+      );
+
+      clearLocalUser();
+      setUser(null);
+
+      return {
+        error: {
+          message:
+            "This Google account is not registered in the SWU Med system. Please contact your administrator.",
+        },
+      };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 4
+    | STATUS CHECK
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      String(
+        userData.status ?? ""
+      ).toLowerCase() ===
+      "inactive"
+    ) {
+
+      await firebaseSignOut(
+        auth
+      );
+
+      clearLocalUser();
+      setUser(null);
+
+      return {
+        error: {
+          message:
+            "This account has been disabled.",
+        },
+      };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 5
+    | ROLE / DEPARTMENT CHECK
+    |--------------------------------------------------------------------------
+    */
+
+    const accessValidation =
+      validateUserAccess(
+        userData
+      );
+
+    if (
+      !accessValidation.valid
+    ) {
+
+      await firebaseSignOut(
+        auth
+      );
+
+      clearLocalUser();
+      setUser(null);
+
+      return {
+        error: {
+          message:
+            accessValidation.message,
+        },
+      };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 6
+    | BUILD FINAL USER
+    |--------------------------------------------------------------------------
+    */
+
+    const finalUser =
+      buildFinalUser(
+        userData,
+        firebaseUser
+      );
+
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 7
+    | SAVE SESSION
+    |--------------------------------------------------------------------------
+    */
+
+    setUser(finalUser);
+
+    saveUserLocally(
+      finalUser
+    );
+
+    console.log(
+      "Authenticated with Google:",
+      {
+        firebase_uid:
+          finalUser.firebase_uid,
+
+        email:
+          finalUser.email,
+
+        role:
+          finalUser.role,
+
+        department:
+          finalUser.department,
+
+        department_id:
+          finalUser.department_id,
+      }
+    );
+
+    return {
+      error: null,
+
+      user:
+        finalUser,
+
+      role:
+        accessValidation.role,
+
+      position:
+        finalUser.position ??
+        null,
+
+      position_id:
+        finalUser.position_id ??
+        null,
+
+      position_tabs:
+        finalUser.position_tabs ??
+        [],
+    };
+
+  } catch (error) {
+
+    console.error(
+      "Google authentication error:",
+      error
+    );
+
+    let message =
+      "Something went wrong while signing in with Google.";
+
+    switch (error?.code) {
+
+      case "auth/popup-closed-by-user":
+        message =
+          "Google sign-in was cancelled.";
+        break;
+
+      case "auth/popup-blocked":
+        message =
+          "The Google sign-in popup was blocked by your browser.";
+        break;
+
+      case "auth/cancelled-popup-request":
+        message =
+          "Google sign-in was cancelled.";
+        break;
+
+      case "auth/invalid-credential":
+        message =
+          "The email or temporary password is incorrect.";
+        break;
+
+      case "auth/wrong-password":
+        message =
+          "The email or temporary password is incorrect.";
+        break;
+
+      case "auth/user-not-found":
+        message =
+          "No SWU Med account was found with this email.";
+        break;
+
+      case "auth/network-request-failed":
+        message =
+          "Unable to connect to Firebase. Please check your internet connection.";
+        break;
+
+      default:
+        message =
+          error?.message ||
+          message;
+    }
+
+    return {
+      error: {
+        message,
+      },
+    };
+  }
+}
   /*
   |--------------------------------------------------------------------------
   | SIGN OUT
@@ -1121,7 +1805,17 @@ export function AuthProvider({
       user?.position ??
       null,
 
+    position_id:
+      user?.position_id ??
+      null,
+
+    position_tabs:
+      user?.position_tabs ??
+      [],
+
     loading,
+
+signInWithGoogle,
 
     signIn,
 

@@ -4,28 +4,6 @@ const pool = require("../config/mysql");
 
 const router = express.Router();
 
-/*
-|--------------------------------------------------------------------------
-| GET DASHBOARD ANALYTICS
-|--------------------------------------------------------------------------
-| GET /api/dashboard/analytics
-|
-| Query parameters:
-|   startDate=YYYY-MM-DD
-|   endDate=YYYY-MM-DD
-|
-| Returns:
-|   - department totals
-|   - waiting count
-|   - average wait
-|   - cancelled/skipped count
-|   - completed count
-|   - terminal totals
-|   - department volume
-|   - queue status distribution
-|   - data-driven insights
-|--------------------------------------------------------------------------
-*/
 
 router.get("/analytics", async (req, res) => {
   try {

@@ -186,10 +186,37 @@ function buildReportInsights({ waiting, skipped, completed, staffLabel, t }) {
 // QUEUE MANAGEMENT
 // =====================================================
 
+// Figma-matched metric card, local to Queue Management only — the shared
+// StatCard in ./shared.jsx stays untouched so Dashboard/Reports don't change.
+function QueueStatCard({ label, value, caption, icon: Icon, highlight = false }) {
+  return (
+    <div className={`flex h-[152px] flex-col justify-between rounded-xl border bg-white p-[25px] ${highlight ? 'border-[#E6E6E6]' : 'border-[#C3C6D7]'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#1F2937]">{label}</p>
+        {highlight ? (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7EEEE] text-[#9D0A0E]">
+            <Icon size={18} />
+          </span>
+        ) : (
+          <Icon size={20} className="shrink-0 text-slate-400" />
+        )}
+      </div>
+      <p className="text-[30px] font-bold leading-[38px] tracking-[-0.6px] text-[#212B3A]">{value}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#5F6368]">{caption}</p>
+    </div>
+  );
+}
+
+// A queue number prefixed "P-" is a priority ticket — mirrors the
+// isPriority convention already used on the Super Admin queue view.
+function isPriorityTicket(id) {
+  return String(id || '').toUpperCase().startsWith('P-');
+}
+
 export function QueueManagementPage() {
   const {
     waitingQueue,
-    currentlyServing,
+    activeTickets,
     stats,
     loading,
     refresh,
@@ -294,18 +321,25 @@ export function QueueManagementPage() {
     await applyDateRange(getPresetRange('Today'));
   }
 
-  const current = currentlyServing || null;
+  // Multiple terminals in this department can each be actively serving
+  // a different patient at the same time, so `activeTickets` (one entry
+  // per terminal that currently has a called/serving patient) replaces
+  // the old single "currentlyServing" value — that value could only
+  // ever reflect whichever terminal happened to call most recently.
+  const activeTicketsByTerminal = useMemo(() => {
+    const map = {};
+    activeTickets.forEach((ticket) => {
+      if (ticket?.counterId) {
+        map[String(ticket.counterId)] = ticket;
+      }
+    });
+    return map;
+  }, [activeTickets]);
 
-  // Only one ticket can be actively served per department at a time
-  // today, so "switching terminals" means: show that one ticket only
-  // when it was actually called from the selected terminal, and show
-  // an idle state for every other terminal.
   const displayedCurrent =
-    selectedTerminalId === 'all' || !current
-      ? current
-      : String(current.counterId) === String(selectedTerminalId)
-        ? current
-        : null;
+    selectedTerminalId === 'all'
+      ? null
+      : activeTicketsByTerminal[String(selectedTerminalId)] || null;
 
   const selectedTerminalRecord =
     selectedTerminalId === 'all'
@@ -326,22 +360,22 @@ export function QueueManagementPage() {
 
   return (
     <div>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F2937]">{t('queue.title')}</h1>
-          <p className="mt-1 text-xs text-[#4B5563]">{t('queue.subtitle')}</p>
+          <h1 className="text-[30px] font-bold leading-[38px] tracking-[-0.6px] text-[#212B3A]">{t('queue.title')}</h1>
+          <p className="mt-1 text-base text-[#44474C]">{t('queue.subtitle')}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-4">
           <DateRangePicker value={dateRange} onApply={applyDateRange} />
 
           <button
             type="button"
             onClick={handleApplyFilter}
             disabled={refreshing}
-            className="flex h-9 items-center gap-2 rounded-md bg-[#9D0A0E] px-4 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-70"
+            className="flex h-[50px] items-center gap-2 rounded-lg bg-[#9D0A0E] px-6 text-sm font-bold tracking-[0.6px] text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {refreshing && <RefreshCw size={12} className="animate-spin" />}
+            {refreshing && <RefreshCw size={14} className="animate-spin" />}
             {refreshing ? t('common.applying') : t('common.applyFilter')}
           </button>
 
@@ -349,30 +383,30 @@ export function QueueManagementPage() {
             type="button"
             onClick={handleReset}
             disabled={refreshing}
-            className="flex h-9 items-center rounded-md border border-[#E5E7EB] bg-white px-4 text-xs font-semibold text-[#4B5563] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-70"
+            className="flex h-[50px] items-center rounded-lg border border-[#C3C6D7] bg-white px-5 text-sm font-semibold text-[#4B5563] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {t('common.reset')}
           </button>
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-5">
-        <StatCard label={t('common.stat.totalWaiting')} value={loading ? '…' : String(totalWaiting)} caption={t('common.stat.forThisDepartment')} icon={Users} />
-        <StatCard label={t('common.stat.averageWait')} value="18m" caption={t('common.stat.noColumnYet')} icon={Timer} />
-        <StatCard label={t('common.stat.skipped')} value={loading ? '…' : String(stats?.skipped || 0)} caption={t('common.stat.totalSkipped')} icon={Undo2} />
-        <StatCard label={t('common.stat.completed')} value={loading ? '…' : String(stats?.completed || 0)} caption={t('common.stat.completedQueuing')} icon={CheckCircle2} />
-        <StatCard label={t('common.stat.terminal')} value={terminalLoading ? '…' : terminalLabel} caption={t('common.stat.activeTerminals')} icon={Monitor} />
+      <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <QueueStatCard label={t('common.stat.totalWaiting')} value={loading ? '…' : String(totalWaiting)} caption={t('common.stat.forThisDepartment')} icon={Users} />
+        <QueueStatCard label={t('common.stat.averageWait')} value="18m" caption={t('common.stat.noColumnYet')} icon={Timer} />
+        <QueueStatCard label={t('common.stat.skipped')} value={loading ? '…' : String(stats?.skipped || 0)} caption={t('common.stat.totalSkipped')} icon={Undo2} />
+        <QueueStatCard label={t('common.stat.completed')} value={loading ? '…' : String(stats?.completed || 0)} caption={t('common.stat.completedQueuing')} icon={CheckCircle2} highlight />
+        <QueueStatCard label={t('common.stat.terminal')} value={terminalLoading ? '…' : terminalLabel} caption={t('common.stat.activeTerminals')} icon={Monitor} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-        <section className="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-[#1F2937]">{t('queue.currentStatus')}</h2>
-            <div className="flex items-center gap-2">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="flex flex-col rounded-xl border border-[#C3C6D7] bg-white p-5">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-[#1F2937]">{selectedTerminalLabel || departmentPrefix}</h2>
+            <div className="flex items-center gap-3">
               <select
                 value={selectedTerminalId}
                 onChange={(event) => setSelectedTerminalId(event.target.value)}
-                className="h-7 rounded-md border border-[#E5E7EB] bg-white px-2 text-[10px] font-semibold text-[#4B5563] outline-none focus:border-[#9D0A0E]"
+                className="h-8 rounded-md border border-[#C3C6D7] bg-white px-2 text-xs font-semibold text-[#4B5563] outline-none focus:border-[#9D0A0E]"
               >
                 <option value="all">All Terminals</option>
                 {departmentTerminals.map((terminal) => (
@@ -381,89 +415,147 @@ export function QueueManagementPage() {
                   </option>
                 ))}
               </select>
-              <span className="text-[10px] font-semibold text-slate-400">{t('common.today')}</span>
+              {selectedTerminalId !== 'all' && (
+                <span className="flex items-center gap-1.5 text-sm font-medium text-[#065F46]">
+                  <span className={`h-2 w-2 rounded-full ${displayedCurrent ? 'bg-[#16A34A]' : 'bg-slate-300'}`} />
+                  {displayedCurrent ? 'Serving' : 'Idle'}
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="flex flex-1 flex-col items-center justify-center rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{t('queue.nowServing')}</p>
-            <p className="mt-3 text-5xl font-extrabold text-[#9D0A0E]">{loading ? '…' : displayedCurrent?.id || '--'}</p>
-            <p className="mt-2 text-xs text-[#4B5563]">
-              {displayedCurrent
-                ? t('queue.terminalService', { terminal: displayedCurrent.terminal ?? '--', service: displayedCurrent.service || 'Service' }) +
-                  (displayedCurrent.secondsElapsed
-                    ? t('queue.servingFor', { minutes: Math.floor(displayedCurrent.secondsElapsed / 60) })
-                    : '')
-                : selectedTerminalLabel
-                  ? `${selectedTerminalLabel} is not currently serving a patient`
-                  : 'No patient currently being served'}
-            </p>
-          </div>
+          {selectedTerminalId === 'all' ? (
+            // Every terminal in the department, each showing its OWN
+            // current patient (or idle) at the same time — multiple
+            // terminals can be serving different patients simultaneously.
+            <div className="grid flex-1 auto-rows-min grid-cols-1 gap-3 sm:grid-cols-2">
+              {departmentTerminals.length === 0 && (
+                <p className="col-span-full py-10 text-center text-xs text-slate-400">
+                  No terminals configured for this department.
+                </p>
+              )}
+
+              {departmentTerminals.map((terminal) => {
+                const ticket = activeTicketsByTerminal[String(terminal.counter_id)] || null;
+                const label = terminal.prefix || `Terminal ${terminal.counter_number}`;
+
+                return (
+                  <div
+                    key={terminal.counter_id}
+                    className="flex flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FB] p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-[#1F2937]">{label}</span>
+                      <span className={`flex items-center gap-1.5 text-xs font-medium ${ticket ? 'text-[#065F46]' : 'text-slate-400'}`}>
+                        <span className={`h-2 w-2 rounded-full ${ticket ? 'bg-[#16A34A]' : 'bg-slate-300'}`} />
+                        {ticket ? 'Serving' : 'Idle'}
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold text-[#9D0A0E]">{loading ? '…' : ticket?.id || '--'}</p>
+                    <p className="text-xs text-[#4B5563]">
+                      {ticket
+                        ? (ticket.service || 'Service') +
+                          (ticket.secondsElapsed
+                            ? ` · serving for ${Math.floor(ticket.secondsElapsed / 60)}m`
+                            : '')
+                        : 'Not currently serving a patient'}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg bg-[#F1F3F5] px-8 py-10 text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#4B5563]">{t('queue.nowServing')}</p>
+              <p className="text-[64px] font-bold leading-[1] text-[#9D0A0E]">{loading ? '…' : displayedCurrent?.id || '--'}</p>
+              <p className="text-[13px] text-[#4B5563]">
+                {displayedCurrent
+                  ? t('queue.terminalService', { terminal: displayedCurrent.terminal ?? '--', service: displayedCurrent.service || 'Service' }) +
+                    (displayedCurrent.secondsElapsed
+                      ? t('queue.servingFor', { minutes: Math.floor(displayedCurrent.secondsElapsed / 60) })
+                      : '')
+                  : selectedTerminalLabel
+                    ? `${selectedTerminalLabel} is not currently serving a patient`
+                    : 'No patient currently being served'}
+              </p>
+            </div>
+          )}
         </section>
 
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-[#1F2937]">{t('queue.waitingQueue')}</h2>
-            <span className="rounded-full bg-[#9D0A0E]/10 px-2.5 py-1 text-[10px] font-bold text-[#9D0A0E]">{t('queue.inLine', { count: waitingQueue.length })}</span>
+        <section className="flex flex-col rounded-xl border border-[#C3C6D7] bg-white">
+          <div className="flex items-center justify-between border-b border-[#C3C6D7] px-6 py-5">
+            <h2 className="text-lg font-semibold text-[#1F2937]">{t('queue.waitingQueue')}</h2>
+            <span className="rounded bg-[#9D0A0E]/[0.08] px-2 py-1 text-sm font-medium tracking-[0.4px] text-[#9D0A0E]">{t('queue.inLine', { count: waitingQueue.length })}</span>
           </div>
 
-          <div className="space-y-2">
-            {loading && <p className="py-4 text-center text-xs text-slate-400">{t('dashboard.loadingQueue')}</p>}
+          <div className="flex-1 p-2">
+            {loading && <p className="py-6 text-center text-xs text-slate-400">{t('dashboard.loadingQueue')}</p>}
 
             {!loading &&
-              waitingQueue.slice(0, 5).map((row, index) => (
-                <div key={row.uniqueKey || `${row.id}-${index}`} className="flex items-center justify-between rounded-md border border-[#E5E7EB] px-3 py-2.5">
-                  <span className="flex items-center gap-2 text-xs font-bold text-[#1F2937]">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#F1F3F5] text-[10px] text-slate-500">{index + 1}</span>
-                    <span className="rounded-md bg-[#F1F3F5] px-2 py-1 text-xs">{row.id}</span>
-                  </span>
-                  <span className="text-[10px] text-[#4B5563]">{t('queue.waitingMinutes', { minutes: row.etaMinutes ?? '~0' })}</span>
-                </div>
-              ))}
+              waitingQueue.slice(0, 5).map((row, index) => {
+                const priority = isPriorityTicket(row.id);
+                return (
+                  <div
+                    key={row.uniqueKey || `${row.id}-${index}`}
+                    className="flex items-center justify-between gap-3 border-b border-[#C3C6D7] px-4 py-3 last:border-b-0"
+                  >
+                    <span className="flex items-center gap-1">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F1F3F5] text-sm font-medium text-[#1F2937]">{index + 1}</span>
+                      <span className={`rounded px-2.5 py-1.5 text-lg font-medium ${priority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'} bg-[#F1F3F5]`}>{row.id}</span>
+                    </span>
+                    <span className="shrink-0 text-base text-[#4B5563]">{t('queue.waitingMinutes', { minutes: row.etaMinutes ?? '~0' })}</span>
+                  </div>
+                );
+              })}
 
             {!loading && waitingQueue.length === 0 && (
-              <p className="py-4 text-center text-xs text-slate-400">{t('dashboard.queueEmpty')}</p>
+              <p className="py-6 text-center text-xs text-slate-400">{t('dashboard.queueEmpty')}</p>
             )}
           </div>
 
           {waitingQueue.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setQueuePage(1);
-                setShowFullQueue(true);
-              }}
-              className="mt-3 w-full text-center text-xs font-semibold text-[#9D0A0E] hover:underline"
-            >
-              {t('queue.viewFullQueue')}
-            </button>
+            <div className="border-t border-[#C3C6D7] px-4 py-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setQueuePage(1);
+                  setShowFullQueue(true);
+                }}
+                className="w-full text-center text-[13px] font-medium tracking-[0.65px] text-[#9D0A0E] hover:underline"
+              >
+                {t('queue.viewFullQueue')}
+              </button>
+            </div>
           )}
         </section>
       </div>
 
       {showFullQueue && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-lg rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
-              <h2 className="text-lg font-bold text-[#1F2937]">{t('queue.waitingQueue')}</h2>
+          <div className="w-full max-w-lg rounded-xl border border-[#C3C6D7] bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#C3C6D7] px-6 py-5">
+              <h2 className="text-lg font-semibold text-[#1F2937]">{t('queue.waitingQueue')}</h2>
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-[#9D0A0E]/10 px-2.5 py-1 text-[10px] font-bold text-[#9D0A0E]">{t('queue.inLine', { count: waitingQueue.length })}</span>
+                <span className="rounded bg-[#9D0A0E]/[0.08] px-2 py-1 text-sm font-medium tracking-[0.4px] text-[#9D0A0E]">{t('queue.inLine', { count: waitingQueue.length })}</span>
                 <button type="button" onClick={() => setShowFullQueue(false)} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
                   <X size={18} />
                 </button>
               </div>
             </div>
 
-            <div className="divide-y divide-[#E5E7EB]">
-              {pagedQueue.map((row, index) => (
-                <div key={row.uniqueKey || `${row.id}-${index}`} className="flex items-center justify-between px-5 py-3">
-                  <span className="flex items-center gap-3 text-sm font-bold text-[#1F2937]">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#F1F3F5] text-[11px] text-slate-500">{(queuePage - 1) * QUEUE_PAGE_SIZE + index + 1}</span>
-                    <span className="rounded-md bg-[#F1F3F5] px-2 py-1 text-xs">{row.id}</span>
-                  </span>
-                  <span className="text-xs text-[#4B5563]">{t('queue.waitingMinutes', { minutes: row.etaMinutes ?? '~0' })}</span>
-                </div>
-              ))}
+            <div className="divide-y divide-[#C3C6D7]">
+              {pagedQueue.map((row, index) => {
+                const priority = isPriorityTicket(row.id);
+                return (
+                  <div key={row.uniqueKey || `${row.id}-${index}`} className="flex items-center justify-between px-5 py-3">
+                    <span className="flex items-center gap-1">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F1F3F5] text-sm font-medium text-[#1F2937]">{(queuePage - 1) * QUEUE_PAGE_SIZE + index + 1}</span>
+                      <span className={`rounded px-2.5 py-1.5 text-lg font-medium ${priority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'} bg-[#F1F3F5]`}>{row.id}</span>
+                    </span>
+                    <span className="text-base text-[#4B5563]">{t('queue.waitingMinutes', { minutes: row.etaMinutes ?? '~0' })}</span>
+                  </div>
+                );
+              })}
 
               {waitingQueue.length === 0 && (
                 <p className="px-5 py-8 text-center text-xs text-slate-400">{t('dashboard.queueEmpty')}</p>
@@ -471,7 +563,7 @@ export function QueueManagementPage() {
             </div>
 
             {waitingQueue.length > 0 && (
-              <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-xs text-slate-500">
+              <div className="flex items-center justify-between border-t border-[#C3C6D7] px-5 py-3 text-xs text-slate-500">
                 <span>{t('queue.showingQueue', { from: (queuePage - 1) * QUEUE_PAGE_SIZE + 1, to: Math.min(queuePage * QUEUE_PAGE_SIZE, waitingQueue.length), total: waitingQueue.length })}</span>
 
                 <div className="flex items-center gap-2">
@@ -479,7 +571,7 @@ export function QueueManagementPage() {
                     type="button"
                     onClick={() => setQueuePage((p) => Math.max(1, p - 1))}
                     disabled={queuePage === 1}
-                    className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+                    className="rounded-md border border-[#C3C6D7] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
                   >
                     {t('common.prev')}
                   </button>
@@ -490,7 +582,7 @@ export function QueueManagementPage() {
                       type="button"
                       onClick={() => setQueuePage(number)}
                       className={`rounded-md border px-3 py-1.5 font-semibold ${
-                        number === queuePage ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white' : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-slate-50'
+                        number === queuePage ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white' : 'border-[#C3C6D7] bg-white text-slate-600 hover:bg-slate-50'
                       }`}
                     >
                       {number}
@@ -501,7 +593,7 @@ export function QueueManagementPage() {
                     type="button"
                     onClick={() => setQueuePage((p) => Math.min(queueTotalPages, p + 1))}
                     disabled={queuePage === queueTotalPages}
-                    className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+                    className="rounded-md border border-[#C3C6D7] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
                   >
                     {t('common.next')}
                   </button>

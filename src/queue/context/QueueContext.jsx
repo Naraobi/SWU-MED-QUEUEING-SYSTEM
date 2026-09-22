@@ -21,6 +21,13 @@ export function QueueProvider({ children }) {
   const [waitingQueue, setWaitingQueue] = useState([])
   const [currentlyServing, setCurrentlyServing] = useState(null)
 
+  // Every terminal in the department that currently has a called/serving
+  // patient — one entry per terminal, not just the caller's own. Used by
+  // department-wide views (Admin's Queue Management) to show all
+  // terminals at once instead of a single ambiguous "currently serving"
+  // value.
+  const [activeTickets, setActiveTickets] = useState([])
+
   const [stats, setStats] = useState({
     waiting: 0,
     currentlyServing: 0,
@@ -77,6 +84,7 @@ export function QueueProvider({ children }) {
     if (!departmentPrefix) {
       setWaitingQueue([])
       setCurrentlyServing(null)
+      setActiveTickets([])
 
       setStats({
         waiting: 0,
@@ -116,7 +124,10 @@ export function QueueProvider({ children }) {
     try {
       const state = await api.fetchQueueState(
         departmentPrefix,
-        range
+        {
+          ...(range || {}),
+          terminalId: options.terminalId,
+        }
       )
 
       /*
@@ -131,6 +142,12 @@ export function QueueProvider({ children }) {
 
       setCurrentlyServing(
         state?.currentlyServing || null
+      )
+
+      setActiveTickets(
+        Array.isArray(state?.activeTickets)
+          ? state.activeTickets
+          : []
       )
 
       setStats({
@@ -183,6 +200,7 @@ export function QueueProvider({ children }) {
       if (!silent) {
         setWaitingQueue([])
         setCurrentlyServing(null)
+        setActiveTickets([])
 
         setStats({
           waiting: 0,
@@ -287,6 +305,12 @@ export function QueueProvider({ children }) {
       state?.currentlyServing || null
     )
 
+    setActiveTickets(
+      Array.isArray(state?.activeTickets)
+        ? state.activeTickets
+        : []
+    )
+
     setStats({
       waiting:
         Number(state?.stats?.waiting) || 0,
@@ -325,7 +349,8 @@ export function QueueProvider({ children }) {
    */
 
   const startService = async (
-    departmentPrefix
+    departmentPrefix,
+    terminalId
   ) => {
     if (!departmentPrefix) {
       throw new Error(
@@ -335,7 +360,8 @@ export function QueueProvider({ children }) {
 
     const state =
       await api.startService(
-        departmentPrefix
+        departmentPrefix,
+        terminalId
       )
 
     setCurrentlyServing(
@@ -350,7 +376,8 @@ export function QueueProvider({ children }) {
      ========================================================================== */
 
   const markPatientArrived = async (
-    departmentPrefix
+    departmentPrefix,
+    terminalId
   ) => {
     if (!departmentPrefix) {
       throw new Error(
@@ -360,7 +387,8 @@ export function QueueProvider({ children }) {
 
     const state =
       await api.markPatientArrived(
-        departmentPrefix
+        departmentPrefix,
+        terminalId
       )
 
     setCurrentlyServing(
@@ -375,7 +403,8 @@ export function QueueProvider({ children }) {
      ========================================================================== */
 
   const recallCurrentPatient = async (
-    departmentPrefix
+    departmentPrefix,
+    terminalId
   ) => {
     if (!departmentPrefix) {
       throw new Error(
@@ -385,7 +414,8 @@ export function QueueProvider({ children }) {
 
     const state =
       await api.recallCurrentPatient(
-        departmentPrefix
+        departmentPrefix,
+        terminalId
       )
 
     setCurrentlyServing(
@@ -400,7 +430,8 @@ export function QueueProvider({ children }) {
      ========================================================================== */
 
   const completeCurrentPatient = async (
-    departmentPrefix
+    departmentPrefix,
+    terminalId
   ) => {
     if (!departmentPrefix) {
       throw new Error(
@@ -410,7 +441,8 @@ export function QueueProvider({ children }) {
 
     const state =
       await api.completeCurrentPatient(
-        departmentPrefix
+        departmentPrefix,
+        terminalId
       )
 
     setCurrentlyServing(
@@ -459,7 +491,8 @@ export function QueueProvider({ children }) {
 
   const skipCurrentPatient = async (
     reason,
-    departmentPrefix
+    departmentPrefix,
+    terminalId
   ) => {
     if (!departmentPrefix) {
       throw new Error(
@@ -470,7 +503,8 @@ export function QueueProvider({ children }) {
     const state =
       await api.skipCurrentPatient(
         reason,
-        departmentPrefix
+        departmentPrefix,
+        terminalId
       )
 
     setCurrentlyServing(
@@ -601,6 +635,7 @@ export function QueueProvider({ children }) {
     /* Queue */
     waitingQueue,
     currentlyServing,
+    activeTickets,
     stats,
     loading,
 

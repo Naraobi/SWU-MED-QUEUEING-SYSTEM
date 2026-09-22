@@ -11,7 +11,9 @@ import KioskManagement from './KioskManagement';
 import PositionManagement from './PositionManagement';
 
 export default function SuperAdminApp() {
-  const [activePage, setActivePage] = useState('dashboard');
+  const [activePage, setActivePage] = useState(
+  () => new URLSearchParams(window.location.search).get('page') || 'dashboard'
+);
 
   return (
     <Layout activePage={activePage} onNavigate={setActivePage}>

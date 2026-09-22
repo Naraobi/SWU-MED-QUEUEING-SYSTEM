@@ -17,6 +17,16 @@ const NAV_ITEMS = [
 
 export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () => {} }) {
   const { user } = useAuth();
+
+  console.log("=== ADMIN ACCESS DEBUG ===");
+  console.log("User:", user);
+  console.log("Role:", user?.role);
+  console.log("Position:", user?.position);
+  console.log("Position ID:", user?.position_id);
+  console.log("Position Name:", user?.position_name);
+  console.log("Position Tabs:", user?.position_tabs);
+  console.log("==========================");
+
   const { t } = useLanguage();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const visibleItems = NAV_ITEMS.filter(({ key }) => canAccessAdminPage(user, key));

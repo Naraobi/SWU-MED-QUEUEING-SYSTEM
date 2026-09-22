@@ -70,6 +70,97 @@ function buildDisplayName(user) {
 
 /*
 |--------------------------------------------------------------------------
+| POSITION HELPERS
+|--------------------------------------------------------------------------
+*/
+
+/*
+ * Position is currently stored in the `user.position` column
+ * as the POSITION NAME.
+ *
+ * Example:
+ *
+ * user.position = "Manager"
+ *
+ * This matches:
+ *
+ * position.name = "Manager"
+ *
+ * NULL means the user has no assigned position and therefore
+ * receives the existing full-access behavior.
+ */
+
+function normalizePositionValue(position) {
+  if (
+    position === null ||
+    position === undefined
+  ) {
+    return null;
+  }
+
+  const normalized = String(position).trim();
+
+  if (
+    normalized === "" ||
+    normalized.toLowerCase() === "null" ||
+    normalized.toLowerCase() === "undefined"
+  ) {
+    return null;
+  }
+
+  return normalized;
+}
+
+/*
+ * MySQL JSON columns can be returned as:
+ *
+ * - an array
+ * - a JSON string
+ * - a comma-separated string
+ * - null
+ *
+ * Normalize everything into an array.
+ */
+
+function normalizePositionTabs(tabs) {
+  if (Array.isArray(tabs)) {
+    return tabs
+      .map((tab) =>
+        String(tab).trim()
+      )
+      .filter(Boolean);
+  }
+
+  if (
+    typeof tabs === "string" &&
+    tabs.trim()
+  ) {
+    try {
+      const parsed =
+        JSON.parse(tabs);
+
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((tab) =>
+            String(tab).trim()
+          )
+          .filter(Boolean);
+      }
+    } catch {
+      return tabs
+        .split(",")
+        .map((tab) =>
+          tab.trim()
+        )
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+}
+
+/*
+|--------------------------------------------------------------------------
 | NORMALIZE USER PROFILE
 |--------------------------------------------------------------------------
 */
@@ -84,6 +175,11 @@ function normalizeUserProfile(user) {
     user.departmentPrefix ||
     user.prefix ||
     null;
+
+  const normalizedPosition =
+    normalizePositionValue(
+      user.position
+    );
 
   return {
     user_id:
@@ -115,8 +211,30 @@ function normalizeUserProfile(user) {
     role:
       user.role || "",
 
+    /*
+    |--------------------------------------------------------------------------
+    | POSITION
+    |--------------------------------------------------------------------------
+    */
+
     position:
-      user.position || null,
+      normalizedPosition,
+
+    position_id:
+      user.position_id || null,
+
+    position_name:
+      user.position_name ||
+      normalizedPosition ||
+      null,
+
+    position_tabs:
+      normalizePositionTabs(
+        user.position_tabs
+      ),
+
+    position_status:
+      user.position_status || null,
 
     kiosk_id:
       user.kiosk_id || null,
@@ -137,7 +255,9 @@ function normalizeUserProfile(user) {
       departmentPrefix,
 
     status:
-      toFrontendStatus(user.status),
+      toFrontendStatus(
+        user.status
+      ),
 
     /*
     |--------------------------------------------------------------------------
@@ -151,7 +271,8 @@ function normalizeUserProfile(user) {
       ),
 
     password_changed_at:
-      user.password_changed_at || null,
+      user.password_changed_at ||
+      null,
 
     /*
     |--------------------------------------------------------------------------
@@ -187,24 +308,34 @@ async function getUsers() {
     );
 
     try {
-      const snapshot = await db
-        .collection(USERS_COLLECTION)
-        .get();
+      const snapshot =
+        await db
+          .collection(
+            USERS_COLLECTION
+          )
+          .get();
 
-      const users = snapshot.docs.map((doc) => {
-        const data = doc.data();
+      const users =
+        snapshot.docs.map((doc) => {
+          const data =
+            doc.data();
 
-        return normalizeUserProfile({
-          ...data,
+          return normalizeUserProfile({
+            ...data,
 
-          user_id:
-            data.user_id || doc.id,
+            user_id:
+              data.user_id ||
+              doc.id,
+          });
         });
-      });
 
       users.sort((a, b) =>
-        String(a.last_name || "").localeCompare(
-          String(b.last_name || "")
+        String(
+          a.last_name || ""
+        ).localeCompare(
+          String(
+            b.last_name || ""
+          )
         )
       );
 
@@ -229,44 +360,63 @@ async function getUsers() {
 */
 
 async function getUsersFromMySQL() {
-  const [rows] = await pool.query(`
-    SELECT
-      u.user_id,
-      u.firebase_uid,
-      u.first_name,
-      u.last_name,
-      u.mi,
-      u.contact_number,
-      u.email,
-      u.role_id,
-      r.role,
-      u.position,
-      u.kiosk_id,
-      u.kiosk,
-      u.department_id,
-      COALESCE(d.name, u.department) AS department,
+  const [rows] =
+    await pool.query(`
+      SELECT
+        u.user_id,
+        u.firebase_uid,
+        u.first_name,
+        u.last_name,
+        u.mi,
+        u.contact_number,
+        u.email,
+        u.role_id,
+        r.role,
+        u.position,
 
-      d.prefix AS department_prefix,
+        p.position_id AS position_id,
+        p.name AS position_name,
+        p.tabs AS position_tabs,
+        p.status AS position_status,
 
-      u.status,
-      u.must_change_password,
-      u.password_changed_at,
-      u.temporary_password_expires_at,
-      u.created_at,
-      u.updated_at
+        u.kiosk_id,
+        u.kiosk,
+        u.department_id,
 
-    FROM \`user\` u
+        COALESCE(
+          d.name,
+          u.department
+        ) AS department,
 
-    LEFT JOIN \`role\` r
-      ON r.role_id = u.role_id
+        d.prefix AS department_prefix,
 
-    LEFT JOIN \`department\` d
-      ON d.department_id = u.department_id
+        u.status,
+        u.must_change_password,
+        u.password_changed_at,
+        u.temporary_password_expires_at,
+        u.created_at,
+        u.updated_at
 
-    ORDER BY
-      u.last_name ASC,
-      u.first_name ASC
-  `);
+      FROM \`user\` u
+
+      LEFT JOIN \`role\` r
+        ON r.role_id = u.role_id
+
+      LEFT JOIN \`department\` d
+        ON d.department_id =
+           u.department_id
+
+      LEFT JOIN \`position\` p
+        ON LOWER(
+          TRIM(p.name)
+        ) = LOWER(
+          TRIM(u.position)
+        )
+
+      ORDER BY
+        u.last_name ASC,
+        u.first_name ASC
+    `);
 
   return rows.map((user) =>
     normalizeUserProfile(user)
@@ -281,7 +431,9 @@ async function getUsersFromMySQL() {
 
 async function getUserById(userId) {
   try {
-    return await getUserFromMySQL(userId);
+    return await getUserFromMySQL(
+      userId
+    );
   } catch (mysqlError) {
     console.error(
       "MYSQL GET USER ERROR:",
@@ -289,22 +441,27 @@ async function getUserById(userId) {
     );
 
     try {
-      const userDoc = await db
-        .collection(USERS_COLLECTION)
-        .doc(userId)
-        .get();
+      const userDoc =
+        await db
+          .collection(
+            USERS_COLLECTION
+          )
+          .doc(userId)
+          .get();
 
       if (!userDoc.exists) {
         return null;
       }
 
-      const data = userDoc.data();
+      const data =
+        userDoc.data();
 
       return normalizeUserProfile({
         ...data,
 
         user_id:
-          data.user_id || userDoc.id,
+          data.user_id ||
+          userDoc.id,
       });
     } catch (firebaseError) {
       console.error(
@@ -325,54 +482,77 @@ async function getUserById(userId) {
 |--------------------------------------------------------------------------
 */
 
-async function getUserFromMySQL(userId) {
-  const [rows] = await pool.query(
-    `
-    SELECT
-      u.user_id,
-      u.firebase_uid,
-      u.first_name,
-      u.last_name,
-      u.mi,
-      u.contact_number,
-      u.email,
-      u.role_id,
-      r.role,
-      u.position,
-      u.kiosk_id,
-      u.kiosk,
-      u.department_id,
-      COALESCE(d.name, u.department) AS department,
+async function getUserFromMySQL(
+  userId
+) {
+  const [rows] =
+    await pool.query(
+      `
+      SELECT
+        u.user_id,
+        u.firebase_uid,
+        u.first_name,
+        u.last_name,
+        u.mi,
+        u.contact_number,
+        u.email,
+        u.role_id,
+        r.role,
+        u.position,
 
-      d.prefix AS department_prefix,
+        p.position_id AS position_id,
+        p.name AS position_name,
+        p.tabs AS position_tabs,
+        p.status AS position_status,
 
-      u.status,
-      u.must_change_password,
-      u.password_changed_at,
-      u.temporary_password_expires_at,
-      u.created_at,
-      u.updated_at
+        u.kiosk_id,
+        u.kiosk,
+        u.department_id,
 
-    FROM \`user\` u
+        COALESCE(
+          d.name,
+          u.department
+        ) AS department,
 
-    LEFT JOIN \`role\` r
-      ON r.role_id = u.role_id
+        d.prefix AS department_prefix,
 
-    LEFT JOIN \`department\` d
-      ON d.department_id = u.department_id
+        u.status,
+        u.must_change_password,
+        u.password_changed_at,
+        u.temporary_password_expires_at,
+        u.created_at,
+        u.updated_at
 
-    WHERE u.user_id = ?
+      FROM \`user\` u
 
-    LIMIT 1
-    `,
-    [userId]
-  );
+      LEFT JOIN \`role\` r
+        ON r.role_id = u.role_id
+
+      LEFT JOIN \`department\` d
+        ON d.department_id =
+           u.department_id
+
+      LEFT JOIN \`position\` p
+        ON LOWER(
+          TRIM(p.name)
+        ) = LOWER(
+          TRIM(u.position)
+        )
+
+      WHERE u.user_id = ?
+
+      LIMIT 1
+      `,
+      [userId]
+    );
 
   if (rows.length === 0) {
     return null;
   }
 
-  return normalizeUserProfile(rows[0]);
+  return normalizeUserProfile(
+    rows[0]
+  );
 }
 
 /*
@@ -381,62 +561,86 @@ async function getUserFromMySQL(userId) {
 |--------------------------------------------------------------------------
 */
 
-async function getUserByFirebaseUid(firebaseUid) {
-  const normalizedUid = String(
-    firebaseUid || ""
-  ).trim();
+async function getUserByFirebaseUid(
+  firebaseUid
+) {
+  const normalizedUid =
+    String(
+      firebaseUid || ""
+    ).trim();
 
   if (!normalizedUid) {
     return null;
   }
 
-  const [rows] = await pool.query(
-    `
-    SELECT
-      u.user_id,
-      u.firebase_uid,
-      u.first_name,
-      u.last_name,
-      u.mi,
-      u.contact_number,
-      u.email,
-      u.role_id,
-      r.role,
-      u.position,
-      u.kiosk_id,
-      u.kiosk,
-      u.department_id,
-      COALESCE(d.name, u.department) AS department,
+  const [rows] =
+    await pool.query(
+      `
+      SELECT
+        u.user_id,
+        u.firebase_uid,
+        u.first_name,
+        u.last_name,
+        u.mi,
+        u.contact_number,
+        u.email,
+        u.role_id,
+        r.role,
+        u.position,
 
-      d.prefix AS department_prefix,
+        p.position_id AS position_id,
+        p.name AS position_name,
+        p.tabs AS position_tabs,
+        p.status AS position_status,
 
-      u.status,
-      u.must_change_password,
-      u.password_changed_at,
-      u.temporary_password_expires_at,
-      u.created_at,
-      u.updated_at
+        u.kiosk_id,
+        u.kiosk,
+        u.department_id,
 
-    FROM \`user\` u
+        COALESCE(
+          d.name,
+          u.department
+        ) AS department,
 
-    LEFT JOIN \`role\` r
-      ON r.role_id = u.role_id
+        d.prefix AS department_prefix,
 
-    LEFT JOIN \`department\` d
-      ON d.department_id = u.department_id
+        u.status,
+        u.must_change_password,
+        u.password_changed_at,
+        u.temporary_password_expires_at,
+        u.created_at,
+        u.updated_at
 
-    WHERE u.firebase_uid = ?
+      FROM \`user\` u
 
-    LIMIT 1
-    `,
-    [normalizedUid]
-  );
+      LEFT JOIN \`role\` r
+        ON r.role_id = u.role_id
+
+      LEFT JOIN \`department\` d
+        ON d.department_id =
+           u.department_id
+
+      LEFT JOIN \`position\` p
+        ON LOWER(
+          TRIM(p.name)
+        ) = LOWER(
+          TRIM(u.position)
+        )
+
+      WHERE u.firebase_uid = ?
+
+      LIMIT 1
+      `,
+      [normalizedUid]
+    );
 
   if (rows.length === 0) {
     return null;
   }
 
-  return normalizeUserProfile(rows[0]);
+  return normalizeUserProfile(
+    rows[0]
+  );
 }
 
 /*
@@ -448,7 +652,7 @@ async function getUserByFirebaseUid(firebaseUid) {
 |
 | MySQL supplies the application profile.
 |
-| Temporary password expiration is enforced HERE on the backend.
+| Position permissions are loaded through the `position` table.
 |
 |--------------------------------------------------------------------------
 */
@@ -529,8 +733,10 @@ async function getAuthenticatedUserProfile(
   */
 
   if (
-    String(user.status || "")
-      .toLowerCase() === "inactive"
+    String(
+      user.status || ""
+    ).toLowerCase() ===
+    "inactive"
   ) {
     throw new Error(
       "This account has been disabled."
@@ -541,22 +747,12 @@ async function getAuthenticatedUserProfile(
   |--------------------------------------------------------------------------
   | TEMPORARY PASSWORD EXPIRATION
   |--------------------------------------------------------------------------
-  |
-  | The expiration applies ONLY while:
-  |
-  | must_change_password = true
-  |
-  | Once the user changes the password,
-  | markPasswordChanged() sets:
-  |
-  | must_change_password = false
-  | temporary_password_expires_at = NULL
-  |
-  |--------------------------------------------------------------------------
   */
 
   if (
-    Boolean(user.must_change_password) &&
+    Boolean(
+      user.must_change_password
+    ) &&
     user.temporary_password_expires_at
   ) {
     const expirationDate =
@@ -588,21 +784,28 @@ async function getAuthenticatedUserProfile(
   |--------------------------------------------------------------------------
   */
 
-  const roleName = String(
-    typeof user.role === "object"
-      ? user.role?.role
-      : user.role || ""
-  )
-    .trim()
-    .toLowerCase();
+  const roleName =
+    String(
+      typeof user.role ===
+        "object"
+        ? user.role?.role
+        : user.role || ""
+    )
+      .trim()
+      .toLowerCase();
 
-  const allowedRoles = new Set([
-    "superadmin",
-    "admin",
-    "staff",
-  ]);
+  const allowedRoles =
+    new Set([
+      "superadmin",
+      "admin",
+      "staff",
+    ]);
 
-  if (!allowedRoles.has(roleName)) {
+  if (
+    !allowedRoles.has(
+      roleName
+    )
+  ) {
     throw new Error(
       "Your account does not have a valid role."
     );
@@ -615,7 +818,9 @@ async function getAuthenticatedUserProfile(
   */
 
   const department =
-    String(user.department || "").trim();
+    String(
+      user.department || ""
+    ).trim();
 
   if (
     roleName !== "superadmin" &&
@@ -683,11 +888,38 @@ async function getAuthenticatedUserProfile(
         user.status
       ),
 
+    position:
+      normalizePositionValue(
+        user.position
+      ),
+
+    position_id:
+      user.position_id ||
+      null,
+
+    position_name:
+      user.position_name ||
+      normalizePositionValue(
+        user.position
+      ) ||
+      null,
+
+    position_tabs:
+      normalizePositionTabs(
+        user.position_tabs
+      ),
+
+    position_status:
+      user.position_status ||
+      null,
+
     department_prefix:
-      departmentPrefix || null,
+      departmentPrefix ||
+      null,
 
     departmentPrefix:
-      departmentPrefix || null,
+      departmentPrefix ||
+      null,
 
     must_change_password:
       Boolean(
@@ -695,7 +927,8 @@ async function getAuthenticatedUserProfile(
       ),
 
     password_changed_at:
-      user.password_changed_at || null,
+      user.password_changed_at ||
+      null,
 
     temporary_password_expires_at:
       user.temporary_password_expires_at ||
@@ -713,11 +946,10 @@ async function emailExists(
   email,
   excludeUserId = null
 ) {
-  const normalizedEmail = String(
-    email || ""
-  )
-    .trim()
-    .toLowerCase();
+  const normalizedEmail =
+    String(email || "")
+      .trim()
+      .toLowerCase();
 
   if (!normalizedEmail) {
     return false;
@@ -734,16 +966,21 @@ async function emailExists(
   ];
 
   if (excludeUserId) {
-    sql += ` AND user_id <> ?`;
-    params.push(excludeUserId);
+    sql +=
+      ` AND user_id <> ?`;
+
+    params.push(
+      excludeUserId
+    );
   }
 
   sql += ` LIMIT 1`;
 
-  const [rows] = await pool.query(
-    sql,
-    params
-  );
+  const [rows] =
+    await pool.query(
+      sql,
+      params
+    );
 
   return rows.length > 0;
 }
@@ -754,26 +991,30 @@ async function emailExists(
 |--------------------------------------------------------------------------
 */
 
-async function emailExistsInFirebase(email) {
-  const normalizedEmail = String(
-    email || ""
-  )
-    .trim()
-    .toLowerCase();
+async function emailExistsInFirebase(
+  email
+) {
+  const normalizedEmail =
+    String(email || "")
+      .trim()
+      .toLowerCase();
 
   if (!normalizedEmail) {
     return false;
   }
 
-  const snapshot = await db
-    .collection(USERS_COLLECTION)
-    .where(
-      "email",
-      "==",
-      normalizedEmail
-    )
-    .limit(1)
-    .get();
+  const snapshot =
+    await db
+      .collection(
+        USERS_COLLECTION
+      )
+      .where(
+        "email",
+        "==",
+        normalizedEmail
+      )
+      .limit(1)
+      .get();
 
   return !snapshot.empty;
 }
@@ -784,12 +1025,13 @@ async function emailExistsInFirebase(email) {
 |--------------------------------------------------------------------------
 */
 
-async function getFirebaseAuthUserByEmail(email) {
-  const normalizedEmail = String(
-    email || ""
-  )
-    .trim()
-    .toLowerCase();
+async function getFirebaseAuthUserByEmail(
+  email
+) {
+  const normalizedEmail =
+    String(email || "")
+      .trim()
+      .toLowerCase();
 
   if (!normalizedEmail) {
     return null;
@@ -832,7 +1074,8 @@ async function emailExistsInFirebaseAuth(
 
   if (
     excludeUid &&
-    firebaseUser.uid === excludeUid
+    firebaseUser.uid ===
+      excludeUid
   ) {
     return false;
   }
@@ -853,23 +1096,24 @@ async function getRoleByIdFromMySQL(
     return null;
   }
 
-  const [rows] = await pool.query(
-    `
-    SELECT
-      role_id,
-      role,
-      description,
-      status,
-      permissions
+  const [rows] =
+    await pool.query(
+      `
+      SELECT
+        role_id,
+        role,
+        description,
+        status,
+        permissions
 
-    FROM \`role\`
+      FROM \`role\`
 
-    WHERE role_id = ?
+      WHERE role_id = ?
 
-    LIMIT 1
-    `,
-    [roleId]
-  );
+      LIMIT 1
+      `,
+      [roleId]
+    );
 
   if (rows.length === 0) {
     return null;
@@ -894,39 +1138,11 @@ async function authenticateUser() {
 |--------------------------------------------------------------------------
 | CREATE USER
 |--------------------------------------------------------------------------
-|
-| NEW USER FLOW:
-|
-| React
-|   ↓
-| Node.js
-|   ↓
-| Generate temporary password
-|   ↓
-| Generate 48-hour expiration
-|   ↓
-| Firebase Authentication
-|   ↓
-| Firebase UID
-|   ↓
-| MySQL profile
-|   ↓
-| Firestore profile copy
-|   ↓
-| Email temporary password
-|
-| IMPORTANT:
-|
-| The temporary password itself is NEVER stored in:
-|
-| - MySQL
-| - Firestore
-| - React response
-|
-|--------------------------------------------------------------------------
 */
 
-async function createUser(userData) {
+async function createUser(
+  userData
+) {
   console.log(
     "🔥 BACKEND CREATE USER CALLED"
   );
@@ -993,8 +1209,16 @@ async function createUser(userData) {
     role:
       userData.role || "",
 
+    /*
+    |--------------------------------------------------------------------------
+    | POSITION
+    |--------------------------------------------------------------------------
+    */
+
     position:
-      userData.position || null,
+      normalizePositionValue(
+        userData.position
+      ),
 
     kiosk_id:
       userData.kiosk_id || null,
@@ -1229,7 +1453,9 @@ async function createUser(userData) {
             profile.role,
 
           position:
-            profile.position,
+            normalizePositionValue(
+              profile.position
+            ),
 
           kiosk_id:
             profile.kiosk_id,
@@ -1346,15 +1572,27 @@ async function createUser(userData) {
 |--------------------------------------------------------------------------
 */
 
-async function insertUserIntoMySQL(user) {
+async function insertUserIntoMySQL(
+  user
+) {
   const mysqlStatus =
     toMySQLStatus(
       user.status
     );
 
+  const normalizedPosition =
+    normalizePositionValue(
+      user.position
+    );
+
   console.log(
     "TEMP PASSWORD EXPIRATION BEING SAVED:",
     user.temporary_password_expires_at
+  );
+
+  console.log(
+    "POSITION BEING SAVED:",
+    normalizedPosition
   );
 
   const [result] =
@@ -1386,23 +1624,32 @@ async function insertUserIntoMySQL(user) {
       `,
       [
         user.user_id,
-        user.firebase_uid || null,
+        user.firebase_uid ||
+          null,
         user.first_name || "",
         user.last_name || "",
         user.mi || null,
-        user.contact_number || null,
+        user.contact_number ||
+          null,
         user.email || "",
         user.role_id || null,
-        user.position || null,
+
+        normalizedPosition,
+
         user.kiosk_id || null,
         user.kiosk || null,
-        user.department_id || null,
+        user.department_id ||
+          null,
         user.department || null,
         mysqlStatus,
+
         user.must_change_password
           ? 1
           : 0,
-        user.password_changed_at || null,
+
+        user.password_changed_at ||
+          null,
+
         user.temporary_password_expires_at ||
           null,
       ]
@@ -1429,6 +1676,38 @@ async function updateUser(
   if (!existingUser) {
     return null;
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | POSITION UPDATE
+  |--------------------------------------------------------------------------
+  |
+  | IMPORTANT:
+  |
+  | We must distinguish:
+  |
+  | position property missing
+  |        ↓
+  | keep existing position
+  |
+  | position explicitly NULL
+  |        ↓
+  | remove the position
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  const normalizedUpdatedPosition =
+    Object.prototype.hasOwnProperty.call(
+      userData,
+      "position"
+    )
+      ? normalizePositionValue(
+          userData.position
+        )
+      : normalizePositionValue(
+          existingUser.position
+        );
 
   const updatedUser = {
     user_id:
@@ -1480,9 +1759,7 @@ async function updateUser(
       "",
 
     position:
-      userData.position ??
-      existingUser.position ??
-      null,
+      normalizedUpdatedPosition,
 
     kiosk_id:
       userData.kiosk_id ??
@@ -1539,7 +1816,8 @@ async function updateUser(
     */
 
     temporary_password_expires_at:
-      existingUser.temporary_password_expires_at ||
+      existingUser
+        .temporary_password_expires_at ||
       null,
   };
 
@@ -1592,9 +1870,13 @@ async function updateUser(
   let newPassword = null;
 
   if (
-    userData.password !== undefined &&
-    userData.password !== null &&
-    String(userData.password) !== ""
+    userData.password !==
+      undefined &&
+    userData.password !==
+      null &&
+    String(
+      userData.password
+    ) !== ""
   ) {
     newPassword =
       String(
@@ -1645,20 +1927,21 @@ async function updateUser(
       updatedUser.firebase_uid
     ) {
       try {
-        const firebaseAuthUpdates = {
-          email:
-            updatedUser.email,
+        const firebaseAuthUpdates =
+          {
+            email:
+              updatedUser.email,
 
-          displayName:
-            buildDisplayName(
-              updatedUser
-            ),
+            displayName:
+              buildDisplayName(
+                updatedUser
+              ),
 
-          disabled:
-            toMySQLStatus(
-              updatedUser.status
-            ) === "inactive",
-        };
+            disabled:
+              toMySQLStatus(
+                updatedUser.status
+              ) === "inactive",
+          };
 
         if (newPassword) {
           firebaseAuthUpdates.password =
@@ -1737,6 +2020,11 @@ async function updateUser(
           {
             ...updatedUser,
 
+            position:
+              normalizePositionValue(
+                updatedUser.position
+              ),
+
             status:
               toFrontendStatus(
                 updatedUser.status
@@ -1773,9 +2061,25 @@ async function updateUser(
 
     await cleanupStaleAssignments();
 
+    /*
+    |--------------------------------------------------------------------------
+    | RELOAD USER FROM MYSQL
+    |--------------------------------------------------------------------------
+    |
+    | This ensures the returned profile contains the latest
+    | position tabs.
+    |--------------------------------------------------------------------------
+    */
+
+    const refreshedUser =
+      await getUserFromMySQL(
+        userId
+      );
+
     return {
       ...normalizeUserProfile(
-        updatedUser
+        refreshedUser ||
+          updatedUser
       ),
 
       firebase_synced:
@@ -1803,8 +2107,14 @@ async function updateUser(
 
     await cleanupStaleAssignments();
 
+    const refreshedUser =
+      await getUserFromMySQL(
+        userId
+      );
+
     return normalizeUserProfile(
-      updatedUser
+      refreshedUser ||
+        updatedUser
     );
   }
 
@@ -1828,73 +2138,9 @@ async function updateUserInMySQL(
       user.status
     );
 
-  await pool.query(
-    `
-    UPDATE \`user\`
-
-    SET
-      firebase_uid = ?,
-      first_name = ?,
-      last_name = ?,
-      mi = ?,
-      contact_number = ?,
-      email = ?,
-      role_id = ?,
-      position = ?,
-      kiosk_id = ?,
-      kiosk = ?,
-      department_id = ?,
-      department = ?,
-      status = ?,
-      must_change_password = ?,
-      password_changed_at = ?,
-      temporary_password_expires_at = ?,
-      updated_at = CURRENT_TIMESTAMP
-
-    WHERE user_id = ?
-    `,
-    [
-      user.firebase_uid || null,
-      user.first_name,
-      user.last_name,
-      user.mi,
-      user.contact_number,
-      user.email,
-      user.role_id,
-      user.position,
-      user.kiosk_id,
-      user.kiosk,
-      user.department_id,
-      user.department,
-      mysqlStatus,
-
-      user.must_change_password
-        ? 1
-        : 0,
-
-      user.password_changed_at ||
-        null,
-
-      user.temporary_password_expires_at ||
-        null,
-
-      userId,
-    ]
-  );
-}
-
-/*
-|--------------------------------------------------------------------------
-| RESTORE USER IN MYSQL
-|--------------------------------------------------------------------------
-*/
-
-async function restoreUserInMySQL(
-  user
-) {
-  const mysqlStatus =
-    toMySQLStatus(
-      user.status
+  const normalizedPosition =
+    normalizePositionValue(
+      user.position
     );
 
   await pool.query(
@@ -1932,7 +2178,87 @@ async function restoreUserInMySQL(
       user.contact_number,
       user.email,
       user.role_id,
-      user.position,
+
+      normalizedPosition,
+
+      user.kiosk_id,
+      user.kiosk,
+      user.department_id,
+      user.department,
+      mysqlStatus,
+
+      user.must_change_password
+        ? 1
+        : 0,
+
+      user.password_changed_at ||
+        null,
+
+      user.temporary_password_expires_at ||
+        null,
+
+      userId,
+    ]
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| RESTORE USER IN MYSQL
+|--------------------------------------------------------------------------
+*/
+
+async function restoreUserInMySQL(
+  user
+) {
+  const mysqlStatus =
+    toMySQLStatus(
+      user.status
+    );
+
+  const normalizedPosition =
+    normalizePositionValue(
+      user.position
+    );
+
+  await pool.query(
+    `
+    UPDATE \`user\`
+
+    SET
+      firebase_uid = ?,
+      first_name = ?,
+      last_name = ?,
+      mi = ?,
+      contact_number = ?,
+      email = ?,
+      role_id = ?,
+      position = ?,
+      kiosk_id = ?,
+      kiosk = ?,
+      department_id = ?,
+      department = ?,
+      status = ?,
+      must_change_password = ?,
+      password_changed_at = ?,
+      temporary_password_expires_at = ?,
+      updated_at = CURRENT_TIMESTAMP
+
+    WHERE user_id = ?
+    `,
+    [
+      user.firebase_uid ||
+        null,
+
+      user.first_name,
+      user.last_name,
+      user.mi,
+      user.contact_number,
+      user.email,
+      user.role_id,
+
+      normalizedPosition,
+
       user.kiosk_id,
       user.kiosk,
       user.department_id,
@@ -1960,7 +2286,9 @@ async function restoreUserInMySQL(
 |--------------------------------------------------------------------------
 */
 
-async function deleteUser(userId) {
+async function deleteUser(
+  userId
+) {
   /*
   |--------------------------------------------------------------------------
   | ALWAYS READ PRIMARY MYSQL PROFILE FIRST
@@ -2102,7 +2430,9 @@ async function deleteUserFromMySQL(
       [userId]
     );
 
-  return result.affectedRows > 0;
+  return (
+    result.affectedRows > 0
+  );
 }
 
 /*
@@ -2128,7 +2458,9 @@ async function createUserDeletionLog({
 
   try {
     await db
-      .collection("deleted_users")
+      .collection(
+        "deleted_users"
+      )
       .doc(userId)
       .set({
         user_id:
@@ -2311,10 +2643,20 @@ async function getStaffByDepartmentFromMySQL(
         u.role_id,
         r.role,
         u.position,
+
+        p.position_id AS position_id,
+        p.name AS position_name,
+        p.tabs AS position_tabs,
+        p.status AS position_status,
+
         u.kiosk_id,
         u.kiosk,
         u.department_id,
-        COALESCE(d.name, u.department) AS department,
+
+        COALESCE(
+          d.name,
+          u.department
+        ) AS department,
 
         d.prefix AS department_prefix,
 
@@ -2333,6 +2675,13 @@ async function getStaffByDepartmentFromMySQL(
       LEFT JOIN \`department\` d
         ON d.department_id =
            u.department_id
+
+      LEFT JOIN \`position\` p
+        ON LOWER(
+          TRIM(p.name)
+        ) = LOWER(
+          TRIM(u.position)
+        )
 
       WHERE
         u.department_id = ?
@@ -2453,10 +2802,20 @@ async function getUserByEmailFromMySQL(
         u.role_id,
         r.role,
         u.position,
+
+        p.position_id AS position_id,
+        p.name AS position_name,
+        p.tabs AS position_tabs,
+        p.status AS position_status,
+
         u.kiosk_id,
         u.kiosk,
         u.department_id,
-        COALESCE(d.name, u.department) AS department,
+
+        COALESCE(
+          d.name,
+          u.department
+        ) AS department,
 
         d.prefix AS department_prefix,
 
@@ -2475,6 +2834,13 @@ async function getUserByEmailFromMySQL(
       LEFT JOIN \`department\` d
         ON d.department_id =
            u.department_id
+
+      LEFT JOIN \`position\` p
+        ON LOWER(
+          TRIM(p.name)
+        ) = LOWER(
+          TRIM(u.position)
+        )
 
       WHERE LOWER(u.email) = ?
 
@@ -2496,21 +2862,15 @@ async function getUserByEmailFromMySQL(
 |--------------------------------------------------------------------------
 | MARK PASSWORD AS CHANGED
 |--------------------------------------------------------------------------
-|
-| This is called AFTER the user successfully changes
-| the temporary password through Firebase Authentication.
-|
-| It permanently removes the 48-hour expiration.
-|
-|--------------------------------------------------------------------------
 */
 
 async function markPasswordChanged(
   firebaseUid
 ) {
-  const normalizedUid = String(
-    firebaseUid || ""
-  ).trim();
+  const normalizedUid =
+    String(
+      firebaseUid || ""
+    ).trim();
 
   if (!normalizedUid) {
     throw new Error(
@@ -2518,20 +2878,23 @@ async function markPasswordChanged(
     );
   }
 
-  const [result] = await pool.query(
-    `
-    UPDATE \`user\`
-    SET
-      must_change_password = 0,
-      password_changed_at = CURRENT_TIMESTAMP,
-      temporary_password_expires_at = NULL,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE firebase_uid = ?
-    `,
-    [normalizedUid]
-  );
+  const [result] =
+    await pool.query(
+      `
+      UPDATE \`user\`
+      SET
+        must_change_password = 0,
+        password_changed_at = CURRENT_TIMESTAMP,
+        temporary_password_expires_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE firebase_uid = ?
+      `,
+      [normalizedUid]
+    );
 
-  if (result.affectedRows === 0) {
+  if (
+    result.affectedRows === 0
+  ) {
     throw new Error(
       "User profile could not be found."
     );

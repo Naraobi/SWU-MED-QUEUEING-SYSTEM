@@ -9,32 +9,61 @@ import {
   assignTerminal,
 } from '../../services/backendApi.js'
 
-const STORAGE_KEY = 'swumed_staff_terminal'
-
 // =====================================================
-// LOCAL STORAGE (unchanged behavior from the old page)
+// LOCAL STORAGE
 // =====================================================
 
-function readSavedTerminal() {
+// IMPORTANT:
+// The old version used one storage key for every staff account:
+//
+// swumed_staff_terminal
+//
+// That means Staff 1 and Staff 2 could share the same saved
+// terminal in the same browser.
+//
+// We now create a separate key for each staff account.
+const STORAGE_KEY_PREFIX = 'swumed_staff_terminal'
+
+function getStorageKey(staffId) {
+  if (!staffId) {
+    return STORAGE_KEY_PREFIX
+  }
+
+  return `${STORAGE_KEY_PREFIX}_${String(staffId)}`
+}
+
+// =====================================================
+// LOCAL STORAGE HELPERS
+// =====================================================
+
+function readSavedTerminal(staffId) {
   if (typeof window === 'undefined') return null
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const storageKey = getStorageKey(staffId)
+    const raw = window.localStorage.getItem(storageKey)
+
     if (!raw) return null
 
     const parsed = JSON.parse(raw)
+
     return parsed && typeof parsed === 'object' ? parsed : null
   } catch {
     return null
   }
 }
 
-function saveSelectedTerminal(terminal) {
+function saveSelectedTerminal(terminal, staffId) {
   if (typeof window === 'undefined' || !terminal) return
 
+  const terminalId =
+    terminal.counter_id ??
+    terminal.terminal_id ??
+    terminal.id ??
+    null
+
   const payload = {
-    terminal_id:
-      terminal.counter_id ?? terminal.terminal_id ?? terminal.id ?? null,
+    terminal_id: terminalId,
 
     name:
       terminal.name ??
@@ -48,14 +77,44 @@ function saveSelectedTerminal(terminal) {
       }`,
 
     counter_number:
-      terminal.counter_number ?? terminal.terminal_number ?? null,
+      terminal.counter_number ??
+      terminal.terminal_number ??
+      null,
 
-    department_id: terminal.department_id ?? null,
+    department_id:
+      terminal.department_id ??
+      terminal.departmentId ??
+      null,
 
-    status: terminal.status ?? 'active',
+    status:
+      terminal.status ??
+      'active',
+
+    // Keep the staff assignment with the saved terminal.
+    assigned_staff_id:
+      terminal.assigned_staff_id ??
+      terminal.assignedStaffId ??
+      staffId ??
+      null,
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+  window.localStorage.setItem(
+    getStorageKey(staffId),
+    JSON.stringify(payload)
+  )
+}
+
+// =====================================================
+// TERMINAL ID HELPER
+// =====================================================
+
+function getTerminalId(terminal) {
+  return (
+    terminal?.counter_id ??
+    terminal?.terminal_id ??
+    terminal?.id ??
+    null
+  )
 }
 
 // =====================================================
@@ -63,29 +122,55 @@ function saveSelectedTerminal(terminal) {
 // =====================================================
 
 function getTerminalStatusMeta(terminal, staffId) {
-  const status = String(terminal.status ?? 'active').toLowerCase()
+  const status = String(
+    terminal.status ?? 'active'
+  ).toLowerCase()
 
   const assignedStaffId =
-    terminal.assigned_staff_id ?? terminal.assignedStaffId ?? null
+    terminal.assigned_staff_id ??
+    terminal.assignedStaffId ??
+    null
 
   const assignedStaffName =
-    terminal.assigned_staff_name ?? terminal.assignedStaffName ?? null
+    terminal.assigned_staff_name ??
+    terminal.assignedStaffName ??
+    null
 
   const isOffline =
-    status === 'offline' || status === 'disabled' || status === 'inactive'
+    status === 'offline' ||
+    status === 'disabled' ||
+    status === 'inactive'
+
+  const isAssignedToCurrentStaff =
+    assignedStaffId &&
+    staffId &&
+    String(assignedStaffId) === String(staffId)
 
   const isOccupiedByOther =
     !isOffline &&
     assignedStaffId &&
-    String(assignedStaffId) !== String(staffId)
+    !isAssignedToCurrentStaff
 
   if (isOffline) {
     return {
       label: 'Offline',
       pillClass: 'bg-slate-200 text-slate-600',
       detail:
-        terminal.offline_reason || 'Hardware maintenance / connection lost',
+        terminal.offline_reason ||
+        'Hardware maintenance / connection lost',
       selectable: false,
+    }
+  }
+
+  // IMPORTANT:
+  // If this terminal is already assigned to the logged-in staff,
+  // it must NOT be treated as occupied by another staff member.
+  if (isAssignedToCurrentStaff) {
+    return {
+      label: 'Assigned to you',
+      pillClass: 'bg-emerald-100 text-emerald-700',
+      detail: 'This terminal is assigned to your staff account.',
+      selectable: true,
     }
   }
 
@@ -114,7 +199,10 @@ function getTerminalStatusMeta(terminal, staffId) {
 // TERMINAL SELECT MODAL
 // =====================================================
 
-export default function TerminalSelectModal({ departmentName, onConfirm }) {
+export default function TerminalSelectModal({
+  departmentName,
+  onConfirm,
+}) {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
 
@@ -124,16 +212,27 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const departmentId = user?.department_id ?? user?.departmentId ?? null
+  const departmentId =
+    user?.department_id ??
+    user?.departmentId ??
+    null
 
-  const staffId = user?.id ?? user?.user_id ?? user?.staff_id ?? null
+  // Keep the existing ID fallbacks.
+  // The backend terminal endpoints should use the database staff/user ID.
+  const staffId =
+    user?.staff_id ??
+    user?.user_id ??
+    user?.id ??
+    null
 
   const filteredTerminals = Array.isArray(terminals)
     ? terminals.filter((terminal) => {
         if (!departmentId) return true
 
         const currentDepartmentId =
-          terminal.department_id ?? terminal.departmentId ?? null
+          terminal.department_id ??
+          terminal.departmentId ??
+          null
 
         return (
           !currentDepartmentId ||
@@ -143,7 +242,7 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
     : []
 
   // ===================================================
-  // LOAD TERMINALS (same logic as the old standalone page)
+  // LOAD TERMINALS
   // ===================================================
 
   useEffect(() => {
@@ -155,24 +254,74 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
         setError('')
 
         const result = await getTerminals()
+
         if (!mounted) return
 
-        const terminalList = Array.isArray(result) ? result : []
+        const terminalList =
+          Array.isArray(result)
+            ? result
+            : []
+
         setTerminals(terminalList)
+
+        // =================================================
+        // SERVER-SIDE ASSIGNMENT IS THE SOURCE OF TRUTH
+        // =================================================
 
         if (staffId) {
           try {
-            const assignedTerminal = await getStaffTerminal(staffId)
+            const assignedTerminal =
+              await getStaffTerminal(staffId)
 
             if (assignedTerminal && mounted) {
               const assignedId =
-                assignedTerminal.counter_id ??
-                assignedTerminal.terminal_id ??
-                assignedTerminal.id
+                getTerminalId(assignedTerminal)
 
               if (assignedId) {
-                setSelectedId(String(assignedId))
-                saveSelectedTerminal(assignedTerminal)
+                const assignedIdString =
+                  String(assignedId)
+
+                setSelectedId(
+                  assignedIdString
+                )
+
+                // Find the complete terminal record from
+                // getTerminals(), if available.
+                //
+                // This is important because getStaffTerminal()
+                // may return only part of the terminal object.
+                const matchingTerminal =
+                  terminalList.find(
+                    (terminal) =>
+                      String(
+                        getTerminalId(terminal)
+                      ) === assignedIdString
+                  )
+
+                const completeTerminal =
+                  matchingTerminal
+                    ? {
+                        ...matchingTerminal,
+                        ...assignedTerminal,
+                        assigned_staff_id:
+                          assignedTerminal.assigned_staff_id ??
+                          assignedTerminal.assignedStaffId ??
+                          matchingTerminal.assigned_staff_id ??
+                          matchingTerminal.assignedStaffId ??
+                          staffId,
+                      }
+                    : {
+                        ...assignedTerminal,
+                        assigned_staff_id:
+                          assignedTerminal.assigned_staff_id ??
+                          assignedTerminal.assignedStaffId ??
+                          staffId,
+                      }
+
+                saveSelectedTerminal(
+                  completeTerminal,
+                  staffId
+                )
               }
             }
           } catch (assignmentError) {
@@ -183,42 +332,76 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
           }
         }
 
+        // =================================================
+        // RESTORE SAVED TERMINAL ONLY IF THERE IS NO
+        // SERVER-SIDE ASSIGNMENT
+        // =================================================
+
         if (mounted) {
-          const saved = readSavedTerminal()
+          const saved =
+            readSavedTerminal(staffId)
 
           if (saved?.terminal_id) {
             setSelectedId((current) => {
-              if (current) return current
+              // Server assignment always wins.
+              if (current) {
+                return current
+              }
 
-              const matchingSaved = terminalList.find(
-                (terminal) =>
-                  String(
-                    terminal.counter_id ??
-                      terminal.terminal_id ??
-                      terminal.id
-                  ) === String(saved.terminal_id)
-              )
+              const matchingSaved =
+                terminalList.find(
+                  (terminal) =>
+                    String(
+                      getTerminalId(terminal)
+                    ) ===
+                    String(saved.terminal_id)
+                )
 
-              return matchingSaved
-                ? String(
-                    matchingSaved.counter_id ??
-                      matchingSaved.terminal_id ??
-                      matchingSaved.id
+              // Do not restore a saved terminal that is
+              // currently assigned to another staff member.
+              if (matchingSaved) {
+                const assignedStaffId =
+                  matchingSaved.assigned_staff_id ??
+                  matchingSaved.assignedStaffId ??
+                  null
+
+                const assignedToOther =
+                  assignedStaffId &&
+                  staffId &&
+                  String(assignedStaffId) !==
+                    String(staffId)
+
+                if (assignedToOther) {
+                  return ''
+                }
+
+                return String(
+                  getTerminalId(
+                    matchingSaved
                   )
-                : current
+                )
+              }
+
+              return current
             })
           }
         }
       } catch (loadError) {
-        console.error('Failed to load terminals:', loadError)
+        console.error(
+          'Failed to load terminals:',
+          loadError
+        )
 
         if (mounted) {
           setError(
-            loadError?.message || 'Unable to load available terminals.'
+            loadError?.message ||
+              'Unable to load available terminals.'
           )
         }
       } finally {
-        if (mounted) setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
@@ -229,27 +412,47 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
     }
   }, [staffId])
 
-  const selectedTerminal = filteredTerminals.find(
-    (terminal) =>
-      String(terminal.counter_id ?? terminal.terminal_id ?? terminal.id) ===
-      String(selectedId)
-  )
+  // ===================================================
+  // SELECTED TERMINAL
+  // ===================================================
+
+  const selectedTerminal =
+    filteredTerminals.find(
+      (terminal) =>
+        String(
+          getTerminalId(terminal)
+        ) ===
+        String(selectedId)
+    )
 
   // ===================================================
   // SELECT
   // ===================================================
 
   const chooseTerminal = (terminal) => {
-    const meta = getTerminalStatusMeta(terminal, staffId)
+    const meta =
+      getTerminalStatusMeta(
+        terminal,
+        staffId
+      )
 
     if (!meta.selectable) {
-      setError('This terminal is already assigned or unavailable.')
+      setError(
+        'This terminal is already assigned or unavailable.'
+      )
       return
     }
 
     const id = String(
-      terminal.counter_id ?? terminal.terminal_id ?? terminal.id
+      getTerminalId(terminal)
     )
+
+    if (!id) {
+      setError(
+        'This terminal has no valid terminal ID.'
+      )
+      return
+    }
 
     setSelectedId(id)
     setError('')
@@ -261,7 +464,11 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
 
   const handleLogout = async () => {
     await signOut()
-    navigate('/superadmin/login', { replace: true })
+
+    navigate(
+      '/superadmin/login',
+      { replace: true }
+    )
   }
 
   // ===================================================
@@ -270,22 +477,43 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
 
   const handleConfirm = async () => {
     if (!selectedTerminal) {
-      setError('Please select a terminal before continuing.')
+      setError(
+        'Please select a terminal before continuing.'
+      )
       return
     }
 
     if (!staffId) {
-      setError('Your staff account could not be identified. Please log in again.')
+      setError(
+        'Your staff account could not be identified. Please log in again.'
+      )
       return
     }
 
     const terminalId =
-      selectedTerminal.counter_id ??
-      selectedTerminal.terminal_id ??
-      selectedTerminal.id
+      getTerminalId(
+        selectedTerminal
+      )
 
     if (!terminalId) {
-      setError('The selected terminal has no valid terminal ID.')
+      setError(
+        'The selected terminal has no valid terminal ID.'
+      )
+      return
+    }
+
+    // Make sure the selected terminal isn't occupied
+    // by another staff member before sending the request.
+    const terminalMeta =
+      getTerminalStatusMeta(
+        selectedTerminal,
+        staffId
+      )
+
+    if (!terminalMeta.selectable) {
+      setError(
+        'This terminal is already assigned or unavailable. Please select another terminal.'
+      )
       return
     }
 
@@ -293,13 +521,65 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
       setSaving(true)
       setError('')
 
-      const assignedTerminal = await assignTerminal(terminalId, staffId)
+      const assignedTerminal =
+        await assignTerminal(
+          terminalId,
+          staffId
+        )
 
-      saveSelectedTerminal(assignedTerminal || selectedTerminal)
+      const savedTerminal = {
+        ...selectedTerminal,
+        ...(assignedTerminal || {}),
 
-      onConfirm?.(assignedTerminal || selectedTerminal)
+        assigned_staff_id:
+          assignedTerminal?.assigned_staff_id ??
+          assignedTerminal?.assignedStaffId ??
+          selectedTerminal.assigned_staff_id ??
+          selectedTerminal.assignedStaffId ??
+          staffId,
+      }
+
+      // Save this terminal ONLY for this staff account.
+      saveSelectedTerminal(
+        savedTerminal,
+        staffId
+      )
+
+      // Update the local terminal list immediately so
+      // the UI reflects the assignment.
+      setTerminals((currentTerminals) =>
+        currentTerminals.map(
+          (terminal) => {
+            const currentId =
+              getTerminalId(
+                terminal
+              )
+
+            if (
+              String(currentId) !==
+              String(terminalId)
+            ) {
+              return terminal
+            }
+
+            return {
+              ...terminal,
+              ...savedTerminal,
+              assigned_staff_id:
+                staffId,
+            }
+          }
+        )
+      )
+
+      onConfirm?.(
+        savedTerminal
+      )
     } catch (assignmentError) {
-      console.error('Failed to assign terminal:', assignmentError)
+      console.error(
+        'Failed to assign terminal:',
+        assignmentError
+      )
 
       setError(
         assignmentError?.message ||
@@ -339,7 +619,10 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
         {/* ERROR */}
         {error && (
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-[#c62828]">
-            <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+            <ShieldAlert
+              size={14}
+              className="mt-0.5 shrink-0"
+            />
             <span>{error}</span>
           </div>
         )}
@@ -358,7 +641,10 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
         {/* LIST */}
         {loading ? (
           <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-xs text-slate-500">
-            <RefreshCw size={14} className="mr-2 animate-spin" />
+            <RefreshCw
+              size={14}
+              className="mr-2 animate-spin"
+            />
             Loading available terminals...
           </div>
         ) : filteredTerminals.length === 0 ? (
@@ -366,73 +652,98 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
             <p className="text-sm font-semibold text-slate-700">
               No terminals are available
             </p>
+
             <p className="mt-1 text-xs text-slate-500">
               Please contact your administrator.
             </p>
           </div>
         ) : (
           <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-            {filteredTerminals.map((terminal) => {
-              const terminalId = String(
-                terminal.counter_id ?? terminal.terminal_id ?? terminal.id
-              )
+            {filteredTerminals.map(
+              (terminal) => {
+                const terminalId =
+                  String(
+                    getTerminalId(
+                      terminal
+                    )
+                  )
 
-              const terminalName =
-                terminal.name ??
-                terminal.counter_name ??
-                terminal.terminal_name ??
-                `Terminal ${
-                  terminal.counter_number ??
-                  terminal.terminal_number ??
+                const terminalName =
+                  terminal.name ??
+                  terminal.counter_name ??
+                  terminal.terminal_name ??
+                  `Terminal ${
+                    terminal.counter_number ??
+                    terminal.terminal_number ??
+                    terminalId
+                  }`
+
+                const meta =
+                  getTerminalStatusMeta(
+                    terminal,
+                    staffId
+                  )
+
+                const isSelected =
+                  selectedId ===
                   terminalId
-                }`
 
-              const meta = getTerminalStatusMeta(terminal, staffId)
-              const isSelected = selectedId === terminalId
-
-              return (
-                <button
-                  key={terminalId}
-                  type="button"
-                  onClick={() => chooseTerminal(terminal)}
-                  disabled={!meta.selectable || saving}
-                  className={`flex w-full items-center justify-between rounded-md border px-3 py-2.5 text-left transition-all ${
-                    isSelected
-                      ? 'border-[#c62828] bg-red-50/40'
-                      : meta.selectable
-                      ? 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                      : 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-70'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-500">
-                      <Monitor size={16} />
-                    </span>
-
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">
-                        {terminalName}
-                      </p>
-                      <p className="text-[10px] text-slate-500">
-                        {meta.detail}
-                      </p>
-                    </div>
-                  </div>
-
-                  <span
-                    className={`shrink-0 rounded-md px-2 py-1 text-[9px] font-bold ${meta.pillClass}`}
+                return (
+                  <button
+                    key={terminalId}
+                    type="button"
+                    onClick={() =>
+                      chooseTerminal(
+                        terminal
+                      )
+                    }
+                    disabled={
+                      !meta.selectable ||
+                      saving
+                    }
+                    className={`flex w-full items-center justify-between rounded-md border px-3 py-2.5 text-left transition-all ${
+                      isSelected
+                        ? 'border-[#c62828] bg-red-50/40'
+                        : meta.selectable
+                        ? 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        : 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-70'
+                    }`}
                   >
-                    {meta.label}
-                  </span>
-                </button>
-              )
-            })}
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                        <Monitor size={16} />
+                      </span>
+
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">
+                          {terminalName}
+                        </p>
+
+                        <p className="text-[10px] text-slate-500">
+                          {meta.detail}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`shrink-0 rounded-md px-2 py-1 text-[9px] font-bold ${meta.pillClass}`}
+                    >
+                      {meta.label}
+                    </span>
+                  </button>
+                )
+              }
+            )}
           </div>
         )}
 
         {/* INFO NOTE */}
         <div className="mt-3 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-[10px] text-slate-500">
-          <Info size={13} className="mt-0.5 shrink-0" />
+          <Info
+            size={13}
+            className="mt-0.5 shrink-0"
+          />
+
           <span>
             Logging into this terminal routes new patient tickets directly to
             your physical window and display board.
@@ -441,24 +752,33 @@ export default function TerminalSelectModal({ departmentName, onConfirm }) {
 
         {/* FOOTER */}
         <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3">
-      <button
-  type="button"
-  onClick={handleLogout}
-  className="rounded-md border px-3 py-2 text-xs font-semibold text-[#334155] transition hover:bg-slate-50"
->
-  [→ Logout
-</button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="rounded-md border px-3 py-2 text-xs font-semibold text-[#334155] transition hover:bg-slate-50"
+          >
+            [→ Logout
+          </button>
 
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={saving || !selectedTerminal || loading}
+            disabled={
+              saving ||
+              !selectedTerminal ||
+              loading
+            }
             className="inline-flex items-center gap-2 rounded-lg bg-[#c62828] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#a92121] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? 'Assigning terminal...' : 'Confirm & Open Terminal'}
+            {saving
+              ? 'Assigning terminal...'
+              : 'Confirm & Open Terminal'}
 
             {saving ? (
-              <RefreshCw size={14} className="animate-spin" />
+              <RefreshCw
+                size={14}
+                className="animate-spin"
+              />
             ) : (
               <ArrowRight size={14} />
             )}

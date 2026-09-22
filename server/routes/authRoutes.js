@@ -8,9 +8,15 @@ const {
 
 const {
   sendPasswordChangedEmail,
-  sendPasswordResetCodeEmail,
+  sendChangePasswordVerificationEmail,
 } = require("../utils/emailService");
-
+const {
+  createPasswordResetChallenge,
+  verifyChangePasswordCode,
+  sendPasswordResetCode,
+  verifyPasswordResetCode,
+  resetPassword,
+} = require("../services/passwordResetService");
 const {
   getAuth,
 } = require("firebase-admin/auth");
@@ -18,11 +24,6 @@ const {
 const {
   authenticateRequest,
 } = require("../middleware/authMiddleware");
-
-const {
-  createPasswordResetChallenge,
-  verifyPasswordResetCode,
-} = require("../services/passwordResetService");
 
 const router = express.Router();
 
@@ -654,7 +655,7 @@ router.post(
           req.user.user_id
         );
 
-      await sendPasswordResetCodeEmail(
+      await sendChangePasswordVerificationEmail(
         req.user.email,
         req.user.first_name || "there",
         code
@@ -728,7 +729,7 @@ router.post(
       }
 
       const verificationResult =
-        await verifyPasswordResetCode(
+        await verifyChangePasswordCode(
           req.user.user_id,
           code
         );
@@ -789,5 +790,93 @@ router.post(
 | EXPORT ROUTER
 |--------------------------------------------------------------------------
 */
+// =====================================================
+// FORGOT PASSWORD - SEND VERIFICATION CODE
+// =====================================================
+
+router.post("/forgot-password/send-code", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const result = await sendPasswordResetCode(email);
+
+    return res.json(result);
+  } catch (error) {
+    console.error(
+      "FORGOT PASSWORD SEND CODE ERROR:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Unable to send verification code.",
+    });
+  }
+});
+
+// =====================================================
+// FORGOT PASSWORD - VERIFY CODE
+// =====================================================
+
+router.post("/forgot-password/verify-code", async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    const result = await verifyPasswordResetCode(
+      email,
+      code
+    );
+
+    return res.json(result);
+  } catch (error) {
+    console.error(
+      "FORGOT PASSWORD VERIFY CODE ERROR:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Unable to verify verification code.",
+    });
+  }
+});
+
+// =====================================================
+// FORGOT PASSWORD - RESET PASSWORD
+// =====================================================
+
+router.post("/forgot-password/reset-password", async (req, res) => {
+  try {
+    const {
+      email,
+      resetToken,
+      password,
+    } = req.body;
+
+    const result = await resetPassword(
+      email,
+      resetToken,
+      password
+    );
+
+    return res.json(result);
+  } catch (error) {
+    console.error(
+      "FORGOT PASSWORD RESET ERROR:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        "Unable to reset password.",
+    });
+  }
+});
 
 module.exports = router;

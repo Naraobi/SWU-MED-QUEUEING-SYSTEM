@@ -231,8 +231,11 @@ SWU Med Queue System`,
 
   await transporter.sendMail(mailOptions);
 }
-
-async function sendPasswordResetCodeEmail(
+// Sent for the authenticated "Change Password" wizard in Settings -
+// distinct from sendPasswordResetCodeEmail below (the signed-out
+// "Forgot Password" flow), so the wording always matches which one
+// the recipient actually triggered.
+async function sendChangePasswordVerificationEmail(
   recipientEmail,
   firstName,
   verificationCode
@@ -310,9 +313,99 @@ SWU Med Queue System`,
   await transporter.sendMail(mailOptions);
 }
 
+// Sent for the signed-out "Forgot Password" flow.
+async function sendPasswordResetCodeEmail(
+  recipientEmail,
+  firstName,
+  verificationCode
+) {
+  const mailOptions = {
+    from: `"SWU Med Queue System" <${process.env.EMAIL_USER}>`,
+    to: recipientEmail,
+    subject: "SWU Med Queue System Password Reset Code",
+
+    text: `Hello ${firstName},
+
+A request was made to reset your password for the SWU Med Queue System.
+
+Your 6-digit verification code is:
+
+${verificationCode}
+
+This code will expire in 10 minutes.
+
+If you did not request a password reset, please ignore this email and contact your system administrator.
+
+Thank you,
+SWU Med Queue System`,
+
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2>SWU Med Queue System</h2>
+
+        <p>Hello ${firstName},</p>
+
+        <p>
+          A request was made to reset your password
+          for the SWU Med Queue System.
+        </p>
+
+        <div
+          style="
+            background-color: #f8f9fa;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+          "
+        >
+          <p style="margin: 0 0 10px 0;">
+            Your verification code is:
+          </p>
+
+          <p
+            style="
+              font-size: 32px;
+              font-weight: bold;
+              letter-spacing: 8px;
+              margin: 0;
+              color: #9D0A0E;
+            "
+          >
+            ${verificationCode}
+          </p>
+        </div>
+
+        <p>
+          <strong>This code will expire in 10 minutes.</strong>
+        </p>
+
+        <p>
+          If you did not request a password reset,
+          please ignore this email and contact your system administrator.
+        </p>
+
+        <p>
+          Thank you,<br />
+          <strong>SWU Med Queue System</strong>
+        </p>
+      </div>
+    `,
+  };
+
+  console.log(
+    "PASSWORD RESET CODE EMAIL: Sending verification code to",
+    recipientEmail
+  );
+
+  await transporter.sendMail(mailOptions);
+}
+
 module.exports = {
   sendTemporaryPasswordEmail,
   sendPinVerificationEmail,
   sendPasswordChangedEmail,
+  sendChangePasswordVerificationEmail,
   sendPasswordResetCodeEmail,
 };
