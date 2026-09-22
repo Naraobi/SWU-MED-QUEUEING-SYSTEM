@@ -78,3 +78,39 @@ html.admin-dark main {
   70% { box-shadow: 0 0 0 8px rgba(29, 78, 137, 0); }
   100% { box-shadow: 0 0 0 0 rgba(29, 78, 137, 0); }
 }
+
+/* Patient kiosk step tracker: a soft red ripple marks the step the
+   patient is currently on, and the checkmark pops in when a step
+   completes. Same technique as .pulse-dot above, just recolored to
+   the kiosk's red brand and reused for the "you are here" step. */
+.step-current-pulse {
+  animation: stepPulseRed 1.8s infinite;
+}
+
+@keyframes stepPulseRed {
+  0% { box-shadow: 0 0 0 0 rgba(157, 10, 14, 0.35); }
+  70% { box-shadow: 0 0 0 8px rgba(157, 10, 14, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(157, 10, 14, 0); }
+}
+
+.step-check-pop {
+  animation: stepCheckPop 0.35s ease-out;
+}
+
+@keyframes stepCheckPop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* Staff dashboard's "Currently Serving" panel: pops in with a gentle
+   overshoot instead of snapping into place whenever a new patient is
+   called (the panel remounts because it's keyed by ticket id). */
+.card-pop-in {
+  animation: cardPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes cardPopIn {
+  0% { opacity: 0; transform: scale(0.9) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}

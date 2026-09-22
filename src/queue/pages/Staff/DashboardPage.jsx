@@ -109,6 +109,24 @@ function formatSeconds(totalSeconds) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+// Speaks the called number immediately on the calling staff's own
+// device, so they don't have to wait on the public TV display's 5s
+// poll (see TvDisplay.jsx's useCallAnnouncer, which announces the
+// same way for the waiting room screen).
+function announceCalledPatient(queueNumber, terminalName) {
+  if (!queueNumber || !('speechSynthesis' in window)) return
+
+  const spokenNumber = String(queueNumber).split('').join(' ')
+  const where = terminalName ? `, please proceed to ${terminalName}` : ''
+
+  const utterance = new SpeechSynthesisUtterance(
+    `Now serving ${spokenNumber}${where}.`
+  )
+  utterance.rate = 0.9
+
+  window.speechSynthesis.speak(utterance)
+}
+
 function matchesStaffDepartment(patientId, staffPrefix) {
   if (!patientId || !staffPrefix) return false
   const cleanId = String(patientId).startsWith('P-')
@@ -414,6 +432,7 @@ export default function DashboardPage() {
     currentlyServing,
     stats,
     refresh,
+    clearQueue,
     callNextPatient,
     markPatientArrived,
     startService,
@@ -461,6 +480,16 @@ export default function DashboardPage() {
   // call reads this instead of touching selectedTerminal directly, so
   // there is exactly one place that knows how to extract the ID.
   const terminalId = getTerminalId(selectedTerminal)
+
+  // Defense in depth: if terminalId is null (no terminal selected),
+  // wipe any stale queue state so this dashboard never displays a
+  // patient it cannot act on. Without this, leftover state from a
+  // previous session or another terminal leaks into the UI.
+  useEffect(() => {
+    if (!terminalId) {
+      clearQueue()
+    }
+  }, [terminalId, clearQueue])
 
   const [showFullQueueModal, setShowFullQueueModal] = useState(false)
   const [localSeconds, setLocalSeconds] = useState(0)
@@ -561,15 +590,13 @@ export default function DashboardPage() {
   ])
 
   useEffect(() => {
-    if (!staffPrefix) return
+    if (!staffPrefix || !terminalId) return
     refresh(staffPrefix, undefined, { terminalId })
   }, [staffPrefix, terminalId, refresh])
 
   useEffect(() => {
-    if (!staffPrefix) return
+    if (!staffPrefix || !terminalId) return
     const interval = setInterval(() => {
-      // Silent: background polling must not flash the loading
-      // skeleton over the currently-serving card every 5 seconds.
       refresh(staffPrefix, undefined, {
         silent: true,
         terminalId,
@@ -752,7 +779,7 @@ export default function DashboardPage() {
 
                 {activeServing ? (
                   serviceHasStarted ? (
-                    <div className="mt-4">
+                    <div key={activeServing.id} className="mt-4 card-pop-in">
                       <p className="text-[50px] leading-none font-black text-[#851010] tracking-tight">
                         {activeServing.id}
                       </p>
@@ -792,7 +819,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-4">
+                    <div key={activeServing.id} className="mt-4 card-pop-in">
                       <p className="text-[50px] leading-none font-black text-[#851010] tracking-tight">
                         {activeServing.id}
                       </p>
@@ -886,7 +913,15 @@ export default function DashboardPage() {
                       onClick={async () => {
                         if (!staffPrefix || !terminalId) return
                         try {
-                          await callNextPatient(staffPrefix, terminalId)
+                          const result = await callNextPatient(staffPrefix, terminalId)
+                          // callNextPatient() re-fetches full queue state after
+                          // calling, so the returned ticket is already run through
+                          // mapQueueItem() — queue_number comes back as `id`, not
+                          // `queue_number` (see api.js's mapQueueItem).
+                          announceCalledPatient(
+                            result?.currentlyServing?.id,
+                            terminalDisplayName
+                          )
                           await refresh(staffPrefix, undefined, { terminalId })
                         } catch (err) {
                           console.error('Call next error:', err)

@@ -628,6 +628,23 @@ export function QueueProvider({ children }) {
     ).length
 
   /* ==========================================================================
+     CLEAR QUEUE STATE
+     ========================================================================== */
+
+  const clearQueue = useCallback(() => {
+    setWaitingQueue([])
+    setCurrentlyServing(null)
+    setActiveTickets([])
+    setStats({
+      waiting: 0,
+      currentlyServing: 0,
+      completed: 0,
+      skipped: 0,
+      averageServiceMinutes: 0,
+    })
+  }, [])
+
+  /* ==========================================================================
      CONTEXT VALUE
      ========================================================================== */
 
@@ -641,6 +658,7 @@ export function QueueProvider({ children }) {
 
     /* Queue loading */
     refresh,
+    clearQueue,
 
     /* Queue actions */
     callNextPatient,

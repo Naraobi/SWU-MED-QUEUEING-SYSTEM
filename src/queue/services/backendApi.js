@@ -2006,6 +2006,67 @@ export async function verifyPasswordChangeCode(
 }
 
   // -----------------------------------------------------
+  // SET UP THE FIRST-EVER SECURITY PIN (NO EMAIL CODE)
+  // POST /api/security/pin/setup
+  // -----------------------------------------------------
+
+  export async function setupSecurityPin(
+    firebaseUser,
+    pin
+  ) {
+    if (!firebaseUser) {
+      throw new Error(
+        "Firebase user is required"
+      );
+    }
+
+    try {
+      const token =
+        await firebaseUser.getIdToken();
+
+      const response = await fetch(
+        `${API_URL}/security/pin/setup`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            pin,
+          }),
+        }
+      );
+
+      const result =
+        await response.json();
+
+      if (
+        !response.ok ||
+        !result.success
+      ) {
+        throw new Error(
+          result.message ||
+            "Failed to create the Security PIN."
+        );
+      }
+
+      return result;
+    } catch (error) {
+      if (
+        error instanceof TypeError
+      ) {
+        throw new Error(
+          "Unable to connect to the backend server."
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  // -----------------------------------------------------
   // REQUEST SECURITY PIN VERIFICATION CODE
   // POST /api/security/pin/request
   // -----------------------------------------------------

@@ -1,15 +1,25 @@
 import { useEffect, useMemo, useRef, useState} from 'react';
 import {
+  AlertTriangle,
   Camera,
   Check,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
   LockKeyhole,
+  Mail,
   Clock3,
   IdCard,
+  Eye,
+  EyeOff,
   Info,
   Lightbulb,
+  Lock,
+  Globe,
+  KeyRound,
+  Circle,
+  Palette,
+  Upload,
   Monitor,
   Moon,
   Pipette,
@@ -67,6 +77,7 @@ import {
 } from './adminHelpers';
 
 import { useLanguage } from './LanguageContext';
+import Logo from '../../../assets/logo.png';
 
 // =====================================================
 // SHARED HELPERS
@@ -190,16 +201,12 @@ function buildReportInsights({ waiting, skipped, completed, staffLabel, t }) {
 // StatCard in ./shared.jsx stays untouched so Dashboard/Reports don't change.
 function QueueStatCard({ label, value, caption, icon: Icon, highlight = false }) {
   return (
-    <div className={`flex h-[152px] flex-col justify-between rounded-xl border bg-white p-[25px] ${highlight ? 'border-[#E6E6E6]' : 'border-[#C3C6D7]'}`}>
+    <div className={`flex h-[152px] flex-col justify-between rounded-xl border bg-white p-[25px] transition-all duration-200 hover:-translate-y-1 hover:border-[#9D0A0E]/40 hover:shadow-lg ${highlight ? 'border-[#E6E6E6]' : 'border-[#C3C6D7]'}`}>
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#1F2937]">{label}</p>
-        {highlight ? (
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7EEEE] text-[#9D0A0E]">
-            <Icon size={18} />
-          </span>
-        ) : (
-          <Icon size={20} className="shrink-0 text-slate-400" />
-        )}
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7EEEE] text-[#9D0A0E]">
+          <Icon size={18} />
+        </span>
       </div>
       <p className="text-[30px] font-bold leading-[38px] tracking-[-0.6px] text-[#212B3A]">{value}</p>
       <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#5F6368]">{caption}</p>
@@ -367,6 +374,19 @@ export function QueueManagementPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
+          <select
+            value={selectedTerminalId}
+            onChange={(event) => setSelectedTerminalId(event.target.value)}
+            className="h-[50px] rounded-lg border border-[#C3C6D7] bg-white px-4 text-sm font-semibold text-[#4B5563] outline-none focus:border-[#9D0A0E]"
+          >
+            <option value="all">All Terminals</option>
+            {departmentTerminals.map((terminal) => (
+              <option key={terminal.counter_id} value={terminal.counter_id}>
+                {terminal.prefix || `Terminal ${terminal.counter_number}`}
+              </option>
+            ))}
+          </select>
+
           <DateRangePicker value={dateRange} onApply={applyDateRange} />
 
           <button
@@ -402,26 +422,12 @@ export function QueueManagementPage() {
         <section className="flex flex-col rounded-xl border border-[#C3C6D7] bg-white p-5">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-[#1F2937]">{selectedTerminalLabel || departmentPrefix}</h2>
-            <div className="flex items-center gap-3">
-              <select
-                value={selectedTerminalId}
-                onChange={(event) => setSelectedTerminalId(event.target.value)}
-                className="h-8 rounded-md border border-[#C3C6D7] bg-white px-2 text-xs font-semibold text-[#4B5563] outline-none focus:border-[#9D0A0E]"
-              >
-                <option value="all">All Terminals</option>
-                {departmentTerminals.map((terminal) => (
-                  <option key={terminal.counter_id} value={terminal.counter_id}>
-                    {terminal.prefix || `Terminal ${terminal.counter_number}`}
-                  </option>
-                ))}
-              </select>
-              {selectedTerminalId !== 'all' && (
-                <span className="flex items-center gap-1.5 text-sm font-medium text-[#065F46]">
-                  <span className={`h-2 w-2 rounded-full ${displayedCurrent ? 'bg-[#16A34A]' : 'bg-slate-300'}`} />
-                  {displayedCurrent ? 'Serving' : 'Idle'}
-                </span>
-              )}
-            </div>
+            {selectedTerminalId !== 'all' && (
+              <span className="flex items-center gap-1.5 text-sm font-medium text-[#065F46]">
+                <span className={`h-2 w-2 rounded-full ${displayedCurrent ? 'bg-[#16A34A]' : 'bg-slate-300'}`} />
+                {displayedCurrent ? 'Serving' : 'Idle'}
+              </span>
+            )}
           </div>
 
           {selectedTerminalId === 'all' ? (
@@ -442,10 +448,10 @@ export function QueueManagementPage() {
                 return (
                   <div
                     key={terminal.counter_id}
-                    className="flex flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FB] p-4"
+                    className="flex flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FB] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#9D0A0E]/30 hover:bg-white hover:shadow-md"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-[#1F2937]">{label}</span>
+                      <span className="text-lg font-semibold text-[#1F2937]">{label}</span>
                       <span className={`flex items-center gap-1.5 text-xs font-medium ${ticket ? 'text-[#065F46]' : 'text-slate-400'}`}>
                         <span className={`h-2 w-2 rounded-full ${ticket ? 'bg-[#16A34A]' : 'bg-slate-300'}`} />
                         {ticket ? 'Serving' : 'Idle'}
@@ -881,15 +887,15 @@ export function TerminalManagementPage() {
     <div>
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F2937]">{t('terminal.title')}</h1>
-          <p className="mt-0.5 text-xs text-[#4B5563]">{t('terminal.subtitle')}</p>
+          <h1 className="text-[30px] font-bold leading-[38px] tracking-[-0.6px] text-[#212B3A]">{t('terminal.title')}</h1>
+          <p className="mt-1 text-base text-[#44474C]">{t('terminal.subtitle')}</p>
         </div>
 
         <button
           type="button"
           onClick={openAdd}
           disabled={!adminDepartment || loading}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-[50px] items-center gap-2 rounded-lg bg-[#9D0A0E] px-6 text-sm font-bold tracking-[0.6px] text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-70"
         >
           <Plus size={15} />
           {t('terminal.addButton')}
@@ -905,16 +911,16 @@ export function TerminalManagementPage() {
         </div>
       )}
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={t('common.stat.total')} value={loading ? '…' : String(stats.total)} caption={t('common.stat.totalTerminals')} icon={Monitor} />
-        <StatCard label={t('common.stat.active')} value={loading ? '…' : String(stats.active)} caption={t('common.stat.activeTerminals')} icon={CheckCircle2} />
-        <StatCard label={t('common.stat.inactive')} value={loading ? '…' : String(stats.inactive)} caption={t('common.stat.inactiveTerminal')} icon={XCircle} />
-        <StatCard label={t('common.stat.completed')} value={loading ? '…' : String(stats.completed)} caption={t('common.stat.completedQueuing')} icon={ClipboardCheck} />
+      <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <QueueStatCard label={t('common.stat.total')} value={loading ? '…' : String(stats.total)} caption={t('common.stat.totalTerminals')} icon={Monitor} />
+        <QueueStatCard label={t('common.stat.active')} value={loading ? '…' : String(stats.active)} caption={t('common.stat.activeTerminals')} icon={CheckCircle2} />
+        <QueueStatCard label={t('common.stat.inactive')} value={loading ? '…' : String(stats.inactive)} caption={t('common.stat.inactiveTerminal')} icon={XCircle} />
+        <QueueStatCard label={t('common.stat.completed')} value={loading ? '…' : String(stats.completed)} caption={t('common.stat.completedQueuing')} icon={ClipboardCheck} />
       </div>
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
-        <div className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] px-5 py-4">
-          <h2 className="text-sm font-semibold text-[#1F2937]">{t('terminal.tableTitle')}</h2>
+      <div className="rounded-xl border border-[#C3C6D7] bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-[#C3C6D7] px-6 py-5">
+          <h2 className="text-lg font-semibold text-[#1F2937]">{t('terminal.tableTitle')}</h2>
 
           <div className="relative w-64">
             <input
@@ -934,7 +940,7 @@ export function TerminalManagementPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead>
-              <tr className="bg-[#9D0A0E]/5 text-xs font-bold uppercase tracking-wide text-slate-600">
+              <tr className="border-b border-[#C3C6D7] bg-[#F7EEEE] text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-5 py-3">{t('terminal.table.terminalNo')}</th>
                 <th className="px-5 py-3">{t('common.table.fullName')}</th>
                 <th className="px-5 py-3">{t('staff.table.kiosk')}</th>
@@ -958,13 +964,13 @@ export function TerminalManagementPage() {
                     <tr
                       key={terminal.counter_id}
                       onClick={() => openEdit(terminal)}
-                      className="cursor-pointer border-t border-[#E5E7EB] hover:bg-slate-50"
+                      className="cursor-pointer border-t border-[#C3C6D7] hover:bg-slate-50"
                     >
-                      <td className="px-5 py-3 font-semibold text-slate-700">{terminal.prefix || `T-${terminal.counter_number}`}</td>
-                      <td className="px-5 py-3 text-slate-700">{assigned ? `${assigned.first_name} ${assigned.last_name}` : t('common.unassigned')}</td>
-                      <td className="px-5 py-3 text-slate-600">{adminKiosk?.name || '--'}</td>
-                      <td className="px-5 py-3 text-slate-600">{assigned ? t('common.stat.staff') : '--'}</td>
-                      <td className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      <td className="px-5 py-3 text-[11px] font-semibold text-[#1F2937]">{terminal.prefix || `T-${terminal.counter_number}`}</td>
+                      <td className="px-5 py-3 text-[11px] text-[#4B5563]">{assigned ? `${assigned.first_name} ${assigned.last_name}` : t('common.unassigned')}</td>
+                      <td className="px-5 py-3 text-[11px] text-[#4B5563]">{adminKiosk?.name || '--'}</td>
+                      <td className="px-5 py-3 text-[11px] text-[#4B5563]">{assigned ? t('common.stat.staff') : '--'}</td>
+                      <td className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-[#4B5563]">
                         {normalizeRole(terminal.status) === 'active' ? t('common.stat.active') : t('common.stat.inactive')}
                       </td>
                     </tr>
@@ -980,7 +986,7 @@ export function TerminalManagementPage() {
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-xs text-slate-500">
+        <div className="flex items-center justify-between border-t border-[#C3C6D7] px-5 py-3 text-xs text-slate-500">
           <span>{t('terminal.showing', { count: filteredTerminals.length, total: departmentTerminals.length })}</span>
 
           <div className="flex items-center gap-2">
@@ -988,7 +994,7 @@ export function TerminalManagementPage() {
               type="button"
               onClick={() => setPage((value) => Math.max(1, value - 1))}
               disabled={currentPage === 1}
-              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-md border border-[#C3C6D7] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
             >
               {t('common.prev')}
             </button>
@@ -1012,7 +1018,7 @@ export function TerminalManagementPage() {
               type="button"
               onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
               disabled={currentPage === totalPages}
-              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-md border border-[#C3C6D7] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
             >
               {t('common.next')}
             </button>
@@ -1130,7 +1136,7 @@ export function TerminalManagementPage() {
       {modal?.type === 'edit' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
           <section className="w-full max-w-md rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
-            <header className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
+            <header className="flex items-center justify-between border-b border-[#C3C6D7] px-6 py-5">
               <h2 className="text-lg font-bold text-[#1F2937]">{t('terminal.editModalTitle')}</h2>
               <button type="button" onClick={closeModal} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
                 <X size={19} />
@@ -1358,8 +1364,8 @@ export function ReportsPage() {
     <div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F2937]">{t('reports.title')}</h1>
-          <p className="mt-1 text-xs text-[#4B5563]">{t('reports.subtitle')}</p>
+          <h1 className="text-[30px] font-bold leading-[38px] tracking-[-0.6px] text-[#212B3A]">{t('reports.title')}</h1>
+          <p className="mt-1 text-base text-[#44474C]">{t('reports.subtitle')}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -1369,7 +1375,7 @@ export function ReportsPage() {
             type="button"
             onClick={() => applyDateRange(dateRange)}
             disabled={refreshing}
-            className="flex h-9 items-center gap-2 rounded-md bg-[#9D0A0E] px-4 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-70"
+            className="flex h-[50px] items-center gap-2 rounded-lg bg-[#9D0A0E] px-6 text-sm font-bold tracking-[0.6px] text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {refreshing && <RefreshCw size={12} className="animate-spin" />}
             {refreshing ? t('common.applying') : t('common.applyFilter')}
@@ -1379,26 +1385,26 @@ export function ReportsPage() {
             type="button"
             onClick={handleReset}
             disabled={refreshing}
-            className="flex h-9 items-center rounded-md border border-[#E5E7EB] bg-white px-4 text-xs font-semibold text-[#4B5563] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-70"
+            className="flex h-[50px] items-center rounded-lg border border-[#C3C6D7] bg-white px-5 text-sm font-semibold text-[#4B5563] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {t('common.reset')}
           </button>
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label={t('common.stat.totalWaiting')} value={loading ? '…' : String(queueStats.waiting || 0)} caption={t('common.stat.acrossAllDepartments')} icon={Users} />
-        <StatCard label={t('common.stat.averageWait')} value="18m" caption={t('common.stat.noColumnYet')} icon={Clock3} />
-        <StatCard label={t('common.stat.completed')} value={loading ? '…' : String(queueStats.completed || 0)} caption={t('common.stat.completedQueuing')} icon={CheckCircle2} />
-        <StatCard label={t('common.stat.staff')} value={loading ? '…' : staffLabel} caption={t('common.stat.activeStaffTotal')} icon={IdCard} />
-        <StatCard label={t('common.stat.terminal')} value={loading ? '…' : terminalLabel} caption={t('common.stat.activeTerminal')} icon={Monitor} />
+      <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <QueueStatCard label={t('common.stat.totalWaiting')} value={loading ? '…' : String(queueStats.waiting || 0)} caption={t('common.stat.acrossAllDepartments')} icon={Users} />
+        <QueueStatCard label={t('common.stat.averageWait')} value="18m" caption={t('common.stat.noColumnYet')} icon={Clock3} />
+        <QueueStatCard label={t('common.stat.completed')} value={loading ? '…' : String(queueStats.completed || 0)} caption={t('common.stat.completedQueuing')} icon={CheckCircle2} />
+        <QueueStatCard label={t('common.stat.staff')} value={loading ? '…' : staffLabel} caption={t('common.stat.activeStaffTotal')} icon={IdCard} />
+        <QueueStatCard label={t('common.stat.terminal')} value={loading ? '…' : terminalLabel} caption={t('common.stat.activeTerminal')} icon={Monitor} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-12">
-        <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm lg:col-span-7">
+        <div className="rounded-xl border border-[#C3C6D7] bg-white p-5 lg:col-span-7">
           <div className="flex items-center gap-2">
             <Lightbulb size={16} className="text-[#9D0A0E]" />
-            <h2 className="text-sm font-bold text-[#1F2937]">{t('reports.aiInsights')}</h2>
+            <h2 className="text-lg font-semibold text-[#1F2937]">{t('reports.aiInsights')}</h2>
           </div>
 
           <div className="mt-4 space-y-3">
@@ -1421,7 +1427,7 @@ export function ReportsPage() {
           </div>
         </div>
 
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm lg:col-span-5">
+        <div className="flex flex-col justify-between rounded-xl border border-[#C3C6D7] bg-white p-5 lg:col-span-5">
           <div>
             <h2 className="mb-4 text-sm font-bold text-[#1F2937]">{t('reports.recentActivity')}</h2>
 
@@ -1434,7 +1440,7 @@ export function ReportsPage() {
                     <span className="mt-1.5 block h-2.5 w-2.5 shrink-0 rounded-full bg-[#9D0A0E]" />
                     <div>
                       <p className="text-xs font-semibold text-[#1F2937]">{item.title || t('reports.activityFallback')}</p>
-                      <p className="mt-0.5 text-[11px] text-slate-400">{item.message || item.time || ''}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">{item.message || item.time || ''}</p>
                     </div>
                   </div>
                 ))}
@@ -1461,8 +1467,8 @@ export function ReportsPage() {
 
       {showFullLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-lg rounded-lg border border-[#E5E7EB] bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
+          <div className="w-full max-w-lg rounded-xl border border-[#C3C6D7] bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#C3C6D7] px-6 py-5">
               <h2 className="text-lg font-bold text-[#1F2937]">{t('reports.recentActivity')}</h2>
               <button type="button" onClick={() => setShowFullLog(false)} aria-label="Close" className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">
                 <X size={18} />
@@ -1474,7 +1480,7 @@ export function ReportsPage() {
                 <div key={item.id || index} className="flex items-start gap-3 py-4">
                   <span className="mt-1.5 block h-2.5 w-2.5 shrink-0 rounded-full bg-[#9D0A0E]" />
                   <div>
-                    <p className="text-sm font-semibold text-[#1F2937]">{item.title || t('reports.activityFallback')}</p>
+                    <p className="text-lg font-semibold text-[#1F2937]">{item.title || t('reports.activityFallback')}</p>
                     <p className="mt-0.5 text-xs text-slate-400">{item.message || item.time || ''}</p>
                   </div>
                 </div>
@@ -1485,7 +1491,7 @@ export function ReportsPage() {
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-xs text-slate-500">
+            <div className="flex items-center justify-between border-t border-[#C3C6D7] px-5 py-3 text-xs text-slate-500">
               <span>{t('reports.showingLog', { from: notifications.length === 0 ? 0 : (logPage - 1) * LOG_PAGE_SIZE + 1, to: Math.min(logPage * LOG_PAGE_SIZE, notifications.length), total: notifications.length })}</span>
 
               <div className="flex items-center gap-2">
@@ -1493,7 +1499,7 @@ export function ReportsPage() {
                   type="button"
                   onClick={() => setLogPage((p) => Math.max(1, p - 1))}
                   disabled={logPage === 1}
-                  className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+                  className="rounded-md border border-[#C3C6D7] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
                 >
                   {t('common.prev')}
                 </button>
@@ -1515,7 +1521,7 @@ export function ReportsPage() {
                   type="button"
                   onClick={() => setLogPage((p) => Math.min(logTotalPages, p + 1))}
                   disabled={logPage === logTotalPages}
-                  className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+                  className="rounded-md border border-[#C3C6D7] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
                 >
                   {t('common.next')}
                 </button>
@@ -1825,7 +1831,7 @@ function CreatePinModal({ onClose, onContinue }) {
       <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
           <div>
-            <h2 className="text-sm font-bold text-slate-800">
+            <h2 className="text-lg font-semibold text-[#1F2937]">
               Create Security PIN
             </h2>
             <p className="mt-0.5 text-[10px] text-slate-500">
@@ -2128,180 +2134,6 @@ function SuccessModal({
   );
 }
 
-function NewPasswordModal({ onClose, onContinue }) {
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const requirements = [
-    { label: 'At least 8 characters', met: newPassword.length >= 8 },
-    { label: 'One uppercase letter', met: /[A-Z]/.test(newPassword) },
-    { label: 'One number', met: /\d/.test(newPassword) },
-    { label: 'One special character', met: /[^A-Za-z0-9]/.test(newPassword) },
-  ];
-
-  const handleContinue = async () => {
-    setError('');
-
-    if (!requirements.every((req) => req.met)) {
-      setError('Please meet all password requirements.');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      await onContinue(newPassword);
-    } catch (err) {
-      setError(err?.message || 'Failed to send verification code.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
-          <div>
-            <h2 className="text-sm font-bold text-slate-800">
-              Change Password
-            </h2>
-            <p className="mt-0.5 text-[10px] text-slate-500">
-              Choose a new account password
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 transition hover:text-slate-600"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="space-y-4 px-5 py-5">
-          <div className="flex items-start gap-3 rounded-lg bg-[#FBF1F1] p-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#9D0A0E]">
-              <LockKeyhole size={16} />
-            </div>
-
-            <p className="text-[11px] leading-4 text-slate-600">
-              We'll email a verification code to confirm it's really you
-              before this takes effect.
-            </p>
-          </div>
-
-          <div>
-            <label
-              htmlFor="admin-new-password"
-              className="mb-1.5 block text-xs font-semibold text-slate-700"
-            >
-              New Password
-            </label>
-
-            <input
-              id="admin-new-password"
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(e) => {
-                setNewPassword(e.target.value);
-                setError('');
-              }}
-              placeholder="Enter new password"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="admin-confirm-new-password"
-              className="mb-1.5 block text-xs font-semibold text-slate-700"
-            >
-              Confirm Password
-            </label>
-
-            <input
-              id="admin-confirm-new-password"
-              type="password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                setError('');
-              }}
-              placeholder="Re-enter new password"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
-            />
-          </div>
-
-          <ul className="space-y-1">
-            {requirements.map((req) => (
-              <li
-                key={req.label}
-                className={`flex items-center gap-1.5 text-[10px] ${
-                  req.met ? 'text-emerald-600' : 'text-slate-400'
-                }`}
-              >
-                <Check size={11} strokeWidth={3} className={req.met ? '' : 'opacity-30'} />
-                {req.label}
-              </li>
-            ))}
-          </ul>
-
-          {error && (
-            <p className="text-xs font-medium text-red-600">
-              {error}
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={handleContinue}
-            disabled={submitting}
-            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? 'Sending…' : 'Continue'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------- Security PIN gate (shown right after login) ---------------- */
-//
-// Sits in front of the rest of the Admin app for any admin who has a
-// Security PIN configured, so it's the first thing they see after
-// signing in - not just something buried in Settings. Admins who
-// haven't set up a PIN yet aren't blocked by it; nothing exists yet
-// to check them against.
-//
-// "Forgot your PIN?" reuses the same email-verification-code flow as
-// Settings (CreatePinModal + EmailCodeModal + SuccessModal) so an
-// admin who's locked themselves out isn't stuck - Settings, where
-// that flow normally lives, is itself behind this gate.
-
 export function SecurityPinGate({ onUnlock }) {
   const { user, signOut } = useAuth();
 
@@ -2462,313 +2294,1727 @@ export function SecurityPinGate({ onUnlock }) {
   );
 }
 
-export function SettingsPage() {
-  const { user } = useAuth();
-  const { t, language, setLanguage } = useLanguage();
 
-  const [theme, setTheme] = useState(loadStoredTheme());
-  const [avatar, setAvatar] = useState(loadStoredAvatar());
-  const [departments, setDepartments] = useState([]);
+// =====================================================
+// SETTINGS - EXACT REFERENCE IMPLEMENTATION
+// =====================================================
 
-  const [showDeptModal, setShowDeptModal] = useState(false);
-  const [showThemeModal, setShowThemeModal] = useState(false);
-  const [activePinModal, setActivePinModal] = useState(null);
-  const [pinConfigured, setPinConfigured] = useState(false);
-  const [pinStatusLoading, setPinStatusLoading] = useState(true);
-  const [pendingPin, setPendingPin] = useState('');
+const SETTINGS_ACCENT_PRESETS = [
+  '#9D0A0E',
+  '#B34C4C',
+  '#1F2937',
+  '#0F766E',
+  '#4B5563',
+];
 
-  const [activePasswordModal, setActivePasswordModal] = useState(null);
-  const [pendingPassword, setPendingPassword] = useState('');
+const SETTINGS_LANGUAGES = ['English', 'Filipino', 'Cebuano'];
 
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+const SETTINGS_CLOCK_FORMATS = [
+  '12-Hour (1:30 PM)',
+  '24-Hour (13:30)',
+];
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await getDepartments();
-        setDepartments(data || []);
-      } catch (err) {
-        console.error('Failed to load departments:', err);
-      }
-    }
+const SETTINGS_THEME_MODES = [
+  {
+    key: 'light',
+    label: 'Light Mode',
+    caption: 'Default hospital theme',
+    icon: Sun,
+  },
+  {
+    key: 'dark',
+    label: 'Dark Mode',
+    caption: 'Dimmed high-contrast',
+    icon: Moon,
+  },
+  {
+    key: 'system',
+    label: 'System Default',
+    caption: 'Follows OS preference',
+    icon: Monitor,
+  },
+];
 
-    load();
-  }, []);
+const SETTINGS_THEME_SWATCHES = [
+  { key: 'blue', colors: ['#9D0A0E', '#D4B0B1', '#7D080B', '#F0DADA'] },
+  { key: 'slate', colors: ['#6B7280', '#9CA3AF', '#4B5563', '#D1D5DB'] },
+  { key: 'ocean', colors: ['#1E5FA8', '#5B8FC9', '#123C73', '#A8C4E0'] },
+  { key: 'steel', colors: ['#64748B', '#94A3B8', '#334155', '#CBD5E1'] },
+  { key: 'graphite', colors: ['#455A64', '#78909C', '#37474F', '#B0BEC5'] },
+  { key: 'teal', colors: ['#14B8A6', '#5EEAD4', '#0F766E', '#99F6E4'] },
+  { key: 'green', colors: ['#22C55E', '#86EFAC', '#15803D', '#BBF7D0'] },
+  { key: 'moss', colors: ['#5F7A5F', '#8FA98F', '#3F5A3F', '#B8CBB8'] },
+  { key: 'olive', colors: ['#A3A32B', '#C7C755', '#7A7A1F', '#DEDE8A'] },
+  { key: 'orange', colors: ['#F97316', '#FDBA74', '#C2410C', '#FED7AA'] },
+  { key: 'brown', colors: ['#6B4F3F', '#A98A76', '#4A362A', '#D6C0B1'] },
+  { key: 'rose', colors: ['#E11D6B', '#F9A8C4', '#9F1239', '#FBCFE0'] },
+  { key: 'mauve', colors: ['#8B6B6B', '#B08F8F', '#6A4F4F', '#D4BDBD'] },
+  { key: 'pink', colors: ['#E879C6', '#F5B4E0', '#C0439C', '#FBDCF1'] },
+  { key: 'purple', colors: ['#8B5CF6', '#C4B5FD', '#6D28D9', '#DDD6FE'] },
+];
 
-  useEffect(() => {
-    let mounted = true;
+function settingsQuadrantGradient(colors) {
+  const [a, b, c, d] = colors;
+  return `conic-gradient(from 0deg, ${a} 0deg 90deg, ${b} 90deg 180deg, ${c} 180deg 270deg, ${d} 270deg 360deg)`;
+}
 
-    async function loadPinStatus() {
-      try {
-        const result = await getSecurityPinStatus(auth.currentUser);
-        if (mounted) setPinConfigured(Boolean(result?.configured));
-      } catch (err) {
-        console.error('Failed to load Security PIN status:', err);
-      } finally {
-        if (mounted) setPinStatusLoading(false);
-      }
-    }
-
-    loadPinStatus();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const adminDepartment = useMemo(
-    () => findDepartmentForUser(departments, user),
-    [departments, user]
-  );
-
-  function handleAvatarChange(dataUrl) {
-    setAvatar(dataUrl);
-    saveStoredAvatar(dataUrl);
-  }
-
-  function closePinFlow() {
-    setActivePinModal(null);
-    setPendingPin('');
-  }
-
-  async function handlePinContinue(pin) {
-    setPendingPin(pin);
-    await requestSecurityPinVerification(auth.currentUser);
-    setActivePinModal('verifyPin');
-  }
-
-  async function handlePinResend() {
-    await requestSecurityPinVerification(auth.currentUser);
-  }
-
-  async function handlePinVerify(code) {
-    await verifySecurityPinCode(auth.currentUser, code, pendingPin);
-    setPendingPin('');
-    setPinConfigured(true);
-    setActivePinModal('pinSuccess');
-  }
-
-  function closePasswordFlow() {
-    setActivePasswordModal(null);
-    setPendingPassword('');
-  }
-
-  async function handlePasswordContinue(newPassword) {
-    setPendingPassword(newPassword);
-    await requestPasswordChangeCode(auth.currentUser);
-    setActivePasswordModal('verify');
-  }
-
-  async function handlePasswordResend() {
-    await requestPasswordChangeCode(auth.currentUser);
-  }
-
-  async function handlePasswordVerify(code) {
-    await verifyPasswordChangeCode(auth.currentUser, code, pendingPassword);
-    setPendingPassword('');
-    setActivePasswordModal('success');
-  }
-
+function SettingsExactSection({ icon: Icon, title, subtitle, badge, children }) {
   return (
-    <div>
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold text-[#1F2937]">{t('settings.title')}</h1>
-        <p className="mt-1 text-xs text-[#4B5563]">{t('settings.subtitle')}</p>
+    <section className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-4 px-6 py-4">
+        <div className="flex items-start gap-2.5">
+          <Icon size={16} className="mt-0.5 shrink-0 text-[#9D0A0E]" />
+          <div>
+            <h2 className="text-base font-bold text-[#1F2937]">{title}</h2>
+            <p className="mt-0.5 text-xs leading-4.5 text-[#667085]">{subtitle}</p>
+          </div>
+        </div>
+        {badge && (
+          <span className="shrink-0 rounded-full bg-[#F1F3F5] px-2.5 py-1 text-[10px] font-semibold text-[#667085]">
+            {badge}
+          </span>
+        )}
       </div>
+      <div className="border-t border-[#E5E7EB] px-6 py-5">{children}</div>
+    </section>
+  );
+}
 
-      <div className="space-y-4">
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold text-[#1F2937]">{t('settings.appearance')}</h2>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setShowDeptModal(true)}
-              className="flex items-center gap-2 rounded-md bg-[#F1F3F5] px-4 py-2.5 text-xs font-semibold text-[#1F2937] hover:bg-slate-200"
-            >
-              {t('modal.deptCustomization')}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowThemeModal(true)}
-              className="flex items-center gap-2 rounded-md bg-[#F1F3F5] px-4 py-2.5 text-xs font-semibold text-[#1F2937] hover:bg-slate-200"
-            >
-              {t('settings.theme')}
-            </button>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold text-[#1F2937]">{t('settings.language')}</h2>
-
-          <div className="flex flex-wrap gap-3">
-            {['English', 'Filipino', 'Cebuano'].map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setLanguage(option)}
-                className={`rounded-md border px-4 py-2 text-xs font-semibold ${
-                  language === option
-                    ? 'border-[#9D0A0E] bg-[#9D0A0E]/5 text-[#9D0A0E]'
-                    : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-
-          <p className="mt-3 text-[10px] text-slate-400">
-            {t('settings.languageNote')}
-          </p>
-        </section>
-
-                <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-bold text-slate-800">
-                Security
-              </h2>
-
-              <div className="mt-4 flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
-                  <ShieldCheck size={17} />
-                </div>
-
-                <div>
-                  <h3 className="text-xs font-semibold text-slate-800">
-                    Security PIN
-                  </h3>
-
-                  <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">
-                    {pinConfigured
-                      ? 'Your security PIN is active and protects sensitive kiosk and department operations.'
-                      : 'Create a 6-digit PIN to protect kiosk unlocking and department reset operations.'}
-                  </p>
-
-                  {pinConfigured && (
-                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-semibold text-green-700">
-                      <Check size={11} strokeWidth={3} />
-                      Configured
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setActivePinModal('createPin')}
-              disabled={pinStatusLoading}
-              className="shrink-0 rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {pinConfigured ? 'Change PIN' : 'Create PIN'}
-            </button>
-          </div>
-
-          <div className="mt-5 flex items-start justify-between gap-4 border-t border-slate-100 pt-5">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
-                <LockKeyhole size={17} />
-              </div>
-
-              <div>
-                <h3 className="text-xs font-semibold text-slate-800">
-                  Password
-                </h3>
-
-                <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">
-                  Change your account password. We'll email a verification
-                  code to confirm it's you first.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setActivePasswordModal('new')}
-              className="shrink-0 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-            >
-              Change Password
-            </button>
-          </div>
-        </section>
-      </div>
-
-      {showDeptModal && (
-        <DepartmentCustomizationModal
-          user={user}
-          department={adminDepartment}
-          avatar={avatar}
-          onAvatarChange={handleAvatarChange}
-          onClose={() => setShowDeptModal(false)}
-        />
-      )}
-
-      {showThemeModal && (
-        <ThemeModal
-          theme={theme}
-          onClose={() => setShowThemeModal(false)}
-          onSaveTheme={setTheme}
-        />
-      )}
-
-            {activePinModal === 'createPin' && (
-        <CreatePinModal
-          onClose={closePinFlow}
-          onContinue={handlePinContinue}
-        />
-      )}
-
-      {activePinModal === 'verifyPin' && (
-        <EmailCodeModal
-          icon={ShieldCheck}
-          title="Verify Your Email"
-          verifyLabel="Verify"
-          onClose={closePinFlow}
-          onBack={() => setActivePinModal('createPin')}
-          onVerify={handlePinVerify}
-          onResend={handlePinResend}
-        />
-      )}
-
-      {activePinModal === 'pinSuccess' && (
-        <SuccessModal
-          title="PIN Created"
-          subtitle="Your security PIN has been successfully created. You can now use it for protected kiosk and department operations."
-          onClose={closePinFlow}
-        />
-      )}
-
-      {activePasswordModal === 'new' && (
-        <NewPasswordModal
-          onClose={closePasswordFlow}
-          onContinue={handlePasswordContinue}
-        />
-      )}
-
-      {activePasswordModal === 'verify' && (
-        <EmailCodeModal
-          icon={LockKeyhole}
-          title="Verify Your Email"
-          verifyLabel="Change Password"
-          onClose={closePasswordFlow}
-          onBack={() => setActivePasswordModal('new')}
-          onVerify={handlePasswordVerify}
-          onResend={handlePasswordResend}
-        />
-      )}
-
-      {activePasswordModal === 'success' && (
-        <SuccessModal
-          title="Password Changed"
-          subtitle="Your password has been changed successfully. A confirmation email has been sent to your registered email address."
-          onClose={closePasswordFlow}
-        />
+function SettingsExactFieldLabel({ children, required = false, rightLabel = '' }) {
+  return (
+    <div className="mb-1.5 flex items-center justify-between">
+      <label className="text-[10px] font-bold uppercase tracking-[0.04em] text-[#4B5563]">
+        {children}
+        {required && <span className="ml-0.5 text-[#9D0A0E]">*</span>}
+      </label>
+      {rightLabel && (
+        <span className="text-[10px] font-semibold uppercase text-[#98A2B3]">{rightLabel}</span>
       )}
     </div>
   );
 }
+
+function SettingsExactHint({ children }) {
+  return <p className="mt-1.5 text-[10px] leading-4 text-[#98A2B3]">{children}</p>;
+}
+
+function SettingsPinBoxes({ value, onChange, ariaLabel, autoFocus = false, showToggle = true, boxed = true }) {
+  const [show, setShow] = useState(false);
+  const refs = useRef([]);
+
+  function updateDigits(index, rawValue) {
+    const digits = String(rawValue || '').replace(/\D/g, '');
+
+    if (!digits) {
+      const next = Array.from({ length: 6 }, (_, i) => value[i] || '');
+      next[index] = '';
+      onChange(next.join(''));
+      return;
+    }
+
+    const next = Array.from({ length: 6 }, (_, i) => value[i] || '');
+
+    digits
+      .slice(0, 6 - index)
+      .split('')
+      .forEach((digit, offset) => {
+        next[index + offset] = digit;
+      });
+
+    onChange(next.join('').slice(0, 6));
+    refs.current[Math.min(5, index + digits.length)]?.focus();
+  }
+
+  function handlePaste(event, index) {
+    event.preventDefault();
+
+    const pasted = event.clipboardData
+      ?.getData('text')
+      ?.replace(/\D/g, '')
+      .slice(0, 6);
+
+    if (!pasted) return;
+
+    const next = Array.from({ length: 6 }, (_, i) => value[i] || '');
+
+    pasted
+      .slice(0, 6 - index)
+      .split('')
+      .forEach((digit, offset) => {
+        next[index + offset] = digit;
+      });
+
+    onChange(next.join('').slice(0, 6));
+
+    refs.current[Math.min(5, index + pasted.length - 1)]?.focus();
+  }
+
+  function handleKeyDown(event, index) {
+    const next = Array.from({ length: 6 }, (_, i) => value[i] || '');
+
+    if (event.key === 'Backspace') {
+      if (next[index]) {
+        event.preventDefault();
+        next[index] = '';
+        onChange(next.join(''));
+        return;
+      }
+
+      if (index > 0) {
+        event.preventDefault();
+        next[index - 1] = '';
+        onChange(next.join(''));
+        refs.current[index - 1]?.focus();
+      }
+
+      return;
+    }
+
+    if (event.key === 'Delete') {
+      event.preventDefault();
+      next[index] = '';
+      onChange(next.join(''));
+      return;
+    }
+
+    if (event.key === 'ArrowLeft' && index > 0) {
+      event.preventDefault();
+      refs.current[index - 1]?.focus();
+      return;
+    }
+
+    if (event.key === 'ArrowRight' && index < 5) {
+      event.preventDefault();
+      refs.current[index + 1]?.focus();
+    }
+  }
+
+  const inputType = showToggle && show ? 'text' : 'password';
+
+  return (
+    <div className={boxed ? 'relative w-full rounded-md border border-[#667085] bg-white p-2.5' : 'w-full'}>
+      <div className={`grid w-full grid-cols-6 gap-2 ${boxed ? 'pr-10' : ''}`}>
+        {Array.from({ length: 6 }, (_, index) => (
+          <input
+            key={index}
+            ref={(node) => {
+              refs.current[index] = node;
+            }}
+            autoFocus={autoFocus && index === 0}
+            aria-label={`${ariaLabel} digit ${index + 1}`}
+            type={showToggle ? inputType : 'text'}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete={ariaLabel.toLowerCase().includes('verification') ? 'one-time-code' : 'off'}
+            maxLength={1}
+            value={value[index] || ''}
+            onFocus={(event) => event.target.select()}
+            onChange={(event) => updateDigits(index, event.target.value)}
+            onPaste={(event) => handlePaste(event, index)}
+            onKeyDown={(event) => handleKeyDown(event, index)}
+            className="h-10 w-full min-w-0 rounded-md border border-[#D0D5DD] bg-white text-center text-[15px] font-semibold text-[#1F2937] outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/15"
+          />
+        ))}
+      </div>
+
+      {showToggle && (
+        <button
+          type="button"
+          onClick={() => setShow((current) => !current)}
+          className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-[#98A2B3] hover:bg-[#F1F3F5] hover:text-[#475467]"
+          aria-label={show ? 'Hide PIN' : 'Show PIN'}
+          tabIndex={-1}
+        >
+          {show ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SettingsExactPinEmailModal({ onClose, onContinue, initialEmail = '' }) {
+  const [email, setEmail] = useState(initialEmail);
+  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
+
+  async function handleContinue() {
+    setError('');
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setError('Please enter your registered email address.');
+      return;
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) {
+      setError('Your authentication session is unavailable. Please log in again.');
+      return;
+    }
+
+    const registeredEmail = String(firebaseUser.email || '').trim().toLowerCase();
+    if (!registeredEmail) {
+      setError('Your registered email address could not be determined.');
+      return;
+    }
+
+    if (normalizedEmail !== registeredEmail) {
+      setError('The email address does not match your registered account email.');
+      return;
+    }
+
+    try {
+      setSending(true);
+
+      const result = await requestSecurityPinVerification(
+        firebaseUser,
+        normalizedEmail
+      );
+
+      if (result && (result.success === false || result.ok === false)) {
+        throw new Error(
+          result.message ||
+            result.error ||
+            'The verification code could not be sent.'
+        );
+      }
+
+      onContinue(normalizedEmail);
+    } catch (err) {
+      console.error('Failed to send Security PIN verification email:', err);
+      setError(
+        err?.message ||
+          'Failed to send the verification code. Please check your email configuration and try again.'
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 px-4 py-6">
+      <div className="w-full max-w-[520px] overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="relative px-8 pb-7 pt-8 text-center">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-5 top-5 text-[#98A2B3] transition hover:text-[#344054]"
+          >
+            <X size={20} />
+          </button>
+
+          <div className="inline-flex items-center rounded-full bg-[#F1F3F5] px-3.5 py-1.5 text-[11px] font-semibold tracking-[0.04em] text-[#475467]">
+            <span>STEP 1 OF 3</span>
+            <span className="mx-2 text-[#98A2B3]">•</span>
+            <span>IDENTITY VERIFICATION</span>
+          </div>
+
+          <div className="mx-auto mt-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#FFF5F5] text-[#9D0A0E]">
+            <ShieldCheck size={27} strokeWidth={2.2} />
+          </div>
+
+          <h2 className="mt-5 text-[27px] font-bold tracking-[-0.6px] text-[#1F2937]">
+            Change Security PIN
+          </h2>
+          <p className="mx-auto mt-1 max-w-[310px] text-[10px] leading-4 text-[#667085]">
+            For your security, we’ll send a verification code to your registered email address.
+          </p>
+        </div>
+
+        <div className="space-y-5 px-8 pb-8">
+          <div>
+            <label htmlFor="settings-pin-confirm-email" className="mb-2 block text-[13px] font-semibold text-[#1F2937]">
+              Email
+            </label>
+            <div className="relative">
+              <Mail size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#344054]" />
+              <input
+                id="settings-pin-confirm-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setError('');
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !sending) handleContinue();
+                }}
+                placeholder="Enter email"
+                className="h-12 w-full rounded-md border border-[#D0D5DD] bg-white pl-11 pr-3 text-[15px] text-[#1F2937] outline-none transition placeholder:text-[#667085] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-md border border-[#CFE2FF] bg-[#F3F8FF] px-4 py-4">
+            <Info size={14} className="mt-0.5 shrink-0 text-[#344054]" />
+            <p className="text-[9px] leading-4 text-[#475467]">
+              Authorized admin verification code remains valid for 10 minutes. Check spam folder if not received.
+            </p>
+          </div>
+
+          {error && (
+            <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-semibold text-[#9D0A0E]">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleContinue}
+            disabled={sending}
+            className="flex h-[52px] w-full items-center justify-center gap-2 rounded-md bg-[#B5090D] text-[15px] font-semibold text-white transition hover:bg-[#92070A] disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {sending ? 'Sending...' : 'Send Verification Code'}
+            {!sending && <ChevronRight size={18} />}
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={sending}
+            className="h-[50px] w-full rounded-md border border-[#D0D5DD] bg-white text-[15px] font-medium text-[#344054] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsExactCreatePinModal({
+  onClose,
+  onContinue,
+  initialValue = '',
+  verificationCode = '',
+  requireVerificationCode = true,
+  showStepBadge = true,
+  ctaLabel = '',
+  saving = false,
+  serverError = '',
+}) {
+  const [pin, setPin] = useState(initialValue);
+  const [confirmPin, setConfirmPin] = useState('');
+  const [error, setError] = useState('');
+  const canContinue = pin.length === 6 && confirmPin.length === 6 && !saving;
+
+  function handleContinue() {
+    setError('');
+
+    if (!/^\d{6}$/.test(pin)) {
+      setError('Please enter a 6-digit PIN. Only digits (0–9) are accepted.');
+      return;
+    }
+
+    if (!/^\d{6}$/.test(confirmPin)) {
+      setError('Please confirm your 6-digit PIN.');
+      return;
+    }
+
+    if (pin !== confirmPin) {
+      setError('PINs do not match.');
+      return;
+    }
+
+    if (requireVerificationCode && !/^\d{6}$/.test(verificationCode)) {
+      setError('Your verification code is missing. Please verify your email first.');
+      return;
+    }
+
+    onContinue(pin);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 px-4 py-6">
+      <div className="w-full max-w-[520px] overflow-hidden rounded-xl bg-white shadow-2xl">
+        <div className="relative px-8 pb-5 pt-7">
+          <button type="button" onClick={onClose} aria-label="Close" className="absolute right-5 top-5 text-[#98A2B3] hover:text-[#344054]"><X size={19} /></button>
+
+          {showStepBadge && (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center rounded-md bg-[#FBF1F1] px-2.5 py-1 text-[10px] font-bold text-[#9D0A0E]">STEP 3 OF 3</span>
+              <span className="text-[10px] font-medium text-[#667085]">Security Protocol</span>
+            </div>
+          )}
+
+          <div className="mt-4 flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FFF0F0] text-[#9D0A0E]"><ShieldCheck size={19} /></div>
+            <div>
+              <div className="text-[9px] font-semibold uppercase tracking-[0.04em] text-[#667085]">ADMIN CREDENTIALS</div>
+              <h2 className="mt-1 text-[21px] font-bold tracking-[-0.4px] text-[#1F2937]">Set Up Security PIN</h2>
+              <p className="mt-1 max-w-[390px] text-[10px] leading-4.5 text-[#667085]">Create a Security PIN to authorize protected system actions such as resetting records.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-5 px-8 pb-6">
+          <div>
+            <SettingsExactFieldLabel required rightLabel="6 DIGITS">New Security PIN</SettingsExactFieldLabel>
+            <SettingsPinBoxes value={pin} onChange={setPin} ariaLabel="New Security PIN" autoFocus showToggle boxed />
+            <div className="mt-2 flex items-center gap-1.5 text-[9px] leading-4 text-[#667085]">
+              <XCircle size={10} className="text-[#9D0A0E]" />
+              Please enter a 6-digit PIN. Only digits (0–9) are accepted.
+            </div>
+          </div>
+
+          <div>
+            <SettingsExactFieldLabel required rightLabel="MATCH NEW PIN">Confirm Security PIN</SettingsExactFieldLabel>
+            <SettingsPinBoxes value={confirmPin} onChange={setConfirmPin} ariaLabel="Confirm Security PIN" showToggle boxed={false} />
+          </div>
+
+          {(error || serverError) && (
+            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-[10px] font-semibold leading-4 text-[#9D0A0E]">
+              {error || serverError}
+            </p>
+          )}
+
+          <div className="rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3.5 py-2.5">
+            <div className="flex items-start gap-2">
+              <LockKeyhole size={12} className="mt-0.5 shrink-0 text-[#667085]" />
+              <span className="text-[9px] leading-4 text-[#667085]">Keep your Security PIN private. Do not share it with other users.</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-8 pb-3">
+          <button type="button" onClick={handleContinue} disabled={!canContinue} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#B5090D] text-[11px] font-bold text-white transition hover:bg-[#92070A] disabled:cursor-not-allowed disabled:opacity-45">
+            {saving ? 'Saving PIN...' : ctaLabel || 'Change PIN'} <ChevronRight size={14} />
+          </button>
+          <button type="button" onClick={onClose} disabled={saving} className="mt-2.5 h-9 w-full rounded-md border border-[#D0D5DD] bg-white text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-55">Cancel</button>
+        </div>
+
+        <div className="px-8 pb-5 pt-2.5 text-center text-[7px] uppercase tracking-[0.12em] text-[#98A2B3]">
+          <LockKeyhole size={8} className="mr-1 inline-block -translate-y-px" />256-BIT ENCRYPTED HOSPITAL ADMINISTRATION PROTOCOL
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsExactPinVerificationModal({ firebaseUser, verificationEmail, onClose, onBack, onSuccess }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [isResending, setIsResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
+
+  function handleVerify() {
+    setError('');
+
+    if (!/^\d{6}$/.test(code)) {
+      setError('Verification code must be exactly 6 digits.');
+      return;
+    }
+
+    if (!firebaseUser) {
+      setError('Your authentication session is unavailable. Please log in again.');
+      return;
+    }
+
+    // Keep the code for Step 3. The existing backend verification endpoint
+    // validates the code together with the new PIN, so the code is not
+    // consumed or skipped before the PIN is entered.
+    onSuccess(code);
+  }
+
+  async function handleResend() {
+    setError('');
+    setResendMessage('');
+
+    if (!firebaseUser) {
+      setError('Your authentication session is unavailable. Please log in again.');
+      return;
+    }
+
+    try {
+      setIsResending(true);
+
+      const result = await requestSecurityPinVerification(
+        firebaseUser,
+        verificationEmail || firebaseUser.email || ''
+      );
+
+      if (result && (result.success === false || result.ok === false)) {
+        throw new Error(
+          result.message ||
+            result.error ||
+            'The verification code could not be resent.'
+        );
+      }
+
+      setCode('');
+      setResendMessage(
+        `A new verification code was sent to ${
+          verificationEmail || firebaseUser.email || 'your registered email'
+        }.`
+      );
+    } catch (err) {
+      console.error('Failed to resend Security PIN verification email:', err);
+      setError(
+        err?.message ||
+          'Failed to resend the verification code. Please check your email configuration and try again.'
+      );
+    } finally {
+      setIsResending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 px-4 py-6">
+      <div className="w-full max-w-[430px] overflow-hidden rounded-xl bg-white shadow-2xl">
+        <div className="relative px-8 pb-5 pt-7 text-center">
+          <button type="button" onClick={onClose} aria-label="Close" className="absolute right-5 top-5 text-[#98A2B3] hover:text-[#344054]"><X size={18} /></button>
+
+          <span className="inline-flex items-center rounded-full bg-[#F1F3F5] px-3.5 py-1.5 text-[10px] font-semibold text-[#475467]">STEP 2 OF 3 <span className="mx-2 text-[#98A2B3]">•</span> SECURITY VERIFICATION</span>
+
+          <div className="mx-auto mt-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#FFF0F0] text-[#9D0A0E]"><LockKeyhole size={19} /></div>
+          <h2 className="mt-4 text-[21px] font-bold tracking-[-0.4px] text-[#1F2937]">Verify Your Email</h2>
+          <p className="mx-auto mt-1 max-w-[310px] text-[10px] leading-4 text-[#667085]">We sent a 6-digit verification code to your registered email address.</p>
+
+          {verificationEmail && (
+            <span className="mt-3 inline-flex items-center rounded-full border border-[#E5E7EB] bg-white px-2.5 py-1 text-[8px] font-semibold tracking-[0.05em] text-[#667085]">
+              <Mail size={9} className="mr-1.5" />{verificationEmail}
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-5 px-8 pb-5">
+          <div>
+            <SettingsExactFieldLabel rightLabel="6 DIGITS">Verification Code</SettingsExactFieldLabel>
+            <SettingsPinBoxes value={code} onChange={setCode} ariaLabel="Verification code" autoFocus showToggle={false} boxed={false} />
+          </div>
+
+          <div className="rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-3 text-center">
+            <p className="text-[9px] text-[#98A2B3]">Didn't receive the code?</p>
+            <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[9px] text-[#98A2B3]">
+              <span>Code expires in 10 minutes</span>
+              <span>•</span>
+              <button type="button" onClick={handleResend} disabled={isResending} className="font-semibold text-[#9D0A0E] hover:underline disabled:opacity-50">
+                {isResending ? 'Sending...' : 'Resend Code'}
+              </button>
+            </div>
+          </div>
+
+          {error && <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-[10px] font-semibold text-[#9D0A0E]">{error}</p>}
+
+          {resendMessage && (
+            <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[10px] font-semibold text-emerald-700">
+              {resendMessage}
+            </p>
+          )}
+        </div>
+
+        <div className="px-8 pb-3">
+          <button type="button" onClick={handleVerify} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#B5090D] text-[11px] font-bold text-white transition hover:bg-[#92070A]">
+            Verify Code <ChevronRight size={13} />
+          </button>
+          <button type="button" onClick={onBack} className="mt-2.5 h-9 w-full rounded-md border border-[#D0D5DD] bg-white text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA]">Back</button>
+        </div>
+
+        <div className="px-8 pb-5 pt-3 text-center text-[8px] text-[#98A2B3]">
+          <LockKeyhole size={9} className="mr-1 inline-block -translate-y-px" />256-bit encrypted hospital administration protocol
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsExactPinSuccessModal({
+  onClose,
+  title = 'Security PIN Set Successfully',
+  message = 'Your Security PIN can now be used to authorize protected system actions.',
+  configuredByLabel = 'Admin',
+}) {
+  const configuredAt = new Date().toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 px-4">
+      <div className="w-full max-w-[380px] rounded-xl bg-white shadow-2xl">
+        <div className="flex flex-col items-center px-8 py-8 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-[#9FE6CE] bg-[#E8FFF7] text-[#07855F]">
+            <CheckCircle2 size={28} strokeWidth={2.4} />
+          </div>
+          <h2 className="mt-4 text-[17px] font-bold text-[#1F2937]">{title}</h2>
+          <p className="mt-2 max-w-[280px] text-[10px] leading-4 text-[#667085]">{message}</p>
+
+          <div className="mt-5 w-full rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-left">
+            <div className="flex items-start gap-2.5">
+              <ShieldCheck size={12} className="mt-0.5 shrink-0 text-[#07855F]" />
+              <div>
+                <p className="text-[9px] font-bold leading-3 text-[#1F2937]">Protected Actions Active: Record Resets & High-Level System Overrides</p>
+                <p className="mt-0.5 text-[8px] text-[#667085]">Configured on {configuredAt} • {configuredByLabel}</p>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" onClick={onClose} className="mt-4 h-9 w-full rounded-md bg-[#9D0A0E] text-[10px] font-bold text-white hover:bg-[#7D080B]">DONE</button>
+          <p className="mt-3 text-[8px] text-[#98A2B3]">ⓘ You can update your PIN anytime in Settings.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const CHANGE_PASSWORD_API_BASE =
+  import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+const CHANGE_PASSWORD_RULES = [
+  {
+    key: 'length',
+    label: 'At least 8 characters',
+    test: (value) => value.length >= 8,
+  },
+  {
+    key: 'upper',
+    label: 'Include at least one uppercase letter',
+    test: (value) => /[A-Z]/.test(value),
+  },
+  {
+    key: 'number',
+    label: 'Include at least one number',
+    test: (value) => /\d/.test(value),
+  },
+  {
+    key: 'special',
+    label: 'Include at least one special character',
+    test: (value) => /[^A-Za-z0-9]/.test(value),
+  },
+];
+
+function IconButton({ onClick, label, children, disabled = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className="flex h-5 w-5 items-center justify-center rounded text-[#98A2B3] transition hover:bg-[#F8F9FA] hover:text-[#344054] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function ModalShell({ children, onClose, showClose = true, width = '520' }) {
+  const widthClass =
+    width === '430'
+      ? 'max-w-[430px]'
+      : width === '380'
+        ? 'max-w-[380px]'
+        : 'max-w-[520px]';
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 px-4 py-6">
+      <div className={`relative w-full ${widthClass} max-h-[calc(100vh-48px)] overflow-y-auto overflow-x-hidden rounded-2xl bg-white shadow-2xl`}>
+        {showClose && (
+          <div className="absolute right-5 top-5 z-10">
+            <IconButton onClick={onClose} label="Close">
+              <X size={20} strokeWidth={1.7} />
+            </IconButton>
+          </div>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function StepLabel({ current, descriptor, compact = false }) {
+  return (
+    <div className={`flex items-center gap-2 leading-none tracking-[0.04em] ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+      <span className={`rounded-md bg-[#FBEAEA] font-bold text-[#9D0A0E] ${compact ? 'px-2.5 py-1' : 'px-3.5 py-1.5'}`}>
+        STEP {current} OF 3
+      </span>
+      <span className="font-medium uppercase text-[#667085]">
+        • {descriptor}
+      </span>
+    </div>
+  );
+}
+
+function HeaderIcon({ tone = 'red', icon: Icon = ShieldCheck, size = 64 }) {
+  const green = tone === 'green';
+  const iconSize = Math.round(size * 0.42);
+  const radius = size >= 60 ? 'rounded-2xl' : 'rounded-xl';
+
+  return (
+    <div
+      className={`mx-auto flex shrink-0 items-center justify-center ${radius} ${
+        green ? 'bg-[#E9FBF2] text-[#138A5B]' : 'bg-[#FFF5F5] text-[#B5090D]'
+      }`}
+      style={{ width: size, height: size }}
+    >
+      <Icon size={iconSize} strokeWidth={2.1} />
+    </div>
+  );
+}
+
+function ProtocolFooter() {
+  return (
+    <div className="flex items-center justify-center gap-1.5 border-t border-[#F0F0F0] px-8 pb-5 pt-3 text-center text-[8px] uppercase tracking-[0.09em] text-[#A4A9B2]">
+      <Lock size={9} />
+      256-BIT ENCRYPTED HOSPITAL ADMINISTRATION PROTOCOL
+    </div>
+  );
+}
+
+function ErrorBox({ children }) {
+  if (!children) return null;
+
+  return (
+    <div className="mt-3 flex items-start gap-2 rounded-md border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2.5 text-[10px] leading-4 text-[#9D0A0E]">
+      <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+      <span>{children}</span>
+    </div>
+  );
+}
+
+function PrimaryButton({ children, disabled, onClick, type = 'button' }) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-[52px] w-full items-center justify-center gap-2 rounded-md bg-[#B5090D] px-4 text-[15px] font-semibold text-white transition hover:bg-[#92070A] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function SecondaryButton({ children, onClick, disabled }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="mt-2 h-[50px] w-full rounded-md border border-[#D0D5DD] bg-white px-4 text-[15px] font-medium text-[#344054] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+function PasswordField({ id, label, value, onChange, disabled, autoFocus }) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-1.5 block text-[10px] font-semibold text-[#1F2937]"
+      >
+        {label} <span className="text-[#B5090D]">*</span>
+      </label>
+
+      <div className="relative">
+        <input
+          id={id}
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          autoComplete="new-password"
+          autoFocus={autoFocus}
+          disabled={disabled}
+          className="h-10 w-full rounded-md border border-[#D0D5DD] bg-white px-3 pr-10 text-[12px] text-[#1F2937] outline-none transition placeholder:text-[#98A2B3] focus:border-[#B5090D] focus:ring-2 focus:ring-[#B5090D]/10 disabled:opacity-60"
+        />
+        <button
+          type="button"
+          onClick={() => setShow((previous) => !previous)}
+          disabled={disabled}
+          aria-label={show ? 'Hide password' : 'Show password'}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded text-[#667085] hover:text-[#344054] disabled:opacity-40"
+        >
+          {show ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PasswordRules({ results }) {
+  return (
+    <div className="rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3.5 py-2.5">
+      <p className="mb-2 text-[10px] font-bold text-[#1F2937]">
+        Password requirements:
+      </p>
+      <ul className="space-y-1.5">
+        {results.map((rule) => (
+          <li
+            key={rule.key}
+            className={`flex items-center gap-2 text-[10px] leading-4 ${
+              rule.ok ? 'text-[#18824B]' : 'text-[#667085]'
+            }`}
+          >
+            {rule.ok ? (
+              <CheckCircle2 size={12} className="shrink-0 text-[#13A565]" />
+            ) : (
+              <Circle size={12} className="shrink-0 text-[#A4A9B2]" />
+            )}
+            {rule.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PasswordVerificationBoxes({ code, setCode, disabled }) {
+  const refs = useRef([]);
+
+  function handleChange(index, rawValue) {
+    const digits = rawValue.replace(/\D/g, '');
+    if (!digits) {
+      setCode((current) => {
+        const next = [...current];
+        next[index] = '';
+        return next;
+      });
+      return;
+    }
+
+    const current = [...code];
+    digits
+      .slice(0, 6 - index)
+      .split('')
+      .forEach((digit, offset) => {
+        current[index + offset] = digit;
+      });
+
+    setCode(current);
+    refs.current[Math.min(5, index + digits.length)]?.focus();
+  }
+
+  function handleKeyDown(index, event) {
+    if (event.key === 'Backspace' && !code[index] && index > 0) {
+      event.preventDefault();
+      setCode((current) => {
+        const next = [...current];
+        next[index - 1] = '';
+        return next;
+      });
+      refs.current[index - 1]?.focus();
+    }
+
+    if (event.key === 'ArrowLeft' && index > 0) {
+      event.preventDefault();
+      refs.current[index - 1]?.focus();
+    }
+
+    if (event.key === 'ArrowRight' && index < 5) {
+      event.preventDefault();
+      refs.current[index + 1]?.focus();
+    }
+  }
+
+  function handlePaste(event) {
+    event.preventDefault();
+    const pasted = event.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, 6);
+
+    if (!pasted) return;
+
+    const next = ['', '', '', '', '', ''];
+    pasted.split('').forEach((digit, index) => {
+      next[index] = digit;
+    });
+    setCode(next);
+    refs.current[Math.min(pasted.length, 5)]?.focus();
+  }
+
+  return (
+    <div
+      className="flex justify-center gap-1.5"
+      onPaste={handlePaste}
+    >
+      {code.map((digit, index) => (
+        <input
+          key={index}
+          ref={(element) => {
+            refs.current[index] = element;
+          }}
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={1}
+          value={digit}
+          onChange={(event) => handleChange(index, event.target.value)}
+          onKeyDown={(event) => handleKeyDown(index, event)}
+          autoFocus={index === 0}
+          disabled={disabled}
+          aria-label={`Verification digit ${index + 1}`}
+          className="h-[31px] w-[26px] rounded-[3px] border border-[#D0D5DD] bg-white text-center text-[11px] font-bold text-[#1F2937] outline-none focus:border-[#B5090D] focus:ring-1 focus:ring-[#B5090D]/15 disabled:opacity-60"
+        />
+      ))}
+    </div>
+  );
+}
+
+function ChangePasswordModal({ onSuccess, onClose }) {
+  const [step, setStep] = useState('email');
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [completedAt, setCompletedAt] = useState(null);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return undefined;
+
+    const timer = window.setInterval(() => {
+      setResendCountdown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [resendCountdown]);
+
+  const results = useMemo(
+    () =>
+      CHANGE_PASSWORD_RULES.map((rule) => ({
+        ...rule,
+        ok: rule.test(password),
+      })),
+    [password]
+  );
+
+  const allRulesMet = results.every((rule) => rule.ok);
+  const verificationCode = code;
+  const countdownLabel = `00:${String(resendCountdown).padStart(2, '0')}`;
+
+  function close() {
+    if (sending || verifying || resending || saving) return;
+    (onClose || onSuccess)?.();
+  }
+
+  function handleCodeChange(next) {
+    setCode(typeof next === 'function' ? next(code) : next);
+    setError('');
+  }
+
+  async function sendVerificationCode() {
+    setError('');
+
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) {
+      setError('Email is required.');
+      return;
+    }
+
+    setSending(true);
+
+    try {
+      const response = await fetch(
+        `${CHANGE_PASSWORD_API_BASE}/api/auth/forgot-password/send-code`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: trimmed }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to send verification code.');
+      }
+
+      setEmail(trimmed);
+      setCode('');
+      setResendCountdown(60);
+      setStep('code');
+    } catch (sendError) {
+      setError(
+        sendError?.message ||
+          'Unable to send verification code. Please try again.'
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function verifyCode() {
+    setError('');
+
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setError('Please enter the complete 6-digit verification code.');
+      return;
+    }
+
+    setVerifying(true);
+
+    try {
+      const response = await fetch(
+        `${CHANGE_PASSWORD_API_BASE}/api/auth/forgot-password/verify-code`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code: verificationCode }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Invalid verification code.');
+      }
+
+      if (!result.resetToken) {
+        throw new Error('Verification succeeded but no reset token was returned.');
+      }
+
+      setResetToken(result.resetToken);
+      setPassword('');
+      setConfirm('');
+      setStep('password');
+    } catch (verifyError) {
+      setError(
+        verifyError?.message ||
+          'The verification code is invalid or has expired.'
+      );
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function resendCode() {
+    if (resendCountdown > 0 || resending) return;
+
+    setError('');
+    setResending(true);
+
+    try {
+      const response = await fetch(
+        `${CHANGE_PASSWORD_API_BASE}/api/auth/forgot-password/send-code`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to resend verification code.');
+      }
+
+      setCode('');
+      setResendCountdown(60);
+    } catch (resendError) {
+      setError(
+        resendError?.message ||
+          'Unable to resend the verification code.'
+      );
+    } finally {
+      setResending(false);
+    }
+  }
+
+  async function savePassword() {
+    setError('');
+
+    if (!resetToken || !email) {
+      setError(
+        'Your password reset session is missing or has expired. Please request a new verification code.'
+      );
+      return;
+    }
+
+    if (!allRulesMet) {
+      setError('Your password does not meet all the requirements.');
+      return;
+    }
+
+    if (password !== confirm) {
+      setError('The two passwords do not match.');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await fetch(
+        `${CHANGE_PASSWORD_API_BASE}/api/auth/forgot-password/reset-password`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resetToken,
+            email,
+            password,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to update your password.');
+      }
+
+      setCompletedAt(new Date());
+      setStep('success');
+    } catch (resetError) {
+      setError(
+        resetError?.message ||
+          'Unable to update your password. Please try again.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function renderEmailStep() {
+    return (
+      <ModalShell onClose={close} width="520">
+        <div className="relative px-8 pb-7 pt-8 text-center">
+          <StepLabel current="1" descriptor="IDENTITY VERIFICATION" />
+
+          <div className="mx-auto mt-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#FFF5F5] text-[#9D0A0E]">
+            <ShieldCheck size={27} strokeWidth={2.2} />
+          </div>
+
+          <h2 className="mt-5 text-[27px] font-bold tracking-[-0.6px] text-[#1F2937]">
+            Change Password
+          </h2>
+          <p className="mx-auto mt-3 max-w-[390px] text-[14px] leading-6 text-[#475467]">
+            For your security, we&apos;ll send a verification code to your registered email address.
+          </p>
+        </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            sendVerificationCode();
+          }}
+          className="space-y-5 px-8 pb-8"
+        >
+          <div>
+            <label
+              htmlFor="change-password-email"
+              className="mb-2 block text-[13px] font-semibold text-[#1F2937]"
+            >
+              Email
+            </label>
+            <div className="relative">
+              <Mail
+                size={20}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#344054]"
+              />
+              <input
+                id="change-password-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setError('');
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !sending) sendVerificationCode();
+                }}
+                placeholder="Enter email"
+                autoFocus
+                disabled={sending}
+                className="h-12 w-full rounded-md border border-[#D0D5DD] bg-white pl-11 pr-3 text-[15px] text-[#1F2937] outline-none transition placeholder:text-[#667085] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10 disabled:opacity-60"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-md border border-[#CFE2FF] bg-[#F3F8FF] px-4 py-4">
+            <Info size={14} className="mt-0.5 shrink-0 text-[#344054]" />
+            <p className="text-[9px] leading-4 text-[#475467]">
+              Authorized admin verification code remains valid for 10 minutes. Check spam folder if not received.
+            </p>
+          </div>
+
+          <ErrorBox>{error}</ErrorBox>
+
+          <PrimaryButton type="submit" disabled={sending}>
+            {sending ? 'Sending...' : 'Send Verification Code'}
+            {!sending && <ChevronRight size={18} />}
+          </PrimaryButton>
+
+          <SecondaryButton onClick={close} disabled={sending}>
+            Cancel
+          </SecondaryButton>
+        </form>
+
+        <ProtocolFooter />
+      </ModalShell>
+    );
+  }
+
+  function renderCodeStep() {
+    return (
+      <ModalShell onClose={close} width="430">
+        <div className="relative px-8 pb-5 pt-7 text-center">
+          <StepLabel current="2" descriptor="SECURITY VERIFICATION" />
+
+          <div className="mx-auto mt-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#FFF0F0] text-[#9D0A0E]">
+            <LockKeyhole size={19} />
+          </div>
+
+          <h2 className="mt-4 text-[21px] font-bold tracking-[-0.4px] text-[#1F2937]">
+            Verify Your Email
+          </h2>
+          <p className="mx-auto mt-1 max-w-[310px] text-[10px] leading-4 text-[#667085]">
+            We sent a 6-digit verification code to your registered email address.
+          </p>
+
+          {email && (
+            <span className="mt-3 inline-flex items-center rounded-full border border-[#E5E7EB] bg-white px-2.5 py-1 text-[8px] font-semibold tracking-[0.05em] text-[#667085]">
+              <Mail size={9} className="mr-1.5" />
+              {email}
+            </span>
+          )}
+        </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            verifyCode();
+          }}
+          className="space-y-5 px-8 pb-6"
+        >
+          <div>
+            <SettingsExactFieldLabel rightLabel="6 DIGITS">
+              Verification Code
+            </SettingsExactFieldLabel>
+            <SettingsPinBoxes
+              value={verificationCode}
+              onChange={handleCodeChange}
+              ariaLabel="Verification code"
+              autoFocus
+              showToggle={false}
+              boxed={false}
+            />
+          </div>
+
+          <div className="rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-3 text-center">
+            <p className="text-[9px] text-[#98A2B3]">Didn&apos;t receive the code?</p>
+            <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[9px] text-[#98A2B3]">
+              <span>Resend code {countdownLabel}</span>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={resendCode}
+                disabled={resendCountdown > 0 || resending || verifying}
+                className="font-semibold text-[#9D0A0E] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {resending ? 'Sending...' : 'Resend Code'}
+              </button>
+            </div>
+          </div>
+
+          <ErrorBox>{error}</ErrorBox>
+
+          <PrimaryButton
+            type="submit"
+            disabled={verifying || verificationCode.length !== 6}
+          >
+            {verifying ? 'Verifying...' : 'Verify Code'}
+            {!verifying && <ChevronRight size={18} />}
+          </PrimaryButton>
+
+          <SecondaryButton onClick={close} disabled={verifying}>
+            Cancel
+          </SecondaryButton>
+        </form>
+
+        <ProtocolFooter />
+      </ModalShell>
+    );
+  }
+
+  function renderPasswordStep() {
+    return (
+      <ModalShell onClose={close} width="520">
+        <div className="relative px-8 pb-5 pt-7">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center rounded-md bg-[#FBF1F1] px-2.5 py-1 text-[10px] font-bold text-[#9D0A0E]">
+              STEP 3 OF 3
+            </span>
+            <span className="text-[10px] font-medium text-[#667085]">
+              Security Protocol
+            </span>
+          </div>
+
+          <div className="mt-4 flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FFF0F0] text-[#9D0A0E]">
+              <ShieldCheck size={19} />
+            </div>
+            <div>
+              <div className="text-[9px] font-semibold uppercase tracking-[0.04em] text-[#667085]">
+                ADMIN CREDENTIALS
+              </div>
+              <h2 className="mt-1 text-[21px] font-bold tracking-[-0.4px] text-[#1F2937]">
+                Create New Password
+              </h2>
+              <p className="mt-1 max-w-[390px] text-[10px] leading-4.5 text-[#667085]">
+                Create a new password for your SWU Med account. Ensure it complies with hospital clinical admin access safeguards.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            savePassword();
+          }}
+          className="space-y-5 px-8 pb-6"
+        >
+          <PasswordField
+            id="change-password-new"
+            label="New Password"
+            value={password}
+            onChange={(value) => {
+              setPassword(value);
+              setError('');
+            }}
+            disabled={saving}
+            autoFocus
+          />
+
+          <PasswordField
+            id="change-password-confirm"
+            label="Confirm New Password"
+            value={confirm}
+            onChange={(value) => {
+              setConfirm(value);
+              setError('');
+            }}
+            disabled={saving}
+          />
+
+          <PasswordRules results={results} />
+
+          <div className="rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3.5 py-2.5">
+            <div className="flex items-start gap-2">
+              <LockKeyhole size={12} className="mt-0.5 shrink-0 text-[#667085]" />
+              <span className="text-[9px] leading-4 text-[#667085]">
+                Keep your password private. Do not share it with other users.
+              </span>
+            </div>
+          </div>
+
+          <ErrorBox>{error}</ErrorBox>
+
+          <PrimaryButton
+            type="submit"
+            disabled={saving || !allRulesMet || !confirm}
+          >
+            {saving ? 'Saving...' : 'Change Password'}
+            {!saving && <ChevronRight size={18} />}
+          </PrimaryButton>
+
+          <SecondaryButton onClick={close} disabled={saving}>
+            Cancel
+          </SecondaryButton>
+        </form>
+
+        <ProtocolFooter />
+      </ModalShell>
+    );
+  }
+
+  function renderSuccessStep() {
+    const updated = completedAt
+      ? completedAt.toLocaleString('en-US', {
+          month: 'short',
+          day: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        })
+      : '';
+
+    return (
+      <ModalShell onClose={() => onSuccess?.()} showClose={false} width="380">
+        <div className="flex flex-col items-center px-7 py-7 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#9FE6CE] bg-[#E8FFF7] text-[#07855F]">
+            <CheckCircle2 size={25} strokeWidth={2.4} />
+          </div>
+          <h2 className="mt-4 text-[17px] font-bold text-[#1F2937]">
+            Password Changed Successfully
+          </h2>
+          <p className="mt-2 max-w-[280px] text-[10px] leading-4 text-[#667085]">
+            Your password has been updated successfully.
+          </p>
+
+          <div className="mt-5 w-full rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-left">
+            <div className="flex items-start gap-2.5">
+              <ShieldCheck size={12} className="mt-0.5 shrink-0 text-[#07855F]" />
+              <div>
+                <p className="text-[9px] font-bold leading-3 text-[#1F2937]">
+                  Updated on {updated}
+                </p>
+                <p className="mt-0.5 text-[8px] text-[#667085]">
+                  All active clinic session tokens refreshed automatically.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onSuccess?.()}
+            className="mt-4 h-9 w-full rounded-md bg-[#9D0A0E] text-[10px] font-bold text-white hover:bg-[#7D080B]"
+          >
+            DONE
+          </button>
+          <p className="mt-3 text-[8px] text-[#98A2B3]">
+            Password updated successfully. You can continue using the admin system.
+          </p>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  if (step === 'code') return renderCodeStep();
+  if (step === 'password') return renderPasswordStep();
+  if (step === 'success') return renderSuccessStep();
+
+  return renderEmailStep();
+}
+
+function SettingsExactPage() {
+  const { user } = useAuth();
+  const [systemName, setSystemName] = useState('SWUMed Queuing System');
+  const [accentColor, setAccentColor] = useState(loadStoredAccent());
+  const [themeMode, setThemeMode] = useState(loadStoredTheme());
+  const [language, setLanguage] = useState('English');
+  const [clockFormat, setClockFormat] = useState(SETTINGS_CLOCK_FORMATS[0]);
+  const [copied, setCopied] = useState(false);
+  const [activeModal, setActiveModal] = useState(null);
+  const [pinConfigured, setPinConfigured] = useState(false);
+  const [pinStatusLoading, setPinStatusLoading] = useState(true);
+  const [pendingPin, setPendingPin] = useState('');
+  const [pendingPinEmail, setPendingPinEmail] = useState('');
+  const [pendingVerificationCode, setPendingVerificationCode] = useState('');
+  const [pinSaveLoading, setPinSaveLoading] = useState(false);
+  const [pinError, setPinError] = useState('');
+
+  useEffect(() => {
+    applyTheme(themeMode);
+  }, [themeMode]);
+
+  useEffect(() => {
+    applyAccent(accentColor);
+  }, [accentColor]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadSecurityPinStatus() {
+      try {
+        setPinStatusLoading(true);
+        setPinError('');
+        const firebaseUser = auth.currentUser;
+        if (!firebaseUser) throw new Error('Your authentication session is unavailable.');
+        const result = await getSecurityPinStatus(firebaseUser);
+        if (isMounted) setPinConfigured(Boolean(result?.configured));
+      } catch (error) {
+        console.error('Failed to load Security PIN status:', error);
+        if (isMounted) setPinError(error?.message || 'Failed to load Security PIN status.');
+      } finally {
+        if (isMounted) setPinStatusLoading(false);
+      }
+    }
+    loadSecurityPinStatus();
+    return () => { isMounted = false; };
+  }, []);
+
+  function handleCopyName() {
+    navigator.clipboard?.writeText(systemName).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => setCopied(false));
+  }
+
+  function applyThemeSelection(mode) {
+    setThemeMode(mode);
+    applyTheme(mode);
+  }
+
+  function applyAccentSelection(color) {
+    setAccentColor(color);
+    applyAccent(color);
+  }
+
+  return (
+    <div className="space-y-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mb-2">
+        <h1 className="text-2xl font-bold text-[#1F2937]">Settings</h1>
+        <p className="mt-0.5 text-xs text-[#4B5563]">Manage system preferences, security, appearance, and localization.</p>
+      </div>
+
+      <SettingsExactSection icon={Palette} title="Branding & Identity" subtitle="Customize your brand presence across patient kiosks, queue trackers, and staff monitors." badge="White-label">
+        <div>
+          <SettingsExactFieldLabel>System Name</SettingsExactFieldLabel>
+          <div className="relative max-w-[520px]">
+            <input value={systemName} onChange={(event) => setSystemName(event.target.value)} className="h-10 w-full rounded-md border border-[#D0D5DD] bg-white px-3 pr-9 text-[10px] text-[#344054] outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]/10" />
+            <button type="button" onClick={handleCopyName} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#98A2B3] hover:text-[#344054]" aria-label="Copy system name">{copied ? <Check size={12} className="text-emerald-600" /> : <span className="text-[10px]">▣</span>}</button>
+          </div>
+          <SettingsExactHint>Displayed on browser titles, kiosk welcome screens, and physical thermal ticket headers.</SettingsExactHint>
+        </div>
+
+        <div className="mt-4">
+          <SettingsExactFieldLabel>System Logo</SettingsExactFieldLabel>
+          <div className="flex max-w-[620px] flex-wrap items-center justify-between gap-4 rounded-md border border-[#E5E7EB] px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-[100px] items-center justify-center rounded border border-[#E5E7EB] bg-white">
+                <img src={Logo} alt="Current brand logo" className="h-8 w-auto object-contain" />
+              </div>
+              <div>
+                <p className="flex items-center gap-1.5 text-[9px] font-semibold text-[#1F2937]">Current Brand Logo <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] font-bold text-emerald-800">Active</span></p>
+                <p className="mt-0.5 text-[8px] text-[#98A2B3]">PNG or SVG, max 2MB</p>
+              </div>
+            </div>
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-[8px] font-semibold text-[#344054] hover:bg-[#F8F9FA]">
+              <Upload size={11} />Upload New Logo<input type="file" accept="image/png,image/svg+xml" className="hidden" />
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <SettingsExactFieldLabel>Primary Accent Color</SettingsExactFieldLabel>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-10 items-center gap-1.5 rounded-md border border-[#E5E7EB] px-3">
+              <span className="h-4 w-4 rounded-full ring-1 ring-black/10" style={{ backgroundColor: accentColor }} />
+              <span className="text-[10px] font-semibold uppercase text-[#344054]">Hex {accentColor.toUpperCase()}</span>
+            </div>
+            <div className="flex items-center gap-1.5 border-l border-[#E5E7EB] pl-3">
+              <span className="text-[10px] text-[#667085]">Presets:</span>
+              {SETTINGS_ACCENT_PRESETS.map((preset) => (
+                <button key={preset} type="button" onClick={() => applyAccentSelection(preset)} aria-label={`Accent ${preset}`} className={`flex h-5 w-5 items-center justify-center rounded-full ${accentColor.toUpperCase() === preset.toUpperCase() ? 'ring-2 ring-[#9D0A0E] ring-offset-1' : 'ring-1 ring-black/10'}`} style={{ backgroundColor: preset }}>
+                  {accentColor.toUpperCase() === preset.toUpperCase() && <Check size={9} strokeWidth={3} className="text-white" />}
+                </button>
+              ))}
+            </div>
+          </div>
+          <SettingsExactHint>Applies to primary action buttons, active navigation markers, ticket highlighted badges, and key queue alerts.</SettingsExactHint>
+        </div>
+      </SettingsExactSection>
+
+      <SettingsExactSection icon={ShieldCheck} title="Password & Security" subtitle="Manage your account password and Admin PIN.">
+        <div className="divide-y divide-[#E5E7EB]">
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
+            <div>
+              <p className="text-sm font-bold text-[#1F2937]">Password</p>
+              <p className="mt-0.5 text-[10px] text-[#667085]">Keep your account secure by regularly updating your password.</p>
+              <p className="mt-0.5 text-[8px] text-[#98A2B3]">Last changed: Not available</p>
+            </div>
+            <button type="button" onClick={() => setActiveModal('changePassword')} className="flex items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-white px-3.5 py-2 text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA]"><KeyRound size={11} />Change Password</button>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-4">
+            <div>
+              <p className="text-sm font-bold text-[#1F2937]">Security PIN</p>
+              <p className="mt-0.5 max-w-[600px] text-[9px] text-[#667085]">Used to authorize protected system actions such as resetting records.</p>
+              {pinConfigured && <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[#E9F9EF] px-2 py-0.5 text-[8px] font-semibold text-[#18824B]"><Check size={9} />PIN is set</span>}
+              {pinError && <p className="mt-1 text-[10px] font-medium text-[#9D0A0E]">{pinError}</p>}
+            </div>
+            <button type="button" disabled={pinStatusLoading} onClick={() => setActiveModal('pinEmail')} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2.5 text-[10px] font-bold text-white hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"><LockKeyhole size={11} />{pinStatusLoading ? 'Loading...' : pinConfigured ? 'Change PIN' : 'Set PIN'}</button>
+          </div>
+        </div>
+      </SettingsExactSection>
+
+      <SettingsExactSection icon={Monitor} title="Appearance" subtitle="Choose default theme settings for admin and kiosk interfaces.">
+        <SettingsExactFieldLabel>Theme Mode</SettingsExactFieldLabel>
+        <div className="grid max-w-[760px] gap-3 sm:grid-cols-3">
+          {SETTINGS_THEME_MODES.map(({ key, label, caption, icon: Icon }) => {
+            const selected = themeMode === key;
+            return (
+              <button key={key} type="button" onClick={() => applyThemeSelection(key)} aria-pressed={selected} className={`rounded-lg border p-4 text-left transition ${selected ? 'border-[#9D0A0E] ring-1 ring-[#9D0A0E]' : 'border-[#E5E7EB] hover:border-[#98A2B3]'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <Icon size={11} className="mt-0.5 text-[#9D0A0E]" />
+                    <div><p className="text-xs font-bold text-[#1F2937]">{label}</p><p className="mt-0.5 text-[9px] text-[#98A2B3]">{caption}</p></div>
+                  </div>
+                  <span className={`flex h-3 w-3 items-center justify-center rounded-full border ${selected ? 'border-[#9D0A0E]' : 'border-[#D0D5DD]'}`}>{selected && <span className="h-1.5 w-1.5 rounded-full bg-[#9D0A0E]" />}</span>
+                </div>
+                <div className={`mt-2 rounded-md border border-[#E5E7EB] p-2 ${key === 'dark' ? 'bg-[#1F2937]' : key === 'system' ? 'bg-gradient-to-r from-white to-[#1F2937]' : 'bg-white'}`}>
+                  <span className={`block h-1.5 w-10 rounded-sm ${key === 'dark' ? 'bg-white/70' : 'bg-[#4B5563]'}`} />
+                  <div className="mt-1.5 flex items-center gap-1"><span className="h-2 w-6 rounded-sm" style={{ backgroundColor: accentColor }} /><span className={`h-2 flex-1 rounded-sm ${key === 'dark' ? 'bg-white/20' : 'bg-[#E5E7EB]'}`} /></div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </SettingsExactSection>
+
+      <SettingsExactSection icon={Globe} title="Language & Regional Settings" subtitle="Configure default language and regional time displays across touchpoints.">
+        <SettingsExactFieldLabel>Primary Language</SettingsExactFieldLabel>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {SETTINGS_LANGUAGES.map((lang) => {
+            const selected = language === lang;
+            return <button key={lang} type="button" onClick={() => setLanguage(lang)} className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-[10px] font-semibold ${selected ? 'bg-[#B34C4C] text-white' : 'border border-[#E5E7EB] bg-white text-[#667085] hover:bg-[#F8F9FA]'}`}>{selected && <Check size={9} />}{lang}</button>;
+          })}
+        </div>
+        <SettingsExactHint>Sets the initial default locale for patient kiosk prompts and printed slips.</SettingsExactHint>
+        <div className="mt-5 border-t border-[#E5E7EB] pt-5">
+          <SettingsExactFieldLabel>Clock Format</SettingsExactFieldLabel>
+          <select value={clockFormat} onChange={(event) => setClockFormat(event.target.value)} className="h-10 w-full max-w-[240px] rounded-md border border-[#D0D5DD] bg-white px-3 text-[10px] text-[#344054] outline-none focus:border-[#9D0A0E]"><option>{SETTINGS_CLOCK_FORMATS[0]}</option><option>{SETTINGS_CLOCK_FORMATS[1]}</option></select>
+          <SettingsExactHint>Applied to TV Queue displays, timestamp audits, and ticket issuance times.</SettingsExactHint>
+        </div>
+      </SettingsExactSection>
+
+      {activeModal === 'changePassword' && (
+        <ChangePasswordModal
+          onSuccess={() => setActiveModal(null)}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+      {activeModal === 'pinEmail' && <SettingsExactPinEmailModal initialEmail={pendingPinEmail} onClose={() => { setPendingPin(''); setPendingPinEmail(''); setPendingVerificationCode(''); setPinError(''); setActiveModal(null); }} onContinue={(email) => { setPinError(''); setPendingPinEmail(email); setPendingVerificationCode(''); setActiveModal('verifyPin'); }} />}
+      {activeModal === 'verifyPin' && <SettingsExactPinVerificationModal firebaseUser={auth.currentUser} verificationEmail={pendingPinEmail} onClose={() => { setPendingPin(''); setPendingPinEmail(''); setPendingVerificationCode(''); setPinError(''); setActiveModal(null); }} onBack={() => setActiveModal('pinEmail')} onSuccess={(code) => { setPinError(''); setPendingVerificationCode(code); setActiveModal('createPin'); }} />}
+      {activeModal === 'createPin' && <SettingsExactCreatePinModal verificationCode={pendingVerificationCode} serverError={pinError} saving={pinSaveLoading} onClose={() => { setPendingPin(''); setActiveModal('verifyPin'); }} onContinue={async (pin) => {
+        try {
+          setPinError('');
+          setPinSaveLoading(true);
+          const firebaseUser = auth.currentUser;
+
+          if (!firebaseUser) {
+            throw new Error('Your authentication session is unavailable. Please log in again.');
+          }
+
+          await verifySecurityPinCode(firebaseUser, pendingVerificationCode, pin);
+          setPendingPin('');
+          setPinConfigured(true);
+          setActiveModal('pinSuccess');
+        } catch (error) {
+          console.error('Failed to verify Security PIN:', error);
+          setPinError(error?.message || 'Failed to verify the code and set your Security PIN.');
+        } finally {
+          setPinSaveLoading(false);
+        }
+      }} initialValue={pendingPin} />}
+      {activeModal === 'pinSuccess' && <SettingsExactPinSuccessModal onClose={() => { setPendingPin(''); setPendingPinEmail(''); setPendingVerificationCode(''); setPinError(''); setActiveModal(null); }} />}
+    </div>
+  );
+}
+
+export { SettingsExactPage as SettingsPage };
+export { SettingsExactCreatePinModal, SettingsExactPinSuccessModal };
