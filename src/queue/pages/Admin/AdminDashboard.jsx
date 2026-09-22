@@ -31,6 +31,7 @@ import {
   getDashboardAnalytics,
 } from "../../services/backendApi";
 import { useAuth } from '../../services/Authcontext';
+import { useQueue } from '../../context/QueueContext';
 
 import { DateRangePicker, StatCard } from './shared';
 
@@ -251,6 +252,12 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const { t, langCode } = useLanguage();
 
+  // `activeTickets` already carries everything a "currently dispatched"
+  // row needs (ticket number, priority flag, counter_id, status,
+  // called_at) — this is the same data Admin's Queue Management uses
+  // to show every terminal at once, reused here for the log.
+  const { activeTickets, refresh: refreshQueue } = useQueue();
+
   // ===================================================
   // CURRENT USER
   // ===================================================
@@ -319,6 +326,15 @@ export default function AdminDashboard() {
 
   const [terminalLabel, setTerminalLabel] =
     useState('--');
+
+  // Raw lists (not just the derived "x/y" labels above) so the
+  // dispatch log below can look up each terminal's prefix and its
+  // assigned staff member's name.
+  const [terminalRecords, setTerminalRecords] =
+    useState([]);
+
+  const [staffRecords, setStaffRecords] =
+    useState([]);
 
   // ===================================================
   // LOAD QUEUE + NOTIFICATIONS
@@ -503,6 +519,8 @@ const endDate = toDateKey(
       setStaffLabel(
         `${activeCount}/${visibleUsers.length}`
       );
+
+      setStaffRecords(visibleUsers);
     } catch (err) {
       console.error(
         'Staff count fetch failed:',
@@ -510,6 +528,7 @@ const endDate = toDateKey(
       );
 
       setStaffLabel('--');
+      setStaffRecords([]);
     } finally {
       setStaffLoading(false);
     }
@@ -597,6 +616,8 @@ const endDate = toDateKey(
       setTerminalLabel(
         `${activeCount}/${visibleTerminals.length}`
       );
+
+      setTerminalRecords(visibleTerminals);
     } catch (err) {
       console.error(
         'Terminal count fetch failed:',
@@ -604,6 +625,7 @@ const endDate = toDateKey(
       );
 
       setTerminalLabel('--');
+      setTerminalRecords([]);
     } finally {
       setTerminalLoading(false);
     }
@@ -623,6 +645,7 @@ const endDate = toDateKey(
         loadDashboard(),
         loadStaffCount(),
         loadTerminalCount(),
+        refreshQueue(departmentPrefix),
       ]);
 
       if (cancelled) {
@@ -632,10 +655,15 @@ const endDate = toDateKey(
 
     load();
 
-    // Refresh live queue data every 15 seconds.
+    // Refresh live queue data every 15 seconds. The dispatch log's
+    // activeTickets is refreshed silently so it doesn't flash a
+    // loading state on the rest of the dashboard.
     const poll =
       setInterval(
-        loadDashboard,
+        () => {
+          loadDashboard();
+          refreshQueue(departmentPrefix, undefined, { silent: true });
+        },
         15000
       );
 
@@ -666,6 +694,7 @@ const endDate = toDateKey(
         loadDashboard(),
         loadStaffCount(),
         loadTerminalCount(),
+        refreshQueue(departmentPrefix),
       ]);
     } finally {
       setRefreshing(false);
@@ -739,6 +768,93 @@ const endDate = toDateKey(
       (slice) =>
         slice.value > 0
     );
+
+  // ===================================================
+  // TERMINAL DISPATCH LOG
+  // ===================================================
+  //
+  // Every terminal currently serving a patient, most recently
+  // called first. `activeTickets` already carries the ticket number,
+  // priority flag, counter_id and status — this just adds the
+  // terminal's display label and its assigned staff member's name.
+  //
+
+  const terminalByCounterId = useMemo(() => {
+    const map = {};
+
+    terminalRecords.forEach((terminal) => {
+      if (terminal?.counter_id) {
+        map[String(terminal.counter_id)] = terminal;
+      }
+    });
+
+    return map;
+  }, [terminalRecords]);
+
+  const staffById = useMemo(() => {
+    const map = {};
+
+    staffRecords.forEach((staff) => {
+      const staffId = staff?.user_id ?? staff?.id;
+
+      if (staffId) {
+        map[String(staffId)] = staff;
+      }
+    });
+
+    return map;
+  }, [staffRecords]);
+
+  const dispatchLog = useMemo(() => {
+    return [...activeTickets]
+      .filter((ticket) => ticket?.counterId)
+      .sort(
+        (a, b) =>
+          new Date(b.calledAt || 0).getTime() -
+          new Date(a.calledAt || 0).getTime()
+      )
+      .slice(0, 8)
+      .map((ticket) => {
+        const terminal =
+          terminalByCounterId[String(ticket.counterId)] || null;
+
+        const terminalLabelText = terminal
+          ? terminal.prefix || `Terminal ${terminal.counter_number}`
+          : ticket.terminal || '--';
+
+        const operator = terminal?.assigned_staff_id
+          ? staffById[String(terminal.assigned_staff_id)]
+          : null;
+
+        const operatorName = operator
+          ? `${operator.first_name || ''} ${operator.last_name || ''}`.trim()
+          : '';
+
+        const time = ticket.calledAt
+          ? new Date(ticket.calledAt).toLocaleTimeString([], {
+              hour: 'numeric',
+              minute: '2-digit',
+            })
+          : '--';
+
+        const statusText =
+          ticket.status === 'serving'
+            ? 'Serving'
+            : ticket.status === 'called'
+              ? 'Called'
+              : ticket.status || '--';
+
+        return {
+          key: ticket.dbId || ticket.uniqueKey,
+          time,
+          ticketNumber: ticket.id,
+          isPriority: ticket.isPriority,
+          terminalLabel: terminalLabelText,
+          operatorName,
+          statusText,
+        };
+      });
+  }, [activeTickets, terminalByCounterId, staffById]);
 
   // ===================================================
   // AI INSIGHTS
@@ -1147,6 +1263,111 @@ const endDate = toDateKey(
             )}
         </section>
       </div>
+
+      {/* =================================================
+          TERMINAL DISPATCH LOG
+      ================================================= */}
+
+      <section className="mt-4 rounded-lg border border-[#E5E7EB] bg-white p-4 shadow-sm">
+
+        <div className="mb-3 flex items-center justify-between">
+
+          <div>
+            <h2 className="text-sm font-bold text-[#1F2937]">
+              Terminal Dispatch Log
+            </h2>
+            <p className="mt-0.5 text-[11px] text-[#4B5563]">
+              Recent ticket call actions executed by active terminal counters.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => refreshQueue(departmentPrefix)}
+            className="flex h-8 items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-white px-3 text-[11px] font-semibold text-[#4B5563] hover:bg-[#F1F3F5]"
+          >
+            <RefreshCw size={11} />
+            Refresh Log
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-xs">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                <th className="py-2 pr-4 font-semibold">Time</th>
+                <th className="py-2 pr-4 font-semibold">Ticket</th>
+                <th className="py-2 pr-4 font-semibold">Category</th>
+                <th className="py-2 pr-4 font-semibold">Terminal</th>
+                <th className="py-2 pr-4 font-semibold">Staff Operator</th>
+                <th className="py-2 pr-4 font-semibold">Status</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-[#F1F3F5]">
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-[11px] text-slate-400">
+                    Loading dispatch log…
+                  </td>
+                </tr>
+              )}
+
+              {!loading && dispatchLog.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-[11px] text-slate-400">
+                    No terminals are currently dispatching a patient.
+                  </td>
+                </tr>
+              )}
+
+              {!loading &&
+                dispatchLog.map((row) => (
+                  <tr key={row.key} className="text-[#1F2937]">
+                    <td className="py-2.5 pr-4 text-[11px] text-[#4B5563]">
+                      {row.time}
+                    </td>
+
+                    <td
+                      className={`py-2.5 pr-4 text-[11px] font-bold ${
+                        row.isPriority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'
+                      }`}
+                    >
+                      {row.ticketNumber}
+                    </td>
+
+                    <td className="py-2.5 pr-4">
+                      <span
+                        className={`rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                          row.isPriority
+                            ? 'bg-[#9D0A0E] text-white'
+                            : 'bg-slate-200/70 text-slate-700'
+                        }`}
+                      >
+                        {row.isPriority ? 'Priority' : 'Regular'}
+                      </span>
+                    </td>
+
+                    <td className="py-2.5 pr-4 text-[11px] text-[#4B5563]">
+                      {row.terminalLabel}
+                    </td>
+
+                    <td className="py-2.5 pr-4 text-[11px] text-[#4B5563]">
+                      {row.operatorName || '—'}
+                    </td>
+
+                    <td className="py-2.5 pr-4">
+                      <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#16A34A]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#16A34A]" />
+                        {row.statusText}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {/* =================================================
           FOOTER STATUS

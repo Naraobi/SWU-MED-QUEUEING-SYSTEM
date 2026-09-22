@@ -116,7 +116,7 @@ async function syncQueueTicketToFirebase(queueId) {
 
 async function getQueueState(
   departmentPrefix,
-  { start, end } = {}
+  { start, end, terminalId } = {}
 ) {
   // Live panels (waiting list + currently serving) always
   // reflect today, regardless of the reporting date filter.
@@ -159,6 +159,22 @@ async function getQueueState(
     [departmentPrefix]
   );
 
+  // Each physical terminal serves at most one patient at a time, but
+  // several terminals in the same department can be serving different
+  // patients simultaneously. When a terminalId is supplied, scope the
+  // "currently serving" lookup to that specific counter so one
+  // terminal's dashboard never shows (or blocks on) another terminal's
+  // active patient. Callers that don't know about terminals yet
+  // (e.g. Admin's department-wide view) omit terminalId and keep the
+  // old department-wide "most recently called" behavior.
+  const currentTerminalCondition = terminalId
+    ? "AND qt.counter_id = ?"
+    : ""
+
+  const currentParams = terminalId
+    ? [departmentPrefix, terminalId]
+    : [departmentPrefix]
+
   const [currentRows] = await pool.query(
     `
     SELECT
@@ -191,12 +207,13 @@ async function getQueueState(
     WHERE d.prefix = ?
       AND DATE(qt.issued_at) = CURDATE()
       AND qt.status IN ('called', 'serving')
+      ${currentTerminalCondition}
 
     ORDER BY qt.called_at DESC
 
     LIMIT 1
     `,
-    [departmentPrefix]
+    currentParams
   );
 
   const currentlyServing =
@@ -221,6 +238,62 @@ async function getQueueState(
               : 0,
         }
       : null;
+
+  // Every terminal in the department that currently has a called/serving
+  // patient, not just one. Admin's Queue Management needs this to show
+  // ALL terminals' current patients at once instead of a single
+  // ambiguous "currently serving" value that only reflects whichever
+  // terminal called most recently.
+  const [activeTicketRows] = await pool.query(
+    `
+    SELECT
+      qt.queue_id,
+      qt.queue_number,
+      qt.queue_sequence,
+      qt.status,
+      qt.issued_at,
+      qt.called_at,
+      qt.service_began_at,
+      qt.completed_at,
+      qt.is_priority,
+      qt.counter_id,
+
+      p.transaction_id,
+      p.patient_number,
+
+      d.department_id,
+      d.name AS department,
+      d.prefix
+
+    FROM queue_ticket qt
+
+    INNER JOIN patient p
+      ON qt.transaction_id = p.transaction_id
+
+    INNER JOIN department d
+      ON qt.department_id = d.department_id
+
+    WHERE d.prefix = ?
+      AND DATE(qt.issued_at) = CURDATE()
+      AND qt.status IN ('called', 'serving')
+
+    ORDER BY qt.counter_id ASC, qt.called_at DESC
+    `,
+    [departmentPrefix]
+  )
+
+  const activeTickets = activeTicketRows.map((row) => ({
+    ...row,
+
+    secondsElapsed: row.service_began_at
+      ? Math.max(
+          0,
+          Math.floor(
+            (Date.now() - new Date(row.service_began_at).getTime()) / 1000
+          )
+        )
+      : 0,
+  }))
 
   // Reporting stats (the stat cards / donut chart) respect the
   // requested date range. Defaults to today when none is given,
@@ -324,6 +397,7 @@ async function getQueueState(
   return {
     waitingQueue,
     currentlyServing,
+    activeTickets,
     stats,
   };
 }
@@ -355,6 +429,7 @@ router.get(
       const {
         start,
         end,
+        terminalId,
       } = req.query;
 
       const hasValidRange =
@@ -364,9 +439,10 @@ router.get(
       const state =
         await getQueueState(
           departmentPrefix,
-          hasValidRange
-            ? { start, end }
-            : {}
+          {
+            ...(hasValidRange ? { start, end } : {}),
+            terminalId: terminalId || undefined,
+          }
         );
 
       res.json({
@@ -471,12 +547,25 @@ router.post(
         departmentPrefix,
       } = req.params;
 
-      // Which physical terminal/counter is calling this patient, so
-      // Admin's Queue Management can later show what each terminal is
-      // actually serving instead of just one department-wide value.
-      // Optional: older staff sessions or callers that don't send it
-      // simply leave the ticket's counter_id null.
+      // Which physical terminal/counter is calling this patient. This is
+      // REQUIRED (not optional): without it, the "already active" guard
+      // below would have to fall back to a department-wide check, which
+      // is exactly what let one terminal's call get silently blocked (or
+      // worse, let it act on) another terminal's patient. Every terminal
+      // in a department can serve a different patient simultaneously, so
+      // "active" is only ever meaningful per-terminal.
       const { terminalId } = req.body || {};
+
+      if (!terminalId) {
+        // No transaction has started yet — nothing to roll back, just
+        // release the connection back to the pool.
+        connection.release();
+
+        return res.status(400).json({
+          success: false,
+          message: "Terminal ID is required to call a patient.",
+        });
+      }
 
       await connection.beginTransaction();
 
@@ -496,10 +585,11 @@ router.post(
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()
             AND qt.status IN ('called', 'serving')
+            AND qt.counter_id = ?
 
           LIMIT 1
           `,
-          [departmentPrefix]
+          [departmentPrefix, terminalId]
         );
 
       if (activeRows.length > 0) {
@@ -508,7 +598,7 @@ router.post(
         return res.status(400).json({
           success: false,
           message:
-            "There is already an active patient.",
+            "This terminal already has an active patient.",
           currentlyServing:
             activeRows[0],
         });
@@ -678,6 +768,15 @@ router.post(
         departmentPrefix,
       } = req.params;
 
+      const { terminalId } = req.body || {};
+
+      if (!terminalId) {
+        return res.status(400).json({
+          success: false,
+          message: "Terminal ID is required to start service.",
+        });
+      }
+
       const [rows] =
         await pool.query(
           `
@@ -711,12 +810,13 @@ router.post(
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()
             AND qt.status = 'called'
+            AND qt.counter_id = ?
 
           ORDER BY qt.called_at DESC
 
           LIMIT 1
           `,
-          [departmentPrefix]
+          [departmentPrefix, terminalId]
         );
 
       if (rows.length === 0) {
@@ -850,6 +950,15 @@ router.post(
         departmentPrefix,
       } = req.params;
 
+      const { terminalId } = req.body || {};
+
+      if (!terminalId) {
+        return res.status(400).json({
+          success: false,
+          message: "Terminal ID is required to confirm arrival.",
+        });
+      }
+
       const [rows] =
         await pool.query(
           `
@@ -866,12 +975,13 @@ router.post(
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()
             AND qt.status = 'called'
+            AND qt.counter_id = ?
 
           ORDER BY qt.called_at DESC
 
           LIMIT 1
           `,
-          [departmentPrefix]
+          [departmentPrefix, terminalId]
         );
 
       if (rows.length === 0) {
@@ -921,6 +1031,15 @@ router.post(
         departmentPrefix,
       } = req.params;
 
+      const { terminalId } = req.body || {};
+
+      if (!terminalId) {
+        return res.status(400).json({
+          success: false,
+          message: "Terminal ID is required to recall a patient.",
+        });
+      }
+
       const [rows] =
         await pool.query(
           `
@@ -954,12 +1073,13 @@ router.post(
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()
             AND qt.status IN ('called', 'serving')
+            AND qt.counter_id = ?
 
           ORDER BY qt.called_at DESC
 
           LIMIT 1
           `,
-          [departmentPrefix]
+          [departmentPrefix, terminalId]
         );
 
       if (rows.length === 0) {
@@ -1029,6 +1149,15 @@ router.post(
         departmentPrefix,
       } = req.params;
 
+      const { terminalId } = req.body || {};
+
+      if (!terminalId) {
+        return res.status(400).json({
+          success: false,
+          message: "Terminal ID is required to complete a patient.",
+        });
+      }
+
       const [rows] =
         await pool.query(
           `
@@ -1046,12 +1175,13 @@ router.post(
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()
             AND qt.status = 'serving'
+            AND qt.counter_id = ?
 
           ORDER BY qt.service_began_at DESC
 
           LIMIT 1
           `,
-          [departmentPrefix]
+          [departmentPrefix, terminalId]
         );
 
       if (rows.length === 0) {
@@ -1215,6 +1345,15 @@ router.post(
         departmentPrefix,
       } = req.params;
 
+      const { terminalId } = req.body || {};
+
+      if (!terminalId) {
+        return res.status(400).json({
+          success: false,
+          message: "Terminal ID is required to skip a patient.",
+        });
+      }
+
       const [rows] =
         await pool.query(
           `
@@ -1231,6 +1370,7 @@ router.post(
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()
             AND qt.status IN ('called', 'serving')
+            AND qt.counter_id = ?
 
           ORDER BY
             COALESCE(
@@ -1240,7 +1380,7 @@ router.post(
 
           LIMIT 1
           `,
-          [departmentPrefix]
+          [departmentPrefix, terminalId]
         );
 
       if (rows.length === 0) {

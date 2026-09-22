@@ -682,12 +682,13 @@ export async function fetchTicketStatus(
 
 export async function fetchQueueState(
   departmentPrefix,
-  { start, end } = {}
+  { start, end, terminalId } = {}
 ) {
   if (!departmentPrefix) {
     return {
       waitingQueue: [],
       currentlyServing: null,
+      activeTickets: [],
       stats: {
         waiting: 0,
         currentlyServing: 0,
@@ -707,6 +708,10 @@ export async function fetchQueueState(
 
     if (end) {
       params.set('end', end)
+    }
+
+    if (terminalId) {
+      params.set('terminalId', terminalId)
     }
 
     const queryString =
@@ -766,6 +771,17 @@ export async function fetchQueueState(
           )
         : null
 
+    // One entry per terminal that currently has a called/serving
+    // patient — lets a single department-wide view (Admin's Queue
+    // Management) show every terminal's own patient at once instead
+    // of a single ambiguous "currently serving" value.
+    const activeTickets =
+      Array.isArray(result.activeTickets)
+        ? result.activeTickets.map(
+            (row, index) => mapQueueItem(row, index)
+          )
+        : []
+
     const stats = {
       waiting:
         Number(
@@ -799,6 +815,8 @@ export async function fetchQueueState(
 
       currentlyServing,
 
+      activeTickets,
+
       stats
     }
   } catch (error) {
@@ -826,6 +844,17 @@ export async function callNextPatient(
   if (!departmentPrefix) {
     throw new Error(
       'Department prefix is required.'
+    )
+  }
+
+  // Every queue action is scoped to a single physical terminal so
+  // multiple terminals in the same department can each serve their
+  // own patient simultaneously. Failing fast here (instead of letting
+  // the backend fall back to a department-wide match) is what stops
+  // this terminal from ever acting on another terminal's patient.
+  if (!terminalId) {
+    throw new Error(
+      'A terminal must be selected before calling a patient.'
     )
   }
 
@@ -863,10 +892,16 @@ export async function callNextPatient(
      *
      * Fetch the complete state afterward so
      * waiting queue + statistics stay synchronized.
+     *
+     * IMPORTANT: pass terminalId through so this refetch
+     * returns THIS terminal's currently-serving patient,
+     * not the department's most-recently-called one from
+     * some other terminal.
      */
 
     return fetchQueueState(
-      departmentPrefix
+      departmentPrefix,
+      { terminalId }
     )
   } catch (error) {
     console.error(
@@ -883,11 +918,18 @@ export async function callNextPatient(
    ---------------------------------------------------------------------------- */
 
 export async function markPatientArrived(
-  departmentPrefix
+  departmentPrefix,
+  terminalId
 ) {
   if (!departmentPrefix) {
     throw new Error(
       'Department prefix is required.'
+    )
+  }
+
+  if (!terminalId) {
+    throw new Error(
+      'A terminal must be selected before confirming arrival.'
     )
   }
 
@@ -902,7 +944,10 @@ export async function markPatientArrived(
           headers: {
             'Content-Type':
               'application/json'
-          }
+          },
+          body: JSON.stringify({
+            terminalId: terminalId || null
+          })
         }
       )
 
@@ -948,11 +993,18 @@ export async function markPatientArrived(
    ---------------------------------------------------------------------------- */
 
 export async function startService(
-  departmentPrefix
+  departmentPrefix,
+  terminalId
 ) {
   if (!departmentPrefix) {
     throw new Error(
       'Department prefix is required.'
+    )
+  }
+
+  if (!terminalId) {
+    throw new Error(
+      'A terminal must be selected before starting service.'
     )
   }
 
@@ -967,7 +1019,10 @@ export async function startService(
           headers: {
             'Content-Type':
               'application/json'
-          }
+          },
+          body: JSON.stringify({
+            terminalId: terminalId || null
+          })
         }
       )
 
@@ -1004,11 +1059,18 @@ export async function startService(
    ---------------------------------------------------------------------------- */
 
 export async function recallCurrentPatient(
-  departmentPrefix
+  departmentPrefix,
+  terminalId
 ) {
   if (!departmentPrefix) {
     throw new Error(
       'Department prefix is required.'
+    )
+  }
+
+  if (!terminalId) {
+    throw new Error(
+      'A terminal must be selected before recalling a patient.'
     )
   }
 
@@ -1023,7 +1085,10 @@ export async function recallCurrentPatient(
           headers: {
             'Content-Type':
               'application/json'
-          }
+          },
+          body: JSON.stringify({
+            terminalId: terminalId || null
+          })
         }
       )
 
@@ -1060,11 +1125,18 @@ export async function recallCurrentPatient(
    ---------------------------------------------------------------------------- */
 
 export async function completeCurrentPatient(
-  departmentPrefix
+  departmentPrefix,
+  terminalId
 ) {
   if (!departmentPrefix) {
     throw new Error(
       'Department prefix is required.'
+    )
+  }
+
+  if (!terminalId) {
+    throw new Error(
+      'A terminal must be selected before completing a patient.'
     )
   }
 
@@ -1079,7 +1151,10 @@ export async function completeCurrentPatient(
           headers: {
             'Content-Type':
               'application/json'
-          }
+          },
+          body: JSON.stringify({
+            terminalId: terminalId || null
+          })
         }
       )
 
@@ -1135,11 +1210,18 @@ export async function completeCurrentPatient(
 
 export async function skipCurrentPatient(
   reason,
-  departmentPrefix
+  departmentPrefix,
+  terminalId
 ) {
   if (!departmentPrefix) {
     throw new Error(
       'Department prefix is required.'
+    )
+  }
+
+  if (!terminalId) {
+    throw new Error(
+      'A terminal must be selected before skipping a patient.'
     )
   }
 
@@ -1157,7 +1239,9 @@ export async function skipCurrentPatient(
           },
           body: JSON.stringify({
             reason:
-              reason || null
+              reason || null,
+            terminalId:
+              terminalId || null
           })
         }
       )

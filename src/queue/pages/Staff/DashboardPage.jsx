@@ -30,16 +30,41 @@ import {
   assignTerminal,
 } from '../../services/backendApi.js'
 
-const STAFF_TERMINAL_KEY = 'swumed_staff_terminal'
+// Matches TerminalSelectionPage.jsx's per-staff key so both components
+// agree on where a staff member's chosen terminal lives. Two staff on
+// the same browser must never share one terminal's saved state.
+const STAFF_TERMINAL_KEY_PREFIX = 'swumed_staff_terminal'
 
 // =====================================================
 // HELPER FUNCTIONS
 // =====================================================
 
-function readSavedTerminal() {
+function getStaffTerminalStorageKey(staffId) {
+  return staffId
+    ? `${STAFF_TERMINAL_KEY_PREFIX}_${String(staffId)}`
+    : STAFF_TERMINAL_KEY_PREFIX
+}
+
+// The terminal object flowing through this page comes from two
+// different shapes depending on where it was last touched: the raw
+// counter record from the backend (counter_id) right after picking a
+// terminal in the modal, or the normalized {terminal_id, ...} payload
+// restored from localStorage. Always resolve through this helper
+// instead of reading `.terminal_id` directly, or a freshly-selected
+// terminal's ID silently resolves to undefined.
+function getTerminalId(terminal) {
+  return (
+    terminal?.counter_id ??
+    terminal?.terminal_id ??
+    terminal?.id ??
+    null
+  )
+}
+
+function readSavedTerminal(staffId) {
   if (typeof window === 'undefined') return null
   try {
-    const raw = window.localStorage.getItem(STAFF_TERMINAL_KEY)
+    const raw = window.localStorage.getItem(getStaffTerminalStorageKey(staffId))
     if (!raw) return null
     const parsed = JSON.parse(raw)
     return parsed && typeof parsed === 'object' ? parsed : null
@@ -48,12 +73,13 @@ function readSavedTerminal() {
   }
 }
 
-function saveSelectedTerminal(terminal) {
+function saveSelectedTerminal(terminal, staffId) {
   if (typeof window === 'undefined' || !terminal) return
 
+  const terminalId = getTerminalId(terminal)
+
   const payload = {
-    terminal_id:
-      terminal.counter_id ?? terminal.terminal_id ?? terminal.id ?? null,
+    terminal_id: terminalId,
     name:
       terminal.name ??
       terminal.counter_name ??
@@ -61,7 +87,7 @@ function saveSelectedTerminal(terminal) {
       `Terminal ${
         terminal.counter_number ??
         terminal.terminal_number ??
-        terminal.counter_id ??
+        terminalId ??
         ''
       }`,
     counter_number:
@@ -70,7 +96,10 @@ function saveSelectedTerminal(terminal) {
     status: terminal.status ?? 'active',
   }
 
-  window.localStorage.setItem(STAFF_TERMINAL_KEY, JSON.stringify(payload))
+  window.localStorage.setItem(
+    getStaffTerminalStorageKey(staffId),
+    JSON.stringify(payload)
+  )
 }
 
 function formatSeconds(totalSeconds) {
@@ -395,18 +424,43 @@ export default function DashboardPage() {
 
   const { user, loading: authLoading, logout } = useAuth()
 
+  const staffId = user?.staff_id ?? user?.user_id ?? user?.id ?? null
+
   const [staffPrefix, setStaffPrefix] = useState('')
   const [showSkip, setShowSkip] = useState(false)
   const [startingService, setStartingService] = useState(false)
   const [departmentLoading, setDepartmentLoading] = useState(true)
 
   const [selectedTerminal, setSelectedTerminal] = useState(() =>
-    readSavedTerminal()
+    readSavedTerminal(staffId)
   )
   const [showTerminalModal, setShowTerminalModal] = useState(() => {
-    const saved = readSavedTerminal()
+    const saved = readSavedTerminal(staffId)
     return !saved
   })
+
+  // `staffId` comes from useAuth() and may not be resolved yet on the
+  // very first render, so the lazy useState initializers above can miss
+  // the per-staff saved terminal. Re-check once staffId is known and
+  // only fill in what wasn't already picked in this session.
+  useEffect(() => {
+    if (!staffId) return
+
+    const saved = readSavedTerminal(staffId)
+    if (!saved || !getTerminalId(saved)) return
+
+    setSelectedTerminal((current) =>
+      getTerminalId(current) ? current : saved
+    )
+
+    setShowTerminalModal((current) => (current ? false : current))
+  }, [staffId])
+
+  // Resolved once, used everywhere a queue action or refresh needs to
+  // scope itself to this dashboard's own terminal. Every downstream
+  // call reads this instead of touching selectedTerminal directly, so
+  // there is exactly one place that knows how to extract the ID.
+  const terminalId = getTerminalId(selectedTerminal)
 
   const [showFullQueueModal, setShowFullQueueModal] = useState(false)
   const [localSeconds, setLocalSeconds] = useState(0)
@@ -508,21 +562,24 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!staffPrefix) return
-    refresh(staffPrefix)
-  }, [staffPrefix, refresh])
+    refresh(staffPrefix, undefined, { terminalId })
+  }, [staffPrefix, terminalId, refresh])
 
   useEffect(() => {
     if (!staffPrefix) return
     const interval = setInterval(() => {
       // Silent: background polling must not flash the loading
       // skeleton over the currently-serving card every 5 seconds.
-      refresh(staffPrefix, undefined, { silent: true })
+      refresh(staffPrefix, undefined, {
+        silent: true,
+        terminalId,
+      })
     }, 5000)
 
     return () => {
       clearInterval(interval)
     }
-  }, [staffPrefix, refresh])
+  }, [staffPrefix, terminalId, refresh])
 
   const filteredWaitingQueue = useMemo(() => {
     return waitingQueue.filter((patient) =>
@@ -530,29 +587,21 @@ export default function DashboardPage() {
     )
   }, [waitingQueue, staffPrefix])
 
-  // Only one ticket can be actively served per department at a time,
-  // so if a *different* terminal in this same department called it,
-  // it still matches the department prefix here. Without also
-  // checking counterId, this staff member's dashboard would show
-  // someone else's patient as their own and let them Recall/Start/
-  // Skip/Complete a patient they never called. Tickets called before
-  // terminals were tracked (counterId null) fall back to the old
-  // department-only check so nothing breaks for in-flight data.
-  const belongsToThisTerminal =
-    !currentlyServing?.counterId ||
-    String(currentlyServing.counterId) === String(selectedTerminal?.terminal_id)
+  // Multiple terminals in the same department can each be actively
+  // serving a different patient at the same time. `currentlyServing`
+  // here is fetched with this dashboard's own terminalId (see the
+  // refresh/action calls below), so the backend scopes it to THIS
+  // terminal's counter_id — it can never belong to another terminal.
+  //
+  // Defense in depth: `terminalId` can briefly be null right after
+  // mount (useAuth() resolves asynchronously) or if terminal selection
+  // is somehow lost. If that happens, NEVER treat whatever is sitting
+  // in `currentlyServing` as this terminal's patient to act on — that
+  // is exactly what let one terminal see and complete another
+  // terminal's patient. No terminal, no active patient, full stop.
+  const activeServing = terminalId ? currentlyServing || null : null
 
-  const isCurrentForStaff = currentlyServing
-    ? matchesStaffDepartment(currentlyServing.id, staffPrefix) && belongsToThisTerminal
-    : false
-
-  const activeServing = isCurrentForStaff ? currentlyServing : null
-
-  const servedByOtherTerminal = Boolean(
-    currentlyServing &&
-      matchesStaffDepartment(currentlyServing.id, staffPrefix) &&
-      !belongsToThisTerminal
-  )
+  const servedByOtherTerminal = false
 
   const nextPatient = filteredWaitingQueue[0] || null
 
@@ -605,8 +654,8 @@ export default function DashboardPage() {
     if (!activeServing || startingService) return
     try {
       setStartingService(true)
-      await startService(staffPrefix)
-      await refresh(staffPrefix)
+      await startService(staffPrefix, terminalId)
+      await refresh(staffPrefix, undefined, { terminalId })
     } catch (error) {
       console.error('Failed to start service:', error)
     } finally {
@@ -617,8 +666,8 @@ export default function DashboardPage() {
   const handleConfirmSkip = async (reason) => {
     if (!staffPrefix) return
     try {
-      await skipCurrentPatient(reason, staffPrefix)
-      await refresh(staffPrefix)
+      await skipCurrentPatient(reason, staffPrefix, terminalId)
+      await refresh(staffPrefix, undefined, { terminalId })
       setShowSkip(false)
     } catch (error) {
       console.error('Failed to skip patient:', error)
@@ -730,8 +779,8 @@ export default function DashboardPage() {
                           type="button"
                           onClick={async () => {
                             try {
-                              await completeCurrentPatient(staffPrefix)
-                              await refresh(staffPrefix)
+                              await completeCurrentPatient(staffPrefix, terminalId)
+                              await refresh(staffPrefix, undefined, { terminalId })
                             } catch (err) {
                               console.error('Complete error:', err)
                             }
@@ -767,8 +816,8 @@ export default function DashboardPage() {
                           type="button"
                           onClick={async () => {
                             try {
-                              await recallCurrentPatient(staffPrefix)
-                              await refresh(staffPrefix)
+                              await recallCurrentPatient(staffPrefix, terminalId)
+                              await refresh(staffPrefix, undefined, { terminalId })
                             } catch (err) {
                               console.error('Recall error:', err)
                             }
@@ -835,15 +884,15 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={async () => {
-                        if (!staffPrefix) return
+                        if (!staffPrefix || !terminalId) return
                         try {
-                          await callNextPatient(staffPrefix, selectedTerminal?.terminal_id)
-                          await refresh(staffPrefix)
+                          await callNextPatient(staffPrefix, terminalId)
+                          await refresh(staffPrefix, undefined, { terminalId })
                         } catch (err) {
                           console.error('Call next error:', err)
                         }
                       }}
-                      disabled={!nextPatient || !staffPrefix}
+                      disabled={!nextPatient || !staffPrefix || !terminalId}
                       className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-[#851010] px-12 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#6b0d0d] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Play size={18} className="fill-current" />
@@ -961,9 +1010,26 @@ export default function DashboardPage() {
           canClose={Boolean(selectedTerminal)}
           onClose={() => setShowTerminalModal(false)}
           onConfirm={(terminal) => {
-            setSelectedTerminal(terminal)
+            // The modal hands back the raw counter record (counter_id),
+            // not the normalized {terminal_id, ...} shape this page
+            // saves/restores from localStorage. Normalize immediately
+            // so the component-level `terminalId` resolves correctly on
+            // the very next render, and persist it under this staff's
+            // own key so a reload restores the same terminal instead of
+            // showing the picker again.
+            const confirmedTerminalId = getTerminalId(terminal)
+
+            const normalizedTerminal = {
+              ...terminal,
+              terminal_id: confirmedTerminalId,
+            }
+
+            setSelectedTerminal(normalizedTerminal)
+            saveSelectedTerminal(normalizedTerminal, staffId)
             setShowTerminalModal(false)
-            if (staffPrefix) refresh(staffPrefix)
+            if (staffPrefix) {
+              refresh(staffPrefix, undefined, { terminalId: confirmedTerminalId })
+            }
           }}
         />
       )}
