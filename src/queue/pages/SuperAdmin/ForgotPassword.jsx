@@ -1,10 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  sendPasswordResetEmail,
-  verifyPasswordResetCode,
-  confirmPasswordReset,
-} from 'firebase/auth';
+import { useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 import {
   ShieldAlert,
   ShieldCheck,
@@ -19,24 +15,9 @@ import {
   CheckCircle2,
   Circle,
 } from 'lucide-react';
-
-import { auth } from '../../../firebase';
 import LoginBG1 from '../../../assets/LoginBG1.jpg';
 
-/*
- * Password recovery uses Firebase Authentication's built-in reset:
- *
- *   /forgot-password  -> sendPasswordResetEmail()  emails a reset link
- *   /reset-password   -> confirmPasswordReset()    sets the new password
- *
- * No backend is involved. For the emailed link to open /reset-password
- * (instead of Firebase's default page), set the action URL in
- * Firebase Console -> Authentication -> Templates -> Password reset.
- */
 
-/* =========================================================
-   SHARED LAYOUT
-========================================================= */
 
 function RecoveryShell({ children }) {
   return (
@@ -126,42 +107,85 @@ function ProtocolFooter() {
   );
 }
 
-function friendlyAuthError(error, fallback) {
-  switch (error?.code) {
-    case 'auth/invalid-email':
-      return 'Please enter a valid email address.';
-    case 'auth/too-many-requests':
-      return 'Too many attempts. Please wait a moment and try again.';
-    case 'auth/network-request-failed':
-      return 'Unable to connect. Check your internet connection.';
-    case 'auth/expired-action-code':
-      return 'This reset link has expired. Please request a new one.';
-    case 'auth/invalid-action-code':
-      return 'This reset link is invalid or has already been used.';
-    case 'auth/weak-password':
-      return 'That password is too weak. Please choose a stronger one.';
-    default:
-      return error?.message || fallback;
-  }
-}
 
 /* =========================================================
    /forgot-password
 ========================================================= */
-
 export default function ForgotPassword() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState(['', '', '', '', '', '']);
+
+  const [step, setStep] = useState('email');
+
   const [error, setError] = useState(null);
   const [sending, setSending] = useState(false);
-  const [sentTo, setSentTo] = useState(null);
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+const codeInputRefs = useRef([]);
+
+  function handleCodeChange(index, value) {
+    // Only allow one number per box
+    const numericValue = value.replace(/\D/g, '').slice(-1);
+
+    const newCode = [...code];
+    newCode[index] = numericValue;
+
+    setCode(newCode);
+    setError(null);
+
+    // Automatically move to next box
+    if (numericValue && index < 5) {
+     codeInputRefs.current[index + 1]?.focus();
+    }
+  }
+
+ function handleCodeKeyDown(index, event) {
+  if (
+    event.key === 'Backspace' &&
+    !code[index] &&
+    index > 0
+  ) {
+    codeInputRefs.current[index - 1]?.focus();
+  }
+
+  if (event.key === 'ArrowLeft' && index > 0) {
+    codeInputRefs.current[index - 1]?.focus();
+  }
+
+  if (event.key === 'ArrowRight' && index < 5) {
+    codeInputRefs.current[index + 1]?.focus();
+  }
+}
+
+  function handleCodePaste(event) {
+    event.preventDefault();
+
+    const pasted = event.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, 6);
+
+    if (!pasted) return;
+
+    const newCode = ['', '', '', '', '', ''];
+
+    pasted.split('').forEach((digit, index) => {
+      newCode[index] = digit;
+    });
+
+    setCode(newCode);
+
+    const nextIndex = Math.min(pasted.length, 5);
+   codeInputRefs.current[nextIndex]?.focus();
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError(null);
 
-    const trimmed = email.trim();
+    const trimmed = email.trim().toLowerCase();
 
     if (!trimmed) {
       setError('Email is required.');
@@ -171,62 +195,297 @@ export default function ForgotPassword() {
     setSending(true);
 
     try {
-      await sendPasswordResetEmail(auth, trimmed);
-      setSentTo(trimmed);
-    } catch (sendError) {
-      // Do not reveal whether an account exists for this address.
-      if (sendError?.code === 'auth/user-not-found') {
-        setSentTo(trimmed);
-      } else {
-        setError(friendlyAuthError(sendError, 'Unable to send the reset email.'));
+      /*
+       * NEW BACKEND FLOW
+       *
+       * The backend will:
+       * 1. Check the SWU Med account
+       * 2. Generate a 6-digit verification code
+       * 3. Store the code temporarily
+       * 4. Send the code using your SWU Med email
+       */
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/forgot-password/send-code`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: trimmed,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || 'Unable to send verification code.'
+        );
       }
+
+      setEmail(trimmed);
+      setCode(['', '', '', '', '', '']);
+      setStep('code');
+
+    } catch (sendError) {
+      setError(
+        sendError?.message ||
+          'Unable to send verification code. Please try again.'
+      );
     } finally {
       setSending(false);
     }
   }
 
-  if (sentTo) {
+  async function handleVerifyCode(event) {
+    event.preventDefault();
+    setError(null);
+
+    const verificationCode = code.join('');
+
+    if (verificationCode.length !== 6) {
+      setError('Please enter the complete 6-digit verification code.');
+      return;
+    }
+
+    setVerifying(true);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/forgot-password/verify-code`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            code: verificationCode,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || 'Invalid verification code.'
+        );
+      }
+
+      /*
+       * The backend should return a short-lived
+       * reset token after the code is verified.
+       *
+       * We pass it to the password page.
+       */
+
+           sessionStorage.setItem(
+        'swu_password_reset_token',
+        result.resetToken
+      );
+
+      sessionStorage.setItem(
+        'swu_password_reset_email',
+        email
+      );
+
+      navigate('/reset-password', {
+        replace: true,
+      });
+
+    } catch (verifyError) {
+      setError(
+        verifyError?.message ||
+          'The verification code is invalid or has expired.'
+      );
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function handleResendCode() {
+    setError(null);
+    setResending(true);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/forgot-password/send-code`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || 'Unable to resend verification code.'
+        );
+      }
+
+      setCode(['', '', '', '', '', '']);
+
+    } catch (resendError) {
+      setError(
+        resendError?.message ||
+          'Unable to resend the verification code.'
+      );
+    } finally {
+      setResending(false);
+    }
+  }
+
+  /* =====================================================
+     STEP 2 — VERIFICATION CODE
+  ===================================================== */
+
+  if (step === 'code') {
     return (
       <RecoveryShell>
         <CardHeader
           icon={Mail}
           tone="green"
-          title="Check Your Email"
-          description="If an account exists for this address, a password reset link is on its way."
+          title="Verify Your Email"
+          description={
+            <>
+              We sent a 6-digit verification code to{' '}
+              <span className="font-semibold text-[#1F2937]">
+                {email}
+              </span>
+            </>
+          }
         />
 
-        <div className="px-7 pb-7">
-          <p className="mx-auto w-fit rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-1.5 text-xs font-medium text-[#1F2937]">
-            {sentTo}
-          </p>
+        <form
+          onSubmit={handleVerifyCode}
+          className="px-7 pb-7"
+        >
+          <label className="mb-3 block text-center text-sm font-semibold text-[#1F2937]">
+            Verification Code
+          </label>
 
-          <p className="mt-4 text-center text-xs leading-5 text-[#4B5563]">
-            Open the link in the email to set a new password. It expires after a
-            short time, so use it soon.
-          </p>
+          <div
+            className="flex justify-center gap-2"
+            onPaste={handleCodePaste}
+          >
+            {code.map((digit, index) => (
+              <input
+                key={index}
+               ref={(element) => {
+  codeInputRefs.current[index] = element;
+}}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(event) =>
+                  handleCodeChange(
+                    index,
+                    event.target.value
+                  )
+                }
+                onKeyDown={(event) =>
+                  handleCodeKeyDown(
+                    index,
+                    event
+                  )
+                }
+                autoFocus={index === 0}
+                disabled={verifying}
+                className="h-12 w-10 rounded-lg border border-[#E5E7EB] bg-white text-center text-lg font-bold text-[#1F2937] outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"
+                aria-label={`Verification digit ${index + 1}`}
+              />
+            ))}
+          </div>
 
-          <PrimaryButton onClick={() => navigate('/superadmin/login')}>
-            Back to Login
-            <ArrowRight size={16} />
+          <ErrorBox>{error}</ErrorBox>
+
+          <PrimaryButton
+            type="submit"
+            disabled={
+              verifying ||
+              code.join('').length !== 6
+            }
+          >
+            {verifying
+              ? 'Verifying...'
+              : 'Verify Code'}
+
+            {!verifying && (
+              <ArrowRight size={16} />
+            )}
           </PrimaryButton>
 
-          <SecondaryButton onClick={() => setSentTo(null)}>
-            Use a different email
+          <div className="mt-4 text-center">
+            <p className="text-xs text-[#6B7280]">
+              Didn't receive the code?
+            </p>
+
+            <button
+              type="button"
+              onClick={handleResendCode}
+              disabled={resending}
+              className="mt-1 text-xs font-semibold text-[#9D0A0E] hover:underline disabled:opacity-50"
+            >
+              {resending
+                ? 'Sending...'
+                : 'Resend Code'}
+            </button>
+          </div>
+
+          <SecondaryButton
+            onClick={() => {
+              setStep('email');
+              setCode([
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+              ]);
+              setError(null);
+            }}
+            disabled={verifying}
+          >
+            <span className="flex items-center justify-center gap-1.5">
+              <ArrowLeft size={14} />
+              Change Email
+            </span>
           </SecondaryButton>
-        </div>
+
+          <ProtocolFooter />
+        </form>
       </RecoveryShell>
     );
   }
+
+  /* =====================================================
+     STEP 1 — EMAIL
+  ===================================================== */
 
   return (
     <RecoveryShell>
       <CardHeader
         icon={ShieldAlert}
         title="Forgot Password?"
-        description="Enter your registered account email address to receive a password reset link."
+        description="Enter your registered account email address to continue."
       />
 
-      <form onSubmit={handleSubmit} className="px-7 pb-7">
+      <form
+        onSubmit={handleSubmit}
+        className="px-7 pb-7"
+      >
         <label
           htmlFor="recovery-email"
           className="mb-1.5 block text-sm font-semibold text-[#1F2937]"
@@ -245,7 +504,9 @@ export default function ForgotPassword() {
             id="recovery-email"
             type="email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) =>
+              setEmail(event.target.value)
+            }
             placeholder="Enter email"
             autoComplete="email"
             autoFocus
@@ -256,13 +517,23 @@ export default function ForgotPassword() {
 
         <ErrorBox>{error}</ErrorBox>
 
-        <PrimaryButton type="submit" disabled={sending}>
-          {sending ? 'Sending...' : 'Send Reset Link'}
-          {!sending && <ArrowRight size={16} />}
+        <PrimaryButton
+          type="submit"
+          disabled={sending}
+        >
+          {sending
+            ? 'Sending Code...'
+            : 'Continue'}
+
+          {!sending && (
+            <ArrowRight size={16} />
+          )}
         </PrimaryButton>
 
         <SecondaryButton
-          onClick={() => navigate('/superadmin/login')}
+          onClick={() =>
+            navigate('/superadmin/login')
+          }
           disabled={sending}
         >
           Back to Login
@@ -319,102 +590,138 @@ function PasswordField({ id, label, value, onChange, disabled, autoFocus }) {
     </div>
   );
 }
-
 export function ResetPassword() {
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const oobCode = params.get('oobCode');
 
-  const [checking, setChecking] = useState(true);
-  const [accountEmail, setAccountEmail] = useState(null);
-  const [linkError, setLinkError] = useState(null);
+  const resetToken = sessionStorage.getItem(
+    'swu_password_reset_token'
+  );
+
+  const accountEmail = sessionStorage.getItem(
+    'swu_password_reset_email'
+  );
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [completedAt, setCompletedAt] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!oobCode) {
-      setLinkError('This page must be opened from the link in your reset email.');
-      setChecking(false);
-      return undefined;
-    }
-
-    verifyPasswordResetCode(auth, oobCode)
-      .then((email) => {
-        if (!cancelled) setAccountEmail(email);
-      })
-      .catch((verifyError) => {
-        if (!cancelled) {
-          setLinkError(friendlyAuthError(verifyError, 'This reset link is not valid.'));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setChecking(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [oobCode]);
-
   const results = useMemo(
-    () => RULES.map((rule) => ({ ...rule, ok: rule.test(password) })),
+    () =>
+      RULES.map((rule) => ({
+        ...rule,
+        ok: rule.test(password),
+      })),
     [password]
   );
 
-  const allRulesMet = results.every((rule) => rule.ok);
+  const allRulesMet = results.every(
+    (rule) => rule.ok
+  );
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError(null);
 
+    if (!resetToken || !accountEmail) {
+      setError(
+        'Your password reset session is missing or has expired. Please request a new verification code.'
+      );
+      return;
+    }
+
     if (!allRulesMet) {
-      setError('Your password does not meet all the requirements.');
+      setError(
+        'Your password does not meet all the requirements.'
+      );
       return;
     }
 
     if (password !== confirm) {
-      setError('The two passwords do not match.');
+      setError(
+        'The two passwords do not match.'
+      );
       return;
     }
 
     setSaving(true);
 
     try {
-      await confirmPasswordReset(auth, oobCode, password);
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/forgot-password/reset-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            resetToken,
+            email: accountEmail,
+            password,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+            'Unable to update your password.'
+        );
+      }
+
+      // Remove the temporary reset information
+      sessionStorage.removeItem(
+        'swu_password_reset_token'
+      );
+
+      sessionStorage.removeItem(
+        'swu_password_reset_email'
+      );
+
       setCompletedAt(new Date());
+
     } catch (resetError) {
-      setError(friendlyAuthError(resetError, 'Unable to reset your password.'));
+      setError(
+        resetError?.message ||
+          'Unable to reset your password. Please try again.'
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  if (checking) {
+  /*
+   * User reached this page without successfully
+   * completing the OTP verification.
+   */
+  if (!resetToken || !accountEmail) {
     return (
       <RecoveryShell>
-        <p className="px-7 py-12 text-center text-sm text-[#4B5563]">
-          Checking your reset link...
-        </p>
-      </RecoveryShell>
-    );
-  }
+        <CardHeader
+          icon={AlertTriangle}
+          title="Reset Session Expired"
+          description="Your password reset session is missing or has expired. Please request a new verification code."
+        />
 
-  if (linkError) {
-    return (
-      <RecoveryShell>
-        <CardHeader icon={AlertTriangle} title="Link Not Valid" description={linkError} />
         <div className="px-7 pb-7">
-          <PrimaryButton onClick={() => navigate('/forgot-password')}>
-            Request a New Link
+          <PrimaryButton
+            onClick={() =>
+              navigate('/forgot-password')
+            }
+          >
+            Request New Code
             <ArrowRight size={16} />
           </PrimaryButton>
-          <SecondaryButton onClick={() => navigate('/superadmin/login')}>
+
+          <SecondaryButton
+            onClick={() =>
+              navigate('/superadmin/login')
+            }
+          >
             Back to Login
           </SecondaryButton>
         </div>
@@ -434,11 +741,20 @@ export function ResetPassword() {
 
         <div className="px-7 pb-7">
           <p className="flex items-center justify-center gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-xs text-[#4B5563]">
-            <ShieldCheck size={13} className="text-[#9D0A0E]" />
-            Updated on {completedAt.toLocaleString()}
+            <ShieldCheck
+              size={13}
+              className="text-[#9D0A0E]"
+            />
+
+            Updated on{' '}
+            {completedAt.toLocaleString()}
           </p>
 
-          <PrimaryButton onClick={() => navigate('/superadmin/login')}>
+          <PrimaryButton
+            onClick={() =>
+              navigate('/superadmin/login')
+            }
+          >
             Back to Login
             <ArrowRight size={16} />
           </PrimaryButton>
@@ -453,13 +769,22 @@ export function ResetPassword() {
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
           <ShieldAlert size={18} />
         </div>
-        <h1 className="text-lg font-bold text-[#1F2937]">Set New Password</h1>
+
+        <h1 className="text-lg font-bold text-[#1F2937]">
+          Set New Password
+        </h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 px-7 pb-7 pt-5">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 px-7 pb-7 pt-5"
+      >
         <p className="text-sm leading-6 text-[#4B5563]">
           Create a strong new password for{' '}
-          <span className="font-semibold text-[#1F2937]">{accountEmail}</span>.
+          <span className="font-semibold text-[#1F2937]">
+            {accountEmail}
+          </span>
+          .
         </p>
 
         <PasswordField
@@ -480,20 +805,32 @@ export function ResetPassword() {
         />
 
         <div className="rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3">
-          <p className="mb-2 text-xs font-bold text-[#1F2937]">Password requirements:</p>
+          <p className="mb-2 text-xs font-bold text-[#1F2937]">
+            Password requirements:
+          </p>
+
           <ul className="space-y-1.5">
             {results.map((rule) => (
               <li
                 key={rule.key}
                 className={`flex items-center gap-2 text-xs ${
-                  rule.ok ? 'text-emerald-700' : 'text-[#4B5563]'
+                  rule.ok
+                    ? 'text-emerald-700'
+                    : 'text-[#4B5563]'
                 }`}
               >
                 {rule.ok ? (
-                  <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+                  <CheckCircle2
+                    size={14}
+                    className="shrink-0 text-emerald-600"
+                  />
                 ) : (
-                  <Circle size={14} className="shrink-0 text-[#9CA3AF]" />
+                  <Circle
+                    size={14}
+                    className="shrink-0 text-[#9CA3AF]"
+                  />
                 )}
+
                 {rule.label}
               </li>
             ))}
@@ -502,14 +839,28 @@ export function ResetPassword() {
 
         <ErrorBox>{error}</ErrorBox>
 
-        <PrimaryButton type="submit" disabled={saving || !allRulesMet || !confirm}>
-          {saving ? 'Updating...' : 'Update Password & Login'}
-          {!saving && <ArrowRight size={16} />}
+        <PrimaryButton
+          type="submit"
+          disabled={
+            saving ||
+            !allRulesMet ||
+            !confirm
+          }
+        >
+          {saving
+            ? 'Updating...'
+            : 'Update Password & Login'}
+
+          {!saving && (
+            <ArrowRight size={16} />
+          )}
         </PrimaryButton>
 
         <button
           type="button"
-          onClick={() => navigate('/superadmin/login')}
+          onClick={() =>
+            navigate('/superadmin/login')
+          }
           disabled={saving}
           className="flex w-full items-center justify-center gap-1.5 text-xs font-medium text-[#4B5563] transition hover:text-[#9D0A0E]"
         >

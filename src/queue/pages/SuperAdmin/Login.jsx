@@ -8,7 +8,8 @@ import LoginBG1 from '../../../assets/LoginBG1.jpg';
 import Logo from '../../../assets/logo.png';
 
 export default function Login() {
-  const { signIn } = useAuth();
+ const {
+  signIn, signInWithGoogle,} = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -132,13 +133,52 @@ export default function Login() {
   | call and then reuse the same getLandingPath(...) redirect as handleSubmit.
   |
   */
+ async function handleGoogleSignIn() {
+  setErrors({});
+  setLoading(true);
 
-  function handleGoogleSignIn() {
-    setErrors({
-      form:
-        'Google sign-in is not available yet. Please use your email and password.',
-    });
+  try {
+    const result =
+      await signInWithGoogle(
+        email,
+        password
+      );
+
+    if (result?.error) {
+      setErrors({
+        form: result.error.message,
+      });
+
+      return;
+    }
+
+    if (
+      result.user?.must_change_password === true
+    ) {
+      setLoggedInUser(
+        result.user
+      );
+
+      setShowChangePassword(
+        true
+      );
+
+      return;
+    }
+
+    if (result?.user) {
+      navigate(
+        getLandingPath(
+          result.user
+        )
+      );
+    }
+
+  } finally {
+    setLoading(false);
   }
+}
+
 
 async function handlePasswordChangeSuccess(
   passwordStatus = {}
