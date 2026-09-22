@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { getDashboardAnalytics, getKiosks,} from "../../services/backendApi";
+import { getDashboardAnalytics, getKiosks, getSecurityPinStatus } from "../../services/backendApi";
+import SecurityPinModal, { readPinIsSet } from "../../components/SecurityPinModal";
 import { auth } from "../../../firebase";
 
 import {
@@ -17,6 +18,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Search,
 } from 'lucide-react';
 
 
@@ -194,18 +196,21 @@ function CalendarPopup({ value, onChange, onClose }) {
 
   return (
     <div
-      className="absolute right-0 top-full z-50 mt-2 w-[610px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.18)]"
+      className="absolute right-0 top-full z-50 mt-2 w-[32rem] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="flex min-h-[390px]">
-        <div className="flex w-[185px] shrink-0 flex-col border-r border-slate-100 px-6 py-7">
-          <div className="space-y-1">
+      <div className="flex">
+
+        {/* PRESETS */}
+
+        <div className="flex w-36 shrink-0 flex-col px-5 py-5">
+          <div className="space-y-0.5">
             {['Today', 'Yesterday', 'Last week', 'Last month', 'Last quarter'].map((preset) => (
               <button
                 key={preset}
                 type="button"
                 onClick={() => selectPreset(preset)}
-                className="block w-full rounded-md px-1 py-2 text-left text-[15px] font-medium text-slate-700 transition hover:bg-[#F1F3F5] hover:text-[#9D0A0E]"
+                className="block w-full rounded-md px-1 py-1.5 text-left text-sm text-[#1F2937] transition hover:text-[#9D0A0E]"
               >
                 {preset}
               </button>
@@ -215,32 +220,34 @@ function CalendarPopup({ value, onChange, onClose }) {
           <button
             type="button"
             onClick={reset}
-            className="mt-auto px-1 text-left text-[15px] font-semibold text-[#9D0A0E] hover:underline"
+            className="mt-auto px-1 pt-4 text-left text-sm font-semibold text-[#9D0A0E] hover:underline"
           >
             Reset
           </button>
         </div>
 
-        <div className="flex-1 px-7 py-7">
-          <div className="mb-5 flex items-center justify-between">
-            <h3 className="text-[25px] font-bold text-slate-800">{monthLabel}</h3>
+        {/* MONTH GRID */}
 
-            <div className="flex items-center gap-4">
+        <div className="flex-1 py-5 pr-5">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <h3 className="text-base font-bold text-[#1F2937]">{monthLabel}</h3>
+
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 aria-label="Previous month"
                 onClick={() => moveMonth(-1)}
-                className="rounded-full p-1 text-slate-700 hover:bg-slate-100"
+                className="rounded-full p-1 text-[#1F2937] transition hover:bg-[#F1F3F5]"
               >
-                <ChevronLeft size={22} strokeWidth={2.5} />
+                <ChevronLeft size={16} strokeWidth={2.5} />
               </button>
               <button
                 type="button"
                 aria-label="Next month"
                 onClick={() => moveMonth(1)}
-                className="rounded-full p-1 text-slate-700 hover:bg-slate-100"
+                className="rounded-full p-1 text-[#1F2937] transition hover:bg-[#F1F3F5]"
               >
-                <ChevronRight size={22} strokeWidth={2.5} />
+                <ChevronRight size={16} strokeWidth={2.5} />
               </button>
             </div>
           </div>
@@ -249,7 +256,7 @@ function CalendarPopup({ value, onChange, onClose }) {
             {WEEKDAYS.map((day) => (
               <div
                 key={day}
-                className="pb-3 text-[14px] font-medium text-slate-400"
+                className="pb-2 text-xs font-medium text-[#9CA3AF]"
               >
                 {day}
               </div>
@@ -259,47 +266,43 @@ function CalendarPopup({ value, onChange, onClose }) {
               const currentMonth = date.getMonth() === visibleMonth.getMonth();
               const selectedStart = isSameDay(date, rangeStart);
               const selectedEnd = isSameDay(date, rangeEnd);
+              const selected = selectedStart || selectedEnd;
               const inRange = isBetweenDates(date, rangeStart, rangeEnd);
+              const isToday = isSameDay(date, today);
+              const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+
+              const textColor = selected
+                ? 'font-semibold text-white'
+                : !currentMonth
+                  ? 'text-[#D1D5DB]'
+                  : isToday
+                    ? 'font-semibold text-[#9D0A0E]'
+                    : isWeekend
+                      ? 'text-[#9CA3AF]'
+                      : 'text-[#1F2937]';
 
               return (
                 <button
                   key={formatDate(date)}
                   type="button"
                   onClick={() => selectDate(date)}
-                  className={`relative flex h-12 items-center justify-center text-[15px] ${
-                    inRange ? 'bg-[#F6E7E7]' : ''
-                  } ${
-                    !currentMonth
-                      ? 'text-slate-300'
-                      : 'text-slate-700'
+                  className={`relative flex h-9 items-center justify-center text-sm transition ${
+                    inRange || selected ? 'bg-[#F6E7E7]' : 'hover:bg-[#F8F9FA]'
                   }`}
                 >
-                  {(selectedStart || selectedEnd) && (
-                    <span className="absolute h-10 w-10 rounded-full bg-[#9D0A0E]" />
+                  {selected && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute h-8 w-8 rounded-full bg-[#9D0A0E] ring-4 ring-[#9D0A0E]/15"
+                    />
                   )}
 
-                  <span
-                    className={`relative z-10 ${
-                      selectedStart || selectedEnd
-                        ? 'font-semibold text-white'
-                        : ''
-                    }`}
-                  >
+                  <span className={`relative z-10 ${textColor}`}>
                     {date.getDate()}
                   </span>
                 </button>
               );
             })}
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-10 rounded-lg bg-[#9D0A0E] px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#7D080B]"
-            >
-              Done
-            </button>
           </div>
         </div>
       </div>
@@ -323,6 +326,12 @@ const [resetDepartmentIds, setResetDepartmentIds] = useState(() => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Client-side filter for the Department Overview table.
+  const [departmentSearch, setDepartmentSearch] = useState('');
+
+  // First-run prompt: shown only when the server says no PIN exists yet.
+  const [showPinSetup, setShowPinSetup] = useState(false);
 
   const [calendarOpen, setCalendarOpen] = useState(false);
 
@@ -421,6 +430,32 @@ useEffect(() => {
   fetchDashboardData();
 }, []);
 
+  // Security PIN first-run check. Runs on its own so a missing or failing
+  // PIN endpoint never blocks the dashboard. Signed-out: skipped silently.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkSecurityPin() {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      try {
+        const status = await getSecurityPinStatus(user);
+        if (!cancelled && !readPinIsSet(status)) {
+          setShowPinSetup(true);
+        }
+      } catch (pinError) {
+        console.warn('Security PIN status unavailable:', pinError?.message);
+      }
+    }
+
+    checkSecurityPin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     const handleOutsideClick = () => setCalendarOpen(false);
 
@@ -508,19 +543,19 @@ useEffect(() => {
       label: 'Serving',
       value: 0,
       pct: 0,
-      color: '#0B1524',
+      color: '#1F2937',
     },
     {
       label: 'Waiting',
       value: 0,
       pct: 0,
-      color: '#94A3B8',
+      color: '#4B5563',
     },
     {
       label: 'Completed',
       value: 0,
       pct: 0,
-      color: '#2563EB',
+      color: '#B34C4C',
     },
   ];
 
@@ -571,14 +606,14 @@ return (
             <span className="flex items-center gap-2">
               <CalendarDays
                 size={14}
-                className="text-slate-500"
+                className="text-[#4B5563]"
               />
               {calendarLabel}
             </span>
 
             <ChevronDown
               size={13}
-              className="text-slate-500"
+              className="text-[#4B5563]"
             />
           </button>
 
@@ -607,7 +642,7 @@ return (
 
             setCalendarOpen(false);
           }}
-          className="rounded-lg bg-[#0B2447] px-4 py-2 text-xs font-medium text-white hover:bg-[#0B2447]/90"
+          className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B]"
         >
           Apply Filter
         </button>
@@ -621,7 +656,7 @@ return (
               appliedEndDate
             )
           }
-          className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3.5 py-2 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:bg-white"
+          className="flex h-10 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3.5 py-2 text-xs font-medium text-[#4B5563] shadow-sm transition-colors hover:border-[#E5E7EB] hover:bg-white"
         >
           <RotateCw size={12} />
           Refresh
@@ -682,7 +717,7 @@ return (
 
         <div className="space-y-4">
           {insights.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-[#9CA3AF]">
               No insights available for the selected period.
             </p>
           ) : (
@@ -697,11 +732,11 @@ return (
               return (
                 <div
                   key={`${insight.type}-${i}`}
-                  className="flex gap-2.5 text-sm text-slate-600"
+                  className="flex gap-2.5 text-sm text-[#4B5563]"
                 >
                   <Icon
                     size={16}
-                    className="mt-0.5 shrink-0 text-slate-400"
+                    className="mt-0.5 shrink-0 text-[#9CA3AF]"
                   />
 
                   <p>{insight.text}</p>
@@ -720,7 +755,7 @@ return (
 
         <div className="space-y-4">
           {departmentVolume.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-[#9CA3AF]">
               No queue volume recorded for the selected period.
             </p>
           ) : (
@@ -740,18 +775,18 @@ return (
               return (
                 <div key={dept.department_id}>
                   <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-[#1F2937]">
                       {dept.name}
                     </span>
 
-                    <span className="text-slate-400">
+                    <span className="text-[#9CA3AF]">
                       {dept.value}
                     </span>
                   </div>
 
-                  <div className="h-2 w-full rounded-full bg-slate-100">
+                  <div className="h-2 w-full rounded-full bg-[#F1F3F5]">
                     <div
-                      className="h-2 rounded-full bg-[#0B2447]"
+                      className="h-2 rounded-full bg-[#9D0A0E]"
                       style={{
                         width: `${percentage}%`,
                       }}
@@ -786,7 +821,7 @@ return (
           }}
         />
 
-        <span className="text-slate-600">
+        <span className="text-[#4B5563]">
           {slice.label} ({slice.pct}%)
         </span>
       </div>
@@ -797,26 +832,41 @@ return (
 </div>
 
     {/* Department Overview */}
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-        <h2 className="text-sm font-semibold text-slate-800">
+    <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+      <div className="flex items-center justify-between gap-4 border-b border-[#E5E7EB] px-5 py-4">
+        <h2 className="shrink-0 text-sm font-semibold text-[#1F2937]">
           Department Overview
         </h2>
 
-        <span className="text-xs text-slate-400">
-          Live from Department Management
-        </span>
+        <div className="relative w-full max-w-xs">
+          <input
+            type="text"
+            value={departmentSearch}
+            onChange={(event) =>
+              setDepartmentSearch(event.target.value)
+            }
+            placeholder="Search department"
+            aria-label="Search department"
+            className="w-full rounded-full border border-[#E5E7EB] bg-[#F8F9FA] py-2 pl-4 pr-10 text-xs text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+          />
+
+          <Search
+            size={14}
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#4B5563]"
+          />
+        </div>
       </div>
 
       {error && (
-        <div className="mx-5 my-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
+        <div className="mx-5 my-3 rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-4 py-2 text-xs text-[#9D0A0E]">
           {error}
         </div>
       )}
 
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+          <tr className="border-b border-[#E5E7EB] bg-[#FBF1F1] text-xs uppercase tracking-wide text-[#4B5563]">
             <th className="px-5 py-2.5 font-medium">
               Department
             </th>
@@ -840,7 +890,7 @@ return (
             <tr>
               <td
                 colSpan={4}
-                className="px-5 py-8 text-center text-sm text-slate-400"
+                className="px-5 py-8 text-center text-sm text-[#9CA3AF]"
               >
                 Loading departments...
               </td>
@@ -853,7 +903,7 @@ return (
               <tr>
                 <td
                   colSpan={4}
-                  className="px-5 py-8 text-center text-sm text-slate-400"
+                  className="px-5 py-8 text-center text-sm text-[#9CA3AF]"
                 >
                   No departments yet.
                 </td>
@@ -861,16 +911,33 @@ return (
             )}
 
           {!loading &&
-            departments.map((dept) => (
+            departments
+              .filter((dept) => {
+                const query = departmentSearch.trim().toLowerCase();
+
+                if (!query) return true;
+
+                const kioskName =
+                  kiosks.find(
+                    (kiosk) =>
+                      String(kiosk.kiosk_id) === String(dept.kiosk_id)
+                  )?.name || '';
+
+                return [dept.name, dept.prefix, kioskName]
+                  .some((value) =>
+                    String(value || '').toLowerCase().includes(query)
+                  );
+              })
+              .map((dept) => (
               <tr
                 key={dept.department_id}
-                className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60"
+                className="border-b border-[#F1F3F5] last:border-0 hover:bg-[#F8F9FA]"
               >
-                <td className="px-5 py-3 font-medium text-slate-700">
+                <td className="px-5 py-3 font-medium text-[#1F2937]">
                   {dept.name}
                 </td>
 
-                <td className="px-5 py-3 text-slate-600">
+                <td className="px-5 py-3 text-[#4B5563]">
               {kiosks.find(
                 (kiosk) =>
                   String(kiosk.kiosk_id) ===
@@ -878,7 +945,7 @@ return (
               )?.name || "--"}
             </td>
 
-                <td className="px-5 py-3 text-slate-600">
+                <td className="px-5 py-3 text-[#4B5563]">
                   {dept.prefix}
                 </td>
 
@@ -887,14 +954,14 @@ return (
                     className={`inline-flex items-center gap-1.5 text-xs font-medium ${
                       dept.status === "active"
                         ? "text-emerald-600"
-                        : "text-slate-400"
+                        : "text-[#9CA3AF]"
                     }`}
                   >
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${
                         dept.status === "active"
                           ? "bg-emerald-500"
-                          : "bg-slate-300"
+                          : "bg-[#9CA3AF]"
                       }`}
                     />
 
@@ -908,6 +975,14 @@ return (
         </tbody>
       </table>
     </div>
+
+    {showPinSetup && (
+      <SecurityPinModal
+        mode="setup"
+        onClose={() => setShowPinSetup(false)}
+        onSuccess={() => setShowPinSetup(false)}
+      />
+    )}
   </div>
 );
 }

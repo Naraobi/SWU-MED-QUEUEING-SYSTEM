@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './queue/services/Authcontext';
 import ProtectedRoute from './queue/pages/SuperAdmin/Protectedroute';
 import Login from './queue/pages/SuperAdmin/Login';
+import ForgotPassword, { ResetPassword } from './queue/pages/SuperAdmin/ForgotPassword';
 import SuperAdminApp from './queue/pages/SuperAdmin/SuperAdminApp';
 import AdminApp from './queue/pages/Admin/AdminApp';
 import PatientView from './queue/pages/Patient/PatientView';
@@ -62,6 +63,10 @@ function App() {
 
             {/* Login */}
             <Route path="/superadmin/login" element={<Login />} />
+
+            {/* Password recovery - public, must sit above the catch-all */}
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Superadmin base route */}
             <Route

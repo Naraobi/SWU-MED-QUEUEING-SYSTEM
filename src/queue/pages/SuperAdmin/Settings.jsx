@@ -11,6 +11,8 @@ import {
   Palette,
   Copy,
   Upload,
+  KeyRound,
+  Globe,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
@@ -38,6 +40,14 @@ const CLOCK_FORMATS = [
 ];
 
 // Each swatch is a 4-quadrant preview circle.
+const THEME_MODES = [
+  { key: 'light', label: 'Light Mode', caption: 'Default hospital theme', icon: Sun },
+  { key: 'dark', label: 'Dark Mode', caption: 'Dimmed high-contrast', icon: Moon },
+  { key: 'system', label: 'System Default', caption: 'Follows OS preference', icon: Monitor },
+];
+
+const LANGUAGES = ['English', 'Filipino', 'Cebuano'];
+
 const THEME_SWATCHES = [
   { key: 'blue', colors: ['#9D0A0E', '#D4B0B1', '#7D080B', '#F0DADA'] },
   { key: 'slate', colors: ['#6B7280', '#9CA3AF', '#4B5563', '#D1D5DB'] },
@@ -73,7 +83,7 @@ function DepartmentCustomizationModal({ onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
           <div>
             <h2 className="text-sm font-bold text-[#1F2937]">
               Department Customization
@@ -86,7 +96,7 @@ function DepartmentCustomizationModal({ onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
+            className="rounded-md p-1.5 text-[#4B5563] hover:bg-[#F1F3F5]"
           >
             <X size={18} />
           </button>
@@ -103,17 +113,17 @@ function DepartmentCustomizationModal({ onClose }) {
               type="text"
               value={departmentName}
               onChange={(e) => setDepartmentName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
+              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            className="rounded-md border border-[#E5E7EB] bg-white px-4 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
           >
             Cancel
           </button>
@@ -187,17 +197,17 @@ function ThemeModal({ onClose, onOpenColorPicker }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-[280px] overflow-hidden rounded-xl bg-white shadow-xl">
+      <div className="w-full max-w-xs overflow-hidden rounded-xl bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
-          <h2 className="text-sm font-bold text-slate-800">
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3.5">
+          <h2 className="text-sm font-bold text-[#1F2937]">
             Theme
           </h2>
 
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
+            className="text-[#9CA3AF] hover:text-[#1F2937]"
             aria-label="Close"
           >
             <X size={16} />
@@ -216,10 +226,10 @@ function ThemeModal({ onClose, onOpenColorPicker }) {
                   key={key}
                   type="button"
                   onClick={() => setMode(key)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition ${
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition ${
                     isActive
-                      ? 'border border-slate-300 bg-white text-slate-800 shadow-sm'
-                      : 'border border-transparent bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'border border-[#E5E7EB] bg-white text-[#1F2937] shadow-sm'
+                      : 'border border-transparent bg-[#F1F3F5] text-[#4B5563] hover:bg-[#E5E7EB]'
                   }`}
                 >
                   <Icon size={12} />
@@ -240,7 +250,7 @@ function ThemeModal({ onClose, onOpenColorPicker }) {
                   type="button"
                   onClick={() => setSelectedSwatch(key)}
                   aria-label={`${key} theme`}
-                  className="relative flex aspect-square items-center justify-center rounded-lg bg-slate-50 transition hover:bg-slate-100"
+                  className="relative flex aspect-square items-center justify-center rounded-lg bg-[#F8F9FA] transition hover:bg-[#F1F3F5]"
                 >
                   <span
                     className="block h-8 w-8 rounded-full"
@@ -263,7 +273,7 @@ function ThemeModal({ onClose, onOpenColorPicker }) {
               type="button"
               onClick={onOpenColorPicker}
               aria-label="Pick a custom color"
-              className="relative flex aspect-square items-center justify-center rounded-lg bg-slate-50 transition hover:bg-slate-100"
+              className="relative flex aspect-square items-center justify-center rounded-lg bg-[#F8F9FA] transition hover:bg-[#F1F3F5]"
             >
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2603C] text-white">
                 <Pipette size={14} />
@@ -273,11 +283,11 @@ function ThemeModal({ onClose, onOpenColorPicker }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            className="rounded-md border border-[#E5E7EB] bg-white px-4 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
           >
             Cancel
           </button>
@@ -336,12 +346,12 @@ function CreatePinModal({ onClose, onContinue }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3.5">
           <div>
-            <h2 className="text-sm font-bold text-slate-800">
+            <h2 className="text-sm font-bold text-[#1F2937]">
               Create Security PIN
             </h2>
-            <p className="mt-0.5 text-[10px] text-slate-500">
+            <p className="mt-0.5 text-xs text-[#4B5563]">
               Protect sensitive system operations
             </p>
           </div>
@@ -349,7 +359,7 @@ function CreatePinModal({ onClose, onContinue }) {
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 transition hover:text-slate-600"
+            className="text-[#9CA3AF] transition hover:text-[#1F2937]"
             aria-label="Close"
           >
             <X size={16} />
@@ -363,7 +373,7 @@ function CreatePinModal({ onClose, onContinue }) {
               <ShieldCheck size={16} />
             </div>
 
-            <p className="text-[11px] leading-4 text-slate-600">
+            <p className="text-xs leading-4 text-[#4B5563]">
               Create a 6-digit security PIN. This PIN will be required for
               protected kiosk and department operations.
             </p>
@@ -373,7 +383,7 @@ function CreatePinModal({ onClose, onContinue }) {
           <div>
             <label
               htmlFor="security-pin"
-              className="mb-1.5 block text-xs font-semibold text-slate-700"
+              className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
             >
               New PIN
             </label>
@@ -387,7 +397,7 @@ function CreatePinModal({ onClose, onContinue }) {
               value={pin}
               onChange={(e) => handlePinChange(e.target.value, setPin)}
               placeholder="Enter 6-digit PIN"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm tracking-[0.35em] text-slate-800 outline-none transition placeholder:tracking-normal placeholder:text-slate-400 focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm tracking-[0.35em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
             />
           </div>
 
@@ -395,7 +405,7 @@ function CreatePinModal({ onClose, onContinue }) {
           <div>
             <label
               htmlFor="confirm-security-pin"
-              className="mb-1.5 block text-xs font-semibold text-slate-700"
+              className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
             >
               Confirm PIN
             </label>
@@ -411,7 +421,7 @@ function CreatePinModal({ onClose, onContinue }) {
                 handlePinChange(e.target.value, setConfirmPin)
               }
               placeholder="Re-enter 6-digit PIN"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm tracking-[0.35em] text-slate-800 outline-none transition placeholder:tracking-normal placeholder:text-slate-400 focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm tracking-[0.35em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
             />
           </div>
 
@@ -423,11 +433,11 @@ function CreatePinModal({ onClose, onContinue }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            className="rounded-md border border-[#E5E7EB] bg-white px-4 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
           >
             Cancel
           </button>
@@ -540,12 +550,12 @@ function PinVerificationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
+        <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3.5">
           <div>
-            <h2 className="text-sm font-bold text-slate-800">
+            <h2 className="text-sm font-bold text-[#1F2937]">
               Verify Your Email
             </h2>
-            <p className="mt-0.5 text-[10px] text-slate-500">
+            <p className="mt-0.5 text-xs text-[#4B5563]">
               Confirm your identity to create the PIN
             </p>
           </div>
@@ -553,7 +563,7 @@ function PinVerificationModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 transition hover:text-slate-600"
+            className="text-[#9CA3AF] transition hover:text-[#1F2937]"
             aria-label="Close"
           >
             <X size={16} />
@@ -567,7 +577,7 @@ function PinVerificationModal({
               <LockKeyhole size={15} />
             </div>
 
-            <p className="text-[11px] leading-4 text-slate-600">
+            <p className="text-xs leading-4 text-[#4B5563]">
               We've sent a 6-digit verification code to your registered
               email address.
             </p>
@@ -576,7 +586,7 @@ function PinVerificationModal({
           <div>
             <label
               htmlFor="pin-verification-code"
-              className="mb-1.5 block text-xs font-semibold text-slate-700"
+              className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
             >
               Verification Code
             </label>
@@ -590,18 +600,18 @@ function PinVerificationModal({
               value={code}
               onChange={(e) => handleCodeChange(e.target.value)}
               placeholder="Enter 6-digit code"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-center text-sm font-semibold tracking-[0.4em] text-slate-800 outline-none transition placeholder:tracking-normal placeholder:font-normal placeholder:text-slate-400 focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-center text-sm font-semibold tracking-[0.4em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:font-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
             />
           </div>
 
           {error && (
-            <p className="text-[11px] font-medium text-red-600">
+            <p className="text-xs font-medium text-red-600">
               {error}
             </p>
           )}
 
           {message && (
-            <p className="text-[11px] font-medium text-green-600">
+            <p className="text-xs font-medium text-green-600">
               {message}
             </p>
           )}
@@ -611,7 +621,7 @@ function PinVerificationModal({
               type="button"
               onClick={handleResend}
               disabled={isResending}
-              className="text-[11px] font-semibold text-[#9D0A0E] transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              className="text-xs font-semibold text-[#9D0A0E] transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isResending ? 'Sending...' : 'Resend Code'}
             </button>
@@ -619,12 +629,12 @@ function PinVerificationModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-3">
+        <div className="flex items-center justify-between border-t border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3">
           <button
             type="button"
             onClick={onBack}
             disabled={isVerifying}
-            className="rounded-md border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-[#E5E7EB] bg-white px-4 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Back
           </button>
@@ -654,11 +664,11 @@ function PinSuccessModal({ onClose }) {
             <Check size={24} strokeWidth={2.5} />
           </div>
 
-          <h2 className="mt-4 text-base font-bold text-slate-800">
+          <h2 className="mt-4 text-base font-bold text-[#1F2937]">
             PIN Created
           </h2>
 
-          <p className="mt-2 max-w-xs text-xs leading-5 text-slate-500">
+          <p className="mt-2 max-w-xs text-xs leading-5 text-[#4B5563]">
             Your security PIN has been successfully created. You can now use
             it for protected kiosk and department operations.
           </p>
@@ -870,70 +880,273 @@ export default function Settings() {
 
           </div>
         </div>
-    </SettingsSection>
 
-      {/* Security */}
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-bold text-slate-800">
-              Security
-            </h2>
+        {/* PRIMARY ACCENT COLOR */}
 
-            <div className="mt-4 flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
-                <ShieldCheck size={17} />
-              </div>
+        <div className="mt-6">
+          <FieldLabel>Primary Accent Color</FieldLabel>
 
-              <div>
-                <h3 className="text-xs font-semibold text-slate-800">
-                  Security PIN
-                </h3>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] px-3 py-2">
+              <span
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10"
+                style={{ backgroundColor: accentColor }}
+              />
+              <span className="text-xs font-semibold uppercase text-[#1F2937]">
+                Hex {accentColor}
+              </span>
+            </div>
 
-                <p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">
-                  {pinConfigured
-                    ? 'Your security PIN is active and protects sensitive kiosk and department operations.'
-                    : 'Create a 6-digit PIN to protect kiosk unlocking and department reset operations.'}
-                   {pinError && (
-                      <p className="mt-2 text-[11px] font-medium text-red-600">
-                        {pinError}
-                      </p>
-                    )} 
-                </p>
+            <div className="flex items-center gap-2 border-l border-[#E5E7EB] pl-4">
+              <span className="text-xs text-[#4B5563]">Presets:</span>
 
-                {pinConfigured && (
-                  <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-semibold text-green-700">
-                    <Check size={11} strokeWidth={3} />
-                    Configured
-                  </div>
-                )}
-              </div>
+              {ACCENT_PRESETS.map((preset) => {
+                const isSelected = accentColor === preset;
+
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setAccentColor(preset)}
+                    aria-label={`Accent ${preset}`}
+                    aria-pressed={isSelected}
+                    className={`flex h-6 w-6 items-center justify-center rounded-full transition ${
+                      isSelected
+                        ? 'ring-2 ring-[#9D0A0E] ring-offset-2'
+                        : 'ring-1 ring-black/10 hover:ring-[#9CA3AF]'
+                    }`}
+                    style={{ backgroundColor: preset }}
+                  >
+                    {isSelected && <Check size={12} strokeWidth={3} className="text-white" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <button
-            type="button"
-            disabled={pinStatusLoading}
-            onClick={() => setActiveModal('createPin')}
-            className="shrink-0 rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
-          >
-            {pinStatusLoading
-              ? 'Loading...'
-              : pinConfigured
-                ? 'Change PIN'
-                : 'Create PIN'}
-          </button>
+          <Hint>
+            Applies to primary action buttons, active navigation markers, ticket
+            highlighted badges, and key queue alerts.
+          </Hint>
         </div>
-      </div>
+    </SettingsSection>
+
+      {/* =====================================================
+          PASSWORD & SECURITY
+      ===================================================== */}
+
+      <SettingsSection
+        icon={ShieldCheck}
+        title="Password &amp; Security"
+        subtitle="Manage your account password and Admin PIN."
+      >
+        <div className="divide-y divide-[#E5E7EB]">
+
+          {/* PASSWORD */}
+
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-5">
+            <div>
+              <p className="text-sm font-bold text-[#1F2937]">Password</p>
+              <p className="mt-0.5 text-xs text-[#4B5563]">
+                Keep your account secure by regularly updating your password.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowChangePassword(true)}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
+            >
+              <KeyRound size={14} />
+              Change Password
+            </button>
+          </div>
+
+          {/* SECURITY PIN */}
+
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-5">
+            <div>
+              <p className="flex items-center gap-2 text-sm font-bold text-[#1F2937]">
+                Security PIN
+
+                {pinConfigured && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-600/30">
+                    <Check size={10} strokeWidth={3} />
+                    PIN is set
+                  </span>
+                )}
+              </p>
+
+              <p className="mt-0.5 text-xs text-[#4B5563]">
+                Used to authorize protected system actions such as resetting records.
+              </p>
+
+              {pinError && (
+                <p className="mt-1.5 text-xs font-medium text-[#9D0A0E]">{pinError}</p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              disabled={pinStatusLoading}
+              onClick={() => setActiveModal('createPin')}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <LockKeyhole size={14} />
+              {pinStatusLoading
+                ? 'Loading...'
+                : pinConfigured
+                  ? 'Change PIN'
+                  : 'Set PIN'}
+            </button>
+          </div>
+
+        </div>
+      </SettingsSection>
+
+      {/* =====================================================
+          APPEARANCE
+      ===================================================== */}
+
+      <SettingsSection
+        icon={Monitor}
+        title="Appearance"
+        subtitle="Choose default theme settings for admin and kiosk interfaces."
+      >
+        <FieldLabel>Theme Mode</FieldLabel>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {THEME_MODES.map(({ key, label, caption, icon: Icon }) => {
+            const isSelected = themeMode === key;
+
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setThemeMode(key)}
+                aria-pressed={isSelected}
+                className={`rounded-xl border p-4 text-left transition ${
+                  isSelected
+                    ? 'border-[#9D0A0E] ring-1 ring-[#9D0A0E]'
+                    : 'border-[#E5E7EB] hover:border-[#9CA3AF]'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <Icon size={14} className="mt-0.5 shrink-0 text-[#9D0A0E]" />
+                    <div>
+                      <p className="text-xs font-bold text-[#1F2937]">{label}</p>
+                      <p className="mt-0.5 text-xs text-[#9CA3AF]">{caption}</p>
+                    </div>
+                  </div>
+
+                  <span
+                    aria-hidden="true"
+                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                      isSelected ? 'border-[#9D0A0E]' : 'border-[#D1D5DB]'
+                    }`}
+                  >
+                    {isSelected && <span className="h-2 w-2 rounded-full bg-[#9D0A0E]" />}
+                  </span>
+                </div>
+
+                <div
+                  aria-hidden="true"
+                  className={`mt-3 overflow-hidden rounded-md border border-[#E5E7EB] px-3 py-3 ${
+                    key === 'dark'
+                      ? 'bg-[#1F2937]'
+                      : key === 'system'
+                        ? 'bg-gradient-to-r from-white to-[#1F2937]'
+                        : 'bg-white'
+                  }`}
+                >
+                  <span className={`block h-2 w-16 rounded-sm ${key === 'dark' ? 'bg-white/70' : 'bg-[#4B5563]'}`} />
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="h-3 w-8 rounded-sm" style={{ backgroundColor: accentColor }} />
+                    <span className={`h-3 flex-1 rounded-sm ${key === 'dark' ? 'bg-white/20' : 'bg-[#E5E7EB]'}`} />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </SettingsSection>
+
+      {/* =====================================================
+          LANGUAGE & REGIONAL SETTINGS
+      ===================================================== */}
+
+      <SettingsSection
+        icon={Globe}
+        title="Language &amp; Regional Settings"
+        subtitle="Configure default language and regional time displays across touchpoints."
+      >
+        <div>
+          <FieldLabel>Primary Language</FieldLabel>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {LANGUAGES.map((lang) => {
+              const isSelected = language === lang;
+
+              return (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => setLanguage(lang)}
+                  aria-pressed={isSelected}
+                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                    isSelected
+                      ? 'bg-[#B34C4C] text-white'
+                      : 'border border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#F1F3F5]'
+                  }`}
+                >
+                  {isSelected && <Check size={12} strokeWidth={3} />}
+                  {lang}
+                </button>
+              );
+            })}
+          </div>
+
+          <Hint>
+            Sets the initial default locale for patient kiosk prompts and printed slips.
+          </Hint>
+        </div>
+
+        <div className="mt-5 border-t border-[#E5E7EB] pt-5">
+          <FieldLabel>Clock Format</FieldLabel>
+
+          <select
+            value={clockFormat}
+            onChange={(e) => setClockFormat(e.target.value)}
+            aria-label="Clock format"
+            className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+          >
+            {CLOCK_FORMATS.map((format) => (
+              <option key={format} value={format}>{format}</option>
+            ))}
+          </select>
+
+          <Hint>
+            Applied to TV Queue displays, timestamp audits, and ticket issuance times.
+          </Hint>
+        </div>
+      </SettingsSection>
 
       {/* Modals */}
+      {showChangePassword && (
+        <ChangePasswordModal
+          onSuccess={() => setShowChangePassword(false)}
+        />
+      )}
+
       {activeModal === 'department' && (
         <DepartmentCustomizationModal onClose={() => setActiveModal(null)} />
       )}
 
       {activeModal === 'theme' && (
         <ThemeModal
-          onClose={() => setActiveM_odal(null)}
+          onClose={() => setActiveModal(null)}
           onOpenColorPicker={() => setActiveModal('colorPicker')}
         />
       )}

@@ -158,8 +158,8 @@ export default function QueueManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Queue Management</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-semibold text-[#1F2937]">Queue Management</h1>
+          <p className="mt-1 text-sm text-[#4B5563]">
             Monitor each department queue and its current service state.
           </p>
         </div>
@@ -171,7 +171,7 @@ export default function QueueManagement() {
       </div>
 
       {loading && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+        <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 text-sm text-[#4B5563]">
           Loading departments and queue status...
         </div>
       )}
@@ -194,12 +194,12 @@ export default function QueueManagement() {
               return (
                 <div
                   key={department.department_id}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                  className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm"
                 >
                   <button
                     type="button"
                     onClick={() => toggleDepartment(department.department_id)}
-                    className="flex w-full items-center gap-4 p-5 text-left transition hover:bg-slate-50"
+                    className="flex w-full items-center gap-4 p-5 text-left transition hover:bg-[#F8F9FA]"
                   >
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FBF1F1] text-[#9D0A0E]">
                       <Building2 size={22} />
@@ -207,19 +207,19 @@ export default function QueueManagement() {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <h2 className="text-base font-semibold text-slate-800">{department.name}</h2>
+                        <h2 className="text-base font-semibold text-[#1F2937]">{department.name}</h2>
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                             department.status === 'active'
                               ? 'bg-emerald-50 text-emerald-700'
-                              : 'bg-slate-100 text-slate-600'
+                              : 'bg-[#F1F3F5] text-[#4B5563]'
                           }`}
                         >
                           {department.status}
                         </span>
                       </div>
 
-                      <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                      <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-[#4B5563]">
                         <span>Prefix: {department.prefix || 'Not set'}</span>
                         <span>•</span>
                         <span>{waitingCount} waiting</span>
@@ -227,57 +227,57 @@ export default function QueueManagement() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                      <span className="rounded-full bg-[#F1F3F5] px-2.5 py-1 text-xs font-medium text-[#1F2937]">
                         {state.stats?.currentlyServing || 0} serving
                       </span>
 
-                      <div className="text-slate-400">
+                      <div className="text-[#9CA3AF]">
                         {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                       </div>
                     </div>
                   </button>
 
                   {isExpanded && (
-                    <div className="border-t border-slate-100 bg-slate-50/50 p-5">
+                    <div className="border-t border-[#E5E7EB] bg-[#F8F9FA]/50 p-5">
                       <div className="grid gap-3 md:grid-cols-4">
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
                             <Users size={14} className="text-[#9D0A0E]" />
                             Waiting
                           </div>
-                          <p className="mt-3 text-2xl font-semibold text-slate-800">{state.stats?.waiting || 0}</p>
+                          <p className="mt-3 text-2xl font-semibold text-[#1F2937]">{state.stats?.waiting || 0}</p>
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
                             <Clock3 size={14} className="text-amber-600" />
                             Serving
                           </div>
-                          <p className="mt-3 text-2xl font-semibold text-slate-800">{state.stats?.currentlyServing || 0}</p>
+                          <p className="mt-3 text-2xl font-semibold text-[#1F2937]">{state.stats?.currentlyServing || 0}</p>
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
                             <History size={14} className="text-emerald-600" />
                             Completed
                           </div>
-                          <p className="mt-3 text-2xl font-semibold text-slate-800">{state.stats?.completed || 0}</p>
+                          <p className="mt-3 text-2xl font-semibold text-[#1F2937]">{state.stats?.completed || 0}</p>
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
                             <MonitorPlay size={14} className="text-rose-600" />
                             Skipped
                           </div>
-                          <p className="mt-3 text-2xl font-semibold text-slate-800">{state.stats?.skipped || 0}</p>
+                          <p className="mt-3 text-2xl font-semibold text-[#1F2937]">{state.stats?.skipped || 0}</p>
                         </div>
                       </div>
 
                       <div className="mt-5 grid gap-4 lg:grid-cols-[1.5fr_0.9fr]">
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
                           <div className="mb-3 flex items-center justify-between">
-                            <h3 className="text-sm font-semibold text-slate-800">Current queue status</h3>
-                            <span className="text-xs text-slate-500">Today</span>
+                            <h3 className="text-sm font-semibold text-[#1F2937]">Current queue status</h3>
+                            <span className="text-xs text-[#4B5563]">Today</span>
                           </div>
 
                           {currentlyServing ? (
@@ -285,21 +285,21 @@ export default function QueueManagement() {
                               <p className="text-xs font-semibold uppercase tracking-wide text-[#9D0A0E]">
                                 Currently serving
                               </p>
-                              <p className="mt-2 text-xl font-semibold text-slate-800">
+                              <p className="mt-2 text-xl font-semibold text-[#1F2937]">
                                 #{currentlyServing.queue_number || currentlyServing.queue_number || 'N/A'}
                               </p>
-                              <p className="mt-1 text-sm text-slate-600">
+                              <p className="mt-1 text-sm text-[#4B5563]">
                                 {currentlyServing.patient_number ? `Patient ${currentlyServing.patient_number}` : 'Patient in service'}
                               </p>
                             </div>
                           ) : (
-                            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                            <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8F9FA] p-4 text-sm text-[#4B5563]">
                               No patient is currently being served in this department.
                             </div>
                           )}
 
                           <div className="mt-4">
-                            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
                               Waiting queue
                             </h4>
 
@@ -308,21 +308,21 @@ export default function QueueManagement() {
                                 state.waitingQueue.slice(0, 6).map((ticket) => (
                                   <div
                                     key={ticket.queue_id}
-                                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                                    className="flex items-center justify-between rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2"
                                   >
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-800">#{ticket.queue_number}</p>
-                                      <p className="text-xs text-slate-500">
+                                      <p className="text-sm font-semibold text-[#1F2937]">#{ticket.queue_number}</p>
+                                      <p className="text-xs text-[#4B5563]">
                                         {ticket.is_priority ? 'Priority queue' : 'Regular queue'}
                                       </p>
                                     </div>
-                                    <span className="text-xs text-slate-500">
+                                    <span className="text-xs text-[#4B5563]">
                                       {ticket.queue_sequence || 'Queued'}
                                     </span>
                                   </div>
                                 ))
                               ) : (
-                                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                                <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8F9FA] p-4 text-sm text-[#4B5563]">
                                   No patients are waiting in this department.
                                 </div>
                               )}
@@ -330,21 +330,21 @@ export default function QueueManagement() {
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <h3 className="text-sm font-semibold text-slate-800">Department actions</h3>
+                        <div className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+                          <h3 className="text-sm font-semibold text-[#1F2937]">Department actions</h3>
                           <div className="mt-4 space-y-2">
                             {LINKS.map(({ title, description, href, icon: Icon }) => (
                               <Link
                                 key={href}
                                 to={href}
-                                className="group flex items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-[#F0DADA] hover:bg-[#FBF1F1]/40"
+                                className="group flex items-start gap-3 rounded-lg border border-[#E5E7EB] p-3 transition hover:border-[#F0DADA] hover:bg-[#FBF1F1]/40"
                               >
                                 <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
                                   <Icon size={16} />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-slate-800">{title}</p>
-                                  <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+                                  <p className="text-sm font-medium text-[#1F2937]">{title}</p>
+                                  <p className="mt-1 text-xs leading-5 text-[#4B5563]">{description}</p>
                                 </div>
                               </Link>
                             ))}
@@ -357,7 +357,7 @@ export default function QueueManagement() {
               );
             })
           ) : (
-            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-[#E5E7EB] bg-white p-8 text-center text-sm text-[#4B5563]">
               No departments found.
             </div>
           )}

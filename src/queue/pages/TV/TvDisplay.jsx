@@ -1,112 +1,467 @@
-import { useEffect, useState } from 'react';
-import { Bell, Clock, ListOrdered, Play, Info } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  BellRing,
+  Clock,
+  ListPlus,
+  ArrowRight,
+  Info,
+  Volume2,
+  Monitor,
+} from 'lucide-react';
 
-// Mock "now serving" data for now — later this should read from the same
-// queue table that the Doctor/Staff view writes to when they click "Call Next".
-const NOW_SERVING = {
-  department: 'LABORATORY',
-  queueNumber: 'LB-021',
-  terminal: 'TERMINAL 2',
-  estMin: 25,
-};
+import {
+  getKiosks,
+  getPatientDepartments,
+  getTerminals,
+} from '../../services/backendApi';
+import { fetchQueueState } from '../../services/api';
+import HospitalPhoto from '../../../assets/LoginBG1.jpg';
 
-const NEXT_IN_LINE = ['LB-022', 'LB-023', 'LB-024', 'LB-025'];
+/*
+ * SWUMed TV Display — one screen per kiosk.
+ *
+ *   /display?kiosk=<kiosk_id>
+ *
+ * Without ?kiosk the screen shows a kiosk picker, so a TV can be set up
+ * once and bookmarked.
+ *
+ * Video: drop the presentation file at
+ *   public/videos/swumed-presentation.mp4
+ * It autoplays muted on a loop. Until the file exists, the hospital
+ * photo is shown in its place.
+ */
 
+const POLL_MS = 5000;
+const WAITING_SLOTS = 8;
+const VIDEO_SRC = '/videos/swumed-presentation.mp4';
+
+function isPriorityTicket(ticket) {
+  if (!ticket) return false;
+  return (
+    String(ticket.id || '').toUpperCase().startsWith('P-') ||
+    ticket.service === 'Priority'
+  );
+}
+
+/* ---------------------------------------------------------------
+   Clock
+--------------------------------------------------------------- */
 function useClock() {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000 * 30);
+    const timer = setInterval(() => setNow(new Date()), 15000);
     return () => clearInterval(timer);
   }, []);
 
   return now;
 }
 
+/* ---------------------------------------------------------------
+   Live queue data for every department assigned to one kiosk
+--------------------------------------------------------------- */
+function useKioskQueue(kioskId) {
+  const [state, setState] = useState({
+    loading: true,
+    error: null,
+    serving: [],
+    waiting: [],
+    estimatedWait: 0,
+  });
+
+  const terminalNames = useRef(new Map());
+
+  const load = useCallback(async () => {
+    if (!kioskId) return;
+
+    try {
+      if (terminalNames.current.size === 0) {
+        const terminals = await getTerminals().catch(() => []);
+        (Array.isArray(terminals) ? terminals : terminals?.data || []).forEach((t) => {
+          const id = t.counter_id || t.id;
+          if (id) terminalNames.current.set(String(id), t.counter_number ?? '');
+        });
+      }
+
+      const departments = await getPatientDepartments(kioskId);
+      const list = Array.isArray(departments) ? departments : [];
+
+      const results = await Promise.all(
+        list
+          .filter((d) => d.prefix)
+          .map((d) =>
+            fetchQueueState(d.prefix)
+              .then((q) => ({ department: d, queue: q }))
+              .catch(() => null)
+          )
+      );
+
+      const valid = results.filter(Boolean);
+
+      const label = (ticket, department) => {
+        const number = ticket.counterId
+          ? terminalNames.current.get(String(ticket.counterId))
+          : '';
+        return {
+          ...ticket,
+          departmentName: department.name || ticket.department || '',
+          terminalLabel: number ? `Terminal ${number}` : '',
+        };
+      };
+
+      const serving = valid
+        .filter(({ queue }) => queue.currentlyServing)
+        .map(({ department, queue }) => label(queue.currentlyServing, department));
+
+      const waiting = valid.flatMap(({ department, queue }) =>
+        (queue.waitingQueue || []).map((t) => label(t, department))
+      );
+
+      const averages = valid
+        .map(({ queue }) => Number(queue.stats?.averageServiceMinutes) || 0)
+        .filter((n) => n > 0);
+
+      setState({
+        loading: false,
+        error: null,
+        serving,
+        waiting,
+        estimatedWait: averages.length
+          ? Math.round(averages.reduce((a, b) => a + b, 0) / averages.length)
+          : 0,
+      });
+    } catch (error) {
+      setState((previous) => ({
+        ...previous,
+        loading: false,
+        error: error?.message || 'Unable to load the queue.',
+      }));
+    }
+  }, [kioskId]);
+
+  useEffect(() => {
+    if (!kioskId) return undefined;
+
+    load();
+    const timer = setInterval(load, POLL_MS);
+    return () => clearInterval(timer);
+  }, [kioskId, load]);
+
+  return state;
+}
+
+/* ---------------------------------------------------------------
+   Audio: chime + spoken announcement when a new number is called.
+   Browsers block sound until the screen is clicked once, so the
+   TV shows an "Enable sound" button until then.
+--------------------------------------------------------------- */
+function useCallAnnouncer(serving) {
+  const [enabled, setEnabled] = useState(false);
+  const announced = useRef(new Set());
+  const primed = useRef(false);
+
+  const chime = useCallback(() => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      [880, 660].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const start = ctx.currentTime + i * 0.35;
+        gain.gain.setValueAtTime(0.25, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.3);
+        osc.start(start);
+        osc.stop(start + 0.3);
+      });
+    } catch {
+      /* audio is best-effort */
+    }
+  }, []);
+
+  useEffect(() => {
+    const keys = serving.map((t) => t.uniqueKey || t.id);
+
+    // First load: remember what is already being served, don't announce it.
+    if (!primed.current) {
+      keys.forEach((k) => announced.current.add(k));
+      primed.current = true;
+      return;
+    }
+
+    const fresh = serving.filter((t) => !announced.current.has(t.uniqueKey || t.id));
+    fresh.forEach((t) => announced.current.add(t.uniqueKey || t.id));
+
+    if (!enabled || fresh.length === 0) return;
+
+    chime();
+
+    if ('speechSynthesis' in window) {
+      fresh.forEach((t) => {
+        const spokenNumber = String(t.id).split('').join(' ');
+        const where = t.terminalLabel ? `, please proceed to ${t.terminalLabel}` : '';
+        const utterance = new SpeechSynthesisUtterance(
+          `Now serving ${spokenNumber}${where}.`
+        );
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
+      });
+    }
+  }, [serving, enabled, chime]);
+
+  return { enabled, enable: () => setEnabled(true) };
+}
+
+/* =========================================================
+   PIECES
+========================================================= */
+
+function ServingCard({ ticket, priority }) {
+  const numberColor = priority ? 'text-[#9D0A0E]' : 'text-[#1F2937]';
+
+  return (
+    <div className="rounded-xl border border-[#E5E7EB] bg-white px-6 py-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
+          {ticket?.departmentName || '\u00A0'}
+        </p>
+
+        <span
+          className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white ${
+            priority ? 'bg-[#9D0A0E]' : 'bg-[#1F2937]'
+          }`}
+        >
+          {priority ? 'Priority Queue' : 'Regular Queue'}
+        </span>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-4">
+        <p className={`text-6xl font-extrabold leading-none tracking-tight ${ticket ? numberColor : 'text-[#D1D5DB]'}`}>
+          {ticket?.id || '---'}
+        </p>
+
+        {ticket?.terminalLabel && (
+          <span className="shrink-0 rounded-md bg-[#F1F3F5] px-4 py-2 text-sm font-bold uppercase tracking-wide text-[#1F2937]">
+            {ticket.terminalLabel}
+          </span>
+        )}
+      </div>
+
+      <p className="mt-3 flex items-center gap-1.5 text-sm text-[#4B5563]">
+        <ArrowRight size={14} />
+        {ticket
+          ? ticket.terminalLabel
+            ? `Please proceed to ${ticket.terminalLabel}`
+            : 'Please proceed to the counter'
+          : 'No patient is being served'}
+      </p>
+    </div>
+  );
+}
+
+function WaitingCard({ ticket }) {
+  const priority = isPriorityTicket(ticket);
+
+  return (
+    <div
+      className={`rounded-xl border-2 bg-white px-3 py-3 text-center ${
+        priority ? 'border-[#9D0A0E]/60' : 'border-[#1F2937]/40'
+      }`}
+    >
+      <p className="truncate text-xs font-medium uppercase tracking-wide text-[#4B5563]">
+        {ticket.departmentName || '\u00A0'}
+      </p>
+      <p className={`mt-1 text-2xl font-bold ${priority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'}`}>
+        {ticket.id}
+      </p>
+    </div>
+  );
+}
+
+function KioskPicker() {
+  const [, setParams] = useSearchParams();
+  const [kiosks, setKiosks] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getKiosks()
+      .then((rows) => setKiosks(Array.isArray(rows) ? rows : []))
+      .catch((e) => setError(e?.message || 'Unable to load kiosks.'));
+  }, []);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA] px-6">
+      <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-8 shadow-sm">
+        <div className="flex items-center gap-3">
+          <Monitor size={20} className="text-[#9D0A0E]" />
+          <h1 className="text-lg font-bold text-[#1F2937]">Choose a kiosk for this TV</h1>
+        </div>
+        <p className="mt-1 text-sm text-[#4B5563]">
+          Each TV shows the queue for one kiosk. Bookmark the page after choosing.
+        </p>
+
+        {error && <p className="mt-4 text-sm text-[#9D0A0E]">{error}</p>}
+        {!kiosks && !error && <p className="mt-4 text-sm text-[#9CA3AF]">Loading kiosks...</p>}
+
+        <div className="mt-5 space-y-2">
+          {kiosks?.map((k) => (
+            <button
+              key={k.kiosk_id}
+              type="button"
+              onClick={() => setParams({ kiosk: k.kiosk_id })}
+              className="flex w-full items-center justify-between rounded-lg border border-[#E5E7EB] px-4 py-3 text-left text-sm font-semibold text-[#1F2937] transition hover:border-[#9D0A0E] hover:bg-[#FBF1F1]"
+            >
+              {k.name}
+              <ArrowRight size={16} className="text-[#9CA3AF]" />
+            </button>
+          ))}
+          {kiosks && kiosks.length === 0 && (
+            <p className="text-sm text-[#9CA3AF]">No kiosks found.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   TV DISPLAY
+========================================================= */
+
 export default function TvDisplay() {
+  const [params] = useSearchParams();
+  const kioskId = params.get('kiosk');
+
   const now = useClock();
+  const { loading, error, serving, waiting, estimatedWait } = useKioskQueue(kioskId);
+  const { enabled: soundOn, enable: enableSound } = useCallAnnouncer(serving);
+
+  const [videoFailed, setVideoFailed] = useState(false);
+
+  const priorityServing = useMemo(() => serving.find(isPriorityTicket) || null, [serving]);
+  const regularServing = useMemo(
+    () => serving.find((t) => !isPriorityTicket(t)) || null,
+    [serving]
+  );
+
+  if (!kioskId) return <KioskPicker />;
+
   const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const date = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const date = now.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-white">
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-10 py-6">
-        <div>
-          <span className="text-3xl font-bold text-red-600">SWU</span>
-          <span className="text-3xl font-bold text-slate-400">Med</span>
-        </div>
+
+      {/* HEADER */}
+
+      <header className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB] px-10 py-5">
+        <p className="text-4xl font-bold">
+          <span className="text-[#9D0A0E]">SWU</span>
+          <span className="text-[#4B5563]">Med</span>
+        </p>
+
         <div className="text-right">
-          <p className="text-3xl font-bold text-slate-900">{time}</p>
-          <p className="text-base text-slate-400">{date}</p>
+          <p className="text-4xl font-bold text-[#1F2937]">{time}</p>
+          <p className="text-base font-medium text-[#4B5563]">{date}</p>
         </div>
-      </div>
+      </header>
 
-      {/* Body fills remaining height */}
-      <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[420px_1fr]">
-        {/* Left panel */}
-        <div className="overflow-y-auto border-r border-slate-100 bg-gradient-to-b from-blue-50/60 to-white p-8">
-          <div className="mb-4 flex items-center gap-2">
-            <Bell size={20} className="text-red-500" />
-            <p className="text-base font-bold uppercase tracking-wide text-slate-700">Now Serving</p>
-          </div>
+      {/* BODY */}
 
-          <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <p className="mb-2 text-sm font-medium uppercase tracking-wide text-slate-400">
-              {NOW_SERVING.department}
+      <div className="grid min-h-0 flex-1 grid-cols-2">
+
+        {/* LEFT: queue */}
+
+        <section className="flex min-h-0 flex-col overflow-hidden bg-[#F8F9FA] px-8 py-6">
+          <div className="flex items-center justify-between gap-4">
+            <p className="flex items-center gap-2 text-lg font-bold uppercase tracking-wide text-[#1F2937]">
+              <BellRing size={22} className="text-[#9D0A0E]" />
+              Now Serving
             </p>
-            <p className="mb-4 text-6xl font-extrabold text-slate-900">{NOW_SERVING.queueNumber}</p>
-            <span className="mb-4 inline-block rounded-full bg-red-100 px-4 py-1.5 text-sm font-bold text-red-600">
-              {NOW_SERVING.terminal}
-            </span>
-            <p className="text-base text-slate-500">Please proceed to {NOW_SERVING.terminal.toLowerCase()}</p>
+
+            {estimatedWait > 0 && (
+              <span className="flex items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-white px-4 py-1.5 text-sm font-medium text-[#4B5563] shadow-sm">
+                <Clock size={14} />
+                Estimated Wait: ~{estimatedWait} min
+              </span>
+            )}
           </div>
 
-          <div className="mb-8 flex items-center justify-center gap-2 rounded-full bg-blue-50 px-5 py-3 text-base font-medium text-[#123C73]">
-            <Clock size={18} /> Estimated Wait: ~{NOW_SERVING.estMin} min
+          <div className="mt-4 space-y-4">
+            <ServingCard ticket={priorityServing} priority />
+            <ServingCard ticket={regularServing} priority={false} />
           </div>
 
-          <div className="border-t border-slate-100 pt-6">
-            <div className="mb-4 flex items-center gap-2">
-              <ListOrdered size={20} className="text-[#123C73]" />
-              <p className="text-base font-bold uppercase tracking-wide text-slate-700">Next in Line</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {NEXT_IN_LINE.map((num) => (
-                <div
-                  key={num}
-                  className="rounded-xl bg-blue-50 py-5 text-center text-xl font-bold text-[#123C73]"
-                >
-                  {num}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+          <p className="mt-6 flex items-center gap-2 text-lg font-bold uppercase tracking-wide text-[#1F2937]">
+            <ListPlus size={22} className="text-[#4B5563]" />
+            Waiting Queue
+          </p>
 
-        {/* Right panel — info video / hospital image */}
-        <div className="relative overflow-hidden bg-slate-200">
-          {/* Replace this placeholder with an actual <img> of your hospital, or an
-              embedded <video>/<iframe> for a real info video. */}
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-300 to-slate-400">
-            <p className="px-10 text-center text-lg font-medium text-slate-500">
-              Hospital exterior photo or info video goes here.
-            </p>
+          <div className="mt-3 grid grid-cols-4 gap-3">
+            {waiting.slice(0, WAITING_SLOTS).map((ticket) => (
+              <WaitingCard key={ticket.uniqueKey || ticket.id} ticket={ticket} />
+            ))}
           </div>
 
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+          {!loading && waiting.length === 0 && !error && (
+            <p className="mt-3 text-sm text-[#9CA3AF]">No patients waiting.</p>
+          )}
+
+          {error && (
+            <p className="mt-3 text-sm text-[#9D0A0E]">{error}</p>
+          )}
+
+          {!soundOn && (
             <button
               type="button"
-              className="flex h-20 w-20 items-center justify-center rounded-full bg-white/90 shadow-lg transition hover:bg-white"
-              aria-label="Play information video"
+              onClick={enableSound}
+              className="mt-auto flex w-fit items-center gap-2 self-start rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] shadow-sm transition hover:border-[#9D0A0E] hover:text-[#9D0A0E]"
             >
-              <Play size={32} className="ml-1 text-[#123C73]" />
+              <Volume2 size={14} />
+              Enable sound announcements
             </button>
-            <span className="flex items-center gap-2 rounded-full bg-white/90 px-5 py-2 text-sm font-medium text-slate-700 shadow-sm">
-              <Info size={14} /> SWUMed Information Video
-            </span>
-          </div>
-        </div>
+          )}
+        </section>
+
+        {/* RIGHT: presentation video */}
+
+        <section className="relative min-h-0 overflow-hidden bg-[#1F2937]">
+          {!videoFailed ? (
+            <video
+              key={VIDEO_SRC}
+              src={VIDEO_SRC}
+              poster={HospitalPhoto}
+              autoPlay
+              muted
+              loop
+              playsInline
+              onError={() => setVideoFailed(true)}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <>
+              <img
+                src={HospitalPhoto}
+                alt="SWU Medical Center"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="flex items-center gap-2 rounded-md bg-white/95 px-4 py-2 text-sm font-medium text-[#1F2937] shadow">
+                  <Info size={14} className="text-[#9D0A0E]" />
+                  SWUMed Information Video
+                </span>
+              </div>
+            </>
+          )}
+        </section>
       </div>
     </div>
   );
