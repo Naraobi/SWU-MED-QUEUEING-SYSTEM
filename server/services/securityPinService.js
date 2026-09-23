@@ -38,10 +38,7 @@ async function createVerificationChallenge(userId) {
     crypto.randomInt(100000, 1000000)
   );
 
-  const codeHash = await bcrypt.hash(
-    code,
-    10
-  );
+  const codeHash = await bcrypt.hash(code, 10);
 
   const expiresAt = new Date(
     Date.now() +
@@ -226,7 +223,11 @@ async function saveSecurityPin(
     );
   }
 
-  if (!/^\d{6}$/.test(String(pin || ""))) {
+  if (
+    !/^\d{6}$/.test(
+      String(pin || "")
+    )
+  ) {
     throw new Error(
       "Security PIN must be exactly 6 digits."
     );
@@ -303,28 +304,29 @@ async function validateSecurityPin(
 /**
  * Validate a Security PIN for kiosk activation.
  *
- * IMPORTANT:
- *
  * Patient View does NOT require a Firebase login.
- * This function therefore validates the PIN directly
- * against the Security PIN records in MySQL.
  *
  * Superadmin:
- *   - Their Security PIN is treated as a master PIN.
  *   - Can activate any active kiosk.
  *
  * Admin:
  *   - Can activate only kiosks belonging to
- *     their department.
+ *     the admin's department.
  *
- * The actual MySQL user table is `user`, NOT `users`.
+ * Database relationship:
+ *
+ *   user.role_id
+ *        ↓
+ *   role.role_id
+ *        ↓
+ *   role.role
  */
 async function validateKioskSecurityPin(
   kioskId,
   pin
 ) {
   // =========================================================
-  // BASIC INPUT VALIDATION
+  // 1. BASIC INPUT VALIDATION
   // =========================================================
 
   if (!kioskId) {
@@ -335,7 +337,11 @@ async function validateKioskSecurityPin(
     };
   }
 
-  if (!/^\d{6}$/.test(String(pin || ""))) {
+  if (
+    !/^\d{6}$/.test(
+      String(pin || "")
+    )
+  ) {
     return {
       success: false,
       authorized: false,
@@ -345,7 +351,7 @@ async function validateKioskSecurityPin(
   }
 
   // =========================================================
-  // 1. CHECK THAT THE KIOSK EXISTS AND IS ACTIVE
+  // 2. CHECK KIOSK
   // =========================================================
 
   const [kioskRows] = await db.execute(
@@ -386,7 +392,7 @@ async function validateKioskSecurityPin(
   }
 
   // =========================================================
-  // 2. GET THE DEPARTMENTS ASSIGNED TO THIS KIOSK
+  // 3. GET DEPARTMENTS ASSIGNED TO THIS KIOSK
   // =========================================================
 
   const [
@@ -411,40 +417,48 @@ async function validateKioskSecurityPin(
       .filter(Boolean);
 
   // =========================================================
-  // 3. GET ACTIVE ADMIN / SUPERADMIN USERS
-  //    THAT HAVE A SECURITY PIN
+  // 4. GET ACTIVE ADMIN / SUPERADMIN USERS
+  //
+  // user.role_id -> role.role_id
+  // role.role contains the actual role name.
   //
   // IMPORTANT:
-  // The correct table is `user`, not `users`.
+  // The MySQL table is `user`, not `users`.
   // =========================================================
 
   const [users] = await db.execute(
     `
       SELECT
         u.user_id,
-        u.role,
+        u.role_id,
         u.department_id,
+        u.status,
+        r.role AS role_name,
+        r.status AS role_status,
         sp.pin_hash
       FROM \`user\` u
+      INNER JOIN \`role\` r
+        ON r.role_id = u.role_id
       INNER JOIN security_pin sp
         ON sp.user_id = u.user_id
       WHERE LOWER(TRIM(u.status)) = 'active'
-        AND LOWER(TRIM(u.role)) IN (
+        AND LOWER(TRIM(r.status)) = 'active'
+        AND LOWER(TRIM(r.role)) IN (
           'admin',
           'superadmin'
         )
-    `
+    `,
+    []
   );
 
   // =========================================================
-  // 4. COMPARE THE ENTERED PIN AGAINST THE STORED
-  //    SECURITY PIN HASHES
+  // 5. COMPARE ENTERED PIN AGAINST STORED HASHES
   // =========================================================
 
   let adminMatch = null;
 
   for (const user of users) {
-    // Ignore malformed Security PIN records.
+    // Ignore invalid Security PIN records.
     if (!user.pin_hash) {
       continue;
     }
@@ -461,16 +475,13 @@ async function validateKioskSecurityPin(
     }
 
     const role = String(
-      user.role || ""
+      user.role_name || ""
     )
       .trim()
       .toLowerCase();
 
     // =======================================================
-    // 5. SUPERADMIN = MASTER PIN
-    //
-    // A valid active superadmin PIN can activate
-    // ANY active kiosk.
+    // 6. SUPERADMIN = MASTER PIN
     // =======================================================
 
     if (role === "superadmin") {
@@ -485,10 +496,7 @@ async function validateKioskSecurityPin(
     }
 
     // =======================================================
-    // 6. ADMIN = DEPARTMENT ONLY
-    //
-    // The admin's department_id must match one of the
-    // departments assigned to this kiosk.
+    // 7. ADMIN = DEPARTMENT ONLY
     // =======================================================
 
     if (role === "admin") {
@@ -517,7 +525,7 @@ async function validateKioskSecurityPin(
   }
 
   // =========================================================
-  // 7. RETURN A VALID ADMIN RESULT
+  // 8. RETURN VALID ADMIN MATCH
   // =========================================================
 
   if (adminMatch) {
@@ -525,7 +533,7 @@ async function validateKioskSecurityPin(
   }
 
   // =========================================================
-  // 8. PIN DOES NOT HAVE AUTHORIZATION FOR THIS KIOSK
+  // 9. PIN INVALID OR NOT AUTHORIZED FOR THIS KIOSK
   // =========================================================
 
   return {
