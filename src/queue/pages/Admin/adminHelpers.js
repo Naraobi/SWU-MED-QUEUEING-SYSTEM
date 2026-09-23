@@ -10,17 +10,19 @@ export { THEME };
 // =====================================================
 //
 // Persisted client-side (localStorage) admin preferences.
-// Light/Dark toggling is real (it flips a class on <html>).
-// The accent color, language, and avatar are saved for real,
-// but nothing else in the app reads the accent/language yet —
-// see the Settings page for what's genuinely wired up versus
-// a saved preference waiting on future work.
+//
+// These functions only read and write storage. Putting the theme
+// and accent onto the DOM is AppearanceContext's job, and it does
+// so on the Admin root element rather than <html>, so the choice
+// cannot bleed into Staff, SuperAdmin, TV or Patient screens.
 //
 
 const THEME_STORAGE_KEY = 'swumed_admin_theme';
 const ACCENT_STORAGE_KEY = 'swumed_admin_accent';
 const LANGUAGE_STORAGE_KEY = 'swumed_admin_language';
 const AVATAR_STORAGE_KEY = 'swumed_admin_avatar';
+
+export const DEFAULT_ACCENT = '#9D0A0E';
 
 export function loadStoredTheme() {
   try {
@@ -30,12 +32,7 @@ export function loadStoredTheme() {
   }
 }
 
-export function applyTheme(themeName = 'light') {
-  const root = document.documentElement;
-  const isDark = themeName === 'dark';
-
-  root.classList.toggle('admin-dark', isDark);
-
+export function saveStoredTheme(themeName = 'light') {
   try {
     localStorage.setItem(THEME_STORAGE_KEY, themeName);
   } catch {
@@ -45,15 +42,13 @@ export function applyTheme(themeName = 'light') {
 
 export function loadStoredAccent() {
   try {
-    return localStorage.getItem(ACCENT_STORAGE_KEY) || '#9D0A0E';
+    return localStorage.getItem(ACCENT_STORAGE_KEY) || DEFAULT_ACCENT;
   } catch {
-    return '#9D0A0E';
+    return DEFAULT_ACCENT;
   }
 }
 
-export function applyAccent(hex) {
-  document.documentElement.style.setProperty('--admin-accent', hex);
-
+export function saveStoredAccent(hex) {
   try {
     localStorage.setItem(ACCENT_STORAGE_KEY, hex);
   } catch {

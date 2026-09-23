@@ -25,12 +25,12 @@ export default function Sidebar() {
 
   return (
     <aside className="staff-sidebar sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white z-40" style={{ fontFamily: 'Inter, sans-serif' }}>
-      <div className="flex h-[74px] flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
+      <div className="flex h-[74px] shrink-0 flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
         <img src={logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
         <p className="text-xs text-slate-400">Queue Terminal</p>
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-3 py-4">
+      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
         {visibleLinks.map(({ key, to, label, icon: Icon }) => (
           <NavLink
             key={to}
@@ -39,7 +39,7 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                 isActive
-                  ? 'bg-[#851010] text-white shadow-sm'
+                  ? 'bg-[#9D0A0E] text-white shadow-sm'
                   : 'text-slate-600 hover:bg-slate-50'
               }`
             }
@@ -50,7 +50,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-slate-100 p-3">
+      <div className="mt-auto shrink-0 border-t border-slate-100 p-3">
         <button
           type="button"
           onClick={() => setShowLogout(true)}

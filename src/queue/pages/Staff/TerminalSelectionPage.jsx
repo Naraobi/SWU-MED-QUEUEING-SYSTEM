@@ -53,6 +53,15 @@ function readSavedTerminal(staffId) {
   }
 }
 
+// A counter's ID is a generated key, so it must never end up in a label.
+// Without a counter number there is nothing meaningful to number it by,
+// so the label stays generic rather than exposing the ID.
+function terminalLabelFromNumber(number) {
+  return number === undefined || number === null || number === ''
+    ? 'Terminal'
+    : `Terminal ${number}`
+}
+
 function saveSelectedTerminal(terminal, staffId) {
   if (typeof window === 'undefined' || !terminal) return
 
@@ -69,12 +78,10 @@ function saveSelectedTerminal(terminal, staffId) {
       terminal.name ??
       terminal.counter_name ??
       terminal.terminal_name ??
-      `Terminal ${
+      terminalLabelFromNumber(
         terminal.counter_number ??
-        terminal.terminal_number ??
-        terminal.counter_id ??
-        ''
-      }`,
+          terminal.terminal_number
+      ),
 
     counter_number:
       terminal.counter_number ??
@@ -672,11 +679,10 @@ export default function TerminalSelectModal({
                   terminal.name ??
                   terminal.counter_name ??
                   terminal.terminal_name ??
-                  `Terminal ${
+                  terminalLabelFromNumber(
                     terminal.counter_number ??
-                    terminal.terminal_number ??
-                    terminalId
-                  }`
+                      terminal.terminal_number
+                  )
 
                 const meta =
                   getTerminalStatusMeta(

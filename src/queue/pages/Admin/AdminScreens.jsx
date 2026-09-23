@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
+  FileText,
+  Gavel,
   LockKeyhole,
   Mail,
   Clock3,
@@ -66,14 +68,16 @@ import {
   getPresetRange,
   toDateKey,
   loadStoredTheme,
-  applyTheme,
+  saveStoredTheme,
   loadStoredAccent,
-  applyAccent,
+  saveStoredAccent,
   loadStoredAvatar,
   saveStoredAvatar,
 } from './adminHelpers';
 
 import { useLanguage } from './LanguageContext';
+import { useAppearance } from './AppearanceContext';
+import { LEGAL_DOCUMENTS, LEGAL_ORGANIZATION } from './legalDocuments';
 import Logo from '../../../assets/logo.png';
 
 // =====================================================
@@ -1696,9 +1700,9 @@ function ThemeModal({ theme, onClose, onSaveTheme }) {
   const colorInputRef = useRef(null);
 
   function handleSave() {
-    applyTheme(mode);
+    saveStoredTheme(mode);
     onSaveTheme(mode);
-    applyAccent(accent);
+    saveStoredAccent(accent);
     onClose();
   }
 
@@ -1912,7 +1916,7 @@ function CreatePinModal({ onClose, onContinue }) {
           <button
             type="button"
             onClick={handleContinue}
-            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7d0809]"
           >
             Continue
           </button>
@@ -2037,7 +2041,7 @@ function PinVerificationModal({ onClose, onBack, onSuccess }) {
           <button
             type="button"
             onClick={handleVerify}
-            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+            className="rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#7d0809]"
           >
             Verify
           </button>
@@ -2068,7 +2072,7 @@ function PinSuccessModal({ onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="mt-6 rounded-md bg-[#9D0A0E] px-6 py-2 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+            className="mt-6 rounded-md bg-[#9D0A0E] px-6 py-2 text-xs font-semibold text-white transition hover:bg-[#7d0809]"
           >
             Done
           </button>
@@ -2092,7 +2096,7 @@ function LegacySettingsPage() {
   const [pinConfigured, setPinConfigured] = useState(false);
 
   useEffect(() => {
-    applyTheme(theme);
+    saveStoredTheme(theme);
   }, [theme]);
 
   useEffect(() => {
@@ -2209,7 +2213,7 @@ function LegacySettingsPage() {
             <button
               type="button"
               onClick={() => setActivePinModal('createPin')}
-              className="shrink-0 rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#7D080B]"
+              className="shrink-0 rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#7d0809]"
             >
               {pinConfigured ? 'Change PIN' : 'Create PIN'}
             </button>
@@ -2277,33 +2281,33 @@ const SETTINGS_ACCENT_PRESETS = [
 const SETTINGS_LANGUAGES = ['English', 'Filipino', 'Cebuano'];
 
 const SETTINGS_CLOCK_FORMATS = [
-  '12-Hour (1:30 PM)',
-  '24-Hour (13:30)',
+  { key: '12h', labelKey: 'settingsPage.locale.clock12' },
+  { key: '24h', labelKey: 'settingsPage.locale.clock24' },
 ];
 
 const SETTINGS_THEME_MODES = [
   {
     key: 'light',
-    label: 'Light Mode',
-    caption: 'Default hospital theme',
+    labelKey: 'settingsPage.appearance.light',
+    captionKey: 'settingsPage.appearance.lightCaption',
     icon: Sun,
   },
   {
     key: 'dark',
-    label: 'Dark Mode',
-    caption: 'Dimmed high-contrast',
+    labelKey: 'settingsPage.appearance.dark',
+    captionKey: 'settingsPage.appearance.darkCaption',
     icon: Moon,
   },
   {
     key: 'system',
-    label: 'System Default',
-    caption: 'Follows OS preference',
+    labelKey: 'settingsPage.appearance.system',
+    captionKey: 'settingsPage.appearance.systemCaption',
     icon: Monitor,
   },
 ];
 
 const SETTINGS_THEME_SWATCHES = [
-  { key: 'blue', colors: ['#9D0A0E', '#D4B0B1', '#7D080B', '#F0DADA'] },
+  { key: 'blue', colors: ['#9D0A0E', '#D4B0B1', '#7d0809', '#F0DADA'] },
   { key: 'slate', colors: ['#6B7280', '#9CA3AF', '#4B5563', '#D1D5DB'] },
   { key: 'ocean', colors: ['#1E5FA8', '#5B8FC9', '#123C73', '#A8C4E0'] },
   { key: 'steel', colors: ['#64748B', '#94A3B8', '#334155', '#CBD5E1'] },
@@ -2636,7 +2640,7 @@ function SettingsExactPinEmailModal({ onClose, onContinue, initialEmail = '' }) 
             type="button"
             onClick={handleContinue}
             disabled={sending}
-            className="flex h-[52px] w-full items-center justify-center gap-2 rounded-md bg-[#B5090D] text-[15px] font-semibold text-white transition hover:bg-[#92070A] disabled:cursor-not-allowed disabled:opacity-55"
+            className="flex h-[52px] w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] text-[15px] font-semibold text-white transition hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-55"
           >
             {sending ? 'Sending...' : 'Send Verification Code'}
             {!sending && <ChevronRight size={18} />}
@@ -2751,7 +2755,7 @@ function SettingsExactCreatePinModal({
         </div>
 
         <div className="px-8 pb-3">
-          <button type="button" onClick={handleContinue} disabled={!canContinue} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#B5090D] text-[11px] font-bold text-white transition hover:bg-[#92070A] disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" onClick={handleContinue} disabled={!canContinue} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#9D0A0E] text-[11px] font-bold text-white transition hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-45">
             {saving ? 'Saving PIN...' : ctaLabel || 'Change PIN'} <ChevronRight size={14} />
           </button>
           <button type="button" onClick={onClose} disabled={saving} className="mt-2.5 h-9 w-full rounded-md border border-[#D0D5DD] bg-white text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-55">Cancel</button>
@@ -2878,7 +2882,7 @@ function SettingsExactPinVerificationModal({ firebaseUser, verificationEmail, on
         </div>
 
         <div className="px-8 pb-3">
-          <button type="button" onClick={handleVerify} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#B5090D] text-[11px] font-bold text-white transition hover:bg-[#92070A]">
+          <button type="button" onClick={handleVerify} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#9D0A0E] text-[11px] font-bold text-white transition hover:bg-[#7d0809]">
             Verify Code <ChevronRight size={13} />
           </button>
           <button type="button" onClick={onBack} className="mt-2.5 h-9 w-full rounded-md border border-[#D0D5DD] bg-white text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA]">Back</button>
@@ -2926,7 +2930,7 @@ function SettingsExactPinSuccessModal({
             </div>
           </div>
 
-          <button type="button" onClick={onClose} className="mt-4 h-9 w-full rounded-md bg-[#9D0A0E] text-[10px] font-bold text-white hover:bg-[#7D080B]">DONE</button>
+          <button type="button" onClick={onClose} className="mt-4 h-9 w-full rounded-md bg-[#9D0A0E] text-[10px] font-bold text-white hover:bg-[#7d0809]">DONE</button>
           <p className="mt-3 text-[8px] text-[#98A2B3]">ⓘ You can update your PIN anytime in Settings.</p>
         </div>
       </div>
@@ -3019,7 +3023,7 @@ function HeaderIcon({ tone = 'red', icon: Icon = ShieldCheck, size = 64 }) {
   return (
     <div
       className={`mx-auto flex shrink-0 items-center justify-center ${radius} ${
-        green ? 'bg-[#E9FBF2] text-[#138A5B]' : 'bg-[#FFF5F5] text-[#B5090D]'
+        green ? 'bg-[#E9FBF2] text-[#138A5B]' : 'bg-[#FFF5F5] text-[#9D0A0E]'
       }`}
       style={{ width: size, height: size }}
     >
@@ -3054,7 +3058,7 @@ function PrimaryButton({ children, disabled, onClick, type = 'button' }) {
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="flex h-[52px] w-full items-center justify-center gap-2 rounded-md bg-[#B5090D] px-4 text-[15px] font-semibold text-white transition hover:bg-[#92070A] disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex h-[52px] w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] px-4 text-[15px] font-semibold text-white transition hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -3083,7 +3087,7 @@ function PasswordField({ id, label, value, onChange, disabled, autoFocus }) {
         htmlFor={id}
         className="mb-1.5 block text-[10px] font-semibold text-[#1F2937]"
       >
-        {label} <span className="text-[#B5090D]">*</span>
+        {label} <span className="text-[#9D0A0E]">*</span>
       </label>
 
       <div className="relative">
@@ -3095,7 +3099,7 @@ function PasswordField({ id, label, value, onChange, disabled, autoFocus }) {
           autoComplete="new-password"
           autoFocus={autoFocus}
           disabled={disabled}
-          className="h-10 w-full rounded-md border border-[#D0D5DD] bg-white px-3 pr-10 text-[12px] text-[#1F2937] outline-none transition placeholder:text-[#98A2B3] focus:border-[#B5090D] focus:ring-2 focus:ring-[#B5090D]/10 disabled:opacity-60"
+          className="h-10 w-full rounded-md border border-[#D0D5DD] bg-white px-3 pr-10 text-[12px] text-[#1F2937] outline-none transition placeholder:text-[#98A2B3] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10 disabled:opacity-60"
         />
         <button
           type="button"
@@ -3224,7 +3228,7 @@ function PasswordVerificationBoxes({ code, setCode, disabled }) {
           autoFocus={index === 0}
           disabled={disabled}
           aria-label={`Verification digit ${index + 1}`}
-          className="h-[31px] w-[26px] rounded-[3px] border border-[#D0D5DD] bg-white text-center text-[11px] font-bold text-[#1F2937] outline-none focus:border-[#B5090D] focus:ring-1 focus:ring-[#B5090D]/15 disabled:opacity-60"
+          className="h-[31px] w-[26px] rounded-[3px] border border-[#D0D5DD] bg-white text-center text-[11px] font-bold text-[#1F2937] outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]/15 disabled:opacity-60"
         />
       ))}
     </div>
@@ -3749,7 +3753,7 @@ function ChangePasswordModal({ onSuccess, onClose }) {
           <button
             type="button"
             onClick={() => onSuccess?.()}
-            className="mt-4 h-9 w-full rounded-md bg-[#9D0A0E] text-[10px] font-bold text-white hover:bg-[#7D080B]"
+            className="mt-4 h-9 w-full rounded-md bg-[#9D0A0E] text-[10px] font-bold text-white hover:bg-[#7d0809]"
           >
             DONE
           </button>
@@ -3768,13 +3772,112 @@ function ChangePasswordModal({ onSuccess, onClose }) {
   return renderEmailStep();
 }
 
+function LegalDocumentModal({ document: doc, onClose }) {
+  const { t } = useLanguage();
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 px-4 py-8">
+      <div className="flex max-h-full w-full max-w-[720px] flex-col rounded-xl bg-white shadow-2xl">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7EEEE] text-[#9D0A0E]">
+              <Gavel size={16} />
+            </span>
+            <div>
+              <h2 className="text-base font-bold text-[#1F2937]">{doc.title}</h2>
+              <p className="mt-0.5 text-[11px] text-[#667085]">
+                {t('settingsPage.legal.lastUpdated', { date: doc.lastUpdated })}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('settingsPage.legal.close')}
+            className="shrink-0 rounded-md p-1 text-[#98A2B3] hover:bg-[#F8F9FA] hover:text-[#344054]"
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <p className="text-[13px] leading-6 text-[#4B5563]">{doc.intro}</p>
+
+          {doc.sections.map((section) => (
+            <section key={section.heading} className="mt-6">
+              <h3 className="text-[13px] font-bold text-[#1F2937]">{section.heading}</h3>
+
+              {section.paragraphs?.map((paragraph) => (
+                <p key={paragraph} className="mt-2 text-[13px] leading-6 text-[#4B5563]">
+                  {paragraph}
+                </p>
+              ))}
+
+              {section.bullets && (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-[13px] leading-6 text-[#4B5563]">
+                  {section.bullets.map((bullet) => (
+                    <li key={bullet}>{bullet}</li>
+                  ))}
+                </ul>
+              )}
+
+              {section.callout && (
+                <p className="mt-3 rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-[12px] leading-5 text-[#344054]">
+                  <span className="font-bold text-[#1F2937]">IMPORTANT: </span>
+                  {section.callout}
+                </p>
+              )}
+
+              {section.closing && (
+                <p className="mt-2 text-[13px] leading-6 text-[#4B5563]">{section.closing}</p>
+              )}
+            </section>
+          ))}
+
+          <div className="mt-7 border-t border-[#E5E7EB] pt-4">
+            {LEGAL_ORGANIZATION.map((line) => (
+              <p key={line} className="text-[12px] font-semibold text-[#1F2937]">
+                {line}
+              </p>
+            ))}
+
+            {doc.acknowledgement && (
+              <p className="mt-3 text-[12px] leading-5 text-[#667085]">{doc.acknowledgement}</p>
+            )}
+          </div>
+        </div>
+
+        <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-[#E5E7EB] px-6 py-3">
+          <p className="text-[10px] text-[#98A2B3]">{t('settingsPage.legal.englishNote')}</p>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md bg-[#9D0A0E] px-5 py-2 text-[11px] font-bold text-white hover:bg-[#7d0809]"
+          >
+            {t('settingsPage.legal.close')}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 function SettingsExactPage() {
   const { user } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
+
+  const {
+    theme: themeMode,
+    accent: accentColor,
+    setTheme: setThemeMode,
+    setAccent: setAccentColor,
+  } = useAppearance();
+
   const [systemName, setSystemName] = useState('SWUMed Queuing System');
-  const [accentColor, setAccentColor] = useState(loadStoredAccent());
-  const [themeMode, setThemeMode] = useState(loadStoredTheme());
-  const [language, setLanguage] = useState('English');
-  const [clockFormat, setClockFormat] = useState(SETTINGS_CLOCK_FORMATS[0]);
+  const [clockFormat, setClockFormat] = useState(SETTINGS_CLOCK_FORMATS[0].key);
+  const [activeLegalDocument, setActiveLegalDocument] = useState(null);
   const [copied, setCopied] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [pinConfigured, setPinConfigured] = useState(false);
@@ -3784,14 +3887,6 @@ function SettingsExactPage() {
   const [pendingVerificationCode, setPendingVerificationCode] = useState('');
   const [pinSaveLoading, setPinSaveLoading] = useState(false);
   const [pinError, setPinError] = useState('');
-
-  useEffect(() => {
-    applyTheme(themeMode);
-  }, [themeMode]);
-
-  useEffect(() => {
-    applyAccent(accentColor);
-  }, [accentColor]);
 
   useEffect(() => {
     let isMounted = true;
@@ -3821,60 +3916,53 @@ function SettingsExactPage() {
     }).catch(() => setCopied(false));
   }
 
-  function applyThemeSelection(mode) {
-    setThemeMode(mode);
-    applyTheme(mode);
-  }
-
-  function applyAccentSelection(color) {
-    setAccentColor(color);
-    applyAccent(color);
-  }
+  const applyThemeSelection = setThemeMode;
+  const applyAccentSelection = setAccentColor;
 
   return (
     <div className="space-y-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="mb-2">
-        <h1 className="text-2xl font-bold text-[#1F2937]">Settings</h1>
-        <p className="mt-0.5 text-xs text-[#4B5563]">Manage system preferences, security, appearance, and localization.</p>
+        <h1 className="text-2xl font-bold text-[#1F2937]">{t('settings.title')}</h1>
+        <p className="mt-0.5 text-xs text-[#4B5563]">{t('settingsPage.subtitle')}</p>
       </div>
 
-      <SettingsExactSection icon={Palette} title="Branding & Identity" subtitle="Customize your brand presence across patient kiosks, queue trackers, and staff monitors." badge="White-label">
+      <SettingsExactSection icon={Palette} title={t('settingsPage.branding.title')} subtitle={t('settingsPage.branding.subtitle')} badge={t('settingsPage.branding.badge')}>
         <div>
-          <SettingsExactFieldLabel>System Name</SettingsExactFieldLabel>
+          <SettingsExactFieldLabel>{t('settingsPage.branding.systemName')}</SettingsExactFieldLabel>
           <div className="relative max-w-[520px]">
             <input value={systemName} onChange={(event) => setSystemName(event.target.value)} className="h-10 w-full rounded-md border border-[#D0D5DD] bg-white px-3 pr-9 text-[10px] text-[#344054] outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]/10" />
             <button type="button" onClick={handleCopyName} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#98A2B3] hover:text-[#344054]" aria-label="Copy system name">{copied ? <Check size={12} className="text-emerald-600" /> : <span className="text-[10px]">▣</span>}</button>
           </div>
-          <SettingsExactHint>Displayed on browser titles, kiosk welcome screens, and physical thermal ticket headers.</SettingsExactHint>
+          <SettingsExactHint>{t('settingsPage.branding.systemNameHint')}</SettingsExactHint>
         </div>
 
         <div className="mt-4">
-          <SettingsExactFieldLabel>System Logo</SettingsExactFieldLabel>
+          <SettingsExactFieldLabel>{t('settingsPage.branding.systemLogo')}</SettingsExactFieldLabel>
           <div className="flex max-w-[620px] flex-wrap items-center justify-between gap-4 rounded-md border border-[#E5E7EB] px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-[100px] items-center justify-center rounded border border-[#E5E7EB] bg-white">
                 <img src={Logo} alt="Current brand logo" className="h-8 w-auto object-contain" />
               </div>
               <div>
-                <p className="flex items-center gap-1.5 text-[9px] font-semibold text-[#1F2937]">Current Brand Logo <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] font-bold text-emerald-800">Active</span></p>
-                <p className="mt-0.5 text-[8px] text-[#98A2B3]">PNG or SVG, max 2MB</p>
+                <p className="flex items-center gap-1.5 text-[9px] font-semibold text-[#1F2937]">{t('settingsPage.branding.currentLogo')} <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] font-bold text-emerald-800">{t('settingsPage.branding.active')}</span></p>
+                <p className="mt-0.5 text-[8px] text-[#98A2B3]">{t('settingsPage.branding.logoHint')}</p>
               </div>
             </div>
             <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-[8px] font-semibold text-[#344054] hover:bg-[#F8F9FA]">
-              <Upload size={11} />Upload New Logo<input type="file" accept="image/png,image/svg+xml" className="hidden" />
+              <Upload size={11} />{t('settingsPage.branding.uploadLogo')}<input type="file" accept="image/png,image/svg+xml" className="hidden" />
             </label>
           </div>
         </div>
 
         <div className="mt-4">
-          <SettingsExactFieldLabel>Primary Accent Color</SettingsExactFieldLabel>
+          <SettingsExactFieldLabel>{t('settingsPage.branding.accent')}</SettingsExactFieldLabel>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex h-10 items-center gap-1.5 rounded-md border border-[#E5E7EB] px-3">
               <span className="h-4 w-4 rounded-full ring-1 ring-black/10" style={{ backgroundColor: accentColor }} />
-              <span className="text-[10px] font-semibold uppercase text-[#344054]">Hex {accentColor.toUpperCase()}</span>
+              <span className="text-[10px] font-semibold uppercase text-[#344054]">{t('settingsPage.branding.hex')} {accentColor.toUpperCase()}</span>
             </div>
             <div className="flex items-center gap-1.5 border-l border-[#E5E7EB] pl-3">
-              <span className="text-[10px] text-[#667085]">Presets:</span>
+              <span className="text-[10px] text-[#667085]">{t('settingsPage.branding.presets')}</span>
               {SETTINGS_ACCENT_PRESETS.map((preset) => (
                 <button key={preset} type="button" onClick={() => applyAccentSelection(preset)} aria-label={`Accent ${preset}`} className={`flex h-5 w-5 items-center justify-center rounded-full ${accentColor.toUpperCase() === preset.toUpperCase() ? 'ring-2 ring-[#9D0A0E] ring-offset-1' : 'ring-1 ring-black/10'}`} style={{ backgroundColor: preset }}>
                   {accentColor.toUpperCase() === preset.toUpperCase() && <Check size={9} strokeWidth={3} className="text-white" />}
@@ -3882,44 +3970,44 @@ function SettingsExactPage() {
               ))}
             </div>
           </div>
-          <SettingsExactHint>Applies to primary action buttons, active navigation markers, ticket highlighted badges, and key queue alerts.</SettingsExactHint>
+          <SettingsExactHint>{t('settingsPage.branding.accentHint')}</SettingsExactHint>
         </div>
       </SettingsExactSection>
 
-      <SettingsExactSection icon={ShieldCheck} title="Password & Security" subtitle="Manage your account password and Admin PIN.">
+      <SettingsExactSection icon={ShieldCheck} title={t('settingsPage.security.title')} subtitle={t('settingsPage.security.subtitle')}>
         <div className="divide-y divide-[#E5E7EB]">
           <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
             <div>
-              <p className="text-sm font-bold text-[#1F2937]">Password</p>
-              <p className="mt-0.5 text-[10px] text-[#667085]">Keep your account secure by regularly updating your password.</p>
-              <p className="mt-0.5 text-[8px] text-[#98A2B3]">Last changed: Not available</p>
+              <p className="text-sm font-bold text-[#1F2937]">{t('settingsPage.security.password')}</p>
+              <p className="mt-0.5 text-[10px] text-[#667085]">{t('settingsPage.security.passwordHint')}</p>
+              <p className="mt-0.5 text-[8px] text-[#98A2B3]">{t('settingsPage.security.lastChanged')}</p>
             </div>
-            <button type="button" onClick={() => setActiveModal('changePassword')} className="flex items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-white px-3.5 py-2 text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA]"><KeyRound size={11} />Change Password</button>
+            <button type="button" onClick={() => setActiveModal('changePassword')} className="flex items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-white px-3.5 py-2 text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA]"><KeyRound size={11} />{t('settingsPage.security.changePassword')}</button>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-4 pt-4">
             <div>
-              <p className="text-sm font-bold text-[#1F2937]">Security PIN</p>
-              <p className="mt-0.5 max-w-[600px] text-[9px] text-[#667085]">Used to authorize protected system actions such as resetting records.</p>
-              {pinConfigured && <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[#E9F9EF] px-2 py-0.5 text-[8px] font-semibold text-[#18824B]"><Check size={9} />PIN is set</span>}
+              <p className="text-sm font-bold text-[#1F2937]">{t('settingsPage.security.pin')}</p>
+              <p className="mt-0.5 max-w-[600px] text-[9px] text-[#667085]">{t('settingsPage.security.pinHint')}</p>
+              {pinConfigured && <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[#E9F9EF] px-2 py-0.5 text-[8px] font-semibold text-[#18824B]"><Check size={9} />{t('settingsPage.security.pinSet')}</span>}
               {pinError && <p className="mt-1 text-[10px] font-medium text-[#9D0A0E]">{pinError}</p>}
             </div>
-            <button type="button" disabled={pinStatusLoading} onClick={() => setActiveModal('pinEmail')} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2.5 text-[10px] font-bold text-white hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"><LockKeyhole size={11} />{pinStatusLoading ? 'Loading...' : pinConfigured ? 'Change PIN' : 'Set PIN'}</button>
+            <button type="button" disabled={pinStatusLoading} onClick={() => setActiveModal('pinEmail')} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2.5 text-[10px] font-bold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"><LockKeyhole size={11} />{pinStatusLoading ? t('settingsPage.security.loading') : pinConfigured ? t('settingsPage.security.changePin') : t('settingsPage.security.setPin')}</button>
           </div>
         </div>
       </SettingsExactSection>
 
-      <SettingsExactSection icon={Monitor} title="Appearance" subtitle="Choose default theme settings for admin and kiosk interfaces.">
-        <SettingsExactFieldLabel>Theme Mode</SettingsExactFieldLabel>
+      <SettingsExactSection icon={Monitor} title={t('settings.appearance')} subtitle={t('settingsPage.appearance.subtitle')}>
+        <SettingsExactFieldLabel>{t('settingsPage.appearance.themeMode')}</SettingsExactFieldLabel>
         <div className="grid max-w-[760px] gap-3 sm:grid-cols-3">
-          {SETTINGS_THEME_MODES.map(({ key, label, caption, icon: Icon }) => {
+          {SETTINGS_THEME_MODES.map(({ key, labelKey, captionKey, icon: Icon }) => {
             const selected = themeMode === key;
             return (
               <button key={key} type="button" onClick={() => applyThemeSelection(key)} aria-pressed={selected} className={`rounded-lg border p-4 text-left transition ${selected ? 'border-[#9D0A0E] ring-1 ring-[#9D0A0E]' : 'border-[#E5E7EB] hover:border-[#98A2B3]'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-2.5">
                     <Icon size={11} className="mt-0.5 text-[#9D0A0E]" />
-                    <div><p className="text-xs font-bold text-[#1F2937]">{label}</p><p className="mt-0.5 text-[9px] text-[#98A2B3]">{caption}</p></div>
+                    <div><p className="text-xs font-bold text-[#1F2937]">{t(labelKey)}</p><p className="mt-0.5 text-[9px] text-[#98A2B3]">{t(captionKey)}</p></div>
                   </div>
                   <span className={`flex h-3 w-3 items-center justify-center rounded-full border ${selected ? 'border-[#9D0A0E]' : 'border-[#D0D5DD]'}`}>{selected && <span className="h-1.5 w-1.5 rounded-full bg-[#9D0A0E]" />}</span>
                 </div>
@@ -3933,21 +4021,64 @@ function SettingsExactPage() {
         </div>
       </SettingsExactSection>
 
-      <SettingsExactSection icon={Globe} title="Language & Regional Settings" subtitle="Configure default language and regional time displays across touchpoints.">
-        <SettingsExactFieldLabel>Primary Language</SettingsExactFieldLabel>
+      <SettingsExactSection icon={Globe} title={t('settingsPage.locale.title')} subtitle={t('settingsPage.locale.subtitle')}>
+        <SettingsExactFieldLabel>{t('settingsPage.locale.primaryLanguage')}</SettingsExactFieldLabel>
         <div className="flex flex-wrap items-center gap-1.5">
           {SETTINGS_LANGUAGES.map((lang) => {
             const selected = language === lang;
             return <button key={lang} type="button" onClick={() => setLanguage(lang)} className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-[10px] font-semibold ${selected ? 'bg-[#B34C4C] text-white' : 'border border-[#E5E7EB] bg-white text-[#667085] hover:bg-[#F8F9FA]'}`}>{selected && <Check size={9} />}{lang}</button>;
           })}
         </div>
-        <SettingsExactHint>Sets the initial default locale for patient kiosk prompts and printed slips.</SettingsExactHint>
+        <SettingsExactHint>{t('settingsPage.locale.languageHint')}</SettingsExactHint>
         <div className="mt-5 border-t border-[#E5E7EB] pt-5">
-          <SettingsExactFieldLabel>Clock Format</SettingsExactFieldLabel>
-          <select value={clockFormat} onChange={(event) => setClockFormat(event.target.value)} className="h-10 w-full max-w-[240px] rounded-md border border-[#D0D5DD] bg-white px-3 text-[10px] text-[#344054] outline-none focus:border-[#9D0A0E]"><option>{SETTINGS_CLOCK_FORMATS[0]}</option><option>{SETTINGS_CLOCK_FORMATS[1]}</option></select>
-          <SettingsExactHint>Applied to TV Queue displays, timestamp audits, and ticket issuance times.</SettingsExactHint>
+          <SettingsExactFieldLabel>{t('settingsPage.locale.clockFormat')}</SettingsExactFieldLabel>
+          <select value={clockFormat} onChange={(event) => setClockFormat(event.target.value)} className="h-10 w-full max-w-[240px] rounded-md border border-[#D0D5DD] bg-white px-3 text-[10px] text-[#344054] outline-none focus:border-[#9D0A0E]">
+            {SETTINGS_CLOCK_FORMATS.map((format) => (
+              <option key={format.key} value={format.key}>{t(format.labelKey)}</option>
+            ))}
+          </select>
+          <SettingsExactHint>{t('settingsPage.locale.clockHint')}</SettingsExactHint>
         </div>
       </SettingsExactSection>
+
+      <SettingsExactSection icon={Gavel} title={t('settingsPage.legal.title')} subtitle={t('settingsPage.legal.subtitle')}>
+        <div className="divide-y divide-[#E5E7EB]">
+          {LEGAL_DOCUMENTS.map((doc, index) => (
+            <div
+              key={doc.id}
+              className={`flex flex-wrap items-center justify-between gap-4 ${index === 0 ? 'pb-4' : 'pt-4'}`}
+            >
+              <div>
+                <p className="text-sm font-bold text-[#1F2937]">
+                  {t(`settingsPage.legal.${doc.id}Title`)}
+                </p>
+                <p className="mt-0.5 text-[10px] text-[#667085]">
+                  {t(`settingsPage.legal.${doc.id}Desc`)}
+                </p>
+                <p className="mt-0.5 text-[8px] text-[#98A2B3]">
+                  {t('settingsPage.legal.lastChanged', { date: doc.lastUpdated })}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveLegalDocument(doc)}
+                className="flex shrink-0 items-center gap-1.5 rounded-md border border-[#D0D5DD] bg-white px-3.5 py-2 text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA]"
+              >
+                <FileText size={11} />
+                {t('settingsPage.legal.view')}
+              </button>
+            </div>
+          ))}
+        </div>
+      </SettingsExactSection>
+
+      {activeLegalDocument && (
+        <LegalDocumentModal
+          document={activeLegalDocument}
+          onClose={() => setActiveLegalDocument(null)}
+        />
+      )}
 
       {activeModal === 'changePassword' && (
         <ChangePasswordModal

@@ -208,7 +208,7 @@ function DonutChart({ slices }) {
           cy="50"
           r={radius}
           fill="none"
-          stroke={THEME.border}
+          style={{ stroke: 'var(--admin-border, ' + THEME.border + ')' }}
           strokeWidth="13"
         />
       </svg>
@@ -233,7 +233,7 @@ function DonutChart({ slices }) {
             cy="50"
             r={radius}
             fill="none"
-            stroke={slice.color}
+            style={{ stroke: slice.color }}
             strokeWidth="13"
             strokeDasharray={`${length} ${
               circumference - length
@@ -822,7 +822,7 @@ const endDate = toDateKey(
       value: Number(
         stats.waiting || 0
       ),
-      color: '#94A3B8',
+      color: 'var(--admin-chart-waiting)',
     },
 
     {
@@ -831,7 +831,7 @@ const endDate = toDateKey(
       value: Number(
         stats.completed || 0
       ),
-      color: THEME.primary,
+      color: 'var(--admin-chart-completed)',
     },
 
     {
@@ -840,7 +840,7 @@ const endDate = toDateKey(
       value: Number(
         stats.currentlyServing || 0
       ),
-      color: THEME.textMain,
+      color: 'var(--admin-chart-serving)',
     },
   ];
 

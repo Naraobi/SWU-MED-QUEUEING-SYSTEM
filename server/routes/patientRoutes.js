@@ -925,6 +925,57 @@ router.get(
           [departmentId]
         );
 
+      /*
+        How long this department actually takes to serve one
+        patient, measured over the last two weeks rather than
+        today alone — first thing in the morning there are no
+        completed tickets yet, and a single outlier would swing
+        a same-day average wildly.
+      */
+      const [serviceRows] =
+        await pool.query(
+          `
+          SELECT
+            AVG(
+              TIMESTAMPDIFF(
+                SECOND,
+                service_began_at,
+                completed_at
+              ) / 60
+            ) AS average_service_minutes
+          FROM queue_ticket
+          WHERE department_id = ?
+            AND status = 'completed'
+            AND service_began_at IS NOT NULL
+            AND completed_at IS NOT NULL
+            AND completed_at >= DATE_SUB(
+              CURDATE(),
+              INTERVAL 14 DAY
+            )
+          `,
+          [departmentId]
+        );
+
+      /*
+        Counters serve in parallel, so a queue of 20 in front of
+        4 open counters is not 20 service slots of waiting.
+      */
+      const [counterRows] =
+        await pool.query(
+          `
+          SELECT
+            COUNT(*) AS active_counters
+          FROM counter
+          WHERE department_id = ?
+            AND status = 'active'
+          `,
+          [departmentId]
+        );
+
+      const averageServiceMinutes =
+        Number(
+          serviceRows[0]?.average_service_minutes
+        ) || 0;
 
       return res.json({
         success: true,
@@ -933,6 +984,18 @@ router.get(
           waiting_count:
             Number(
               rows[0]?.waiting_count
+            ) || 0,
+
+          average_service_minutes:
+            averageServiceMinutes > 0
+              ? Number(
+                  averageServiceMinutes.toFixed(2)
+                )
+              : null,
+
+          active_counters:
+            Number(
+              counterRows[0]?.active_counters
             ) || 0,
         },
       });
