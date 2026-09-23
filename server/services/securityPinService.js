@@ -385,4 +385,5 @@ module.exports = {
   verifyVerificationCode,
   saveSecurityPin,
   validateSecurityPin,
+  validateKioskSecurityPin,
 };
