@@ -254,6 +254,17 @@ function mapQueueItem(
     row.calledAt ||
     null
 
+  const rawCounterNumber =
+    row.counter_number ??
+    row.counterNumber ??
+    null
+
+  const counterNumber =
+    rawCounterNumber === null ||
+    rawCounterNumber === ''
+      ? null
+      : rawCounterNumber
+
   return {
     dbId: queueId,
 
@@ -278,13 +289,19 @@ function mapQueueItem(
       row.department_id ||
       null,
 
+    // counter_id is a generated primary key, never something to show a
+    // user. Only counter_number is human-readable, so when it is missing
+    // this stays null and each screen falls back to the terminal name it
+    // already knows locally.
     terminal:
-      row.counter_id
-        ? `Counter ${row.counter_id}`
-        : 'Unassigned',
+      counterNumber !== null
+        ? `Counter ${counterNumber}`
+        : null,
 
     counterId:
       row.counter_id || null,
+
+    counterNumber,
 
     status:
       row.status || 'waiting',
@@ -623,8 +640,8 @@ export async function fetchTicketStatus(
         departmentName,
 
       terminal:
-        ticket.counter_id
-          ? `Counter ${ticket.counter_id}`
+        ticket.counter_number
+          ? `Counter ${ticket.counter_number}`
           : 'Assigned Counter',
 
       nowServing:

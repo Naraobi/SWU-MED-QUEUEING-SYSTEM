@@ -188,6 +188,7 @@ async function getQueueState(
       qt.completed_at,
       qt.is_priority,
       qt.counter_id,
+      c.counter_number,
 
       p.transaction_id,
       p.patient_number,
@@ -203,6 +204,9 @@ async function getQueueState(
 
     INNER JOIN department d
       ON qt.department_id = d.department_id
+
+    LEFT JOIN counter c
+      ON qt.counter_id = c.counter_id
 
     WHERE d.prefix = ?
       AND DATE(qt.issued_at) = CURDATE()
@@ -257,6 +261,7 @@ async function getQueueState(
       qt.completed_at,
       qt.is_priority,
       qt.counter_id,
+      c.counter_number,
 
       p.transaction_id,
       p.patient_number,
@@ -272,6 +277,9 @@ async function getQueueState(
 
     INNER JOIN department d
       ON qt.department_id = d.department_id
+
+    LEFT JOIN counter c
+      ON qt.counter_id = c.counter_id
 
     WHERE d.prefix = ?
       AND DATE(qt.issued_at) = CURDATE()
@@ -618,6 +626,7 @@ router.post(
             qt.completed_at,
             qt.is_priority,
             qt.counter_id,
+            c.counter_number,
 
             p.transaction_id,
             p.patient_number,
@@ -633,6 +642,9 @@ router.post(
 
           INNER JOIN department d
             ON qt.department_id = d.department_id
+
+          LEFT JOIN counter c
+            ON qt.counter_id = c.counter_id
 
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()
@@ -791,6 +803,7 @@ router.post(
             qt.completed_at,
             qt.is_priority,
             qt.counter_id,
+            c.counter_number,
 
             p.transaction_id,
             p.patient_number,
@@ -806,6 +819,9 @@ router.post(
 
           INNER JOIN department d
             ON qt.department_id = d.department_id
+
+          LEFT JOIN counter c
+            ON qt.counter_id = c.counter_id
 
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()
@@ -857,6 +873,7 @@ router.post(
             qt.completed_at,
             qt.is_priority,
             qt.counter_id,
+            c.counter_number,
 
             p.transaction_id,
             p.patient_number,
@@ -872,6 +889,9 @@ router.post(
 
           INNER JOIN department d
             ON qt.department_id = d.department_id
+
+          LEFT JOIN counter c
+            ON qt.counter_id = c.counter_id
 
           WHERE qt.queue_id = ?
 
@@ -1054,6 +1074,7 @@ router.post(
             qt.completed_at,
             qt.is_priority,
             qt.counter_id,
+            c.counter_number,
 
             p.transaction_id,
             p.patient_number,
@@ -1069,6 +1090,9 @@ router.post(
 
           INNER JOIN department d
             ON qt.department_id = d.department_id
+
+          LEFT JOIN counter c
+            ON qt.counter_id = c.counter_id
 
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()

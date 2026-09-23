@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { auth } from '../../../firebase';
 
@@ -31,7 +37,7 @@ import {
   BedDouble,
   Wallet,
   ShieldCheck,
-  Users,
+  Users,  
   Clock,
   Calendar,
   Hourglass,
@@ -41,6 +47,7 @@ import {
   MapPin,
   ClipboardList,
   Lock,
+  Check,
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
@@ -54,6 +61,45 @@ import { THEME } from '../../theme/colors';
    (shared with Admin/Staff via src/queue/theme/colors.js;
    BORDER_DEFAULT and ICON_TINT are Patient-kiosk-specific)
 ========================================================= */
+
+/* =========================================================
+   SCREEN TRANSITIONS
+========================================================= */
+
+/*
+  Screens play an exit animation before the next one mounts, so
+  the flow reads as one continuous motion rather than a hard cut.
+  PatientView holds the `leaving` flag and every Screen reads it
+  from here.
+*/
+
+const TransitionContext = createContext({ leaving: false });
+
+const EXIT_MS = 140;
+
+/*
+  A wall-mounted kiosk is often set up on a machine with Windows
+  animation effects switched off, which would disable all of this
+  even though the motion is part of how the screen explains itself.
+  Flip this to true for a deployment that should honour the OS
+  setting instead.
+*/
+const RESPECT_REDUCED_MOTION = false;
+
+function prefersReducedMotion() {
+  if (!RESPECT_REDUCED_MOTION) {
+    return false;
+  }
+
+  return (
+    typeof window !== 'undefined' &&
+    Boolean(
+      window.matchMedia?.(
+        '(prefers-reduced-motion: reduce)'
+      ).matches
+    )
+  );
+}
 
 const BRAND_RED = THEME.primary;
 const REGULAR_DARK = THEME.textMain;
@@ -224,6 +270,89 @@ function isDepartmentActive(department) {
 }
 
 /* =========================================================
+   ESTIMATED WAIT
+========================================================= */
+
+/*
+  What the patient is shown is how long until they are served,
+  which is a function of the queue in front of them — not the
+  department's configured est_time, which is how long a single
+  visit takes once it starts. Using est_time on its own showed
+  the same "~5 min" to someone who was next and to someone with
+  twenty people ahead of them.
+
+  The real per-patient duration comes from the backend as an
+  average over recently completed visits; est_time is only the
+  fallback for a department that has not completed any yet.
+*/
+
+function getEstimatedWaitMinutes({
+  waiting,
+  averageServiceMinutes,
+  activeCounters,
+  fallbackMinutes,
+}) {
+  const peopleAhead = Math.max(
+    0,
+    Number(waiting) || 0
+  );
+
+  if (peopleAhead === 0) {
+    return 0;
+  }
+
+  const minutesPerPatient =
+    Number(averageServiceMinutes) ||
+    Number(fallbackMinutes) ||
+    0;
+
+  if (minutesPerPatient <= 0) {
+    return 0;
+  }
+
+  // Counters serve in parallel, so the queue drains faster than
+  // one-at-a-time when a department has several open.
+  const lanes = Math.max(
+    1,
+    Number(activeCounters) || 1
+  );
+
+  return Math.max(
+    1,
+    Math.ceil(
+      (peopleAhead * minutesPerPatient) / lanes
+    )
+  );
+}
+
+function withEstimatedWait(service, waiting) {
+  if (!service) {
+    return service;
+  }
+
+  const nextWaiting = Math.max(
+    0,
+    Number(waiting) || 0
+  );
+
+  return {
+    ...service,
+
+    waiting: nextWaiting,
+
+    estMin: getEstimatedWaitMinutes({
+      waiting: nextWaiting,
+      averageServiceMinutes:
+        service.averageServiceMinutes,
+      activeCounters:
+        service.activeCounters,
+      fallbackMinutes:
+        service.serviceMinutes,
+    }),
+  };
+}
+
+/* =========================================================
    KIOSK DAILY UNLOCK HELPERS
 ========================================================= */
 
@@ -333,11 +462,251 @@ function Wordmark({ size = 'h-10' }) {
   );
 }
 /* =========================================================
+   STEP PROGRESS
+   Lets a patient see how many steps remain before their number
+   is issued, instead of moving through an unlabeled sequence of
+   screens with no sense of where they are.
+========================================================= */
+
+const KIOSK_STEPS = [
+  { key: 'queueType', label: 'Queue Type' },
+  { key: 'department', label: 'Service' },
+  { key: 'confirm', label: 'Confirm' },
+  { key: 'ticket', label: 'Ticket' },
+];
+
+/*
+  Each screen remounts the header, so a progress bar built purely
+  from props would snap to its new position instead of travelling
+  there. Parking the last position in module scope lets the freshly
+  mounted bar pick up exactly where the previous one left off and
+  glide to the new step.
+*/
+
+const PROGRESS_START = -0.35;
+
+let lastStepProgress = PROGRESS_START;
+
+function resetStepProgress() {
+  lastStepProgress = PROGRESS_START;
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function getStepStates(progress, done) {
+  const active = Math.floor(progress + 0.0001);
+
+  return KIOSK_STEPS.map((_, index) => {
+    if (done ? index <= active : index < active) {
+      return 'complete';
+    }
+
+    if (index === active) {
+      return 'current';
+    }
+
+    return 'upcoming';
+  });
+}
+
+function StepProgress({ currentStep }) {
+  const target = KIOSK_STEPS.findIndex(
+    (item) => item.key === currentStep
+  );
+
+  // Once the ticket is issued there is nothing left to do, so every
+  // step reads as complete instead of leaving the last one looking
+  // "in progress" on a screen the patient is already done with.
+  const done = currentStep === 'ticket';
+
+  const [progress, setProgress] = useState(
+    lastStepProgress
+  );
+
+  // Captured once on mount so only the circles that actually change
+  // pop — otherwise every circle re-pops each time a screen arrives.
+  const [initialStates] = useState(() =>
+    getStepStates(lastStepProgress, done)
+  );
+
+  useEffect(() => {
+    const from = lastStepProgress;
+    const to = target;
+    const distance = Math.abs(to - from);
+
+    // Already there, so there is nothing to travel.
+    if (distance < 0.001) {
+      lastStepProgress = to;
+      return undefined;
+    }
+
+    const duration = prefersReducedMotion()
+      ? 0
+      : 260 +
+        380 * Math.min(distance, 1) +
+        160 * Math.max(0, distance - 1);
+
+    const start = performance.now();
+    let frame;
+
+    const tick = (now) => {
+      const t =
+        duration <= 0
+          ? 1
+          : Math.min(
+              1,
+              (now - start) / duration
+            );
+
+      const value =
+        from +
+        (to - from) * easeInOutCubic(t);
+
+      lastStepProgress = value;
+      setProgress(value);
+
+      if (t < 1) {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+
+    frame = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(frame);
+  }, [target]);
+
+  const states = getStepStates(progress, done);
+
+  return (
+    <div className="mt-5 flex items-start">
+      {KIOSK_STEPS.map((stepItem, index) => {
+        const isLast =
+          index === KIOSK_STEPS.length - 1;
+
+        const state = states[index];
+
+        const shouldPop =
+          state !== 'upcoming' &&
+          state !== initialStates[index];
+
+        const fill = Math.min(
+          1,
+          Math.max(0, progress - index)
+        );
+
+        const moving = fill > 0.02 && fill < 0.98;
+
+        const circleClass =
+          state === 'complete'
+            ? 'border-2 border-[#9D0A0E] bg-[#9D0A0E] text-white'
+            : state === 'current'
+              ? 'border-2 border-[#9D0A0E] bg-[#F8F9FA] text-[#9D0A0E]'
+              : 'border border-[#D0D5DD] bg-[#F8F9FA] text-[#98A2B3]';
+
+        const labelClass =
+          state === 'current'
+            ? 'text-[#9D0A0E]'
+            : state === 'complete'
+              ? 'text-[#1F2937]'
+              : 'text-[#98A2B3]';
+
+        return (
+          <div
+            key={stepItem.key}
+            className={`flex items-center ${isLast ? '' : 'flex-1'}`}
+          >
+            <div className="flex flex-col items-center">
+              <div className="relative flex h-6 w-6 items-center justify-center">
+                {state === 'current' && (
+                  <span
+                    className="kiosk-step-halo"
+                    aria-hidden="true"
+                  />
+                )}
+
+                <div
+                  key={state}
+                  className={`relative flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold transition-colors duration-300 ${circleClass} ${
+                    shouldPop ? 'kiosk-step-pop' : ''
+                  }`}
+                  aria-current={
+                    state === 'current'
+                      ? 'step'
+                      : undefined
+                  }
+                >
+                  {state === 'complete' ? (
+                    <Check
+                      size={12}
+                      strokeWidth={3}
+                      className={
+                        shouldPop
+                          ? 'kiosk-check-in'
+                          : ''
+                      }
+                    />
+                  ) : (
+                    index + 1
+                  )}
+                </div>
+              </div>
+
+              <span
+                className={`mt-1 whitespace-nowrap text-[8px] font-semibold uppercase tracking-wide transition-colors duration-300 ${labelClass}`}
+              >
+                {stepItem.label}
+              </span>
+            </div>
+
+            {!isLast && (
+              <div className="relative mx-1.5 mb-4 h-0.5 flex-1 rounded-full bg-[#E5E7EB]">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-[#9D0A0E]"
+                  style={{ width: `${fill * 100}%` }}
+                >
+                  <span
+                    className="kiosk-line-tip"
+                    style={{
+                      opacity: moving ? 1 : 0,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* =========================================================
    KIOSK HEADER
 ========================================================= */
 
-function KioskHeader() {
-  const [now] = useState(new Date());
+function useNow(intervalMs = 30000) {
+  const [now, setNow] = useState(
+    () => new Date()
+  );
+
+  useEffect(() => {
+    const id = setInterval(
+      () => setNow(new Date()),
+      intervalMs
+    );
+
+    return () => clearInterval(id);
+  }, [intervalMs]);
+
+  return now;
+}
+
+function KioskHeader({ step = null }) {
+  const now = useNow();
 
   const time = now.toLocaleTimeString([], {
     hour: 'numeric',
@@ -351,20 +720,24 @@ function KioskHeader() {
   });
 
   return (
-    <div className="mb-6 flex items-center justify-between">
-      <Wordmark size="h-9" />
+    <div className="mb-6">
+      <div className="flex items-center justify-between">
+        <Wordmark size="h-9" />
 
-      <div className="flex items-center gap-3 text-[11px] font-medium text-[#434655]">
-        <span className="flex items-center gap-1">
-          <Clock size={12} />
-          {time}
-        </span>
+        <div className="flex items-center gap-3 text-[11px] font-medium text-[#434655]">
+          <span className="flex items-center gap-1">
+            <Clock size={12} />
+            {time}
+          </span>
 
-        <span className="flex items-center gap-1">
-          <Calendar size={12} />
-          {date}
-        </span>
+          <span className="flex items-center gap-1">
+            <Calendar size={12} />
+            {date}
+          </span>
+        </div>
       </div>
+
+      {step && <StepProgress currentStep={step} />}
     </div>
   );
 }
@@ -373,11 +746,34 @@ function KioskHeader() {
    SCREEN WRAPPER
 ========================================================= */
 
-function Screen({ children }) {
+/*
+  The header renders outside the animated block on purpose: the
+  progress bar has to stay put and flow between steps rather than
+  fade out and back in with the rest of the screen.
+*/
+
+function Screen({
+  children,
+  stepKey = 'screen',
+  header = null,
+}) {
+  const { leaving } = useContext(
+    TransitionContext
+  );
+
   return (
     <div className="patient-kiosk flex min-h-screen items-center justify-center bg-[#F8F9FA] px-6 py-8 print:hidden">
       <div className="flex w-full max-w-[420px] flex-col">
-        {children}
+        {header}
+
+        <div
+          key={stepKey}
+          className={`flex flex-col kiosk-step-enter ${
+            leaving ? 'kiosk-step-exit' : ''
+          }`}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -398,10 +794,13 @@ function NavButtons({
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 rounded-md border bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        className="kiosk-nav-button group flex items-center gap-1.5 rounded-md border bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
         style={{ borderColor: REGULAR_DARK }}
       >
-        <ArrowLeft size={15} />
+        <ArrowLeft
+          size={15}
+          className="transition-transform duration-200 group-hover:-translate-x-0.5"
+        />
         Back
       </button>
 
@@ -409,11 +808,14 @@ function NavButtons({
         type="button"
         onClick={onContinue}
         disabled={disabled}
-        className="flex flex-1 items-center justify-center gap-1.5 rounded-md border-2 bg-white px-4 py-3 text-sm font-semibold text-[#1F2937] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        className="kiosk-nav-button group flex flex-1 items-center justify-center gap-1.5 rounded-md border-2 bg-white px-4 py-3 text-sm font-semibold text-[#1F2937] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         style={{ borderColor: MUTED_RED }}
       >
         {continueLabel}
-        <ArrowRight size={15} />
+        <ArrowRight
+          size={15}
+          className="transition-transform duration-200 group-enabled:group-hover:translate-x-0.5"
+        />
       </button>
     </div>
   );
@@ -425,30 +827,39 @@ function NavButtons({
 
 function WelcomeScreen({ onStart }) {
   return (
-    <Screen>
+    <Screen stepKey="welcome">
       <div className="flex flex-col items-center px-2 py-10 text-center">
-        <Wordmark size="h-20" />
+        <div className="kiosk-stagger-1">
+          <Wordmark size="h-20" />
+        </div>
 
-        <h1 className="mt-8 text-2xl font-semibold text-slate-900">
-          Welcome to
-        </h1>
+        <div className="kiosk-stagger-2">
+          <h1 className="mt-8 text-2xl font-semibold text-slate-900">
+            Welcome to
+          </h1>
 
-        <h1 className="text-2xl font-bold text-[#9D0A0E]">
-          SWU Med Hospital
-        </h1>
+          <h1 className="text-2xl font-bold text-[#9D0A0E]">
+            SWU Med Hospital
+          </h1>
 
-        <p className="mt-3 text-sm text-slate-500">
-          Please tap below to get your queue number.
-        </p>
+          <p className="mt-3 text-sm text-slate-500">
+            Please tap below to get your queue number.
+          </p>
+        </div>
 
-        <button
-          type="button"
-          onClick={onStart}
-          className="mt-8 flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-4 text-base font-semibold text-white shadow-sm hover:bg-[#7d0809]"
-        >
-          GET STARTED
-          <ArrowRight size={18} />
-        </button>
+        <div className="kiosk-stagger-3 w-full">
+          <button
+            type="button"
+            onClick={onStart}
+            className="kiosk-button group mt-8 flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-4 text-base font-semibold text-white shadow-sm hover:bg-[#7d0809]"
+          >
+            GET STARTED
+            <ArrowRight
+              size={18}
+              className="transition-transform duration-200 group-hover:translate-x-1"
+            />
+          </button>
+        </div>
       </div>
     </Screen>
   );
@@ -476,7 +887,7 @@ function NumericKeypad({
   ];
 
   const keyClass =
-    'flex h-12 items-center justify-center rounded-md border border-[#E5E7EB] bg-white text-base font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100';
+    'kiosk-button flex h-12 items-center justify-center rounded-md border border-[#E5E7EB] bg-white text-base font-semibold text-slate-800 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100';
 
   return (
     <div className="grid grid-cols-3 gap-2.5">
@@ -531,10 +942,8 @@ function SelectKioskScreen({
   loading,
 }) {
   return (
-    <Screen>
-      <KioskHeader />
-
-      <div className="mb-5 text-center">
+    <Screen stepKey="kiosk" header={<KioskHeader />}>
+      <div className="mb-5 text-center kiosk-stagger-1">
         <h1 className="text-2xl font-semibold text-slate-900">
           Select Your Kiosk
         </h1>
@@ -564,7 +973,7 @@ function SelectKioskScreen({
         )}
 
         {!loading &&
-          kiosks.map((currentKiosk) => {
+          kiosks.map((currentKiosk, index) => {
             const Icon = getKioskIcon(
               currentKiosk.name
             );
@@ -579,15 +988,21 @@ function SelectKioskScreen({
               );
 
             return (
-              <button
+              <div
                 key={currentKiosk.kiosk_id}
+                className="kiosk-item-enter"
+                style={{
+                  animationDelay: `${80 + index * 45}ms`,
+                }}
+              >
+              <button
                 type="button"
                 onClick={() =>
                   onSelect(currentKiosk)
                 }
-                className={`relative flex w-full items-center gap-3 rounded-md border p-3.5 text-left shadow-sm transition ${
+                className={`kiosk-card relative flex w-full items-center gap-3 rounded-md border p-3.5 text-left shadow-sm ${
                   isSelected
-                    ? 'border-transparent'
+                    ? 'border-transparent kiosk-selected'
                     : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
                 }`}
                 style={
@@ -597,7 +1012,7 @@ function SelectKioskScreen({
                 }
               >
                 <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center ${
+                  className={`kiosk-icon-motion flex h-10 w-10 shrink-0 items-center justify-center ${
                     isSelected ? 'rounded-full' : 'rounded'
                   }`}
                   style={{
@@ -640,15 +1055,18 @@ function SelectKioskScreen({
                   </p>
                 </div>
               </button>
+              </div>
             );
           })}
       </div>
 
-      <NavButtons
-        onBack={onBack}
-        onContinue={onContinue}
-        disabled={!selected || loading}
-      />
+      <div className="kiosk-stagger-4">
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          disabled={!selected || loading}
+        />
+      </div>
     </Screen>
   );
 }
@@ -686,6 +1104,8 @@ function KioskPinScreen({
       );
       return;
     }
+
+    await auth.authStateReady();
 
     const firebaseUser = auth.currentUser;
 
@@ -750,12 +1170,12 @@ function KioskPinScreen({
   }
 
   return (
-    <Screen>
-      <div className="mb-6 flex justify-center">
+    <Screen stepKey="kioskPin">
+      <div className="mb-6 flex justify-center kiosk-stagger-1">
         <Wordmark size="h-16" />
       </div>
 
-      <div className="mb-6 text-center">
+      <div className="mb-6 text-center kiosk-stagger-2">
         <h1 className="text-2xl font-semibold text-slate-900">
           Enter Security PIN
         </h1>
@@ -806,7 +1226,7 @@ function KioskPinScreen({
         </p>
       )}
 
-      <div className="mb-6">
+      <div className="mb-6 kiosk-stagger-3">
         <NumericKeypad
           onDigit={handleDigit}
           onBackspace={handleBackspace}
@@ -814,7 +1234,7 @@ function KioskPinScreen({
         />
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 kiosk-stagger-4">
         <button
           type="button"
           onClick={handleSubmit}
@@ -822,20 +1242,23 @@ function KioskPinScreen({
             pin.length !== KIOSK_PIN_LENGTH ||
             submitting
           }
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-4 text-base font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+          className="kiosk-button group flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-4 text-base font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting
             ? 'Activating...'
             : 'Activate Kiosk'}
 
-          <ArrowRight size={18} />
+          <ArrowRight
+            size={18}
+            className="transition-transform duration-200 group-enabled:group-hover:translate-x-0.5"
+          />
         </button>
 
         <button
           type="button"
           onClick={onBack}
           disabled={submitting}
-          className="flex items-center justify-center gap-2 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
+          className="kiosk-button flex items-center justify-center gap-2 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
         >
           <ArrowLeft size={16} />
           Back
@@ -852,10 +1275,11 @@ function KioskPinScreen({
   onContinue,
 }) {
   return (
-    <Screen>
-      <KioskHeader />
-
-      <div className="mb-6 text-center">
+    <Screen
+      stepKey="queueType"
+      header={<KioskHeader step="queueType" />}
+    >
+      <div className="mb-6 text-center kiosk-stagger-1">
         <h1 className="text-2xl font-semibold text-slate-900">
           Select Your Queue Type
         </h1>
@@ -866,45 +1290,54 @@ function KioskPinScreen({
       </div>
 
       <div className="mb-8 space-y-3">
-        {QUEUE_TYPES.map((type) => {
+        {QUEUE_TYPES.map((type, index) => {
           const isSelected =
             selected?.key === type.key;
 
           return (
-            <button
+            <div
               key={type.key}
-              type="button"
-              onClick={() => onSelect(type)}
-              className={`relative w-full rounded-md border p-5 text-center shadow-sm transition ${
-                isSelected
-                  ? 'border-transparent'
-                  : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
-              }`}
-              style={
-                isSelected
-                  ? { backgroundColor: BRAND_RED }
-                  : undefined
-              }
+              className="kiosk-item-enter"
+              style={{
+                animationDelay: `${80 + index * 60}ms`,
+              }}
             >
-              <p
-                className={`text-lg font-bold uppercase tracking-wide ${
+              <button
+                type="button"
+                onClick={() => onSelect(type)}
+                className={`kiosk-card relative w-full rounded-md border p-5 text-center shadow-sm ${
                   isSelected
-                    ? 'text-white'
-                    : 'text-slate-800'
+                    ? 'border-transparent kiosk-selected'
+                    : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
                 }`}
+                style={
+                  isSelected
+                    ? { backgroundColor: BRAND_RED }
+                    : undefined
+                }
               >
-                {type.label}
-              </p>
-            </button>
+                <p
+                  className={`text-lg font-bold uppercase tracking-wide transition-colors duration-200 ${
+                    isSelected
+                      ? 'text-white'
+                      : 'text-slate-800'
+                  }`}
+                >
+                  {type.label}
+                </p>
+              </button>
+            </div>
           );
         })}
       </div>
 
-      <NavButtons
-        onBack={onBack}
-        onContinue={onContinue}
-        disabled={!selected}
-      />
+      <div className="kiosk-stagger-4">
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          disabled={!selected}
+        />
+      </div>
     </Screen>
   );
 }
@@ -922,10 +1355,11 @@ function SelectDepartmentScreen({
   loading,
 }) {
   return (
-    <Screen>
-      <KioskHeader />
-
-      <div className="mb-5 text-center">
+    <Screen
+      stepKey="department"
+      header={<KioskHeader step="department" />}
+    >
+      <div className="mb-5 text-center kiosk-stagger-1">
         <h1 className="text-2xl font-semibold text-slate-900">
           What do you need today?
         </h1>
@@ -936,10 +1370,11 @@ function SelectDepartmentScreen({
       </div>
 
       <div
-        className="mb-3 max-h-[380px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden"
+        className="mb-3 max-h-[380px] overflow-y-auto p-1 [&::-webkit-scrollbar]:hidden"
         style={{
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
+          scrollBehavior: 'smooth',
         }}
       >
         {loading && (
@@ -963,7 +1398,7 @@ function SelectDepartmentScreen({
 
         {!loading && departments.length > 0 && (
           <div className="grid grid-cols-3 gap-2.5">
-            {departments.map((department) => {
+            {departments.map((department, index) => {
               const Icon =
                 getDepartmentIcon(
                   department.name,
@@ -980,18 +1415,24 @@ function SelectDepartmentScreen({
                     );
 
               return (
-                <button
+                <div
                   key={department.department_id}
+                  className="kiosk-item-enter flex"
+                  style={{
+                    animationDelay: `${70 + index * 30}ms`,
+                  }}
+                >
+                <button
                   type="button"
                   disabled={!active}
                   onClick={() =>
                     active && onSelect(department)
                   }
-                  className={`relative flex flex-col items-center gap-1.5 rounded-md border p-3 text-center shadow-sm transition ${
+                  className={`kiosk-card relative flex w-full flex-col items-center gap-1.5 rounded-md border p-3 text-center shadow-sm ${
                     !active
                       ? 'cursor-not-allowed border-[#E5E7EB] bg-[#F1F3F5] opacity-60'
                       : isSelected
-                        ? 'border-transparent'
+                        ? 'border-transparent kiosk-selected'
                         : 'border-[#C3C6D7] bg-white hover:border-slate-400 hover:bg-slate-50'
                   }`}
                   style={
@@ -1001,7 +1442,7 @@ function SelectDepartmentScreen({
                   }
                 >
                   <div
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center ${
+                    className={`kiosk-icon-motion flex h-9 w-9 shrink-0 items-center justify-center ${
                       active && isSelected ? 'rounded-full' : 'rounded'
                     }`}
                     style={{
@@ -1046,6 +1487,7 @@ function SelectDepartmentScreen({
                       : 'Inactive'}
                   </p>
                 </button>
+                </div>
               );
             })}
           </div>
@@ -1053,18 +1495,20 @@ function SelectDepartmentScreen({
       </div>
 
       <p className="mb-4 mt-2 text-center text-xs text-slate-400">
-        &darr; Swipe up for more
+        <span className="kiosk-hint-bob">&darr;</span> Swipe up for more
       </p>
 
-      <NavButtons
-        onBack={onBack}
-        onContinue={onContinue}
-        disabled={
-          loading ||
-          departments.length === 0 ||
-          !selected
-        }
-      />
+      <div className="kiosk-stagger-4">
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          disabled={
+            loading ||
+            departments.length === 0 ||
+            !selected
+          }
+        />
+      </div>
     </Screen>
   );
 }
@@ -1089,10 +1533,11 @@ function ConfirmScreen({
     queueType?.icon || User;
 
   return (
-    <Screen>
-      <KioskHeader />
-
-      <div className="mb-5 text-center">
+    <Screen
+      stepKey="confirm"
+      header={<KioskHeader step="confirm" />}
+    >
+      <div className="mb-5 text-center kiosk-stagger-1">
         <h1 className="text-2xl font-semibold text-slate-900">
           Confirm Your Service
         </h1>
@@ -1102,7 +1547,7 @@ function ConfirmScreen({
         </p>
       </div>
 
-      <div className="mb-6 rounded-lg border border-[#E5E7EB] bg-white p-5 shadow-sm">
+      <div className="mb-6 rounded-lg border border-[#E5E7EB] bg-white p-5 shadow-sm kiosk-stagger-2">
         <div className="mb-3 flex flex-col items-center border-b border-[#C3C6D7]/30 pb-4 text-center">
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-[#F7EEEE]">
             <MapPin
@@ -1118,8 +1563,11 @@ function ConfirmScreen({
 
         <div className="space-y-2">
           <div
-            className="flex items-center gap-3 rounded p-3"
-            style={{ backgroundColor: SELECTED_BG }}
+            className="kiosk-item-enter flex items-center gap-3 rounded p-3"
+            style={{
+              backgroundColor: SELECTED_BG,
+              animationDelay: '140ms',
+            }}
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#E5E7EB]">
               <QueueIcon
@@ -1134,8 +1582,11 @@ function ConfirmScreen({
           </div>
 
           <div
-            className="flex items-center gap-3 rounded p-3"
-            style={{ backgroundColor: SELECTED_BG }}
+            className="kiosk-item-enter flex items-center gap-3 rounded p-3"
+            style={{
+              backgroundColor: SELECTED_BG,
+              animationDelay: '190ms',
+            }}
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#E5E7EB]">
               <ServiceIcon
@@ -1151,8 +1602,11 @@ function ConfirmScreen({
         </div>
 
         <div
-          className="mt-3 grid grid-cols-2 rounded p-4 text-center"
-          style={{ backgroundColor: SELECTED_BG }}
+          className="kiosk-item-enter mt-3 grid grid-cols-2 rounded p-4 text-center"
+          style={{
+            backgroundColor: SELECTED_BG,
+            animationDelay: '240ms',
+          }}
         >
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -1186,16 +1640,18 @@ function ConfirmScreen({
         </div>
       </div>
 
-      <NavButtons
-        onBack={onBack}
-        onContinue={onConfirm}
-        continueLabel={
-          isGenerating
-            ? 'Generating...'
-            : 'Generate Queue Number'
-        }
-        disabled={isGenerating}
-      />
+      <div className="kiosk-stagger-4">
+        <NavButtons
+          onBack={onBack}
+          onContinue={onConfirm}
+          continueLabel={
+            isGenerating
+              ? 'Generating...'
+              : 'Generate Queue Number'
+          }
+          disabled={isGenerating}
+        />
+      </div>
     </Screen>
   );
 }
@@ -1217,10 +1673,11 @@ function TicketScreen({
     getQueueThemeColor(queueType);
 
   return (
-    <Screen>
-      <KioskHeader />
-
-      <div className="mb-5 text-center">
+    <Screen
+      stepKey="ticket"
+      header={<KioskHeader step="ticket" />}
+    >
+      <div className="mb-5 text-center kiosk-stagger-1">
         <h1 className="text-2xl font-semibold text-slate-900">
           Your Queue Number
         </h1>
@@ -1231,7 +1688,7 @@ function TicketScreen({
       </div>
 
       <div
-        className="mb-5 overflow-hidden rounded-lg border bg-white shadow-sm"
+        className="kiosk-ticket-reveal mb-5 overflow-hidden rounded-lg border bg-white shadow-sm"
         style={{ borderColor: BORDER_DEFAULT }}
       >
         <div
@@ -1239,7 +1696,9 @@ function TicketScreen({
           style={{ backgroundColor: themeColor }}
         >
           <p className="mb-2 text-5xl font-bold text-white">
-            {queueNumber}
+            <span className="kiosk-number-pop">
+              {queueNumber}
+            </span>
           </p>
 
           <span className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
@@ -1257,7 +1716,10 @@ function TicketScreen({
 
         <div className="grid grid-cols-[1fr_auto] gap-4 p-4">
           <div className="space-y-2">
-            <div className="flex items-center gap-2.5 rounded-md bg-[#F3F5F7] px-3 py-2.5">
+            <div
+              className="kiosk-item-enter flex items-center gap-2.5 rounded-md bg-[#F3F5F7] px-3 py-2.5"
+              style={{ animationDelay: '260ms' }}
+            >
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded"
                 style={{ backgroundColor: `${themeColor}1A` }}
@@ -1280,7 +1742,10 @@ function TicketScreen({
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 rounded-md bg-[#F3F5F7] px-3 py-2.5">
+            <div
+              className="kiosk-item-enter flex items-center gap-2.5 rounded-md bg-[#F3F5F7] px-3 py-2.5"
+              style={{ animationDelay: '310ms' }}
+            >
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded"
                 style={{ backgroundColor: `${themeColor}1A` }}
@@ -1304,7 +1769,10 @@ function TicketScreen({
             </div>
           </div>
 
-          <div className="flex flex-col items-center justify-center">
+          <div
+            className="kiosk-item-enter flex flex-col items-center justify-center"
+            style={{ animationDelay: '360ms' }}
+          >
             <QRCodeSVG
               value={getTrackerUrl(queueId)}
               size={96}
@@ -1319,15 +1787,15 @@ function TicketScreen({
         </div>
       </div>
 
-      <p className="mb-3 text-center text-sm font-medium text-slate-700">
+      <p className="mb-3 text-center text-sm font-medium text-slate-700 kiosk-stagger-3">
         Would you like to print your ticket?
       </p>
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 kiosk-stagger-4">
         <button
           type="button"
           onClick={onPrint}
-          className="flex flex-1 items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-3 text-sm font-semibold text-white hover:bg-[#7d0809]"
+          className="kiosk-button flex flex-1 items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-3 text-sm font-semibold text-white hover:bg-[#7d0809]"
         >
           <Printer size={16} />
           PRINT TICKET
@@ -1336,11 +1804,14 @@ function TicketScreen({
         <button
           type="button"
           onClick={onSkipPrint}
-          className="flex flex-1 items-center justify-center gap-2 rounded-md border bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          className="kiosk-button group flex flex-1 items-center justify-center gap-2 rounded-md border bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           style={{ borderColor: REGULAR_DARK }}
         >
           CONTINUE WITHOUT PRINTING
-          <ArrowRight size={16} />
+          <ArrowRight
+            size={16}
+            className="transition-transform duration-200 group-hover:translate-x-0.5"
+          />
         </button>
       </div>
     </Screen>
@@ -1359,15 +1830,16 @@ function PrintingScreen({
     getQueueThemeColor(queueType);
 
   return (
-    <Screen>
-      <KioskHeader />
-
+    <Screen
+      stepKey="printing"
+      header={<KioskHeader step="ticket" />}
+    >
       <div className="relative">
         <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-blue-600/5 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-blue-200/20 blur-2xl" />
 
         <div
-          className="relative rounded-lg border bg-white p-6 text-center shadow-sm"
+          className="kiosk-ticket-reveal relative rounded-lg border bg-white p-6 text-center shadow-sm"
           style={{ borderColor: BORDER_DEFAULT }}
         >
           <h2 className="mb-4 text-lg font-semibold text-slate-900">
@@ -1397,6 +1869,10 @@ function PrintingScreen({
             Take it with you to the waiting area.
           </p>
 
+          <div className="mx-auto mb-4 h-1 max-w-[220px] overflow-hidden rounded-full bg-[#E5E7EB]">
+            <div className="kiosk-print-bar h-full w-full rounded-full bg-[#9D0A0E]" />
+          </div>
+
           <span
             className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium text-slate-600"
             style={{
@@ -1425,18 +1901,19 @@ function SuccessScreen({
     getQueueThemeColor(queueType);
 
   return (
-    <Screen>
-      <KioskHeader />
-
+    <Screen
+      stepKey="success"
+      header={<KioskHeader step="ticket" />}
+    >
       <div className="relative">
         <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-[#9D0A0E]/5 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-[#9D0A0E]/5 blur-2xl" />
 
         <div
-          className="relative rounded-lg border bg-white p-6 text-center shadow-sm"
+          className="kiosk-ticket-reveal relative rounded-lg border bg-white p-6 text-center shadow-sm"
           style={{ borderColor: BORDER_DEFAULT }}
         >
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#DDFFEF]/80">
+        <div className="kiosk-soft-pulse mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#DDFFEF]/80">
           <CheckCircle2
             size={24}
             style={{ color: '#065F46' }}
@@ -1459,7 +1936,9 @@ function SuccessScreen({
             className="text-2xl font-bold"
             style={{ color: themeColor }}
           >
-            {queueNumber}
+            <span className="kiosk-number-pop">
+              {queueNumber}
+            </span>
           </p>
         </div>
 
@@ -1607,8 +2086,50 @@ export default function PatientView({
      PATIENT FLOW STATE
   ======================================================= */
 
-  const [step, setStep] =
+  const [step, setStepState] =
     useState('welcome');
+
+  const [leaving, setLeaving] =
+    useState(false);
+
+  const transitionLock = useRef(false);
+
+  /*
+    Plays the exit animation, swaps the screen, then plays the
+    entrance. `beforeSwap` runs in the gap so state changes land
+    while the old screen is already faded out.
+
+    The lock stops a double tap on a kiosk touchscreen from firing
+    two transitions and leaving `leaving` stuck on.
+  */
+  function goTo(nextStep, beforeSwap) {
+    // A transition is already mid-flight; dropping this one keeps the
+    // screen and the state it carries in step with each other.
+    if (transitionLock.current) {
+      return;
+    }
+
+    // Already here, so there is nothing to animate — but the caller's
+    // state changes still have to land (resetting from the welcome
+    // screen, for instance).
+    if (nextStep === step) {
+      beforeSwap?.();
+      return;
+    }
+
+    transitionLock.current = true;
+    setLeaving(true);
+
+    window.setTimeout(
+      () => {
+        beforeSwap?.();
+        setStepState(nextStep);
+        setLeaving(false);
+        transitionLock.current = false;
+      },
+      prefersReducedMotion() ? 0 : EXIT_MS
+    );
+  }
 
   const [queueType, setQueueType] =
     useState(null);
@@ -1911,20 +2432,19 @@ export default function PatientView({
         );
 
         setService(
-          (current) => ({
-            ...current,
+          (current) =>
+            current
+              ? {
+                  ...current,
 
-            estMin:
-              Number(
-                queue_data?.est_time
-              ) ||
-              current?.estMin ||
-              0,
-
-            waiting:
-              current?.waiting ??
-              0,
-          })
+                  serviceMinutes:
+                    Number(
+                      queue_data?.est_time
+                    ) ||
+                    current.serviceMinutes ||
+                    0,
+                }
+              : current
         );
       };
 
@@ -2015,6 +2535,8 @@ export default function PatientView({
           allDepartments.map(
             async (department) => {
               let waiting = 0;
+              let averageServiceMinutes = 0;
+              let activeCounters = 0;
 
               if (
                 isDepartmentActive(
@@ -2031,6 +2553,16 @@ export default function PatientView({
                     Number(
                       waitingData?.waiting_count
                     ) || 0;
+
+                  averageServiceMinutes =
+                    Number(
+                      waitingData?.average_service_minutes
+                    ) || 0;
+
+                  activeCounters =
+                    Number(
+                      waitingData?.active_counters
+                    ) || 0;
                 } catch (error) {
                   console.warn(
                     `Unable to get waiting count for ${department.name}:`,
@@ -2039,6 +2571,11 @@ export default function PatientView({
                 }
               }
 
+              const serviceMinutes =
+                Number(
+                  department.est_time
+                ) || 0;
+
               return {
                 ...department,
 
@@ -2046,12 +2583,22 @@ export default function PatientView({
                   department.prefix ||
                   '',
 
-                estMin:
-                  Number(
-                    department.est_time
-                  ) || 0,
+                serviceMinutes,
+
+                averageServiceMinutes,
+
+                activeCounters,
 
                 waiting,
+
+                estMin:
+                  getEstimatedWaitMinutes({
+                    waiting,
+                    averageServiceMinutes,
+                    activeCounters,
+                    fallbackMinutes:
+                      serviceMinutes,
+                  }),
 
                 icon:
                   getDepartmentIcon(
@@ -2141,7 +2688,8 @@ export default function PatientView({
         false
       );
 
-      setStep('queueType');
+      resetStepProgress();
+      goTo('queueType');
 
       return;
     }
@@ -2162,7 +2710,8 @@ export default function PatientView({
         false
       );
 
-      setStep('kioskPin');
+      resetStepProgress();
+      goTo('kioskPin');
 
       return;
     }
@@ -2179,7 +2728,8 @@ export default function PatientView({
       true
     );
 
-    setStep('kiosk');
+    resetStepProgress();
+    goTo('kiosk');
   }
 
   /* =======================================================
@@ -2195,22 +2745,6 @@ export default function PatientView({
 
     setQueueType(null);
     setService(null);
-
-    if (
-      isKioskUnlocked(
-        selectedKiosk.kiosk_id
-      )
-    ) {
-      setActiveKioskForToday(
-        selectedKiosk.kiosk_id
-      );
-
-      setStep('queueType');
-
-      return;
-    }
-
-    setStep('kioskPin');
   }
 
   /* =======================================================
@@ -2229,7 +2763,8 @@ export default function PatientView({
     setQueueType(null);
     setService(null);
 
-    setStep('queueType');
+    resetStepProgress();
+    goTo('queueType');
   }
 
   /* =======================================================
@@ -2237,28 +2772,30 @@ export default function PatientView({
   ======================================================= */
 
   function handleReset() {
-    /*
-      IMPORTANT:
-      Do not remove the daily kiosk unlock.
-    */
+    goTo('welcome', () => {
+      /*
+        IMPORTANT:
+        Do not remove the daily kiosk unlock.
+      */
 
-    setQueueType(null);
-    setKiosk(null);
-    setService(null);
+      setQueueType(null);
+      setKiosk(null);
+      setService(null);
 
-    setQueueNumber('');
-    setQueueId('');
+      setQueueNumber('');
+      setQueueId('');
 
-    setIsGenerating(false);
+      setIsGenerating(false);
 
-    setRequiresKioskSelection(
-      false
-    );
+      setRequiresKioskSelection(
+        false
+      );
 
-    setDepartments([]);
-    setDepartmentsError('');
+      setDepartments([]);
+      setDepartmentsError('');
 
-    setStep('welcome');
+      resetStepProgress();
+    });
   }
 
   /* =======================================================
@@ -2394,22 +2931,7 @@ export default function PatientView({
           offlineQueueNumber
         );
 
-        setService(
-          (current) => ({
-            ...current,
-
-            waiting:
-              current?.waiting ??
-              0,
-
-            estMin:
-              Number(
-                current?.estMin
-              ) || 0,
-          })
-        );
-
-        setStep('ticket');
+        goTo('ticket');
 
         return;
       }
@@ -2454,21 +2976,25 @@ export default function PatientView({
          UPDATE SERVICE
       --------------------------------------------- */
 
+      /*
+        est_time is the department's configured per-visit
+        duration, so it belongs in the fallback field rather
+        than in estMin, which is the wait recomputed below.
+      */
       setService(
-        (current) => ({
-          ...current,
+        (current) =>
+          current
+            ? {
+                ...current,
 
-          waiting:
-            current?.waiting ??
-            0,
-
-          estMin:
-            Number(
-              result.est_time
-            ) ||
-            current?.estMin ||
-            0,
-        })
+                serviceMinutes:
+                  Number(
+                    result.est_time
+                  ) ||
+                  current.serviceMinutes ||
+                  0,
+              }
+            : current
       );
 
       /* ---------------------------------------------
@@ -2493,14 +3019,10 @@ export default function PatientView({
 
         setService(
           (current) =>
-            current
-              ? {
-                  ...current,
-
-                  waiting:
-                    latestWaiting,
-                }
-              : current
+            withEstimatedWait(
+              current,
+              latestWaiting
+            )
         );
       } catch (error) {
         console.warn(
@@ -2509,7 +3031,7 @@ export default function PatientView({
         );
       }
 
-      setStep('ticket');
+      goTo('ticket');
     } catch (error) {
       console.error(
         'Queue generation error:',
@@ -2532,7 +3054,7 @@ export default function PatientView({
   ======================================================= */
 
   function handlePrint() {
-    setStep('printing');
+    goTo('printing');
   }
 
   /* =======================================================
@@ -2551,7 +3073,7 @@ export default function PatientView({
 
     const advanceTimer =
       setTimeout(() => {
-        setStep('success');
+        goTo('success');
       }, 2200);
 
     return () => {
@@ -2597,6 +3119,11 @@ export default function PatientView({
     />
   );
 
+  /* =======================================================
+     SCREEN ROUTING
+  ======================================================= */
+
+  function renderStep() {
   /* =======================================================
      WELCOME
   ======================================================= */
@@ -2646,13 +3173,11 @@ export default function PatientView({
                 kiosk.kiosk_id
               );
 
-              setStep(
-                'queueType'
-              );
+              resetStepProgress();
+              goTo('queueType');
             } else {
-              setStep(
-                'kioskPin'
-              );
+              resetStepProgress();
+              goTo('kioskPin');
             }
           }}
         />
@@ -2682,7 +3207,7 @@ export default function PatientView({
           kiosk={kiosk}
           onBack={() =>
             requiresKioskSelection
-              ? setStep('kiosk')
+              ? goTo('kiosk')
               : handleReset()
           }
           onSuccess={
@@ -2713,7 +3238,7 @@ export default function PatientView({
             if (
               requiresKioskSelection
             ) {
-              setStep('kiosk');
+              goTo('kiosk');
             } else {
               handleReset();
             }
@@ -2731,9 +3256,7 @@ export default function PatientView({
               kiosk
             );
 
-            setStep(
-              'department'
-            );
+            goTo('department');
           }}
         />
 
@@ -2764,9 +3287,7 @@ export default function PatientView({
             );
           }}
           onBack={() =>
-            setStep(
-              'queueType'
-            )
+            goTo('queueType')
           }
           onContinue={async () => {
             if (!service) {
@@ -2781,16 +3302,10 @@ export default function PatientView({
 
               setService(
                 (current) =>
-                  current
-                    ? {
-                        ...current,
-
-                        waiting:
-                          Number(
-                            waitingData?.waiting_count
-                          ) || 0,
-                      }
-                    : current
+                  withEstimatedWait(
+                    current,
+                    waitingData?.waiting_count
+                  )
               );
             } catch (error) {
               console.warn(
@@ -2799,9 +3314,7 @@ export default function PatientView({
               );
             }
 
-            setStep(
-              'confirm'
-            );
+            goTo('confirm');
           }}
         />
 
@@ -2837,9 +3350,7 @@ export default function PatientView({
             isGenerating
           }
           onBack={() =>
-            setStep(
-              'department'
-            )
+            goTo('department')
           }
           onConfirm={
             handleGenerateNumber
@@ -2921,5 +3432,14 @@ export default function PatientView({
 
       {receipt}
     </>
+  );
+  }
+
+  return (
+    <TransitionContext.Provider
+      value={{ leaving }}
+    >
+      {renderStep()}
+    </TransitionContext.Provider>
   );
 }

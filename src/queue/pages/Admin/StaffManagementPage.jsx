@@ -77,6 +77,35 @@ const PAGE_SIZE = 5;
 
 /*
 |--------------------------------------------------------------------------
+| FIGMA-MATCHED STAFF STAT CARD
+|--------------------------------------------------------------------------
+| Kept local to Staff Management so the existing shared StatCard used by
+| Queue Management, Dashboard, and Reports is not changed.
+*/
+
+function StaffStatCard({ label, value, caption, icon: Icon }) {
+  return (
+    <div className="flex h-[152px] flex-col justify-between rounded-xl border border-[#C3C6D7] bg-white p-[25px] transition-all duration-200 hover:-translate-y-1 hover:border-[#9D0A0E]/40 hover:shadow-lg">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#1F2937]">
+          {label}
+        </p>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7EEEE] text-[#9D0A0E]">
+          <Icon size={18} />
+        </span>
+      </div>
+      <p className="text-[30px] font-bold leading-[38px] tracking-[-0.6px] text-[#212B3A]">
+        {value}
+      </p>
+      <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#5F6368]">
+        {caption}
+      </p>
+    </div>
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
 | HELPERS
 |--------------------------------------------------------------------------
 */
@@ -1541,9 +1570,9 @@ export default function StaffManagementPage() {
             !staffRoleId ||
             loading
           }
-          className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Plus size={15} />
+          <Plus size={14} />
           {t('staff.addButton')}
         </button>
       </div>
@@ -1568,10 +1597,10 @@ export default function StaffManagementPage() {
 
       {/* STATISTICS - Updated to 4 columns to match reference layout */}
 
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {STATS_META.map(
           (stat) => (
-            <StatCard
+            <StaffStatCard
               key={stat.key}
               label={t(stat.labelKey)}
               caption={t(stat.captionKey)}
@@ -1590,22 +1619,25 @@ export default function StaffManagementPage() {
 
       {/* STAFF TABLE */}
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+      <div className="flex flex-col rounded-xl border border-[#C3C6D7] bg-white">
 
-        <div className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-[#C3C6D7] px-6 py-5">
           <div>
-            <h2 className="text-sm font-semibold text-slate-700">
-              {adminDepartment
-                ? t('staff.staffSuffix', { department: adminDepartment })
-                : t('common.stat.staff')}
+            <h2 className="text-lg font-semibold text-[#1F2937]">
+              <span>Users</span>
+              <span className="hidden">
+                {adminDepartment
+                  ? t('staff.staffSuffix', { department: adminDepartment })
+                  : t('common.stat.staff')}
+              </span>
             </h2>
 
-            <p className="mt-1 text-[10px] text-slate-400">
+            <p className="hidden">
               {t('staff.tableSubtitle')}
             </p>
           </div>
 
-          <div className="relative w-64">
+          <div className="relative w-full max-w-[420px]">
             <input
               type="text"
               value={query}
@@ -1615,41 +1647,41 @@ export default function StaffManagementPage() {
                 );
                 setPage(1);
               }}
-              placeholder={t('common.search')}
-              className="w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 pr-9 text-xs outline-none focus:border-[#9D0A0E]"
+              placeholder="Search user"
+              className="h-10 w-full rounded-full border border-[#C3C6D7] bg-white px-4 pr-10 text-xs text-[#4B5563] outline-none placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
             />
 
             <Search
-              size={14}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+              size={16}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#667085]"
             />
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="flex-1 overflow-x-auto p-0">
 
-          <table className="w-full min-w-[950px] text-left text-sm">
+          <table className="w-full min-w-[760px] border-collapse text-left">
 
             <thead>
-              <tr className="bg-[#9D0A0E]/5 text-xs font-bold uppercase tracking-wide text-slate-600">
+              <tr className="bg-[#F7EEEE] text-xs font-semibold uppercase tracking-[0.6px] text-[#1F2937]">
 
-                <th className="px-5 py-3">
+                <th className="px-4 py-3">
                   {t('common.table.fullName')}
                 </th>
 
-                <th className="px-5 py-3">
+                <th className="px-4 py-3">
                   {t('common.table.email')}
                 </th>
 
-                <th className="px-5 py-3">
+                <th className="px-4 py-3">
                   {t('staff.table.department')}
                 </th>
 
-                <th className="px-5 py-3">
+                <th className="px-4 py-3">
                   {t('common.table.role')}
                 </th>
 
-                <th className="px-5 py-3">
+                <th className="px-4 py-3">
                   {t('common.table.status')}
                 </th>
 
@@ -1662,7 +1694,7 @@ export default function StaffManagementPage() {
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-5 py-8 text-center text-sm text-slate-500"
+                    className="h-32 px-5 py-10 text-center text-[12px] text-[#667085]"
                   >
                     {t('staff.loadingStaff')}
                   </td>
@@ -1681,27 +1713,27 @@ export default function StaffManagementPage() {
                           user
                         )
                       }
-                      className="cursor-pointer border-t border-[#E5E7EB] hover:bg-slate-50"
+                      className="cursor-pointer border-t border-[#E5E7EB] transition-colors hover:bg-[#FAFAFA]"
                     >
 
-                      <td className="px-5 py-3 capitalize text-slate-700">
+                      <td className="px-4 py-3 text-sm font-medium capitalize text-[#1F2937]">
                         {user.first_name}{' '}
                         {user.last_name}
                       </td>
 
-                      <td className="px-5 py-3 text-slate-600">
+                      <td className="px-4 py-3 text-sm text-[#4B5563]">
                         {displayValue(
                           user.email
                         )}
                       </td>
 
-                      <td className="px-5 py-3 text-slate-600">
+                      <td className="px-4 py-3 text-sm text-[#4B5563]">
                         {displayValue(
                           user.department
                         )}
                       </td>
 
-                      <td className="px-5 py-3 text-slate-600">
+                      <td className="px-4 py-3 text-sm text-[#4B5563]">
                         {displayValue(
                           getRoleName(
                             user
@@ -1709,10 +1741,13 @@ export default function StaffManagementPage() {
                         )}
                       </td>
 
-                      <td className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        {displayValue(
-                          user.status
-                        )}
+                      <td className="px-4 py-3 text-sm font-medium uppercase tracking-[0.02em] text-[#4B5563]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={`h-1.5 w-1.5 rounded-full ${String(user.status || '').toLowerCase() === 'active' ? 'bg-[#16A34A]' : 'bg-[#98A2B3]'}`} />
+                          {displayValue(
+                            user.status
+                          )}
+                        </span>
                       </td>
 
                     </tr>
@@ -1726,7 +1761,7 @@ export default function StaffManagementPage() {
           {!loading &&
             filteredUsers.length ===
               0 && (
-              <div className="px-5 py-8 text-center text-sm text-slate-500">
+              <div className="px-5 py-8 text-center text-xs text-slate-500">
                 {query.trim()
                   ? t('staff.noMatch')
                   : t('staff.noneInDept', {
@@ -1739,7 +1774,7 @@ export default function StaffManagementPage() {
 
         {/* PAGINATION */}
 
-        <div className="flex items-center justify-between border-t border-[#E5E7EB] px-5 py-3 text-xs text-slate-500">
+        <div className="flex items-center justify-between border-t border-[#C3C6D7] px-5 py-3 text-xs text-slate-500">
 
           <span>
             {t('staff.showing', {
@@ -1755,7 +1790,7 @@ export default function StaffManagementPage() {
             })}
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
 
             <button
               type="button"
@@ -1771,7 +1806,7 @@ export default function StaffManagementPage() {
               disabled={
                 currentPage === 1
               }
-              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-md border border-[#C3C6D7] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
             >
               {t('common.prev')}
             </button>
@@ -1787,7 +1822,7 @@ export default function StaffManagementPage() {
                   className={`rounded-md border px-3 py-1.5 font-semibold ${
                     number === currentPage
                       ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
-                      : 'border-[#E5E7EB] bg-white text-slate-600 hover:bg-slate-50'
+                      : 'border-[#C3C6D7] bg-white text-slate-600 hover:bg-slate-50'
                   }`}
                 >
                   {number}
@@ -1809,7 +1844,7 @@ export default function StaffManagementPage() {
               disabled={
                 currentPage === totalPages
               }
-              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-md border border-[#C3C6D7] bg-white px-2.5 py-1.5 hover:bg-slate-50 disabled:opacity-40"
             >
               {t('common.next')}
             </button>

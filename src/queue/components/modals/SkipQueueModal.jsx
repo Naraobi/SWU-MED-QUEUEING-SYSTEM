@@ -75,7 +75,7 @@ export default function SkipQueueModal({
 
           <div className="mt-3.5 flex items-center justify-between border-t border-slate-200/60 pt-3 text-xs">
             <span className="text-slate-500 font-medium">Waiting Time</span>
-            <span className="font-bold text-[#851010] text-sm">
+            <span className="font-bold text-[#9D0A0E] text-sm">
               {displayTime}
             </span>
           </div>
@@ -97,7 +97,7 @@ export default function SkipQueueModal({
                 name="skip-reason"
                 checked={reason === r}
                 onChange={() => setReason(r)}
-                className="h-4 w-4 accent-[#851010] cursor-pointer"
+                className="h-4 w-4 accent-[#9D0A0E] cursor-pointer"
               />
               <span>{r}</span>
             </label>
@@ -110,7 +110,7 @@ export default function SkipQueueModal({
               value={otherText}
               onChange={(e) => setOtherText(e.target.value)}
               placeholder="Enter skip reason..."
-              className="mt-1.5 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-[#851010] focus:ring-1 focus:ring-[#851010]"
+              className="mt-1.5 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
             />
           )}
         </div>
@@ -128,7 +128,7 @@ export default function SkipQueueModal({
             type="button"
             disabled={!canConfirm}
             onClick={() => onConfirm(finalReason)}
-            className="rounded-lg bg-[#851010] px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#6b0d0d] transition disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+            className="rounded-lg bg-[#9D0A0E] px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#7d0809] transition disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
           >
             CONFIRM SKIP
           </button>

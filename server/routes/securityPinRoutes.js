@@ -45,6 +45,52 @@ router.get("/status", ...securityPinManager, async (req, res) => {
   }
 });
 
+router.post("/setup", ...securityPinManager, async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const { pin } = req.body;
+
+    if (!/^\d{6}$/.test(String(pin || ""))) {
+      return res.status(400).json({
+        success: false,
+        message: "PIN must be exactly 6 digits.",
+      });
+    }
+
+    // This endpoint only exists for a user's very first PIN — it skips
+    // the email verification challenge because there is no existing PIN
+    // yet to protect. Once a PIN exists, changing it must go through
+    // /request + /verify instead, so this route refuses to touch an
+    // already-configured PIN.
+    const existingPin = await getSecurityPin(userId);
+
+    if (existingPin) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "A Security PIN is already configured. Use Change PIN in Settings instead.",
+      });
+    }
+
+    await saveSecurityPin(userId, pin);
+
+    return res.json({
+      success: true,
+      message: "Security PIN has been created successfully.",
+    });
+  } catch (error) {
+    console.error(
+      "SECURITY PIN SETUP ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create the Security PIN.",
+    });
+  }
+});
+
 router.post("/request", ...securityPinManager, async (req, res) => {
   try {
     const userId = req.user.user_id;

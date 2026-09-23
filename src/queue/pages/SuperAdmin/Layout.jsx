@@ -106,9 +106,9 @@ export default function Layout({ activePage, onNavigate, children }) {
     >
       <div className="flex flex-1">
         {/* Sidebar */}
-        <aside className="flex w-64 flex-col border-r border-[#E5E7EB] bg-white">
+        <aside className="sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r border-[#E5E7EB] bg-white">
           {/* Logo */}
-          <div className="border-b border-[#E5E7EB] px-6 py-5">
+          <div className="shrink-0 border-b border-[#E5E7EB] px-6 py-5">
             <button
               type="button"
               onClick={() => handleNavigate('dashboard')}
@@ -129,7 +129,7 @@ export default function Layout({ activePage, onNavigate, children }) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-0.5 px-3 py-4">
+          <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
             {visibleNavItems.map(({ key, label, icon: Icon }) => {
               const isActive = activePage === key;
 
@@ -152,7 +152,7 @@ export default function Layout({ activePage, onNavigate, children }) {
           </nav>
 
           {/* Logout Button at the bottom of the sidebar */}
-          <div className="border-t border-[#E5E7EB] p-3">
+          <div className="mt-auto shrink-0 border-t border-[#E5E7EB] p-3">
             <button
               type="button"
               onClick={() => setShowLogoutModal(true)}

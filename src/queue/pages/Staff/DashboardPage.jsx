@@ -61,6 +61,15 @@ function getTerminalId(terminal) {
   )
 }
 
+// A counter's ID is a generated key, so it must never end up in a label.
+// Without a counter number there is nothing meaningful to number it by,
+// so the label stays generic rather than exposing the ID.
+function terminalLabelFromNumber(number) {
+  return number === undefined || number === null || number === ''
+    ? 'Terminal'
+    : `Terminal ${number}`
+}
+
 function readSavedTerminal(staffId) {
   if (typeof window === 'undefined') return null
   try {
@@ -84,12 +93,10 @@ function saveSelectedTerminal(terminal, staffId) {
       terminal.name ??
       terminal.counter_name ??
       terminal.terminal_name ??
-      `Terminal ${
+      terminalLabelFromNumber(
         terminal.counter_number ??
-        terminal.terminal_number ??
-        terminalId ??
-        ''
-      }`,
+          terminal.terminal_number
+      ),
     counter_number:
       terminal.counter_number ?? terminal.terminal_number ?? null,
     department_id: terminal.department_id ?? null,
@@ -107,6 +114,24 @@ function formatSeconds(totalSeconds) {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+// Speaks the called number immediately on the calling staff's own
+// device, so they don't have to wait on the public TV display's 5s
+// poll (see TvDisplay.jsx's useCallAnnouncer, which announces the
+// same way for the waiting room screen).
+function announceCalledPatient(queueNumber, terminalName) {
+  if (!queueNumber || !('speechSynthesis' in window)) return
+
+  const spokenNumber = String(queueNumber).split('').join(' ')
+  const where = terminalName ? `, please proceed to ${terminalName}` : ''
+
+  const utterance = new SpeechSynthesisUtterance(
+    `Now serving ${spokenNumber}${where}.`
+  )
+  utterance.rate = 0.9
+
+  window.speechSynthesis.speak(utterance)
 }
 
 function matchesStaffDepartment(patientId, staffPrefix) {
@@ -414,6 +439,7 @@ export default function DashboardPage() {
     currentlyServing,
     stats,
     refresh,
+    clearQueue,
     callNextPatient,
     markPatientArrived,
     startService,
@@ -461,6 +487,16 @@ export default function DashboardPage() {
   // call reads this instead of touching selectedTerminal directly, so
   // there is exactly one place that knows how to extract the ID.
   const terminalId = getTerminalId(selectedTerminal)
+
+  // Defense in depth: if terminalId is null (no terminal selected),
+  // wipe any stale queue state so this dashboard never displays a
+  // patient it cannot act on. Without this, leftover state from a
+  // previous session or another terminal leaks into the UI.
+  useEffect(() => {
+    if (!terminalId) {
+      clearQueue()
+    }
+  }, [terminalId, clearQueue])
 
   const [showFullQueueModal, setShowFullQueueModal] = useState(false)
   const [localSeconds, setLocalSeconds] = useState(0)
@@ -561,15 +597,13 @@ export default function DashboardPage() {
   ])
 
   useEffect(() => {
-    if (!staffPrefix) return
+    if (!staffPrefix || !terminalId) return
     refresh(staffPrefix, undefined, { terminalId })
   }, [staffPrefix, terminalId, refresh])
 
   useEffect(() => {
-    if (!staffPrefix) return
+    if (!staffPrefix || !terminalId) return
     const interval = setInterval(() => {
-      // Silent: background polling must not flash the loading
-      // skeleton over the currently-serving card every 5 seconds.
       refresh(staffPrefix, undefined, {
         silent: true,
         terminalId,
@@ -677,7 +711,7 @@ export default function DashboardPage() {
   if (authLoading || departmentLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f4f6f8] text-sm font-medium text-slate-500">
-        <RefreshCw size={24} className="mr-3 animate-spin text-[#851010]" />
+        <RefreshCw size={24} className="mr-3 animate-spin text-[#9D0A0E]" />
         Loading staff profile & department...
       </div>
     )
@@ -752,8 +786,8 @@ export default function DashboardPage() {
 
                 {activeServing ? (
                   serviceHasStarted ? (
-                    <div className="mt-4">
-                      <p className="text-[50px] leading-none font-black text-[#851010] tracking-tight">
+                    <div key={activeServing.id} className="mt-4 card-pop-in">
+                      <p className="text-[50px] leading-none font-black text-[#9D0A0E] tracking-tight">
                         {activeServing.id}
                       </p>
 
@@ -785,15 +819,15 @@ export default function DashboardPage() {
                               console.error('Complete error:', err)
                             }
                           }}
-                          className="rounded-xl bg-[#851010] px-14 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#6b0d0d] transition cursor-pointer"
+                          className="rounded-xl bg-[#9D0A0E] px-14 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#7d0809] transition cursor-pointer"
                         >
                           COMPLETE
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-4">
-                      <p className="text-[50px] leading-none font-black text-[#851010] tracking-tight">
+                    <div key={activeServing.id} className="mt-4 card-pop-in">
+                      <p className="text-[50px] leading-none font-black text-[#9D0A0E] tracking-tight">
                         {activeServing.id}
                       </p>
 
@@ -831,7 +865,7 @@ export default function DashboardPage() {
                           type="button"
                           onClick={handleStartService}
                           disabled={startingService}
-                          className="rounded-xl bg-[#851010] px-12 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#6b0d0d] transition cursor-pointer disabled:opacity-50"
+                          className="rounded-xl bg-[#9D0A0E] px-12 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#7d0809] transition cursor-pointer disabled:opacity-50"
                         >
                           {startingService ? 'STARTING...' : 'START SERVING'}
                         </button>
@@ -886,14 +920,22 @@ export default function DashboardPage() {
                       onClick={async () => {
                         if (!staffPrefix || !terminalId) return
                         try {
-                          await callNextPatient(staffPrefix, terminalId)
+                          const result = await callNextPatient(staffPrefix, terminalId)
+                          // callNextPatient() re-fetches full queue state after
+                          // calling, so the returned ticket is already run through
+                          // mapQueueItem() — queue_number comes back as `id`, not
+                          // `queue_number` (see api.js's mapQueueItem).
+                          announceCalledPatient(
+                            result?.currentlyServing?.id,
+                            terminalDisplayName
+                          )
                           await refresh(staffPrefix, undefined, { terminalId })
                         } catch (err) {
                           console.error('Call next error:', err)
                         }
                       }}
                       disabled={!nextPatient || !staffPrefix || !terminalId}
-                      className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-[#851010] px-12 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#6b0d0d] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-[#9D0A0E] px-12 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#7d0809] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Play size={18} className="fill-current" />
                       <span>
@@ -921,7 +963,7 @@ export default function DashboardPage() {
                 <p className="text-lg font-bold text-slate-800">
                   Waiting Queue
                 </p>
-                <span className="rounded-full bg-red-50 px-3.5 py-1 text-xs font-bold text-[#851010] border border-red-100">
+                <span className="rounded-full bg-red-50 px-3.5 py-1 text-xs font-bold text-[#9D0A0E] border border-red-100">
                   {filteredWaitingQueue.length} Patients
                 </span>
               </div>
@@ -931,7 +973,7 @@ export default function DashboardPage() {
                   <>
                     {upcomingPriority.length > 0 && (
                       <div>
-                        <p className="bg-red-50/60 px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-[#851010]">
+                        <p className="bg-red-50/60 px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-[#9D0A0E]">
                           Priority Queue ({upcomingPriority.length})
                         </p>
                         {upcomingPriority.map((patient, index) => (
@@ -940,10 +982,10 @@ export default function DashboardPage() {
                             className="flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition"
                           >
                             <span className="flex items-center gap-3">
-                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-50 text-xs font-bold text-[#851010]">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-50 text-xs font-bold text-[#9D0A0E]">
                                 {index + 1}
                               </span>
-                              <span className="rounded-md bg-slate-100 px-2.5 py-1 text-base font-bold text-[#851010]">
+                              <span className="rounded-md bg-slate-100 px-2.5 py-1 text-base font-bold text-[#9D0A0E]">
                                 {patient.id}
                               </span>
                             </span>
@@ -994,7 +1036,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setShowFullQueueModal(true)}
-                  className="text-sm font-semibold text-[#851010] hover:underline cursor-pointer"
+                  className="text-sm font-semibold text-[#9D0A0E] hover:underline cursor-pointer"
                 >
                   View Full Queue
                 </button>

@@ -38,19 +38,19 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
 
   return (
     <>
-      <aside className="flex h-screen w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white" style={{ fontFamily: 'Inter, sans-serif' }}>
-        <div className="flex h-[74px] flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
+      <aside className="sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <div className="flex h-[74px] shrink-0 flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
           <img src={logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
           <div className="text-[10px] font-medium tracking-wide text-slate-400">{t('nav.queuingSystem')}</div>
         </div>
-        <nav className="flex-1 space-y-1 px-3 py-6">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-6">
           {visibleItems.map(({ key, labelKey, icon: Icon }) => (
         <button key={key} type="button" onClick={() => handleSelect(key)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium transition ${activeItem === key ? 'bg-[#9D0A0E] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}>
   <Icon size={18} /><span>{t(labelKey)}</span>
 </button>
           ))}
         </nav>
-        <div className="border-t border-slate-100 px-3 py-3">
+        <div className="mt-auto shrink-0 border-t border-slate-100 px-3 py-3">
           <button type="button" onClick={() => setShowLogoutModal(true)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#9D0A0E] transition hover:bg-[#9D0A0E]/5">
             <LogOut size={17} />{t('nav.logout')}
           </button>
