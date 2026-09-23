@@ -2137,7 +2137,7 @@ export async function validateKioskSecurityPin(
   }
 
   const response = await fetch(
-    `${API_URL}/security-pin/kiosk-validate`,
+    `${API_URL}/security/pin/kiosk-validate`,
     {
       method: "POST",
       headers: {
