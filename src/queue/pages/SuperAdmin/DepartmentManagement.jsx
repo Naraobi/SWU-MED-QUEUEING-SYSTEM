@@ -831,19 +831,23 @@ const [resettingIds, setResettingIds] =
     );
   }, [resetDepartmentIds]);
 
-  // =========================================================
-  // FETCH KIOSKS THROUGH NODE.JS
-  // =========================================================
-  //
-  // React no longer talks directly to Firebase.
-  //
-  // React → backendApi.js
-  //       → GET /api/kiosks
-  //       → kioskRoutes.js
-  //       → kioskService.js
-  //       → Firebase / MySQL
-  //
+// =========================================================
+// REFRESH LIVE QUEUE DATA
+// =========================================================
 
+useEffect(() => {
+  const interval = setInterval(() => {
+    fetchDepartments(
+      kiosks,
+      counters,
+      false
+    );
+  }, 3000);
+
+  return () => {
+    clearInterval(interval);
+  };
+}, [kiosks, counters]);
   async function fetchKiosks() {
 
     setLoadingKiosks(true);
@@ -1104,294 +1108,283 @@ const [resettingIds, setResettingIds] =
   // React → Node.js → Firebase / MySQL
   //
 
-  async function fetchDepartments(
-    kioskData = [],
-    counterData = []
-  ) {
-
+async function fetchDepartments(
+  kioskData = [],
+  counterData = [],
+  showLoading = true
+) {
+  if (showLoading) {
     setLoading(true);
-    setError(null);
+  }
 
-    try {
+  setError(null);
 
-      console.log(
-        '================================='
-      );
+  try {
+    console.log('=================================');
+    console.log('FETCHING DEPARTMENTS THROUGH NODE.JS');
 
-      console.log(
-        'FETCHING DEPARTMENTS THROUGH NODE.JS'
-      );
+    const response = await getDepartments();
 
-      const response =
-        await getDepartments();
+    console.log(
+      'RAW DEPARTMENT API RESPONSE:',
+      response
+    );
 
-      console.log(
-        'RAW DEPARTMENT API RESPONSE:',
-        response
-      );
+    // =========================================================
+    // EXTRACT DEPARTMENT DATA
+    // =========================================================
 
-      // -------------------------------------------------------
-      // EXTRACT DATA
-      // -------------------------------------------------------
+    const departmentRows =
+      Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : [];
 
-      const departmentRows =
-        Array.isArray(response)
-          ? response
-          : Array.isArray(response?.data)
-            ? response.data
-            : [];
+    console.log(
+      'DEPARTMENTS RECEIVED FROM NODE:',
+      departmentRows
+    );
 
-      console.log(
-        'DEPARTMENTS RECEIVED FROM NODE:',
-        departmentRows
-      );
+    console.log(
+      'DEPARTMENT COUNT FROM NODE:',
+      departmentRows.length
+    );
 
-      console.log(
-        'DEPARTMENT COUNT FROM NODE:',
-        departmentRows.length
-      );
+    // =========================================================
+    // FORMAT DEPARTMENTS
+    // =========================================================
 
-      // -------------------------------------------------------
-      // FORMAT DEPARTMENTS
-      // -------------------------------------------------------
+    const formatted = departmentRows
+      .map((department) => {
 
-      const formatted =
-        departmentRows
-          .map(
-            (department) => {
+        // -------------------------------------------------------
+        // BASIC DEPARTMENT INFORMATION
+        // -------------------------------------------------------
 
-              const departmentId =
-                department.department_id ||
-                department.id ||
-                '';
+        const departmentId =
+          department.department_id ||
+          department.id ||
+          '';
 
-              const kioskId =
-                department.kiosk_id ||
-                '';
+        const kioskId =
+          department.kiosk_id ||
+          '';
 
-              const kiosk =
-                kioskData.find(
-                  (item) =>
-                    String(
-                      item.kiosk_id
-                    ) ===
-                      String(
-                        kioskId
-                      ) ||
-                    (
-                      item.firestore_id &&
-                      String(
-                        item.firestore_id
-                      ) ===
-                        String(
-                          kioskId
-                        )
-                    )
-                );
+        const departmentPrefix =
+          String(
+            department.prefix || ''
+          ).toUpperCase();
 
-              const departmentPrefix =
-                String(
-                  department.prefix ||
-                    ''
-                ).toUpperCase();
+        const departmentName =
+          String(
+            department.name ||
+            department.department_name ||
+            ''
+          );
 
-              const departmentName =
-                String(
-                  department.name ||
-                    department.department_name ||
-                    ''
-                );
+        const normalizedStatus =
+          String(
+            department.status ||
+            'active'
+          ).toLowerCase();
 
-              // -------------------------------------------------
-              // TERMINALS FOR THIS DEPARTMENT
-              // -------------------------------------------------
+        // -------------------------------------------------------
+        // FIND KIOSK
+        // -------------------------------------------------------
 
-              const departmentCounters =
-                counterData.filter(
-                  (counter) =>
-                    String(
-                      counter.department_id
-                    ) ===
-                    String(
-                      departmentId
-                    )
-                );
-
-              const activeCounterCount =
-                departmentCounters.filter(
-                  (counter) =>
-                    String(
-                      counter.status ||
-                        ''
-                    ).toLowerCase() ===
-                    'active'
-                ).length;
-
-              const totalCounterCount =
-                departmentCounters.length;
-
-              const activeTerminals =
-                `${activeCounterCount}/${totalCounterCount}`;
-
-              const normalizedStatus =
-                String(
-                  department.status ||
-                    'active'
-                ).toLowerCase();
-
-              const formattedDepartment = {
-
-                id:
-                  departmentId,
-
-                department_id:
-                  departmentId,
-
-                department_name:
-                  departmentName,
-
-                kiosk_id:
-                  kioskId,
-
-                kiosk_name:
-                  kiosk?.name ||
-                  'Unassigned',
-
-                location:
-                  department.location ||
-                  '',
-
-                classification:
-                  department.classification ||
-                  '',
-
-                prefix:
-                  departmentPrefix,
-
-                waiting:
-                  Number(
-                    department.waiting
-                  ) || 0,
-
-                current_queue:
-                  department.current_queue ||
-                  (
-                    departmentPrefix
-                      ? `${departmentPrefix}-0010`
-                      : `${(
-                          departmentName ||
-                          'D'
-                        )
-                          .charAt(0)
-                          .toUpperCase()}-0010`
-                  ),
-
-                active_terminals:
-                  activeTerminals,
-
-                terminal_count:
-                  totalCounterCount,
-
-                active_terminal_count:
-                  activeCounterCount,
-
-                waiting_terminal_count:
-                  departmentCounters.filter(
-                    (counter) =>
-                      String(
-                        counter.status ||
-                          ''
-                      ).toLowerCase() !==
-                      'active'
-                  ).length,
-
-                avg_wait:
-                  department.est_time !==
-                    undefined &&
-                  department.est_time !==
-                    null
-                    ? `${department.est_time}m`
-                    : '15m',
-
-                est_time:
-                  Number(
-                    department.est_time
-                  ) || 15,
-
-                status:
-                  normalizedStatus,
-
-                created_at:
-                  department.created_at ||
-                  null,
-
-                updated_at:
-                  department.updated_at ||
-                  null,
-              };
-
-              console.log(
-                'FORMATTED DEPARTMENT:',
-                formattedDepartment
-              );
-
-              return formattedDepartment;
-            }
-          )
-          .filter(
-            (department) =>
-              department.id &&
-              department.department_name
-          )
-          .sort(
-            (a, b) =>
-              a.department_name.localeCompare(
-                b.department_name
+        const kiosk =
+          kioskData.find(
+            (item) =>
+              String(item.kiosk_id) ===
+                String(kioskId) ||
+              (
+                item.firestore_id &&
+                String(item.firestore_id) ===
+                  String(kioskId)
               )
           );
 
-      console.log(
-        '================================='
+        // -------------------------------------------------------
+        // FIND COUNTERS FOR THIS DEPARTMENT
+        // -------------------------------------------------------
+
+// =========================================================
+// TERMINALS FOR THIS DEPARTMENT
+// =========================================================
+
+const departmentCounters =
+  counterData.filter(
+    (counter) =>
+      String(counter.department_id) ===
+      String(departmentId)
+  );
+
+const totalCounterCount =
+  departmentCounters.length;
+
+const activeCounterCount =
+  departmentCounters.filter(
+    (counter) =>
+      String(
+        counter.status || ''
+      ).toLowerCase() === 'active'
+  ).length;
+
+// =========================================================
+// LIVE VALUES FROM BACKEND
+// =========================================================
+
+const waitingCount =
+  Number(
+    department.waiting_count
+  ) || 0;
+
+const currentQueue =
+  department.current_queue ||
+  '—';
+const activeTerminalCount =
+  activeCounterCount;
+
+// =========================================================
+// FORMATTED DEPARTMENT
+// =========================================================
+
+const formattedDepartment = {
+
+  id:
+    departmentId,
+
+  department_id:
+    departmentId,
+
+  department_name:
+    departmentName,
+
+  kiosk_id:
+    kioskId,
+
+  kiosk_name:
+    kiosk?.name ||
+    'Unassigned',
+
+  location:
+    department.location ||
+    '',
+
+  classification:
+    department.classification ||
+    '',
+
+  prefix:
+    departmentPrefix,
+
+  // LIVE QUEUE DATA
+  waiting:
+    waitingCount,
+
+  current_queue:
+    currentQueue,
+
+  // TERMINALS
+  active_terminals:
+    `${activeTerminalCount}/${totalCounterCount}`,
+
+  terminal_count:
+    totalCounterCount,
+
+  active_terminal_count:
+    activeTerminalCount,
+
+  avg_wait:
+    department.est_time !== undefined &&
+    department.est_time !== null
+      ? `${department.est_time}m`
+      : '15m',
+
+  est_time:
+    Number(
+      department.est_time
+    ) || 15,
+
+  status:
+    normalizedStatus,
+
+  created_at:
+    department.created_at ||
+    null,
+
+  updated_at:
+    department.updated_at ||
+    null,
+};
+
+console.log(
+  'FORMATTED DEPARTMENT:',
+  formattedDepartment
+);
+
+return formattedDepartment;
+
+      })
+      .filter(
+        (department) =>
+          department.id &&
+          department.department_name
+      )
+      .sort(
+        (a, b) =>
+          a.department_name.localeCompare(
+            b.department_name
+          )
       );
 
-      console.log(
-        'FINAL DEPARTMENTS FOR REACT:',
-        formatted
-      );
+    // =========================================================
+    // FINAL RESULTS
+    // =========================================================
 
-      console.log(
-        'FINAL DEPARTMENT COUNT:',
-        formatted.length
-      );
+    console.log(
+      '================================='
+    );
 
-      console.log(
-        '================================='
-      );
+    console.log(
+      'FINAL DEPARTMENTS FOR REACT:',
+      formatted
+    );
 
-      setDepartments(
-        formatted
-      );
+    console.log(
+      'FINAL DEPARTMENT COUNT:',
+      formatted.length
+    );
 
-    } catch (err) {
+    console.log(
+      '================================='
+    );
 
-      console.error(
-        'FETCH DEPARTMENTS THROUGH NODE ERROR:',
-        err
-      );
+    setDepartments(
+      formatted
+    );
 
-      setError(
-        err.message ||
-          'Failed to fetch departments from the backend.'
-      );
+  } catch (err) {
 
-      setDepartments([]);
+    console.error(
+      'FETCH DEPARTMENTS THROUGH NODE ERROR:',
+      err
+    );
 
-    } finally {
+    setError(
+      err.message ||
+        'Failed to fetch departments from the backend.'
+    );
 
-      setLoading(false);
+    setDepartments([]);
 
-    }
+} finally {
+  if (showLoading) {
+    setLoading(false);
   }
+}
+}
 
   // =========================================================
   // INITIAL LOAD
@@ -2035,18 +2028,13 @@ function handleReset() {
   // SUMMARY METRICS
   // =========================================================
 
-  const totalWaiting =
-    departments.reduce(
-      (total, department) =>
-        total +
-        (
-          Number(
-            department.waiting
-          ) || 0
-        ),
-      0
-    );
-
+const totalWaiting =
+  departments.reduce(
+    (total, department) =>
+      total +
+      (Number(department.waiting) || 0),
+    0
+  );
 const activeDepts = departments.filter(
   (department) =>
     !resetDepartmentIds.some(
@@ -2075,18 +2063,17 @@ const activeDepts = departments.filter(
             departments.length
         )
       : 0;
-
-  const totalActiveTerminals =
-    counters.filter(
-      (counter) =>
-        counter.department_id &&
-        String(
-          counter.status ||
-            ''
-        ).toLowerCase() ===
-        'active'
-    ).length;
-
+const totalActiveTerminals =
+  departments.reduce(
+    (total, department) =>
+      total +
+      (
+        Number(
+          department.active_terminal_count
+        ) || 0
+      ),
+    0
+  );
   // =========================================================
   // MODAL STATE
   // =========================================================

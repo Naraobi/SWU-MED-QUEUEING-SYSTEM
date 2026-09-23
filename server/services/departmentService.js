@@ -20,61 +20,65 @@
   | GET ALL DEPARTMENTS
   |--------------------------------------------------------------------------
   */
+/*
+|--------------------------------------------------------------------------
+| GET ALL DEPARTMENTS
+|--------------------------------------------------------------------------
+*/
 
-  async function getDepartments() {
-    const firebaseAvailable = FORCE_FIREBASE_OFFLINE
-      ? false
-      : await checkFirebaseConnection();
+async function getDepartments() {
+  const firebaseAvailable = FORCE_FIREBASE_OFFLINE
+    ? false
+    : await checkFirebaseConnection();
 
-    /*
-    |--------------------------------------------------------------------------
-    | FIREBASE
-    |--------------------------------------------------------------------------
-    */
+  let departments = [];
 
-    if (firebaseAvailable) {
-      try {
-        const snapshot = await db
-          .collection("department")
-          .get();
+  /*
+  |--------------------------------------------------------------------------
+  | GET DEPARTMENT INFORMATION
+  |--------------------------------------------------------------------------
+  */
 
-        const firebaseDepartments = snapshot.docs.map((doc) =>
-          doc.data()
+  if (firebaseAvailable) {
+    try {
+      const snapshot = await db
+        .collection("department")
+        .get();
+
+      departments = snapshot.docs.map((doc) => doc.data());
+
+      if (departments.length > 0) {
+        console.log(
+          `GET departments: ${departments.length} records loaded from Firebase.`
         );
-
-        if (firebaseDepartments.length > 0) {
-          console.log(
-            `GET departments: ${firebaseDepartments.length} records loaded from Firebase.`
-          );
-
-          return firebaseDepartments;
-        }
-
+      } else {
         console.log(
           "Firebase department collection is empty. Loading departments from MySQL..."
         );
-      } catch (error) {
-        console.error(
-          "Firebase GET departments failed:",
-          error.message
-        );
-
-        console.log(
-          "Falling back to MySQL..."
-        );
       }
-    } else {
+    } catch (error) {
+      console.error(
+        "Firebase GET departments failed:",
+        error.message
+      );
+
       console.log(
-        "Firebase unavailable. Loading departments from MySQL..."
+        "Falling back to MySQL..."
       );
     }
+  } else {
+    console.log(
+      "Firebase unavailable. Loading departments from MySQL..."
+    );
+  }
 
-    /*
-    |--------------------------------------------------------------------------
-    | MYSQL FALLBACK
-    |--------------------------------------------------------------------------
-    */
+  /*
+  |--------------------------------------------------------------------------
+  | MYSQL DEPARTMENT FALLBACK
+  |--------------------------------------------------------------------------
+  */
 
+  if (departments.length === 0) {
     const [rows] = await pool.query(
       `
       SELECT
@@ -91,102 +95,123 @@
       `
     );
 
-    console.log(
-      `GET departments: ${rows.length} records loaded from MySQL.`
-    );
+    departments = rows;
 
-    return rows;
+    console.log(
+      `GET departments: ${departments.length} records loaded from MySQL.`
+    );
   }
 
   /*
   |--------------------------------------------------------------------------
-  | GET DEPARTMENT BY ID
+  | GET LIVE QUEUE + TERMINAL INFORMATION
   |--------------------------------------------------------------------------
   */
 
-  async function getDepartmentById(departmentId) {
-    const firebaseAvailable = FORCE_FIREBASE_OFFLINE
-      ? false
-      : await checkFirebaseConnection();
+const [liveData] = await pool.query(
+  `
+  SELECT
+    d.department_id,
 
-    /*
-    |--------------------------------------------------------------------------
-    | FIREBASE
-    |--------------------------------------------------------------------------
-    */
+    /* =====================================================
+       WAITING PATIENTS
+       ===================================================== */
+    (
+      SELECT COUNT(*)
+      FROM queue_ticket qt_waiting
+      WHERE qt_waiting.department_id = d.department_id
+        AND qt_waiting.status = 'waiting'
+        AND DATE(qt_waiting.issued_at) = CURDATE()
+    ) AS waiting_count,
 
-    if (firebaseAvailable) {
-      try {
-        const document = await db
-          .collection("department")
-          .doc(departmentId)
-          .get();
-
-        if (document.exists) {
-          console.log(
-            `GET department ${departmentId}: loaded from Firebase.`
-          );
-
-          return document.data();
-        }
-
-        console.log(
-          `Department ${departmentId} not found in Firebase. Checking MySQL...`
-        );
-      } catch (error) {
-        console.error(
-          "Firebase GET department by ID failed:",
-          error.message
-        );
-
-        console.log(
-          "Falling back to MySQL..."
-        );
-      }
-    } else {
-      console.log(
-        "Firebase unavailable. Loading department from MySQL..."
-      );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | MYSQL FALLBACK
-    |--------------------------------------------------------------------------
-    */
-
-    const [rows] = await pool.query(
-      `
-      SELECT
-        department_id,
-        name,
-        classification,
-        location,
-        prefix,
-        est_time,
-        kiosk_id,
-        status
-      FROM department
-      WHERE department_id = ?
+    /* =====================================================
+       CURRENT QUEUE
+       Latest queue ticket issued today
+       ===================================================== */
+    (
+      SELECT qt_current.queue_number
+      FROM queue_ticket qt_current
+      WHERE qt_current.department_id = d.department_id
+        AND DATE(qt_current.issued_at) = CURDATE()
+        AND qt_current.status IN ('waiting', 'serving')
+      ORDER BY
+        qt_current.queue_sequence DESC,
+        qt_current.issued_at DESC
       LIMIT 1
-      `,
-      [departmentId]
-    );
+    ) AS current_queue,
 
-    if (rows.length === 0) {
-      console.log(
-        `Department ${departmentId} was not found in MySQL.`
+    /* =====================================================
+       ACTIVE TERMINALS
+       ===================================================== */
+    (
+      SELECT COUNT(*)
+      FROM counter c
+      WHERE c.department_id = d.department_id
+        AND LOWER(c.status) = 'active'
+    ) AS active_terminals
+
+  FROM department d
+  `
+);
+  /*
+  |--------------------------------------------------------------------------
+  | MERGE LIVE DATA INTO DEPARTMENTS
+  |--------------------------------------------------------------------------
+  */
+const liveDataMap = new Map(
+  liveData.map((row) => [
+    String(row.department_id),
+
+    {
+      waiting_count:
+        Number(row.waiting_count) || 0,
+
+      current_queue:
+        row.current_queue || null,
+
+      active_terminals:
+        Number(row.active_terminals) || 0,
+    },
+  ])
+);
+
+const enrichedDepartments =
+  departments.map((department) => {
+
+    const departmentKey =
+      String(
+        department.department_id ||
+        department.id ||
+        ''
       );
 
-      return null;
-    }
+    const live =
+      liveDataMap.get(
+        departmentKey
+      );
 
-    console.log(
-      `GET department ${departmentId}: loaded from MySQL.`
-    );
+    return {
+      ...department,
 
-    return rows[0];
-  }
+      waiting_count:
+        live?.waiting_count || 0,
+
+      current_queue:
+        live?.current_queue || null,
+
+      active_terminals:
+        live?.active_terminals || 0,
+    };
+  });
+
+  /*
+  |--------------------------------------------------------------------------
+  | RETURN
+  |--------------------------------------------------------------------------
+  */
+
+  return enrichedDepartments;
+}
 
   /*
   |--------------------------------------------------------------------------
@@ -613,7 +638,6 @@
 
   module.exports = {
     getDepartments,
-    getDepartmentById,
     createDepartment,
     updateDepartment,
     deleteDepartment,
