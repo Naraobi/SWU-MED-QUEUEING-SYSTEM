@@ -15,6 +15,7 @@ const {
 
 const {
   sendPinVerificationEmail,
+  sendSecurityPinChangedEmail,
 } = require("../utils/emailService");
 
 const router = express.Router();
@@ -24,177 +25,261 @@ const securityPinManager = [
   authorizeRoles("superadmin", "admin"),
 ];
 
-router.get("/status", ...securityPinManager, async (req, res) => {
-  try {
-    const pin = await getSecurityPin(req.user.user_id);
+// =====================================================
+// GET SECURITY PIN STATUS
+// GET /api/security/pin/status
+// =====================================================
 
-    return res.json({
-      success: true,
-      configured: Boolean(pin),
-    });
-  } catch (error) {
-    console.error(
-      "SECURITY PIN STATUS ERROR:",
-      error
-    );
+router.get(
+  "/status",
+  ...securityPinManager,
+  async (req, res) => {
+    try {
+      const pin = await getSecurityPin(
+        req.user.user_id
+      );
 
-    return res.status(500).json({
-      success: false,
-      message: "Failed to retrieve Security PIN status.",
-    });
-  }
-});
+      return res.json({
+        success: true,
+        configured: Boolean(pin),
+      });
+    } catch (error) {
+      console.error(
+        "SECURITY PIN STATUS ERROR:",
+        error
+      );
 
-router.post("/request", ...securityPinManager, async (req, res) => {
-  try {
-    const userId = req.user.user_id;
-    const recipientEmail = req.user.email;
-    const firstName = req.user.first_name || "User";
-
-    if (!recipientEmail) {
-      return res.status(400).json({
+      return res.status(500).json({
         success: false,
         message:
-          "No registered email address is available for this account.",
+          "Failed to retrieve Security PIN status.",
       });
     }
-
-    const {
-      code,
-      expiresAt,
-    } = await createVerificationChallenge(userId);
-
-    await sendPinVerificationEmail(
-      recipientEmail,
-      firstName,
-      code
-    );
-
-    return res.json({
-      success: true,
-      message:
-        "A verification code has been sent to your registered email address.",
-      expiresAt,
-    });
-  } catch (error) {
-    console.error(
-      "SECURITY PIN VERIFICATION REQUEST ERROR:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to send the Security PIN verification code.",
-    });
   }
-});
+);
 
-router.post("/verify", ...securityPinManager, async (req, res) => {
-  try {
-    const userId = req.user.user_id;
+// =====================================================
+// REQUEST SECURITY PIN VERIFICATION CODE
+// POST /api/security/pin/request
+// =====================================================
 
-    const {
-      code,
-      pin,
-    } = req.body;
+router.post(
+  "/request",
+  ...securityPinManager,
+  async (req, res) => {
+    try {
+      const userId = req.user.user_id;
+      const recipientEmail = req.user.email;
+      const firstName =
+        req.user.first_name || "User";
 
-    if (!/^\d{6}$/.test(String(pin || ""))) {
-      return res.status(400).json({
-        success: false,
-        message: "PIN must be exactly 6 digits.",
-      });
-    }
+      if (!recipientEmail) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "No registered email address is available for this account.",
+        });
+      }
 
-    if (!/^\d{6}$/.test(String(code || ""))) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Verification code must be exactly 6 digits.",
-      });
-    }
+      const {
+        code,
+        expiresAt,
+      } = await createVerificationChallenge(
+        userId
+      );
 
-    const verificationResult =
-      await verifyVerificationCode(
-        userId,
+      await sendPinVerificationEmail(
+        recipientEmail,
+        firstName,
         code
       );
 
-    if (!verificationResult.success) {
-      return res.status(400).json({
+      return res.json({
+        success: true,
+        message:
+          "A verification code has been sent to your registered email address.",
+        expiresAt,
+      });
+    } catch (error) {
+      console.error(
+        "SECURITY PIN VERIFICATION REQUEST ERROR:",
+        error
+      );
+
+      return res.status(500).json({
         success: false,
-        message: verificationResult.message,
-        attemptsRemaining:
-          verificationResult.attemptsRemaining,
+        message:
+          "Failed to send the Security PIN verification code.",
       });
     }
-
-    await saveSecurityPin(
-      userId,
-      pin
-    );
-
-    return res.json({
-      success: true,
-      message:
-        "Security PIN has been created successfully.",
-    });
-  } catch (error) {
-    console.error(
-      "SECURITY PIN VERIFICATION ERROR:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to create the Security PIN.",
-    });
   }
-});
+);
 
-router.post("/validate", ...securityPinManager, async (req, res) => {
-  try {
-    const {
-      pin,
-    } = req.body;
+// =====================================================
+// VERIFY EMAIL CODE AND SAVE SECURITY PIN
+// POST /api/security/pin/verify
+// =====================================================
 
-    if (!/^\d{6}$/.test(String(pin || ""))) {
-      return res.status(400).json({
-        success: false,
-        message: "PIN must be exactly 6 digits.",
-      });
-    }
+router.post(
+  "/verify",
+  ...securityPinManager,
+  async (req, res) => {
+    try {
+      const userId = req.user.user_id;
 
-    const isValid =
-      await validateSecurityPin(
-        req.user.user_id,
+      const {
+        code,
+        pin,
+      } = req.body;
+
+      // Validate PIN
+      if (
+        !/^\d{6}$/.test(
+          String(pin || "")
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "PIN must be exactly 6 digits.",
+        });
+      }
+
+      // Validate verification code
+      if (
+        !/^\d{6}$/.test(
+          String(code || "")
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Verification code must be exactly 6 digits.",
+        });
+      }
+
+      // Verify email verification code
+      const verificationResult =
+        await verifyVerificationCode(
+          userId,
+          code
+        );
+
+      if (!verificationResult.success) {
+        return res.status(400).json({
+          success: false,
+          message:
+            verificationResult.message,
+          attemptsRemaining:
+            verificationResult.attemptsRemaining,
+        });
+      }
+
+      // Save or replace the Security PIN
+      await saveSecurityPin(
+        userId,
         pin
       );
 
-    if (!isValid) {
-      return res.status(401).json({
+      // =====================================================
+      // SEND PIN CHANGE CONFIRMATION EMAIL
+      // =====================================================
+      //
+      // The PIN has already been saved successfully.
+      // If the confirmation email fails, the PIN change
+      // itself should still remain successful.
+      //
+
+      try {
+        await sendSecurityPinChangedEmail(
+          req.user.email,
+          req.user.first_name || "User"
+        );
+      } catch (emailError) {
+        console.error(
+          "SECURITY PIN CHANGE CONFIRMATION EMAIL ERROR:",
+          emailError
+        );
+      }
+
+      return res.json({
+        success: true,
+        message:
+          "Security PIN has been changed successfully.",
+      });
+    } catch (error) {
+      console.error(
+        "SECURITY PIN VERIFICATION ERROR:",
+        error
+      );
+
+      return res.status(500).json({
         success: false,
-        message: "Invalid Security PIN.",
+        message:
+          "Failed to create the Security PIN.",
       });
     }
-
-    return res.json({
-      success: true,
-      message: "Security PIN validated successfully.",
-    });
-  } catch (error) {
-    console.error(
-      "SECURITY PIN VALIDATION ERROR:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to validate the Security PIN.",
-    });
   }
-});
+);
+
+// =====================================================
+// VALIDATE SECURITY PIN
+// POST /api/security/pin/validate
+// =====================================================
+
+router.post(
+  "/validate",
+  ...securityPinManager,
+  async (req, res) => {
+    try {
+      const {
+        pin,
+      } = req.body;
+
+      if (
+        !/^\d{6}$/.test(
+          String(pin || "")
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "PIN must be exactly 6 digits.",
+        });
+      }
+
+      const isValid =
+        await validateSecurityPin(
+          req.user.user_id,
+          pin
+        );
+
+      if (!isValid) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Invalid Security PIN.",
+        });
+      }
+
+      return res.json({
+        success: true,
+        message:
+          "Security PIN validated successfully.",
+      });
+    } catch (error) {
+      console.error(
+        "SECURITY PIN VALIDATION ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to validate the Security PIN.",
+      });
+    }
+  }
+);
 
 module.exports = router;
