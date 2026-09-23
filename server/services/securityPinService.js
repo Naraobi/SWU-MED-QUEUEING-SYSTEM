@@ -4,6 +4,7 @@ const db = require("../config/mysql");
 
 const VERIFICATION_EXPIRY_MINUTES = 10;
 const MAX_VERIFICATION_ATTEMPTS = 5;
+const SECURITY_PIN_LENGTH = 6;
 
 /**
  * Get the current Security PIN record for a user.
@@ -11,7 +12,11 @@ const MAX_VERIFICATION_ATTEMPTS = 5;
 async function getSecurityPin(userId) {
   const [rows] = await db.execute(
     `
-      SELECT id, user_id, created_at, updated_at
+      SELECT
+        id,
+        user_id,
+        created_at,
+        updated_at
       FROM security_pin
       WHERE user_id = ?
       LIMIT 1
@@ -29,15 +34,22 @@ async function getSecurityPin(userId) {
  * can send it to the user's registered email.
  */
 async function createVerificationChallenge(userId) {
-  const code = String(crypto.randomInt(100000, 1000000));
-
-  const codeHash = await bcrypt.hash(code, 10);
-
-  const expiresAt = new Date(
-    Date.now() + VERIFICATION_EXPIRY_MINUTES * 60 * 1000
+  const code = String(
+    crypto.randomInt(100000, 1000000)
   );
 
-  // Invalidate previous unverified challenges for this user.
+  const codeHash = await bcrypt.hash(
+    code,
+    10
+  );
+
+  const expiresAt = new Date(
+    Date.now() +
+      VERIFICATION_EXPIRY_MINUTES * 60 * 1000
+  );
+
+  // Invalidate previous unverified challenges
+  // for this user.
   await db.execute(
     `
       UPDATE pin_verification
@@ -51,11 +63,21 @@ async function createVerificationChallenge(userId) {
   await db.execute(
     `
       INSERT INTO pin_verification
-        (user_id, code_hash, expires_at, attempts, verified)
+        (
+          user_id,
+          code_hash,
+          expires_at,
+          attempts,
+          verified
+        )
       VALUES
         (?, ?, ?, 0, 0)
     `,
-    [userId, codeHash, expiresAt]
+    [
+      userId,
+      codeHash,
+      expiresAt,
+    ]
   );
 
   return {
@@ -67,7 +89,10 @@ async function createVerificationChallenge(userId) {
 /**
  * Verify the email verification code.
  */
-async function verifyVerificationCode(userId, code) {
+async function verifyVerificationCode(
+  userId,
+  code
+) {
   const [rows] = await db.execute(
     `
       SELECT
@@ -90,11 +115,17 @@ async function verifyVerificationCode(userId, code) {
   if (!verification) {
     return {
       success: false,
-      message: "No active verification request found.",
+      message:
+        "No active verification request found.",
     };
   }
 
-  if (new Date(verification.expires_at).getTime() < Date.now()) {
+  // Check expiration.
+  if (
+    new Date(
+      verification.expires_at
+    ).getTime() < Date.now()
+  ) {
     await db.execute(
       `
         UPDATE pin_verification
@@ -106,11 +137,16 @@ async function verifyVerificationCode(userId, code) {
 
     return {
       success: false,
-      message: "Verification code has expired.",
+      message:
+        "Verification code has expired.",
     };
   }
 
-  if (verification.attempts >= MAX_VERIFICATION_ATTEMPTS) {
+  // Check maximum attempts.
+  if (
+    verification.attempts >=
+    MAX_VERIFICATION_ATTEMPTS
+  ) {
     await db.execute(
       `
         UPDATE pin_verification
@@ -122,7 +158,8 @@ async function verifyVerificationCode(userId, code) {
 
     return {
       success: false,
-      message: "Maximum verification attempts exceeded.",
+      message:
+        "Maximum verification attempts exceeded.",
     };
   }
 
@@ -132,7 +169,8 @@ async function verifyVerificationCode(userId, code) {
   );
 
   if (!isValid) {
-    const newAttempts = verification.attempts + 1;
+    const newAttempts =
+      verification.attempts + 1;
 
     await db.execute(
       `
@@ -140,19 +178,25 @@ async function verifyVerificationCode(userId, code) {
         SET attempts = ?
         WHERE id = ?
       `,
-      [newAttempts, verification.id]
+      [
+        newAttempts,
+        verification.id,
+      ]
     );
 
     return {
       success: false,
-      message: "Invalid verification code.",
+      message:
+        "Invalid verification code.",
       attemptsRemaining: Math.max(
         0,
-        MAX_VERIFICATION_ATTEMPTS - newAttempts
+        MAX_VERIFICATION_ATTEMPTS -
+          newAttempts
       ),
     };
   }
 
+  // Verification successful.
   await db.execute(
     `
       UPDATE pin_verification
@@ -164,27 +208,52 @@ async function verifyVerificationCode(userId, code) {
 
   return {
     success: true,
-    message: "Email verification successful.",
+    message:
+      "Email verification successful.",
   };
 }
 
 /**
  * Save or replace the user's Security PIN.
  */
-async function saveSecurityPin(userId, pin) {
-  const pinHash = await bcrypt.hash(String(pin), 12);
+async function saveSecurityPin(
+  userId,
+  pin
+) {
+  if (!userId) {
+    throw new Error(
+      "User ID is required."
+    );
+  }
+
+  if (!/^\d{6}$/.test(String(pin || ""))) {
+    throw new Error(
+      "Security PIN must be exactly 6 digits."
+    );
+  }
+
+  const pinHash = await bcrypt.hash(
+    String(pin),
+    12
+  );
 
   await db.execute(
     `
       INSERT INTO security_pin
-        (user_id, pin_hash)
+        (
+          user_id,
+          pin_hash
+        )
       VALUES
         (?, ?)
       ON DUPLICATE KEY UPDATE
         pin_hash = VALUES(pin_hash),
         updated_at = CURRENT_TIMESTAMP
     `,
-    [userId, pinHash]
+    [
+      userId,
+      pinHash,
+    ]
   );
 
   return {
@@ -194,11 +263,21 @@ async function saveSecurityPin(userId, pin) {
 
 /**
  * Validate a user's Security PIN.
+ *
+ * Used for authenticated Security PIN operations.
  */
-async function validateSecurityPin(userId, pin) {
+async function validateSecurityPin(
+  userId,
+  pin
+) {
+  if (!userId || !pin) {
+    return false;
+  }
+
   const [rows] = await db.execute(
     `
-      SELECT pin_hash
+      SELECT
+        pin_hash
       FROM security_pin
       WHERE user_id = ?
       LIMIT 1
@@ -208,33 +287,65 @@ async function validateSecurityPin(userId, pin) {
 
   const record = rows[0];
 
-  if (!record) {
+  if (
+    !record ||
+    !record.pin_hash
+  ) {
     return false;
   }
 
-  return bcrypt.compare(String(pin), record.pin_hash);
+  return bcrypt.compare(
+    String(pin),
+    record.pin_hash
+  );
 }
+
 /**
  * Validate a Security PIN for kiosk activation.
  *
+ * IMPORTANT:
+ *
+ * Patient View does NOT require a Firebase login.
+ * This function therefore validates the PIN directly
+ * against the Security PIN records in MySQL.
+ *
  * Superadmin:
- *   - Master PIN
- *   - Can activate any active kiosk
+ *   - Their Security PIN is treated as a master PIN.
+ *   - Can activate any active kiosk.
  *
  * Admin:
- *   - Can activate only a kiosk assigned to
- *     their department
+ *   - Can activate only kiosks belonging to
+ *     their department.
+ *
+ * The actual MySQL user table is `user`, NOT `users`.
  */
-async function validateKioskSecurityPin(kioskId, pin) {
-  if (!kioskId || !pin) {
+async function validateKioskSecurityPin(
+  kioskId,
+  pin
+) {
+  // =========================================================
+  // BASIC INPUT VALIDATION
+  // =========================================================
+
+  if (!kioskId) {
     return {
       success: false,
-      message: "Kiosk ID and Security PIN are required.",
+      authorized: false,
+      message: "Kiosk ID is required.",
+    };
+  }
+
+  if (!/^\d{6}$/.test(String(pin || ""))) {
+    return {
+      success: false,
+      authorized: false,
+      message:
+        "Security PIN must be exactly 6 digits.",
     };
   }
 
   // =========================================================
-  // CHECK KIOSK
+  // 1. CHECK THAT THE KIOSK EXISTS AND IS ACTIVE
   // =========================================================
 
   const [kioskRows] = await db.execute(
@@ -254,27 +365,36 @@ async function validateKioskSecurityPin(kioskId, pin) {
   if (!kiosk) {
     return {
       success: false,
+      authorized: false,
       message: "Kiosk not found.",
     };
   }
 
-  if (
-    String(kiosk.status || "").toLowerCase() !==
-    "active"
-  ) {
+  const kioskStatus = String(
+    kiosk.status || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (kioskStatus !== "active") {
     return {
       success: false,
-      message: "This kiosk is inactive.",
+      authorized: false,
+      message:
+        "This kiosk is inactive.",
     };
   }
 
   // =========================================================
-  // GET DEPARTMENTS ASSIGNED TO THIS KIOSK
+  // 2. GET THE DEPARTMENTS ASSIGNED TO THIS KIOSK
   // =========================================================
 
-  const [departmentRows] = await db.execute(
+  const [
+    departmentRows,
+  ] = await db.execute(
     `
-      SELECT department_id
+      SELECT
+        department_id
       FROM department
       WHERE kiosk_id = ?
     `,
@@ -282,12 +402,20 @@ async function validateKioskSecurityPin(kioskId, pin) {
   );
 
   const kioskDepartmentIds =
-    departmentRows.map((row) =>
-      String(row.department_id)
-    );
+    departmentRows
+      .map((row) =>
+        String(
+          row.department_id || ""
+        )
+      )
+      .filter(Boolean);
 
   // =========================================================
-  // GET ACTIVE ADMIN / SUPERADMIN PIN RECORDS
+  // 3. GET ACTIVE ADMIN / SUPERADMIN USERS
+  //    THAT HAVE A SECURITY PIN
+  //
+  // IMPORTANT:
+  // The correct table is `user`, not `users`.
   // =========================================================
 
   const [users] = await db.execute(
@@ -297,7 +425,7 @@ async function validateKioskSecurityPin(kioskId, pin) {
         u.role,
         u.department_id,
         sp.pin_hash
-      FROM users u
+      FROM \`user\` u
       INNER JOIN security_pin sp
         ON sp.user_id = u.user_id
       WHERE LOWER(TRIM(u.status)) = 'active'
@@ -308,28 +436,42 @@ async function validateKioskSecurityPin(kioskId, pin) {
     `
   );
 
+  // =========================================================
+  // 4. COMPARE THE ENTERED PIN AGAINST THE STORED
+  //    SECURITY PIN HASHES
+  // =========================================================
+
   let adminMatch = null;
 
-  // =========================================================
-  // CHECK PIN
-  // =========================================================
-
   for (const user of users) {
-    const matches = await bcrypt.compare(
-      String(pin),
-      user.pin_hash
-    );
-
-    if (!matches) {
+    // Ignore malformed Security PIN records.
+    if (!user.pin_hash) {
       continue;
     }
 
-    const role =
-      String(user.role || "").toLowerCase();
+    const pinMatches =
+      await bcrypt.compare(
+        String(pin),
+        user.pin_hash
+      );
 
-    // -------------------------------------------------------
-    // SUPERADMIN = MASTER PIN
-    // -------------------------------------------------------
+    // PIN does not belong to this user.
+    if (!pinMatches) {
+      continue;
+    }
+
+    const role = String(
+      user.role || ""
+    )
+      .trim()
+      .toLowerCase();
+
+    // =======================================================
+    // 5. SUPERADMIN = MASTER PIN
+    //
+    // A valid active superadmin PIN can activate
+    // ANY active kiosk.
+    // =======================================================
 
     if (role === "superadmin") {
       return {
@@ -342,15 +484,21 @@ async function validateKioskSecurityPin(kioskId, pin) {
       };
     }
 
-    // -------------------------------------------------------
-    // ADMIN
-    // -------------------------------------------------------
+    // =======================================================
+    // 6. ADMIN = DEPARTMENT ONLY
+    //
+    // The admin's department_id must match one of the
+    // departments assigned to this kiosk.
+    // =======================================================
 
     if (role === "admin") {
       const adminDepartmentId =
-        String(user.department_id || "");
+        String(
+          user.department_id || ""
+        );
 
       const canAccessKiosk =
+        adminDepartmentId &&
         kioskDepartmentIds.includes(
           adminDepartmentId
         );
@@ -368,9 +516,17 @@ async function validateKioskSecurityPin(kioskId, pin) {
     }
   }
 
+  // =========================================================
+  // 7. RETURN A VALID ADMIN RESULT
+  // =========================================================
+
   if (adminMatch) {
     return adminMatch;
   }
+
+  // =========================================================
+  // 8. PIN DOES NOT HAVE AUTHORIZATION FOR THIS KIOSK
+  // =========================================================
 
   return {
     success: false,
@@ -379,6 +535,10 @@ async function validateKioskSecurityPin(kioskId, pin) {
       "This Security PIN is not authorized for this kiosk.",
   };
 }
+
+/**
+ * Export all Security PIN functions.
+ */
 module.exports = {
   getSecurityPin,
   createVerificationChallenge,
