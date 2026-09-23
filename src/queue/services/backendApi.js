@@ -1,3 +1,5 @@
+import { auth } from "../../firebase";
+
 const API_URL =
   `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`
 
@@ -173,6 +175,53 @@ export async function deleteDepartment(
   return result;
 }
 
+export async function resetDepartments(departmentIds) {
+  if (!Array.isArray(departmentIds) || departmentIds.length === 0) {
+    throw new Error("No departments selected for reset.");
+  }
+
+  const results = [];
+
+  for (const departmentId of departmentIds) {
+    if (!departmentId) {
+      continue;
+    }
+
+    const response = await fetch(
+      `${API_URL}/departments/${encodeURIComponent(departmentId)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    const responseText = await response.text();
+
+    let result;
+
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      throw new Error(
+        `Failed to delete department ${departmentId}. Server returned an invalid response (HTTP ${response.status}).`
+      );
+    }
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.message ||
+          `Failed to delete department ${departmentId}.`
+      );
+    }
+
+    results.push(result);
+  }
+
+  return {
+    success: true,
+    message: "Selected departments deleted successfully.",
+    data: results,
+  };
+}
 // =====================================================
 // KIOSK API
 // =====================================================
@@ -2036,8 +2085,25 @@ export async function validateSecurityPin(
       }
     );
 
-    const result =
-      await response.json();
+    // Read as text first so an HTML response does not cause
+    // "Unexpected token '<'" from response.json().
+    const responseText =
+      await response.text();
+
+    let result;
+
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      console.error(
+        "VALIDATE SECURITY PIN: Server returned a non-JSON response:",
+        responseText
+      );
+
+      throw new Error(
+        `Security PIN validation failed. Server returned an invalid response (HTTP ${response.status}).`
+      );
+    }
 
     if (
       !response.ok ||

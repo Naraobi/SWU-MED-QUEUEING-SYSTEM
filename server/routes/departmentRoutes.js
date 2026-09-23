@@ -6,7 +6,13 @@ const {
   createDepartment,
   updateDepartment,
   deleteDepartment,
+  resetDepartments,
 } = require("../services/departmentService");
+
+const {
+  authenticateRequest,
+  authorizeRoles,
+} = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
@@ -165,5 +171,44 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+/*
+|--------------------------------------------------------------------------
+| RESET SELECTED DEPARTMENTS
+|--------------------------------------------------------------------------
+| POST /api/departments/reset
+*/
+
+router.post(
+  "/reset",
+  authenticateRequest,
+  authorizeRoles("superadmin"),
+  async (req, res) => {
+  try {
+    const { departmentIds } = req.body;
+
+    if (!Array.isArray(departmentIds) || departmentIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No departments selected for reset.",
+      });
+    }
+
+    const result = await resetDepartments(departmentIds);
+
+    res.json({
+      success: true,
+      message: "Departments reset successfully.",
+      data: result,
+    });
+  } catch (error) {
+    console.error("RESET DEPARTMENTS ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to reset departments.",
+      error: error.message,
+    });
+  }
+});
 
 module.exports = router;
