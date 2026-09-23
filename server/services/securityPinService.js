@@ -214,7 +214,171 @@ async function validateSecurityPin(userId, pin) {
 
   return bcrypt.compare(String(pin), record.pin_hash);
 }
+/**
+ * Validate a Security PIN for kiosk activation.
+ *
+ * Superadmin:
+ *   - Master PIN
+ *   - Can activate any active kiosk
+ *
+ * Admin:
+ *   - Can activate only a kiosk assigned to
+ *     their department
+ */
+async function validateKioskSecurityPin(kioskId, pin) {
+  if (!kioskId || !pin) {
+    return {
+      success: false,
+      message: "Kiosk ID and Security PIN are required.",
+    };
+  }
 
+  // =========================================================
+  // CHECK KIOSK
+  // =========================================================
+
+  const [kioskRows] = await db.execute(
+    `
+      SELECT
+        kiosk_id,
+        status
+      FROM kiosk
+      WHERE kiosk_id = ?
+      LIMIT 1
+    `,
+    [kioskId]
+  );
+
+  const kiosk = kioskRows[0];
+
+  if (!kiosk) {
+    return {
+      success: false,
+      message: "Kiosk not found.",
+    };
+  }
+
+  if (
+    String(kiosk.status || "").toLowerCase() !==
+    "active"
+  ) {
+    return {
+      success: false,
+      message: "This kiosk is inactive.",
+    };
+  }
+
+  // =========================================================
+  // GET DEPARTMENTS ASSIGNED TO THIS KIOSK
+  // =========================================================
+
+  const [departmentRows] = await db.execute(
+    `
+      SELECT department_id
+      FROM department
+      WHERE kiosk_id = ?
+    `,
+    [kioskId]
+  );
+
+  const kioskDepartmentIds =
+    departmentRows.map((row) =>
+      String(row.department_id)
+    );
+
+  // =========================================================
+  // GET ACTIVE ADMIN / SUPERADMIN PIN RECORDS
+  // =========================================================
+
+  const [users] = await db.execute(
+    `
+      SELECT
+        u.user_id,
+        u.role,
+        u.department_id,
+        sp.pin_hash
+      FROM users u
+      INNER JOIN security_pin sp
+        ON sp.user_id = u.user_id
+      WHERE LOWER(TRIM(u.status)) = 'active'
+        AND LOWER(TRIM(u.role)) IN (
+          'admin',
+          'superadmin'
+        )
+    `
+  );
+
+  let adminMatch = null;
+
+  // =========================================================
+  // CHECK PIN
+  // =========================================================
+
+  for (const user of users) {
+    const matches = await bcrypt.compare(
+      String(pin),
+      user.pin_hash
+    );
+
+    if (!matches) {
+      continue;
+    }
+
+    const role =
+      String(user.role || "").toLowerCase();
+
+    // -------------------------------------------------------
+    // SUPERADMIN = MASTER PIN
+    // -------------------------------------------------------
+
+    if (role === "superadmin") {
+      return {
+        success: true,
+        authorized: true,
+        role: "superadmin",
+        scope: "all",
+        message:
+          "Superadmin Security PIN validated successfully.",
+      };
+    }
+
+    // -------------------------------------------------------
+    // ADMIN
+    // -------------------------------------------------------
+
+    if (role === "admin") {
+      const adminDepartmentId =
+        String(user.department_id || "");
+
+      const canAccessKiosk =
+        kioskDepartmentIds.includes(
+          adminDepartmentId
+        );
+
+      if (canAccessKiosk) {
+        adminMatch = {
+          success: true,
+          authorized: true,
+          role: "admin",
+          scope: "department",
+          message:
+            "Admin Security PIN validated successfully.",
+        };
+      }
+    }
+  }
+
+  if (adminMatch) {
+    return adminMatch;
+  }
+
+  return {
+    success: false,
+    authorized: false,
+    message:
+      "This Security PIN is not authorized for this kiosk.",
+  };
+}
 module.exports = {
   getSecurityPin,
   createVerificationChallenge,

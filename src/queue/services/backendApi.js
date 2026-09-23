@@ -2124,6 +2124,48 @@
     }
   }
 
+export async function validateKioskSecurityPin(
+  kioskId,
+  pin
+) {
+  if (!kioskId) {
+    throw new Error("Kiosk ID is required.");
+  }
+
+  if (!pin) {
+    throw new Error("Security PIN is required.");
+  }
+
+  const response = await fetch(
+    `${API_URL}/security-pin/kiosk-validate`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        kiosk_id: kioskId,
+        pin,
+      }),
+    }
+  );
+
+  const result =
+    await response.json();
+
+  if (
+    !response.ok ||
+    !result.success
+  ) {
+    throw new Error(
+      result.message ||
+        "Invalid Security PIN."
+    );
+  }
+
+  return result;
+}
+
   // =====================================================
   // BACKEND / DATABASE TEST
   // =====================================================

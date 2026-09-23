@@ -11,6 +11,7 @@ const {
   verifyVerificationCode,
   saveSecurityPin,
   validateSecurityPin,
+  validateKioskSecurityPin,
 } = require("../services/securityPinService");
 
 const {
@@ -239,6 +240,71 @@ router.post("/validate", ...securityPinManager, async (req, res) => {
       success: false,
       message:
         "Failed to validate the Security PIN.",
+    });
+  }
+});
+
+// =========================================================
+// KIOSK SECURITY PIN VALIDATION
+// =========================================================
+//
+// Patient View uses this endpoint.
+//
+// IMPORTANT:
+// No authenticateRequest here.
+// Patient View does not require a Firebase login.
+//
+// Superadmin PIN:
+//   Can activate any kiosk.
+//
+// Admin PIN:
+//   Can activate only a kiosk assigned
+//   to their department.
+// =========================================================
+
+router.post("/kiosk-validate", async (req, res) => {
+  try {
+    const {
+      kiosk_id,
+      pin,
+    } = req.body;
+
+    if (!/^\d{6}$/.test(String(pin || ""))) {
+      return res.status(400).json({
+        success: false,
+        message: "PIN must be exactly 6 digits.",
+      });
+    }
+
+    if (!kiosk_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Kiosk ID is required.",
+      });
+    }
+
+    const result =
+      await validateKioskSecurityPin(
+        kiosk_id,
+        pin
+      );
+
+    if (!result.success) {
+      return res.status(401).json(result);
+    }
+
+    return res.json(result);
+
+  } catch (error) {
+    console.error(
+      "KIOSK SECURITY PIN VALIDATION ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to validate the kiosk Security PIN.",
     });
   }
 });

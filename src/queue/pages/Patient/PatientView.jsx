@@ -6,14 +6,13 @@ import {
   useState,
 } from 'react';
 
-import { auth } from '../../../firebase';
 
 import {
   getKiosks,
   getPatientDepartments,
   getWaitingCount,
   createPatientQueue,
-  validateSecurityPin,
+validateKioskSecurityPin,
 } from '../../services/backendApi';
 
 import {
@@ -51,39 +50,12 @@ import {
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react';
-import logo from '../../../assets/logo.png';
 
 import logoImage from '../../../assets/logo.png';
 import { THEME } from '../../theme/colors';
-
-/* =========================================================
-   BRAND THEME
-   (shared with Admin/Staff via src/queue/theme/colors.js;
-   BORDER_DEFAULT and ICON_TINT are Patient-kiosk-specific)
-========================================================= */
-
-/* =========================================================
-   SCREEN TRANSITIONS
-========================================================= */
-
-/*
-  Screens play an exit animation before the next one mounts, so
-  the flow reads as one continuous motion rather than a hard cut.
-  PatientView holds the `leaving` flag and every Screen reads it
-  from here.
-*/
-
 const TransitionContext = createContext({ leaving: false });
 
 const EXIT_MS = 140;
-
-/*
-  A wall-mounted kiosk is often set up on a machine with Windows
-  animation effects switched off, which would disable all of this
-  even though the motion is part of how the screen explains itself.
-  Flip this to true for a deployment that should honour the OS
-  setting instead.
-*/
 const RESPECT_REDUCED_MOTION = false;
 
 function prefersReducedMotion() {
@@ -461,12 +433,6 @@ function Wordmark({ size = 'h-10' }) {
     />
   );
 }
-/* =========================================================
-   STEP PROGRESS
-   Lets a patient see how many steps remain before their number
-   is issued, instead of moving through an unlabeled sequence of
-   screens with no sense of where they are.
-========================================================= */
 
 const KIOSK_STEPS = [
   { key: 'queueType', label: 'Queue Type' },
@@ -474,14 +440,6 @@ const KIOSK_STEPS = [
   { key: 'confirm', label: 'Confirm' },
   { key: 'ticket', label: 'Ticket' },
 ];
-
-/*
-  Each screen remounts the header, so a progress bar built purely
-  from props would snap to its new position instead of travelling
-  there. Parking the last position in module scope lets the freshly
-  mounted bar pick up exactly where the previous one left off and
-  glide to the new step.
-*/
 
 const PROGRESS_START = -0.35;
 
@@ -742,16 +700,6 @@ function KioskHeader({ step = null }) {
   );
 }
 
-/* =========================================================
-   SCREEN WRAPPER
-========================================================= */
-
-/*
-  The header renders outside the animated block on purpose: the
-  progress bar has to stay put and flow between steps rather than
-  fade out and back in with the rest of the screen.
-*/
-
 function Screen({
   children,
   stepKey = 'screen',
@@ -864,29 +812,13 @@ function WelcomeScreen({ onStart }) {
     </Screen>
   );
 }
-
-/* =========================================================
-   NUMERIC KEYPAD
-========================================================= */
-
 function NumericKeypad({
   onDigit,
   onBackspace,
   onClear,
 }) {
-  const keys = [
-    '1',
-    '2',
-    '3',
-    '4',
-    '5',
-    '6',
-    '7',
-    '8',
-    '9',
-  ];
-
-  const keyClass =
+  const keys = [ '1', '2', '3', '4', '5', '6', '7', '8', '9', ];
+const keyClass =
     'kiosk-button flex h-12 items-center justify-center rounded-md border border-[#E5E7EB] bg-white text-base font-semibold text-slate-800 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100';
 
   return (
@@ -929,9 +861,6 @@ function NumericKeypad({
   );
 }
 
-/* =========================================================
-   SELECT KIOSK SCREEN
-========================================================= */
 
 function SelectKioskScreen({
   kiosks,
@@ -1033,21 +962,11 @@ function SelectKioskScreen({
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p
-                      className={`text-sm font-semibold uppercase tracking-wide ${
-                        isSelected
-                          ? 'text-white'
-                          : 'text-slate-800'
-                      }`}
-                    >
+                    <p className={`text-sm font-semibold uppercase tracking-wide ${ isSelected ? 'text-white' : 'text-slate-800' }`}>
                       {currentKiosk.name}
                     </p>
 
-                    {isUnlocked && (
-                      <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
-                        UNLOCKED
-                      </span>
-                    )}
+                    {isUnlocked && ( <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700"> UNLOCKED </span> )}
                   </div>
 
                   <p className={`text-xs ${isSelected ? 'text-white/70' : 'text-slate-400'}`}>
@@ -1071,13 +990,6 @@ function SelectKioskScreen({
   );
 }
 
-/* =========================================================
-   KIOSK CODE SCREEN
-========================================================= */
-/* =========================================================
-   KIOSK PIN SCREEN
-========================================================= */
-
 const KIOSK_PIN_LENGTH = 6;
 
 function KioskPinScreen({
@@ -1090,61 +1002,52 @@ function KioskPinScreen({
   const [submitting, setSubmitting] =
     useState(false);
 
-  async function handleSubmit() {
-    setError('');
+async function handleSubmit() {
+  setError('');
 
-    if (!kiosk?.kiosk_id) {
-      setError('Invalid kiosk.');
-      return;
-    }
-
-    if (pin.length !== KIOSK_PIN_LENGTH) {
-      setError(
-        'Please enter the 6-digit Security PIN.'
-      );
-      return;
-    }
-
-    await auth.authStateReady();
-
-    const firebaseUser = auth.currentUser;
-
-    if (!firebaseUser) {
-      setError(
-        'Your authentication session is unavailable. Please log in again.'
-      );
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      await validateSecurityPin(
-        firebaseUser,
-        pin
-      );
-
-      unlockKioskForToday(
-        kiosk.kiosk_id
-      );
-
-      onSuccess();
-    } catch (error) {
-      console.error(
-        'Kiosk Security PIN verification error:',
-        error
-      );
-
-      setError(
-        error?.message ||
-          'Invalid Security PIN. Please try again.'
-      );
-
-      setPin('');
-    } finally {
-      setSubmitting(false);
-    }
+  if (!kiosk?.kiosk_id) {
+    setError('Invalid kiosk.');
+    return;
   }
+
+  if (pin.length !== KIOSK_PIN_LENGTH) {
+    setError(
+      'Please enter the 6-digit Security PIN.'
+    );
+    return;
+  }
+
+  setSubmitting(true);
+
+  try {
+    await validateKioskSecurityPin(
+      kiosk.kiosk_id,
+      pin
+    );
+
+    unlockKioskForToday(
+      kiosk.kiosk_id
+    );
+
+    onSuccess();
+
+  } catch (error) {
+    console.error(
+      'Kiosk Security PIN verification error:',
+      error
+    );
+
+    setError(
+      error?.message ||
+        'Invalid Security PIN. Please try again.'
+    );
+
+    setPin('');
+
+  } finally {
+    setSubmitting(false);
+  }
+}
 
   function handleDigit(digit) {
     setError('');
@@ -3408,27 +3311,11 @@ export default function PatientView({
           queueNumber={
             queueNumber
           }
-        />
-
-        {receipt}
-      </>
-    );
-  }
-
-  /* =======================================================
-     SUCCESS
-  ======================================================= */
+        />{receipt}</>);}
 
   return (
     <>
-      <SuccessScreen
-        queueType={
-          queueType
-        }
-        queueNumber={
-          queueNumber
-        }
-      />
+      <SuccessScreen queueType={ queueType }queueNumber={ queueNumber }   />
 
       {receipt}
     </>
