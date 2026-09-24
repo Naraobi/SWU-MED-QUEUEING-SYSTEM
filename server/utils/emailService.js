@@ -231,7 +231,11 @@ SWU Med Queue System`,
 
   await transporter.sendMail(mailOptions);
 }
-async function sendPasswordResetCodeEmail(
+// =====================================================
+// PASSWORD RESET VERIFICATION EMAIL
+// =====================================================
+
+async function sendPasswordResetVerificationEmail(
   recipientEmail,
   firstName,
   verificationCode
@@ -239,9 +243,8 @@ async function sendPasswordResetCodeEmail(
   const mailOptions = {
     from: `"SWU Med Queue System" <${process.env.EMAIL_USER}>`,
     to: recipientEmail,
-    subject: "SWU Med Queue System Password Reset Code",
+    subject: "SWU Med Queue System Password Reset Verification Code",
 
-<<<<<<< HEAD
     text: `Hello ${firstName},
 
 A request was made to reset your password for the SWU Med Queue System.
@@ -253,8 +256,23 @@ ${verificationCode}
 This code will expire in 10 minutes.
 
 If you did not request a password reset, please ignore this email and contact your system administrator.
-=======
-async function sendSecurityPinChangedEmail(recipientEmail, firstName) {
+
+Thank you,
+SWU Med Queue System`,
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
+
+// =====================================================
+// SECURITY PIN CHANGED EMAIL
+// =====================================================
+
+async function sendSecurityPinChangedEmail(
+  recipientEmail,
+  firstName
+) {
   const changedAt = new Date().toLocaleString("en-PH", {
     dateStyle: "long",
     timeStyle: "short",
@@ -264,9 +282,9 @@ async function sendSecurityPinChangedEmail(recipientEmail, firstName) {
   const mailOptions = {
     from: `"SWU Med Queue System" <${process.env.EMAIL_USER}>`,
     to: recipientEmail,
-    subject: "Your SWU Med Queue System Security PIN Was Changed",
+    subject:
+      "Your SWU Med Queue System Security PIN Was Changed",
 
-    // Plain-text version
     text: `Hello ${firstName},
 
 Your Security PIN for the SWU Med Queue System has been successfully changed.
@@ -277,15 +295,10 @@ Account: ${recipientEmail}
 If you made this change, no further action is required.
 
 If you did not change your Security PIN, please contact your system administrator immediately.
->>>>>>> feature/security-pin-change-email
 
 Thank you,
 SWU Med Queue System`,
 
-<<<<<<< HEAD
-=======
-    // HTML version
->>>>>>> feature/security-pin-change-email
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <h2>SWU Med Queue System</h2>
@@ -293,41 +306,14 @@ SWU Med Queue System`,
         <p>Hello ${firstName},</p>
 
         <p>
-<<<<<<< HEAD
-          A request was made to reset your password
-          for the SWU Med Queue System.
-=======
           Your Security PIN for the SWU Med Queue System
           has been <strong>successfully changed</strong>.
->>>>>>> feature/security-pin-change-email
         </p>
 
         <div
           style="
             background-color: #f8f9fa;
             border: 1px solid #e5e7eb;
-<<<<<<< HEAD
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: center;
-          "
-        >
-          <p style="margin: 0 0 10px 0;">
-            Your verification code is:
-          </p>
-
-          <p
-            style="
-              font-size: 32px;
-              font-weight: bold;
-              letter-spacing: 8px;
-              margin: 0;
-              color: #9D0A0E;
-            "
-          >
-            ${verificationCode}
-=======
             border-radius: 6px;
             padding: 15px;
             margin: 20px 0;
@@ -339,19 +325,10 @@ SWU Med Queue System`,
 
           <p style="margin: 0;">
             <strong>Account:</strong> ${recipientEmail}
->>>>>>> feature/security-pin-change-email
           </p>
         </div>
 
         <p>
-<<<<<<< HEAD
-          <strong>This code will expire in 10 minutes.</strong>
-        </p>
-
-        <p>
-          If you did not request a password reset,
-          please ignore this email and contact your system administrator.
-=======
           If you made this change, no further action is required.
         </p>
 
@@ -360,7 +337,6 @@ SWU Med Queue System`,
             If you did not change your Security PIN, please contact
             your system administrator immediately.
           </strong>
->>>>>>> feature/security-pin-change-email
         </p>
 
         <p>
@@ -372,27 +348,17 @@ SWU Med Queue System`,
   };
 
   console.log(
-<<<<<<< HEAD
-    "PASSWORD RESET CODE EMAIL: Sending verification code to",
-=======
     "SECURITY PIN CHANGED EMAIL: Sending confirmation to",
->>>>>>> feature/security-pin-change-email
     recipientEmail
   );
 
   await transporter.sendMail(mailOptions);
 }
-<<<<<<< HEAD
-=======
 
->>>>>>> feature/security-pin-change-email
 module.exports = {
   sendTemporaryPasswordEmail,
   sendPinVerificationEmail,
   sendPasswordChangedEmail,
-<<<<<<< HEAD
   sendPasswordResetCodeEmail,
-=======
   sendSecurityPinChangedEmail,
->>>>>>> feature/security-pin-change-email
 };

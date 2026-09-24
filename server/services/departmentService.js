@@ -636,14 +636,6 @@ const enrichedDepartments =
   |--------------------------------------------------------------------------
   */
 
-<<<<<<< HEAD
-  module.exports = {
-    getDepartments,
-    createDepartment,
-    updateDepartment,
-    deleteDepartment,
-  };
-=======
 async function resetDepartments(departmentIds = []) {
   if (!Array.isArray(departmentIds) || departmentIds.length === 0) {
     throw new Error("No departments selected for reset.");
@@ -769,4 +761,3 @@ async function resetDepartments(departmentIds = []) {
   deleteDepartment,
   resetDepartments,
 };
->>>>>>> feature/security-pin-change-email
