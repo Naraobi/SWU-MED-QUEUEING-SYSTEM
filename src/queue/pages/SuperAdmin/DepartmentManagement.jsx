@@ -9,6 +9,7 @@ import {
   createDepartment,
   updateDepartment,
   validateSecurityPin,
+  resetDepartments,
 } from '../../services/backendApi';
 
 import {
@@ -519,7 +520,7 @@ function ResetDepartmentSelectionModal({
             </h2>
 
             <p className="mt-1 text-xs text-[#4B5563]">
-              Select the department whose queue display you want to reset.
+              Select the department(s) you want to permanently delete.
             </p>
           </div>
 
@@ -692,7 +693,7 @@ return (
           </p>
 
           <p className="mt-1 text-xs text-[#4B5563]">
-            This action only resets the current frontend queue display.
+            This action permanently deletes the selected department(s) from the database, including their associated counters.
           </p>
         </div>
 
@@ -793,21 +794,7 @@ export default function DepartmentCrud() {
       ...EMPTY_FORM,
     });
 
-  const [resetDepartmentIds, setResetDepartmentIds] = useState(() => {
-  try {
-    const stored = localStorage.getItem(
-      'swu_reset_departments'
-    );
-
-    return stored
-      ? JSON.parse(stored)
-      : [];
-  } catch {
-    return [];
-  }
-});
-
-const [selectedResetIds, setSelectedResetIds] = useState([]);
+  const [selectedResetIds, setSelectedResetIds] = useState([]);
 
 const [showResetSelection, setShowResetSelection] =
   useState(false);
@@ -824,6 +811,7 @@ const [resettingIds, setResettingIds] =
   const [verifyingResetPin, setVerifyingResetPin] =
   useState(false);  
 
+<<<<<<< HEAD
   useEffect(() => {
     localStorage.setItem(
       'swu_reset_departments',
@@ -834,6 +822,20 @@ const [resettingIds, setResettingIds] =
 // =========================================================
 // REFRESH LIVE QUEUE DATA
 // =========================================================
+=======
+  // =========================================================
+  // FETCH KIOSKS THROUGH NODE.JS
+  // =========================================================
+  //
+  // React no longer talks directly to Firebase.
+  //
+  // React → backendApi.js
+  //       → GET /api/kiosks
+  //       → kioskRoutes.js
+  //       → kioskService.js
+  //       → Firebase / MySQL
+  //
+>>>>>>> feature/security-pin-change-email
 
 useEffect(() => {
   const interval = setInterval(() => {
@@ -1637,15 +1639,6 @@ const duplicate = departments.find(
       return false;
     }
 
-    // Ignore departments that have already been reset
-    if (
-      resetDepartmentIds.includes(
-        department.id
-      )
-    ) {
-      return false;
-    }
-
     const existingName = String(
       department.department_name || ''
     )
@@ -1837,7 +1830,7 @@ async function handleResetPinConfirm() {
       pinInput
     );
 
-    handleReset();
+    await handleReset();
   } catch (error) {
     console.error(
       'Department reset Security PIN verification error:',
@@ -1859,7 +1852,7 @@ async function handleResetPinConfirm() {
   // RESET DEPARTMENT
   // =========================================================
 
-function handleReset() {
+async function handleReset() {
   if (resettingIds.length === 0) {
     return;
   }
@@ -1878,61 +1871,48 @@ function handleReset() {
     return;
   }
 
-  setResetDepartmentIds((currentIds) => {
-    const newIds = selectedDepartments.map(
-      (department) => department.id
+  try {
+    await resetDepartments(
+      selectedDepartments.map(
+        (department) => department.id
+      )
     );
 
-    return Array.from(
-      new Set([
-        ...currentIds,
-        ...newIds,
-      ])
+    const [
+      refreshedKiosks,
+      refreshedCounters,
+    ] = await Promise.all([
+      fetchKiosks(),
+      fetchCounters(),
+    ]);
+
+    await fetchDepartments(
+      refreshedKiosks,
+      refreshedCounters
     );
-  });
 
-  setDepartments((currentDepartments) =>
-    currentDepartments.map((department) => {
-      const shouldReset = resettingIds.some(
-        (id) =>
-          String(id) ===
-          String(department.id)
-      );
+    setShowResetPin(false);
+    setResettingIds([]);
+    setSelectedResetIds([]);
+    setPinInput('');
+    setError(null);
 
-      if (!shouldReset) {
-        return department;
-      }
+    setSuccess(
+      selectedDepartments.length === 1
+        ? `Department "${selectedDepartments[0].department_name}" was deleted successfully.`
+        : `${selectedDepartments.length} departments were deleted successfully.`
+    );
+  } catch (error) {
+    console.error(
+      'Department reset backend error:',
+      error
+    );
 
-      return {
-        ...department,
-        waiting: 0,
-        current_queue: department.prefix
-          ? `${department.prefix}-0010`
-          : `${(
-              department.department_name ||
-              'D'
-            )
-              .charAt(0)
-              .toUpperCase()}-0010`,
-        active_terminals:
-          department.active_terminals,
-        avg_wait: '15m',
-        est_time: 15,
-      };
-    })
-  );
-
-  setShowResetPin(false);
-  setResettingIds([]);
-  setSelectedResetIds([]);
-  setPinInput('');
-  setError(null);
-
-  setSuccess(
-    selectedDepartments.length === 1
-      ? 'Department queue display has been reset.'
-      : `${selectedDepartments.length} departments have been reset.`
-  );
+    setError(
+      error?.message ||
+        'Failed to delete the selected departments from the backend.'
+    );
+  }
 }
 
   // =========================================================
@@ -1948,15 +1928,6 @@ function handleReset() {
   const filteredDepartments =
     departments.filter(
     (department) => {
-      // Hide departments that have been reset.
-      if (
-        resetDepartmentIds.includes(
-          department.id
-        )
-      ) {
-        return false;
-      }
-
       const search =
         searchQuery
           .toLowerCase()
@@ -2037,9 +2008,7 @@ const totalWaiting =
   );
 const activeDepts = departments.filter(
   (department) =>
-    !resetDepartmentIds.some(
-      (id) => String(id) === String(department.id)
-    )
+    String(department.status || '').toLowerCase() === 'active'
 ).length;
 
   const totalDepts = departments.length;
@@ -2574,12 +2543,7 @@ return (
             setShowResetSelection(false);
             setSelectedResetIds([]);
           }}
-          departments={departments.filter(
-            (department) =>
-              !resetDepartmentIds.includes(
-                department.department_id
-              )
-          )}
+          departments={departments}
           selectedResetIds={selectedResetIds}
           setSelectedResetIds={setSelectedResetIds}
           onContinue={handleResetSelectionContinue}

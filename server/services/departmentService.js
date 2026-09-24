@@ -636,9 +636,137 @@ const enrichedDepartments =
   |--------------------------------------------------------------------------
   */
 
+<<<<<<< HEAD
   module.exports = {
     getDepartments,
     createDepartment,
     updateDepartment,
     deleteDepartment,
   };
+=======
+async function resetDepartments(departmentIds = []) {
+  if (!Array.isArray(departmentIds) || departmentIds.length === 0) {
+    throw new Error("No departments selected for reset.");
+  }
+
+  const deletedDepartments = [];
+
+  for (const departmentId of departmentIds) {
+    // Check if the department exists first
+    const [departmentRows] = await pool.query(
+      `
+      SELECT *
+      FROM department
+      WHERE department_id = ?
+      LIMIT 1
+      `,
+      [departmentId]
+    );
+
+    if (departmentRows.length === 0) {
+      continue;
+    }
+
+    const department = departmentRows[0];
+
+    // Delete counters belonging to this department first
+    await pool.query(
+      `
+      DELETE FROM counter
+      WHERE department_id = ?
+      `,
+      [departmentId]
+    );
+
+    // Delete the department from MySQL
+    const [result] = await pool.query(
+      `
+      DELETE FROM department
+      WHERE department_id = ?
+      `,
+      [departmentId]
+    );
+
+    if (result.affectedRows > 0) {
+      deletedDepartments.push(department);
+
+      // Delete the corresponding Firebase department document
+      const firebaseAvailable = FORCE_FIREBASE_OFFLINE
+        ? false
+        : await checkFirebaseConnection();
+
+      if (firebaseAvailable) {
+        try {
+          await db
+            .collection("department")
+            .doc(departmentId)
+            .delete();
+
+          console.log(
+            `Department ${departmentId} deleted from MySQL and Firebase.`
+          );
+        } catch (error) {
+          console.error(
+            `Firebase DELETE failed for department ${departmentId}:`,
+            error.message
+          );
+
+          await pool.query(
+            `
+            INSERT INTO sync_queue
+            (
+              table_name,
+              record_id,
+              operation,
+              status,
+              error_message
+            )
+            VALUES (?, ?, ?, ?, ?)
+            `,
+            [
+              "department",
+              departmentId,
+              "delete",
+              "pending",
+              error.message,
+            ]
+          );
+        }
+      } else {
+        await pool.query(
+          `
+          INSERT INTO sync_queue
+          (
+            table_name,
+            record_id,
+            operation,
+            status
+          )
+          VALUES (?, ?, ?, ?)
+          `,
+          [
+            "department",
+            departmentId,
+            "delete",
+            "pending",
+          ]
+        );
+      }
+    }
+  }
+
+  return {
+    deletedCount: deletedDepartments.length,
+    deletedDepartments,
+  };
+}
+
+ module.exports = {
+  getDepartments,
+  getDepartmentById,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+  resetDepartments,
+};
+>>>>>>> feature/security-pin-change-email

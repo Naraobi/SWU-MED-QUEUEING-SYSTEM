@@ -655,7 +655,7 @@ function PinVerificationModal({
 
 /* ---------------- PIN Success Modal ---------------- */
 
-function PinSuccessModal({ onClose }) {
+function PinSuccessModal({ onClose, isChanging }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
@@ -665,12 +665,13 @@ function PinSuccessModal({ onClose }) {
           </div>
 
           <h2 className="mt-4 text-base font-bold text-[#1F2937]">
-            PIN Created
+            {isChanging ? 'PIN Changed' : 'PIN Created'}
           </h2>
 
           <p className="mt-2 max-w-xs text-xs leading-5 text-[#4B5563]">
-            Your security PIN has been successfully created. You can now use
-            it for protected kiosk and department operations.
+            {isChanging
+              ? 'Your security PIN has been successfully changed. You can now use it for protected kiosk and department operations.'
+              : 'Your security PIN has been successfully created. You can now use it for protected kiosk and department operations.'}
           </p>
 
           <button
@@ -704,6 +705,7 @@ export default function Settings() {
   const [pinStatusLoading, setPinStatusLoading] = useState(true);
   const [pendingPin, setPendingPin] = useState('');
   const [pinError, setPinError] = useState('');
+  const [isChangingPin, setIsChangingPin] = useState(false);
 
   useEffect(() => {
   let isMounted = true;
@@ -990,7 +992,10 @@ export default function Settings() {
             <button
               type="button"
               disabled={pinStatusLoading}
-              onClick={() => setActiveModal('createPin')}
+              onClick={() => {
+              setIsChangingPin(pinConfigured);
+              setActiveModal('createPin');
+            }}
               className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <LockKeyhole size={14} />
@@ -1211,6 +1216,7 @@ export default function Settings() {
       {activeModal === 'pinSuccess' && (
         <PinSuccessModal
           onClose={() => setActiveModal(null)}
+          isChanging={isChangingPin}
         />
       )}
     </div>

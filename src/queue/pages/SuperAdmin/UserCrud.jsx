@@ -997,15 +997,6 @@ export default function UserCrud({
   const [terminals, setTerminals] = useState([]);
   const [departments, setDepartments] = useState([]);
 
-  const [resetUserIds, setResetUserIds] = useState(() => {
-  try {
-    const stored = localStorage.getItem('swu_reset_users');
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-});
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -1582,12 +1573,6 @@ async function fetchPositions() {
     loadData();
   }, []);
 
-    useEffect(() => {
-      localStorage.setItem(
-        'swu_reset_users',
-        JSON.stringify(resetUserIds)
-      );
-    }, [resetUserIds]);
   /* =======================================================
      DEPARTMENTS FOR SELECTED KIOSK
   ======================================================= */
@@ -2273,7 +2258,7 @@ async function handleResetPinConfirm() {
       pinInput
     );
 
-    handleReset();
+    await handleReset();
   } catch (error) {
     console.error(
       'User reset Security PIN verification error:',
@@ -2291,7 +2276,7 @@ async function handleResetPinConfirm() {
   }
 }
 
-function handleReset() {
+async function handleReset() {
   if (resettingIds.length === 0) {
     return;
   }
@@ -2310,30 +2295,52 @@ function handleReset() {
     return;
   }
 
-  setResetUserIds((currentIds) => {
-    const newIds = selectedUsers.map(
-      (user) => user.user_id ?? user.id
+  try {
+    setVerifyingResetPin(true);
+    setError(null);
+    setSuccess('');
+
+    for (const user of selectedUsers) {
+      const userId = user.user_id ?? user.id;
+
+      await deleteUser(
+        userId,
+        'Reset User from User Management',
+        'superadmin'
+      );
+    }
+
+    setUsers((currentUsers) =>
+      currentUsers.filter(
+        (user) =>
+          !selectedUsers.some(
+            (selectedUser) =>
+              String(selectedUser.user_id ?? selectedUser.id) ===
+              String(user.user_id ?? user.id)
+          )
+      )
     );
 
-    return Array.from(
-      new Set([
-        ...currentIds,
-        ...newIds,
-      ])
+    setShowResetPin(false);
+    setResettingIds([]);
+    setSelectedResetIds([]);
+    setPinInput('');
+    setError(null);
+
+    setSuccess(
+      selectedUsers.length === 1
+        ? 'User has been reset successfully.'
+        : `${selectedUsers.length} users have been reset successfully.`
     );
-  });
-
-  setShowResetPin(false);
-  setResettingIds([]);
-  setSelectedResetIds([]);
-  setPinInput('');
-  setError(null);
-
-  setSuccess(
-    selectedUsers.length === 1
-      ? 'User has been reset.'
-      : `${selectedUsers.length} users have been reset.`
-  );
+  } catch (error) {
+    console.error('RESET USERS ERROR:', error);
+    setError(
+      error?.message ||
+        'Unable to reset the selected users.'
+    );
+  } finally {
+    setVerifyingResetPin(false);
+  }
 }
 
 
@@ -2341,14 +2348,7 @@ function handleReset() {
     setPage(1);
   }, [searchQuery]);
 
-const visibleUsers = users.filter(
-  (user) =>
-    !resetUserIds.some(
-      (id) =>
-        String(id) ===
-        String(user.user_id ?? user.id)
-    )
-);
+const visibleUsers = users;
 
 const normalizedRoles =
   visibleUsers.map(
@@ -3214,7 +3214,7 @@ function ResetPinModal({
             </p>
 
             <p className="mt-1 text-xs text-[#4B5563]">
-              This action hides the selected users from User Management.
+              This action permanently deletes the selected users from the system.
             </p>
           </div>
 
