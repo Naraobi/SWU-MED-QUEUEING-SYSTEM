@@ -1004,9 +1004,15 @@ export default function UserCrud({
   const [ duplicatePopup, setDuplicatePopup,  ] = useState(false);
 
 const [selectedResetIds, setSelectedResetIds] = useState([]);
+
 const [showResetSelection, setShowResetSelection] =
   useState(false);
+
+const [showResetConfirmation, setShowResetConfirmation] =
+  useState(false);
+
 const [resettingIds, setResettingIds] = useState([]);
+
 const [pinInput, setPinInput] = useState('');
 const [showResetPin, setShowResetPin] = useState(false);
 const [verifyingResetPin, setVerifyingResetPin] =
@@ -2226,9 +2232,20 @@ function handleResetSelectionContinue() {
   setResettingIds(selectedResetIds);
   setPinInput('');
   setShowResetSelection(false);
-  setShowResetPin(true);
+  setShowResetConfirmation(true);
   setError(null);
   setSuccess('');
+}
+
+function handleResetConfirmationNo() {
+  setShowResetConfirmation(false);
+  setResettingIds([]);
+}
+
+function handleResetConfirmationYes() {
+  setShowResetConfirmation(false);
+  setPinInput('');
+  setShowResetPin(true);
 }
 
 async function handleResetPinConfirm() {
@@ -2942,34 +2959,47 @@ const filteredUsers = visibleUsers.filter((user) => {
 />
            )}
 
-      <ResetUserSelectionModal
-        open={showResetSelection}
-        onClose={() => {
-          setShowResetSelection(false);
-          setSelectedResetIds([]);
-        }}
-        users={visibleUsers}
-        selectedResetIds={selectedResetIds}
-        setSelectedResetIds={setSelectedResetIds}
-        onContinue={handleResetSelectionContinue}
-      />
+   <ResetUserSelectionModal
+  open={showResetSelection}
+  onClose={() => {
+    setShowResetSelection(false);
+    setSelectedResetIds([]);
+  }}
+  users={visibleUsers}
+  selectedResetIds={selectedResetIds}
+  setSelectedResetIds={setSelectedResetIds}
+  onContinue={handleResetSelectionContinue}
+/>
 
-           <ResetPinModal
-        open={showResetPin}
-        onClose={() => {
-          if (verifyingResetPin) {
-            return;
-          }
+<ResetUserConfirmationModal
+  open={showResetConfirmation}
+  onClose={handleResetConfirmationNo}
+  onConfirm={handleResetConfirmationYes}
+  selectedUsers={users.filter((user) =>
+    resettingIds.some(
+      (id) =>
+        String(id) ===
+        String(user.user_id ?? user.id)
+    )
+  )}
+/>
 
-          setShowResetPin(false);
-          setResettingIds([]);
-          setPinInput('');
-        }}
-        onConfirm={handleResetPinConfirm}
-        pinInput={pinInput}
-        setPinInput={setPinInput}
-        verifying={verifyingResetPin}
-      />
+<ResetPinModal
+  open={showResetPin}
+  onClose={() => {
+    if (verifyingResetPin) {
+      return;
+    }
+
+    setShowResetPin(false);
+    setResettingIds([]);
+    setPinInput('');
+  }}
+  onConfirm={handleResetPinConfirm}
+  pinInput={pinInput}
+  setPinInput={setPinInput}
+  verifying={verifyingResetPin}
+/>
     </div>
   );
 }
@@ -3004,7 +3034,107 @@ function SummaryCard({
 </div>
   );
 }
+function ResetUserConfirmationModal({
+  open,
+  onClose,
+  onConfirm,
+  selectedUsers,
+}) {
+  if (!open) {
+    return null;
+  }
 
+  const count = selectedUsers.length;
+
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+
+        {/* HEADER */}
+
+        <div className="flex items-start gap-3 border-b border-[#E5E7EB] px-6 py-5">
+
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
+            <span className="text-lg font-bold">
+              !
+            </span>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-[#1F2937]">
+              Confirm Reset
+            </h2>
+
+            <p className="mt-1 text-xs leading-5 text-[#4B5563]">
+              Are you sure you want to reset the selected user
+              {count === 1 ? '' : 's'}?
+            </p>
+          </div>
+
+        </div>
+
+
+        {/* CONTENT */}
+
+        <div className="px-6 py-5">
+
+          <div className="rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3">
+
+            <p className="text-sm font-semibold text-[#1F2937]">
+              {count} user{count === 1 ? '' : 's'} selected
+            </p>
+
+            <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
+              {selectedUsers.map((user) => (
+                <p
+                  key={user.user_id ?? user.id}
+                  className="text-xs text-[#4B5563]"
+                >
+                  • {user.first_name} {user.last_name}
+                </p>
+              ))}
+            </div>
+
+          </div>
+
+          <p className="mt-3 text-xs leading-5 text-[#4B5563]">
+            The selected user{count === 1 ? '' : 's'} will be
+            permanently deleted from the system.
+          </p>
+
+          <p className="mt-2 text-xs font-semibold text-[#9D0A0E]">
+            You will be asked to enter the administrator PIN next.
+          </p>
+
+        </div>
+
+
+        {/* FOOTER */}
+
+        <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]"
+          >
+            No
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B]"
+          >
+            Yes, Continue
+          </button>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}
 
 function ResetUserSelectionModal({
   open,

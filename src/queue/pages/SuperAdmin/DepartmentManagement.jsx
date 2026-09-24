@@ -650,6 +650,106 @@ function ResetDepartmentSelectionModal({
 }
 
 // ===========================================================
+// RESET DEPARTMENT CONFIRMATION MODAL
+// ===========================================================
+function ResetDepartmentConfirmationModal({
+  open,
+  onClose,
+  onConfirm,
+  selectedDepartments,
+}) {
+  if (!open) {
+    return null;
+  }
+
+  const count = selectedDepartments.length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+
+        {/* Header */}
+        <div className="flex items-start gap-3 border-b border-[#E5E7EB] px-6 py-5">
+
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
+            <span className="text-lg font-bold">
+              !
+            </span>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-[#1F2937]">
+              Confirm Reset
+            </h2>
+
+            <p className="mt-1 text-xs leading-5 text-[#4B5563]">
+              Please confirm that you want to reset the selected department
+              {count === 1 ? '' : 's'}.
+            </p>
+          </div>
+
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5">
+
+          <div className="rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3">
+
+            <p className="text-sm font-semibold text-[#1F2937]">
+              {count} department{count === 1 ? '' : 's'} selected
+            </p>
+
+            <div className="mt-2 space-y-1">
+              {selectedDepartments.map((department) => (
+                <p
+                  key={department.id}
+                  className="text-xs text-[#4B5563]"
+                >
+                  • {department.department_name}
+                </p>
+              ))}
+            </div>
+
+          </div>
+
+          <p className="mt-3 text-xs leading-5 text-[#4B5563]">
+            The selected department{count === 1 ? '' : 's'} will be permanently
+            deleted along with their associated counters.
+          </p>
+
+          <p className="mt-2 text-xs font-semibold text-[#9D0A0E]">
+            You will be asked to enter the administrator PIN next.
+          </p>
+
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]"
+          >
+            No
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B]"
+          >
+            Yes, Continue
+          </button>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ===========================================================
 // RESET PIN MODAL
 // ===========================================================
 
@@ -798,6 +898,9 @@ export default function DepartmentCrud() {
 
 const [showResetSelection, setShowResetSelection] =
   useState(false);
+
+ const [showResetConfirmation, setShowResetConfirmation] =
+  useState(false); 
 
 const [resettingIds, setResettingIds] =
   useState([]);
@@ -1781,11 +1884,22 @@ if (duplicate) {
   }
 
   setResettingIds(selectedResetIds);
-  setPinInput('');
   setShowResetSelection(false);
-  setShowResetPin(true);
+  setShowResetConfirmation(true);
   setError(null);
   setSuccess('');
+}
+
+
+function handleResetConfirmationNo() {
+  setShowResetConfirmation(false);
+  setResettingIds([]);
+}
+
+function handleResetConfirmationYes() {
+  setShowResetConfirmation(false);
+  setPinInput('');
+  setShowResetPin(true);
 }
 
 async function handleResetPinConfirm() {
@@ -1857,7 +1971,7 @@ async function handleReset() {
   }
 
   try {
-    await resetDepartments(
+await resetDepartmentIds(
       selectedDepartments.map(
         (department) => department.id
       )
@@ -2533,11 +2647,21 @@ return (
           setSelectedResetIds={setSelectedResetIds}
           onContinue={handleResetSelectionContinue}
         />
+{/* =====================================================
+    RESET DEPARTMENT CONFIRMATION MODAL
+===================================================== */}
 
-        {/* =====================================================
-            RESET PIN MODAL
-        ===================================================== */}
-
+<ResetDepartmentConfirmationModal
+  open={showResetConfirmation}
+  onClose={handleResetConfirmationNo}
+  onConfirm={handleResetConfirmationYes}
+  selectedDepartments={departments.filter((department) =>
+    resettingIds.some(
+      (id) =>
+        String(id) === String(department.id)
+    )
+  )}
+/>
         <ResetPinModal
           open={showResetPin}
           onClose={() => {
