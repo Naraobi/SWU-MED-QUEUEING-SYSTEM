@@ -4,66 +4,129 @@ const API_URL =
   `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api`;
 
 // =====================================================
-// GET ALL DEPARTMENTS
+// DEPARTMENT API
 // =====================================================
 
 export async function getDepartments() {
-  const response = await fetch(
-    `${API_URL}/departments`
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to retrieve departments"
-    );
-  }
-
+  const response = await fetch(`${API_URL}/departments`);
   const result = await response.json();
 
-  if (!result.success) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve departments"
+      result.message || "Failed to retrieve departments"
     );
   }
 
   return result.data;
 }
 
-// =====================================================
-// GET DEPARTMENT BY ID
-// =====================================================
-
-export async function getDepartmentById(
-  departmentId
-) {
+export async function getDepartmentById(departmentId) {
   if (!departmentId) {
-    throw new Error(
-      "Department ID is required"
-    );
+    throw new Error("Department ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/departments/${departmentId}`
+    `${API_URL}/departments/${encodeURIComponent(departmentId)}`
   );
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve department"
+      result.message || "Failed to retrieve department"
     );
   }
 
   return result.data;
 }
+
+export async function createDepartment(department) {
+  if (!department) {
+    throw new Error("Department data is required");
+  }
+
+  const response = await fetch(`${API_URL}/departments`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(department),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to create department"
+    );
+  }
+
+  return result.data;
+}
+
+export async function updateDepartment(departmentId, department) {
+  if (!departmentId) {
+    throw new Error("Department ID is required");
+  }
+
+  if (!department) {
+    throw new Error("Department data is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/departments/${encodeURIComponent(departmentId)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(department),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to update department"
+    );
+  }
+
+  return result.data;
+}
+
+export async function deleteDepartment(departmentId) {
+  if (!departmentId) {
+    throw new Error("Department ID is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/departments/${encodeURIComponent(departmentId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to delete department"
+    );
+  }
+
+  return result;
+}
+
+// =====================================================
+// RESET / BULK DELETE DEPARTMENTS
+// =====================================================
 
 export async function resetDepartments(departmentIds) {
-  if (!Array.isArray(departmentIds) || departmentIds.length === 0) {
+  if (
+    !Array.isArray(departmentIds) ||
+    departmentIds.length === 0
+  ) {
     throw new Error("No departments selected for reset.");
   }
 
@@ -89,7 +152,8 @@ export async function resetDepartments(departmentIds) {
       result = JSON.parse(responseText);
     } catch {
       throw new Error(
-        `Failed to delete department ${departmentId}. Server returned an invalid response (HTTP ${response.status}).`
+        `Failed to delete department ${departmentId}. ` +
+        `Server returned an invalid response (HTTP ${response.status}).`
       );
     }
 
@@ -109,121 +173,82 @@ export async function resetDepartments(departmentIds) {
     data: results,
   };
 }
+
+// Backward compatibility for older components
+export const resetDepartmentIds = resetDepartments;
+
 // =====================================================
 // KIOSK API
 // =====================================================
 
 export async function getKiosks() {
-  const response = await fetch(
-    `${API_URL}/kiosks`
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to retrieve kiosks"
-    );
-  }
-
+  const response = await fetch(`${API_URL}/kiosks`);
   const result = await response.json();
 
-  if (!result.success) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve kiosks"
+      result.message || "Failed to retrieve kiosks"
     );
   }
 
   return result.data;
 }
 
-export async function getKioskById(
-  kioskId
-) {
+export async function getKioskById(kioskId) {
   if (!kioskId) {
-    throw new Error(
-      "Kiosk ID is required"
-    );
+    throw new Error("Kiosk ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/kiosks/${encodeURIComponent(
-      kioskId
-    )}`
+    `${API_URL}/kiosks/${encodeURIComponent(kioskId)}`
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to retrieve kiosk"
-    );
-  }
 
   const result = await response.json();
 
-  if (!result.success) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve kiosk"
+      result.message || "Failed to retrieve kiosk"
     );
   }
 
   return result.data;
 }
 
-export async function createKiosk(
-  kiosk
-) {
+export async function createKiosk(kiosk) {
   if (!kiosk) {
-    throw new Error(
-      "Kiosk data is required"
-    );
+    throw new Error("Kiosk data is required");
   }
 
-  const response = await fetch(
-    `${API_URL}/kiosks`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(kiosk),
-    }
-  );
+  const response = await fetch(`${API_URL}/kiosks`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(kiosk),
+  });
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to create kiosk"
+      result.message || "Failed to create kiosk"
     );
   }
 
   return result.data;
 }
 
-export async function updateKiosk(
-  kioskId,
-  kiosk
-) {
+export async function updateKiosk(kioskId, kiosk) {
   if (!kioskId) {
-    throw new Error(
-      "Kiosk ID is required"
-    );
+    throw new Error("Kiosk ID is required");
   }
 
   if (!kiosk) {
-    throw new Error(
-      "Kiosk data is required"
-    );
+    throw new Error("Kiosk data is required");
   }
 
   const response = await fetch(
-    `${API_URL}/kiosks/${encodeURIComponent(
-      kioskId
-    )}`,
+    `${API_URL}/kiosks/${encodeURIComponent(kioskId)}`,
     {
       method: "PUT",
       headers: {
@@ -235,32 +260,22 @@ export async function updateKiosk(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to update kiosk"
+      result.message || "Failed to update kiosk"
     );
   }
 
   return result.data;
 }
 
-export async function deleteKiosk(
-  kioskId
-) {
+export async function deleteKiosk(kioskId) {
   if (!kioskId) {
-    throw new Error(
-      "Kiosk ID is required"
-    );
+    throw new Error("Kiosk ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/kiosks/${encodeURIComponent(
-      kioskId
-    )}`,
+    `${API_URL}/kiosks/${encodeURIComponent(kioskId)}`,
     {
       method: "DELETE",
     }
@@ -268,13 +283,9 @@ export async function deleteKiosk(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to delete kiosk"
+      result.message || "Failed to delete kiosk"
     );
   }
 
@@ -286,55 +297,32 @@ export async function deleteKiosk(
 // =====================================================
 
 export async function getRoles() {
-  const response = await fetch(
-    `${API_URL}/roles`
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to retrieve roles"
-    );
-  }
-
+  const response = await fetch(`${API_URL}/roles`);
   const result = await response.json();
 
-  if (!result.success) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve roles"
+      result.message || "Failed to retrieve roles"
     );
   }
 
   return result.data;
 }
 
-export async function getRoleById(
-  roleId
-) {
+export async function getRoleById(roleId) {
   if (!roleId) {
-    throw new Error(
-      "Role ID is required"
-    );
+    throw new Error("Role ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/roles/${encodeURIComponent(
-      roleId
-    )}`
+    `${API_URL}/roles/${encodeURIComponent(roleId)}`
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to retrieve role"
-    );
-  }
 
   const result = await response.json();
 
-  if (!result.success) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve role"
+      result.message || "Failed to retrieve role"
     );
   }
 
@@ -346,72 +334,44 @@ export async function getRoleById(
 // =====================================================
 
 export async function getUsers() {
-  const response = await fetch(
-    `${API_URL}/users`
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to retrieve users"
-    );
-  }
-
+  const response = await fetch(`${API_URL}/users`);
   const result = await response.json();
 
-  if (!result.success) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve users"
+      result.message || "Failed to retrieve users"
     );
   }
 
   return result.data;
 }
 
-export async function getUserById(
-  userId
-) {
+export async function getUserById(userId) {
   if (!userId) {
-    throw new Error(
-      "User ID is required"
-    );
+    throw new Error("User ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/users/${encodeURIComponent(
-      userId
-    )}`
+    `${API_URL}/users/${encodeURIComponent(userId)}`
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to retrieve user"
-    );
-  }
 
   const result = await response.json();
 
-  if (!result.success) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve user"
+      result.message || "Failed to retrieve user"
     );
   }
 
   return result.data;
 }
 
-export async function getUserByEmail(
-  email
-) {
+export async function getUserByEmail(email) {
   if (!email) {
-    throw new Error(
-      "Email is required"
-    );
+    throw new Error("Email is required");
   }
 
-  const normalizedEmail =
-    email.trim().toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
 
   const response = await fetch(
     `${API_URL}/users/by-email/${encodeURIComponent(
@@ -421,74 +381,50 @@ export async function getUserByEmail(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve user"
+      result.message || "Failed to retrieve user"
     );
   }
 
   return result.data;
 }
 
-export async function createUser(
-  user
-) {
+export async function createUser(user) {
   if (!user) {
-    throw new Error(
-      "User data is required"
-    );
+    throw new Error("User data is required");
   }
 
-  const response = await fetch(
-    `${API_URL}/users`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(user),
-    }
-  );
+  const response = await fetch(`${API_URL}/users`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(user),
+  });
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to create user"
+      result.message || "Failed to create user"
     );
   }
 
   return result.data;
 }
 
-export async function updateUser(
-  userId,
-  user
-) {
+export async function updateUser(userId, user) {
   if (!userId) {
-    throw new Error(
-      "User ID is required"
-    );
+    throw new Error("User ID is required");
   }
 
   if (!user) {
-    throw new Error(
-      "User data is required"
-    );
+    throw new Error("User data is required");
   }
 
   const response = await fetch(
-    `${API_URL}/users/${encodeURIComponent(
-      userId
-    )}`,
+    `${API_URL}/users/${encodeURIComponent(userId)}`,
     {
       method: "PUT",
       headers: {
@@ -500,13 +436,9 @@ export async function updateUser(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to update user"
+      result.message || "Failed to update user"
     );
   }
 
@@ -519,23 +451,18 @@ export async function deleteUser(
   deletedBy = "superadmin"
 ) {
   if (!userId) {
-    throw new Error(
-      "User ID is required"
-    );
+    throw new Error("User ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/users/${encodeURIComponent(
-      userId
-    )}`,
+    `${API_URL}/users/${encodeURIComponent(userId)}`,
     {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        deletion_reason:
-          deletionReason || "",
+        deletion_reason: deletionReason || "",
         deletedBy,
       }),
     }
@@ -543,13 +470,9 @@ export async function deleteUser(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to delete user"
+      result.message || "Failed to delete user"
     );
   }
 
@@ -560,13 +483,9 @@ export async function deleteUser(
 // STAFF BY DEPARTMENT
 // =====================================================
 
-export async function getStaffByDepartment(
-  departmentId
-) {
+export async function getStaffByDepartment(departmentId) {
   if (!departmentId) {
-    throw new Error(
-      "Department ID is required"
-    );
+    throw new Error("Department ID is required");
   }
 
   const response = await fetch(
@@ -577,13 +496,9 @@ export async function getStaffByDepartment(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve department staff"
+      result.message || "Failed to retrieve department staff"
     );
   }
 
@@ -593,133 +508,75 @@ export async function getStaffByDepartment(
 // =====================================================
 // TERMINAL / COUNTER API
 // =====================================================
-//
-// These are terminal/counter records.
-//
-// They are separate from queue_ticket.
-//
-// counter table:
-//   counter_id
-//   department_id
-//   counter_number
-//   prefix
-//   assigned_staff_id
-//   status
-//
-// queue_ticket DOES NOT contain counter_id.
-// =====================================================
 
 export async function getTerminals() {
-  const response = await fetch(
-    `${API_URL}/counters`
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to retrieve terminals"
-    );
-  }
-
+  const response = await fetch(`${API_URL}/counters`);
   const result = await response.json();
 
-  if (!result.success) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve terminals"
+      result.message || "Failed to retrieve terminals"
     );
   }
 
   return result.data;
 }
 
-export async function getTerminalById(
-  terminalId
-) {
+export async function getTerminalById(terminalId) {
   if (!terminalId) {
-    throw new Error(
-      "Terminal ID is required"
-    );
+    throw new Error("Terminal ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/counters/${encodeURIComponent(
-      terminalId
-    )}`
+    `${API_URL}/counters/${encodeURIComponent(terminalId)}`
   );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to retrieve terminal"
-    );
-  }
 
   const result = await response.json();
 
-  if (!result.success) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve terminal"
+      result.message || "Failed to retrieve terminal"
     );
   }
 
   return result.data;
 }
 
-export async function createTerminal(
-  terminal
-) {
+export async function createTerminal(terminal) {
   if (!terminal) {
-    throw new Error(
-      "Terminal data is required"
-    );
+    throw new Error("Terminal data is required");
   }
 
-  const response = await fetch(
-    `${API_URL}/counters`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(terminal),
-    }
-  );
+  const response = await fetch(`${API_URL}/counters`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(terminal),
+  });
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to create terminal"
+      result.message || "Failed to create terminal"
     );
   }
 
   return result.data;
 }
 
-export async function updateTerminal(
-  terminalId,
-  terminal
-) {
+export async function updateTerminal(terminalId, terminal) {
   if (!terminalId) {
-    throw new Error(
-      "Terminal ID is required"
-    );
+    throw new Error("Terminal ID is required");
   }
 
   if (!terminal) {
-    throw new Error(
-      "Terminal data is required"
-    );
+    throw new Error("Terminal data is required");
   }
 
   const response = await fetch(
-    `${API_URL}/counters/${encodeURIComponent(
-      terminalId
-    )}`,
+    `${API_URL}/counters/${encodeURIComponent(terminalId)}`,
     {
       method: "PUT",
       headers: {
@@ -731,32 +588,22 @@ export async function updateTerminal(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to update terminal"
+      result.message || "Failed to update terminal"
     );
   }
 
   return result.data;
 }
 
-export async function deleteTerminal(
-  terminalId
-) {
+export async function deleteTerminal(terminalId) {
   if (!terminalId) {
-    throw new Error(
-      "Terminal ID is required"
-    );
+    throw new Error("Terminal ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/counters/${encodeURIComponent(
-      terminalId
-    )}`,
+    `${API_URL}/counters/${encodeURIComponent(terminalId)}`,
     {
       method: "DELETE",
     }
@@ -764,13 +611,9 @@ export async function deleteTerminal(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to delete terminal"
+      result.message || "Failed to delete terminal"
     );
   }
 
@@ -781,20 +624,13 @@ export async function deleteTerminal(
 // STAFF TERMINAL SESSION API
 // =====================================================
 
-export async function assignTerminal(
-  terminalId,
-  staffId
-) {
+export async function assignTerminal(terminalId, staffId) {
   if (!terminalId) {
-    throw new Error(
-      "Terminal ID is required"
-    );
+    throw new Error("Terminal ID is required");
   }
 
   if (!staffId) {
-    throw new Error(
-      "Staff ID is required"
-    );
+    throw new Error("Staff ID is required");
   }
 
   const response = await fetch(
@@ -814,33 +650,22 @@ export async function assignTerminal(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to assign terminal"
+      result.message || "Failed to assign terminal"
     );
   }
 
   return result.data;
 }
 
-export async function releaseTerminal(
-  terminalId,
-  staffId
-) {
+export async function releaseTerminal(terminalId, staffId) {
   if (!terminalId) {
-    throw new Error(
-      "Terminal ID is required"
-    );
+    throw new Error("Terminal ID is required");
   }
 
   if (!staffId) {
-    throw new Error(
-      "Staff ID is required"
-    );
+    throw new Error("Staff ID is required");
   }
 
   const response = await fetch(
@@ -860,43 +685,29 @@ export async function releaseTerminal(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to release terminal"
+      result.message || "Failed to release terminal"
     );
   }
 
   return result.data;
 }
 
-export async function getStaffTerminal(
-  staffId
-) {
+export async function getStaffTerminal(staffId) {
   if (!staffId) {
-    throw new Error(
-      "Staff ID is required"
-    );
+    throw new Error("Staff ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/counters/staff/${encodeURIComponent(
-      staffId
-    )}`
+    `${API_URL}/counters/staff/${encodeURIComponent(staffId)}`
   );
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve staff terminal"
+      result.message || "Failed to retrieve staff terminal"
     );
   }
 
@@ -907,13 +718,9 @@ export async function getStaffTerminal(
 // PATIENT API
 // =====================================================
 
-export async function getPatientDepartments(
-  kioskId
-) {
+export async function getPatientDepartments(kioskId) {
   if (!kioskId) {
-    throw new Error(
-      "Kiosk ID is required"
-    );
+    throw new Error("Kiosk ID is required");
   }
 
   const response = await fetch(
@@ -924,91 +731,62 @@ export async function getPatientDepartments(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve patient departments"
+      result.message || "Failed to retrieve patient departments"
     );
   }
 
   return result.data;
 }
 
-export async function createPatientQueue(
-  queueData
-) {
+export async function createPatientQueue(queueData) {
   if (!queueData) {
-    throw new Error(
-      "Queue data is required"
-    );
+    throw new Error("Queue data is required");
   }
 
-  const response = await fetch(
-    `${API_URL}/patients/queue`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(queueData),
-    }
-  );
+  const response = await fetch(`${API_URL}/patients/queue`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(queueData),
+  });
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to create patient queue"
+      result.message || "Failed to create patient queue"
     );
   }
 
   return result.data;
 }
 
-export async function getQueueTicket(
-  queueId
-) {
+export async function getQueueTicket(queueId) {
   if (!queueId) {
-    throw new Error(
-      "Queue ID is required"
-    );
+    throw new Error("Queue ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/patients/queue/${encodeURIComponent(
-      queueId
-    )}`
+    `${API_URL}/patients/queue/${encodeURIComponent(queueId)}`
   );
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve queue ticket"
+      result.message || "Failed to retrieve queue ticket"
     );
   }
 
   return result.data;
 }
 
-export async function getWaitingCount(
-  departmentId
-) {
+export async function getWaitingCount(departmentId) {
   if (!departmentId) {
-    throw new Error(
-      "Department ID is required"
-    );
+    throw new Error("Department ID is required");
   }
 
   const response = await fetch(
@@ -1019,13 +797,9 @@ export async function getWaitingCount(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve waiting count"
+      result.message || "Failed to retrieve waiting count"
     );
   }
 
@@ -1036,13 +810,9 @@ export async function getWaitingCount(
 // STAFF QUEUE API
 // =====================================================
 
-export async function fetchQueueState(
-  departmentPrefix
-) {
+export async function fetchQueueState(departmentPrefix) {
   if (!departmentPrefix) {
-    throw new Error(
-      "Department prefix is required"
-    );
+    throw new Error("Department prefix is required");
   }
 
   const response = await fetch(
@@ -1053,26 +823,18 @@ export async function fetchQueueState(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve queue state"
+      result.message || "Failed to retrieve queue state"
     );
   }
 
   return result.data;
 }
 
-export async function callNextPatient(
-  departmentPrefix
-) {
+export async function callNextPatient(departmentPrefix) {
   if (!departmentPrefix) {
-    throw new Error(
-      "Department prefix is required"
-    );
+    throw new Error("Department prefix is required");
   }
 
   const response = await fetch(
@@ -1089,26 +851,18 @@ export async function callNextPatient(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to call next patient"
+      result.message || "Failed to call next patient"
     );
   }
 
   return result.data;
 }
 
-export async function startService(
-  departmentPrefix
-) {
+export async function startService(departmentPrefix) {
   if (!departmentPrefix) {
-    throw new Error(
-      "Department prefix is required"
-    );
+    throw new Error("Department prefix is required");
   }
 
   const response = await fetch(
@@ -1125,26 +879,18 @@ export async function startService(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to start service"
+      result.message || "Failed to start service"
     );
   }
 
   return result.data;
 }
 
-export async function markPatientArrived(
-  departmentPrefix
-) {
+export async function markPatientArrived(departmentPrefix) {
   if (!departmentPrefix) {
-    throw new Error(
-      "Department prefix is required"
-    );
+    throw new Error("Department prefix is required");
   }
 
   const response = await fetch(
@@ -1161,26 +907,18 @@ export async function markPatientArrived(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to mark patient as arrived"
+      result.message || "Failed to mark patient as arrived"
     );
   }
 
   return result.data;
 }
 
-export async function recallCurrentPatient(
-  departmentPrefix
-) {
+export async function recallCurrentPatient(departmentPrefix) {
   if (!departmentPrefix) {
-    throw new Error(
-      "Department prefix is required"
-    );
+    throw new Error("Department prefix is required");
   }
 
   const response = await fetch(
@@ -1197,26 +935,18 @@ export async function recallCurrentPatient(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to recall patient"
+      result.message || "Failed to recall patient"
     );
   }
 
   return result.data;
 }
 
-export async function completeCurrentPatient(
-  departmentPrefix
-) {
+export async function completeCurrentPatient(departmentPrefix) {
   if (!departmentPrefix) {
-    throw new Error(
-      "Department prefix is required"
-    );
+    throw new Error("Department prefix is required");
   }
 
   const response = await fetch(
@@ -1233,26 +963,18 @@ export async function completeCurrentPatient(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to complete patient"
+      result.message || "Failed to complete patient"
     );
   }
 
   return result.data;
 }
 
-export async function skipCurrentPatient(
-  departmentPrefix
-) {
+export async function skipCurrentPatient(departmentPrefix) {
   if (!departmentPrefix) {
-    throw new Error(
-      "Department prefix is required"
-    );
+    throw new Error("Department prefix is required");
   }
 
   const response = await fetch(
@@ -1269,13 +991,9 @@ export async function skipCurrentPatient(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to cancel patient"
+      result.message || "Failed to cancel patient"
     );
   }
 
@@ -1287,66 +1005,43 @@ export async function fetchQueueHistory(
   options = {}
 ) {
   if (!departmentId) {
-    throw new Error(
-      "Department ID is required"
-    );
+    throw new Error("Department ID is required");
   }
 
-  const params =
-    new URLSearchParams();
+  const params = new URLSearchParams();
 
   if (options.search) {
-    params.set(
-      "search",
-      options.search
-    );
+    params.set("search", options.search);
   }
 
   if (options.status) {
-    params.set(
-      "status",
-      options.status
-    );
+    params.set("status", options.status);
   }
 
   if (options.range) {
-    params.set(
-      "range",
-      options.range
-    );
+    params.set("range", options.range);
   }
 
-  const queryString =
-    params.toString();
+  const queryString = params.toString();
 
   const response = await fetch(
     `${API_URL}/staff-queue/history/${encodeURIComponent(
       departmentId
-    )}${
-      queryString
-        ? `?${queryString}`
-        : ""
-    }`
+    )}${queryString ? `?${queryString}` : ""}`
   );
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve queue history"
+      result.message || "Failed to retrieve queue history"
     );
   }
 
   return result.data;
 }
 
-export async function fetchNotifications(
-  departmentPrefix
-) {
+export async function fetchNotifications(departmentPrefix) {
   if (!departmentPrefix) {
     return [];
   }
@@ -1359,13 +1054,9 @@ export async function fetchNotifications(
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve notifications"
+      result.message || "Failed to retrieve notifications"
     );
   }
 
@@ -1385,13 +1076,9 @@ export async function markAllNotificationsRead() {
 
   const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Failed to update notifications"
+      result.message || "Failed to update notifications"
     );
   }
 
@@ -1399,432 +1086,320 @@ export async function markAllNotificationsRead() {
 }
 
 // =====================================================
-// AUTHENTICATION API
-// =====================================================
-//
-// Firebase Authentication handles:
-//   - Email
-//   - Password
-//   - Authentication session
-//
-// Node.js / MySQL handles:
-//   - Application user profile
-//   - Role
-//   - Department
-//   - Kiosk
-//   - Position
-//   - Status
-//
-// Flow:
-//
-// React
-//   ↓
-// Firebase Authentication
-//   ↓
-// Firebase ID Token
-//   ↓
-// Node.js /api/auth/profile
-//   ↓
-// MySQL user profile
+// AUTHENTICATION / USER PROFILE API
 // =====================================================
 
-// -----------------------------------------------------
-// GET CURRENT USER PROFILE
-// GET /api/auth/profile
-// -----------------------------------------------------
-
-export async function getCurrentUserProfile(
-  firebaseUser
-) {
+export async function getCurrentUserProfile(firebaseUser) {
   if (!firebaseUser) {
-    throw new Error(
-      "Firebase user is required"
-    );
+    throw new Error("Firebase user is required");
   }
 
   try {
-    const token =
-      await firebaseUser.getIdToken();
+    const token = await firebaseUser.getIdToken();
 
-    const response = await fetch(
-      `${API_URL}/users/profile`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        "Failed to retrieve user profile"
-      );
-    }
+    const response = await fetch(`${API_URL}/users/profile`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
     const result = await response.json();
 
-    if (!result.success) {
+    if (!response.ok || !result.success) {
       throw new Error(
-        result.message ||
-          "Failed to retrieve user profile"
+        result.message || "Failed to retrieve user profile"
       );
     }
 
     return result.data;
-
   } catch (error) {
-    console.error(
-      "GET CURRENT USER PROFILE ERROR:",
-      error
+    console.error("GET CURRENT USER PROFILE ERROR:", error);
+    throw error;
+  }
+}
+
+// =====================================================
+// DASHBOARD ANALYTICS
+// =====================================================
+
+export async function getDashboardAnalytics(
+  firebaseUser,
+  startDate,
+  endDate
+) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  const token = await firebaseUser.getIdToken();
+  const params = new URLSearchParams();
+
+  if (startDate) {
+    params.set("startDate", startDate);
+  }
+
+  if (endDate) {
+    params.set("endDate", endDate);
+  }
+
+  const queryString = params.toString();
+
+  const response = await fetch(
+    `${API_URL}/dashboard/analytics${
+      queryString ? `?${queryString}` : ""
+    }`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to load dashboard analytics."
     );
+  }
+
+  return result.data;
+}
+
+// =====================================================
+// REPORTS ANALYTICS
+// =====================================================
+
+export async function getReportsAnalytics(
+  firebaseUser,
+  startDate,
+  endDate
+) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  const token = await firebaseUser.getIdToken();
+  const params = new URLSearchParams();
+
+  if (startDate) {
+    params.set("startDate", startDate);
+  }
+
+  if (endDate) {
+    params.set("endDate", endDate);
+  }
+
+  const queryString = params.toString();
+
+  const response = await fetch(
+    `${API_URL}/dashboard/analytics${
+      queryString ? `?${queryString}` : ""
+    }`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to load reports analytics."
+    );
+  }
+
+  return result.data;
+}
+
+// =====================================================
+// PASSWORD API
+// =====================================================
+
+export async function markPasswordChanged(firebaseUser) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  try {
+    const token = await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}/auth/password-changed`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    let result;
+
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error("The server returned an invalid response.");
+    }
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.message || "Failed to update password status."
+      );
+    }
+
+    return result.data;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
 
     throw error;
   }
 }
-  export async function createDepartment(
-    department
-  ) {
-    if (!department) {
-      throw new Error(
-        "Department data is required"
-      );
-    }
 
-    const response = await fetch(
-      `${API_URL}/departments`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(department),
-      }
-    );
+// =====================================================
+// LEGACY LOGIN
+// =====================================================
 
-    const result = await response.json();
-
-    if (
-      !response.ok ||
-      !result.success
-    ) {
-      throw new Error(
-        result.message ||
-          "Failed to create department"
-      );
-    }
-
-    return result.data;
+export async function loginUser(email, password) {
+  if (!email) {
+    throw new Error("Email is required");
   }
 
-  export async function updateDepartment(
-    departmentId,
-    department
-  ) {
-    if (!departmentId) {
-      throw new Error(
-        "Department ID is required"
-      );
-    }
-
-    if (!department) {
-      throw new Error(
-        "Department data is required"
-      );
-    }
-
-    const response = await fetch(
-      `${API_URL}/departments/${encodeURIComponent(
-        departmentId
-      )}`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(department),
-      }
-    );
-
-    const result = await response.json();
-
-    if (
-      !response.ok ||
-      !result.success
-    ) {
-      throw new Error(
-        result.message ||
-          "Failed to update department"
-      );
-    }
-
-    return result.data;
+  if (!password) {
+    throw new Error("Password is required");
   }
 
-  export async function deleteDepartment(
-    departmentId
-  ) {
-    if (!departmentId) {
-      throw new Error(
-        "Department ID is required"
-      );
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const response = await fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: normalizedEmail,
+      password,
+    }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || "Login failed.");
+  }
+
+  return result.data;
+}
+
+// =====================================================
+// KIOSK PIN API
+// =====================================================
+
+export async function verifyKioskPin(kioskId, pin) {
+  if (!kioskId) {
+    throw new Error("Kiosk ID is required");
+  }
+
+  if (!pin) {
+    throw new Error("Kiosk PIN is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/kiosks/${encodeURIComponent(
+      kioskId
+    )}/verify-pin`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        pin,
+      }),
     }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(
+      data?.message || "Unable to verify kiosk PIN."
+    );
+  }
+
+  return data;
+}
+
+// =====================================================
+// SECURITY PIN API
+// =====================================================
+
+export async function getSecurityPinStatus(firebaseUser) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  try {
+    const token = await firebaseUser.getIdToken();
 
     const response = await fetch(
-      `${API_URL}/departments/${encodeURIComponent(
-        departmentId
-      )}`,
+      `${API_URL}/security/pin/status`,
       {
-        method: "DELETE",
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       }
     );
 
     const result = await response.json();
 
-    if (
-      !response.ok ||
-      !result.success
-    ) {
+    if (!response.ok || !result.success) {
       throw new Error(
         result.message ||
-          "Failed to delete department"
+          "Failed to retrieve Security PIN status."
       );
     }
 
     return result;
-  }
-
-  export async function getDashboardAnalytics(
-    firebaseUser,
-    startDate,
-    endDate
-  ) {
-    if (!firebaseUser) {
-      throw new Error("Firebase user is required");
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
     }
 
+    throw error;
+  }
+}
+
+export async function setupSecurityPin(firebaseUser, pin) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  try {
     const token = await firebaseUser.getIdToken();
 
-    const params = new URLSearchParams();
-
-    if (startDate) {
-      params.set("startDate", startDate);
-    }
-
-    if (endDate) {
-      params.set("endDate", endDate);
-    }
-
-    const queryString = params.toString();
-
     const response = await fetch(
-      `${API_URL}/dashboard/analytics${
-        queryString ? `?${queryString}` : ""
-      }`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        result.message || "Failed to load dashboard analytics."
-      );
-    }
-
-    return result.data;
-  }
-
-  export async function getReportsAnalytics(firebaseUser, startDate, endDate) {
-    if (!firebaseUser) {
-      throw new Error("Firebase user is required");
-    }
-
-    const token = await firebaseUser.getIdToken();
-
-    const params = new URLSearchParams();
-
-    if (startDate) {
-      params.set("startDate", startDate);
-    }
-
-    if (endDate) {
-      params.set("endDate", endDate);
-    }
-
-    const queryString = params.toString();
-
-    const response = await fetch(
-      `${API_URL}/dashboard/analytics${queryString ? `?${queryString}` : ""}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        result.message || "Failed to load reports analytics."
-      );
-    }
-
-    return result.data;
-  }
-  // -----------------------------------------------------
-  // MARK PASSWORD AS CHANGED
-  // POST /api/auth/password-changed
-  // -----------------------------------------------------
-  //
-  // Firebase changes the actual password first.
-  //
-  // This function then tells Node.js to update:
-  //   must_change_password = 0
-  //   password_changed_at = current timestamp
-  //
-  // The Firebase ID token identifies the user.
-  // The frontend does NOT send a user ID.
-  // -----------------------------------------------------
-
-  export async function markPasswordChanged(
-    firebaseUser
-  ) {
-    if (!firebaseUser) {
-      throw new Error(
-        "Firebase user is required"
-      );
-    }
-
-    try {
-      const token =
-        await firebaseUser.getIdToken();
-
-      const response = await fetch(
-        `${API_URL}/auth/password-changed`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type":
-              "application/json",
-          },
-        }
-      );
-
-      let result;
-
-      try {
-        result =
-          await response.json();
-      } catch {
-        throw new Error(
-          "The server returned an invalid response."
-        );
-      }
-
-      if (
-        !response.ok ||
-        !result.success
-      ) {
-        throw new Error(
-          result.message ||
-            "Failed to update password status."
-        );
-      }
-
-      return result.data;
-    } catch (error) {
-      if (
-        error instanceof TypeError
-      ) {
-        throw new Error(
-          "Unable to connect to the backend server."
-        );
-      }
-
-      throw error;
-    }
-  }
-
-  // -----------------------------------------------------
-  // LEGACY LOGIN
-  // POST /api/auth/login
-  // -----------------------------------------------------
-
-  export async function loginUser(
-    email,
-    password
-  ) {
-    if (!email) {
-      throw new Error(
-        "Email is required"
-      );
-    }
-
-    if (!password) {
-      throw new Error(
-        "Password is required"
-      );
-    }
-
-    const normalizedEmail =
-      email.trim().toLowerCase();
-
-    const response = await fetch(
-      `${API_URL}/auth/login`,
+      `${API_URL}/security/pin/setup`,
       {
         method: "POST",
         headers: {
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          email: normalizedEmail,
-          password,
-        }),
-      }
-    );
-
-    const result =
-      await response.json();
-
-    if (
-      !response.ok ||
-      !result.success
-    ) {
-      throw new Error(
-        result.message ||
-          "Login failed."
-      );
-    }
-
-    return result.data;
-  }
-
-  // =====================================================
-  // KIOSK PIN API
-  // =====================================================
-
-  export async function verifyKioskPin(
-    kioskId,
-    pin
-  ) {
-    const response = await fetch(
-      `${API_URL}/kiosks/${kioskId}/verify-pin`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           pin,
@@ -1832,332 +1407,161 @@ export async function getCurrentUserProfile(
       }
     );
 
-    const data =
-      await response.json();
+    const result = await response.json();
 
-    if (!response.ok) {
+    if (!response.ok || !result.success) {
       throw new Error(
-        data?.message ||
-          "Unable to verify kiosk PIN."
+        result.message || "Failed to create the Security PIN."
       );
     }
 
-    return data;
+    return result;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
+
+    throw error;
+  }
+}
+
+export async function requestSecurityPinVerification(firebaseUser) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
   }
 
-  // =====================================================
-  // SECURITY PIN API
-  // =====================================================
+  try {
+    const token = await firebaseUser.getIdToken();
 
-  // -----------------------------------------------------
-  // GET SECURITY PIN STATUS
-  // GET /api/security/pin/status
-  // -----------------------------------------------------
+    const response = await fetch(
+      `${API_URL}/security/pin/request`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-  export async function getSecurityPinStatus(
-    firebaseUser
-  ) {
-    if (!firebaseUser) {
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
       throw new Error(
-        "Firebase user is required"
+        result.message || "Failed to send the verification code."
       );
     }
 
-    try {
-      const token =
-        await firebaseUser.getIdToken();
-
-      const response = await fetch(
-        `${API_URL}/security/pin/status`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type":
-              "application/json",
-          },
-        }
-      );
-
-      const result =
-        await response.json();
-
-      if (
-        !response.ok ||
-        !result.success
-      ) {
-        throw new Error(
-          result.message ||
-            "Failed to retrieve Security PIN status."
-        );
-      }
-
-      return result;
-    } catch (error) {
-      if (
-        error instanceof TypeError
-      ) {
-        throw new Error(
-          "Unable to connect to the backend server."
-        );
-      }
-
-      throw error;
-    }
-  }
-
-  // -----------------------------------------------------
-  // SET UP THE FIRST-EVER SECURITY PIN (NO EMAIL CODE)
-  // POST /api/security/pin/setup
-  // -----------------------------------------------------
-
-  export async function setupSecurityPin(
-    firebaseUser,
-    pin
-  ) {
-    if (!firebaseUser) {
+    return result;
+  } catch (error) {
+    if (error instanceof TypeError) {
       throw new Error(
-        "Firebase user is required"
+        "Unable to connect to the backend server."
       );
     }
 
-    try {
-      const token =
-        await firebaseUser.getIdToken();
-
-      const response = await fetch(
-        `${API_URL}/security/pin/setup`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            pin,
-          }),
-        }
-      );
-
-      const result =
-        await response.json();
-
-      if (
-        !response.ok ||
-        !result.success
-      ) {
-        throw new Error(
-          result.message ||
-            "Failed to create the Security PIN."
-        );
-      }
-
-      return result;
-    } catch (error) {
-      if (
-        error instanceof TypeError
-      ) {
-        throw new Error(
-          "Unable to connect to the backend server."
-        );
-      }
-
-      throw error;
-    }
+    throw error;
   }
+}
 
-  // -----------------------------------------------------
-  // REQUEST SECURITY PIN VERIFICATION CODE
-  // POST /api/security/pin/request
-  // -----------------------------------------------------
-
-  export async function requestSecurityPinVerification(
-    firebaseUser
-  ) {
-    if (!firebaseUser) {
-      throw new Error(
-        "Firebase user is required"
-      );
-    }
-
-    try {
-      const token =
-        await firebaseUser.getIdToken();
-
-      const response = await fetch(
-        `${API_URL}/security/pin/request`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type":
-              "application/json",
-          },
-        }
-      );
-
-      const result =
-        await response.json();
-
-      if (
-        !response.ok ||
-        !result.success
-      ) {
-        throw new Error(
-          result.message ||
-            "Failed to send the verification code."
-        );
-      }
-
-      return result;
-    } catch (error) {
-      if (
-        error instanceof TypeError
-      ) {
-        throw new Error(
-          "Unable to connect to the backend server."
-        );
-      }
-
-      throw error;
-    }
-  }
-
-  // -----------------------------------------------------
-  // VERIFY EMAIL CODE AND SAVE SECURITY PIN
-  // POST /api/security/pin/verify
-  // -----------------------------------------------------
-
-  export async function verifySecurityPinCode(
-    firebaseUser,
-    code,
-    pin
-  ) {
-    if (!firebaseUser) {
-      throw new Error(
-        "Firebase user is required"
-      );
-    }
-
-    try {
-      const token =
-        await firebaseUser.getIdToken();
-
-      const response = await fetch(
-        `${API_URL}/security/pin/verify`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            code,
-            pin,
-          }),
-        }
-      );
-
-      const result =
-        await response.json();
-
-      if (
-        !response.ok ||
-        !result.success
-      ) {
-        const error =
-          new Error(
-            result.message ||
-              "Failed to verify the Security PIN."
-          );
-
-        error.attemptsRemaining =
-          result.attemptsRemaining;
-
-        throw error;
-      }
-
-      return result;
-    } catch (error) {
-      if (
-        error instanceof TypeError
-      ) {
-        throw new Error(
-          "Unable to connect to the backend server."
-        );
-      }
-
-      throw error;
-    }
-  }
-
-  // -----------------------------------------------------
-  // VALIDATE SECURITY PIN
-  // POST /api/security/pin/validate
-  // -----------------------------------------------------
-
-  export async function validateSecurityPin(
-    firebaseUser,
-    pin
-  ) {
-    if (!firebaseUser) {
-      throw new Error(
-        "Firebase user is required"
-      );
-    }
-
-    try {
-      const token =
-        await firebaseUser.getIdToken();
-
-      const response = await fetch(
-        `${API_URL}/security/pin/validate`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            pin,
-          }),
-        }
-      );
-
-      const result =
-        await response.json();
-
-      if (
-        !response.ok ||
-        !result.success
-      ) {
-        throw new Error(
-          result.message ||
-            "Invalid Security PIN."
-        );
-      }
-
-      return result;
-    } catch (error) {
-      if (
-        error instanceof TypeError
-      ) {
-        throw new Error(
-          "Unable to connect to the backend server."
-        );
-      }
-
-      throw error;
-    }
-  }
-
-export async function validateKioskSecurityPin(
-  kioskId,
+export async function verifySecurityPinCode(
+  firebaseUser,
+  code,
   pin
 ) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  try {
+    const token = await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}/security/pin/verify`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code,
+          pin,
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      const error = new Error(
+        result.message ||
+          "Failed to verify the Security PIN."
+      );
+
+      error.attemptsRemaining =
+        result.attemptsRemaining;
+
+      throw error;
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
+
+    throw error;
+  }
+}
+
+export async function validateSecurityPin(firebaseUser, pin) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  try {
+    const token = await firebaseUser.getIdToken();
+
+    const response = await fetch(
+      `${API_URL}/security/pin/validate`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          pin,
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.message || "Invalid Security PIN."
+      );
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Unable to connect to the backend server."
+      );
+    }
+
+    throw error;
+  }
+}
+
+export async function validateKioskSecurityPin(kioskId, pin) {
   if (!kioskId) {
     throw new Error("Kiosk ID is required.");
   }
@@ -2180,57 +1584,47 @@ export async function validateKioskSecurityPin(
     }
   );
 
-  const result =
-    await response.json();
+  const result = await response.json();
 
-  if (
-    !response.ok ||
-    !result.success
-  ) {
+  if (!response.ok || !result.success) {
     throw new Error(
-      result.message ||
-        "Invalid Security PIN."
+      result.message || "Invalid Security PIN."
     );
   }
 
   return result;
 }
 
-  // =====================================================
-  // BACKEND / DATABASE TEST
-  // =====================================================
+// =====================================================
+// BACKEND / DATABASE TEST
+// =====================================================
 
-  export async function testBackend() {
-    const response = await fetch(
-      `${API_URL}/test`
-    );
+export async function testBackend() {
+  const response = await fetch(`${API_URL}/test`);
 
-    if (!response.ok) {
-      throw new Error(
-        "Backend request failed"
-      );
-    }
-
-    return response.json();
+  if (!response.ok) {
+    throw new Error("Backend request failed");
   }
 
-  export async function getDatabaseStatus() {
-    const response = await fetch(
-      `${API_URL}/database/status`
-    );
+  return response.json();
+}
 
-    if (!response.ok) {
-      throw new Error(
-        "Failed to retrieve database status"
-      );
-    }
+export async function getDatabaseStatus() {
+  const response = await fetch(`${API_URL}/database/status`);
 
-    return response.json();
+  if (!response.ok) {
+    throw new Error("Failed to retrieve database status");
   }
+
+  return response.json();
+}
+
+// =====================================================
+// POSITION API
+// =====================================================
+
 export async function getPositions() {
-  const response = await fetch(
-    `${API_URL}/positions`
-  );
+  const response = await fetch(`${API_URL}/positions`);
 
   if (!response.ok) {
     throw new Error(
@@ -2242,115 +1636,87 @@ export async function getPositions() {
 
   if (!result.success) {
     throw new Error(
-      result.message ||
-        "Failed to retrieve positions"
+      result.message || "Failed to retrieve positions"
     );
   }
 
   return result.data;
 }
-  export async function createPosition(
-    position
-  ) {
-    if (!position) {
-      throw new Error(
-        "Position data is required"
-      );
-    }
 
-    const response = await fetch(
-      `${API_URL}/positions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(position),
-      }
-    );
-
-    const result = await response.json();
-
-    if (
-      !response.ok ||
-      !result.success
-    ) {
-      throw new Error(
-        result.message ||
-          "Failed to create position"
-      );
-    }
-
-    return result.data;
+export async function createPosition(position) {
+  if (!position) {
+    throw new Error("Position data is required");
   }
 
-  export async function updatePosition(
-    positionId,
-    position
-  ) {
-    if (!positionId) {
-      throw new Error(
-        "Position ID is required"
-      );
-    }
+  const response = await fetch(`${API_URL}/positions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(position),
+  });
 
-    const response = await fetch(
-      `${API_URL}/positions/${encodeURIComponent(
-        positionId
-      )}`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(position),
-      }
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to create position"
     );
-
-    const result = await response.json();
-
-    if (
-      !response.ok ||
-      !result.success
-    ) {
-      throw new Error(
-        result.message ||
-          "Failed to update position"
-      );
-    }
-
-    return result.data;
   }
 
-  export async function deletePosition(
-    positionId
-  ) {
-    if (!positionId) {
-      throw new Error(
-        "Position ID is required"
-      );
-    }
+  return result.data;
+}
 
-    const response = await fetch(
-      `${API_URL}/positions/${encodeURIComponent(
-        positionId
-      )}`,
-      {
-        method: "DELETE",
-      }
-    );
-
-    const result = await response.json();
-
-    if (
-      !response.ok ||
-      !result.success
-    ) {
-      throw new Error(
-        result.message ||
-          "Failed to delete position"
-      );
-    }
-
-    return result.data;
+export async function updatePosition(positionId, position) {
+  if (!positionId) {
+    throw new Error("Position ID is required");
   }
+
+  if (!position) {
+    throw new Error("Position data is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/positions/${encodeURIComponent(positionId)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(position),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to update position"
+    );
+  }
+
+  return result.data;
+}
+
+export async function deletePosition(positionId) {
+  if (!positionId) {
+    throw new Error("Position ID is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/positions/${encodeURIComponent(positionId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to delete position"
+    );
+  }
+
+  return result.data;
+}
