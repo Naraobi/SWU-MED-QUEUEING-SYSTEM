@@ -91,7 +91,11 @@ function getQueueThemeColor(queueType) {
 ========================================================= */
 
 const TRACKER_BASE_URL =
-  'https://swu-med-queueing-system-1.onrender.com/tracker';
+  (import.meta.env.VITE_TRACKER_URL ||
+    `${window.location.origin}/tracker`).replace(
+      /\/+$/,
+      ''
+    );
 
 function getTrackerUrl(queueId) {
   if (!queueId) {

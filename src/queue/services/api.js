@@ -372,261 +372,41 @@ export async function fetchTicketStatus(
     }
 
     /*
-     * Patient tracker is still using Supabase
-     * for now.
+     * Patient tracker uses the Node.js backend.
      *
-     * This can be migrated to Node.js later.
+     * React
+     *   ↓
+     * api.js
+     *   ↓
+     * Node.js
+     *   ↓
+     * MySQL
      */
 
-    const {
-      data: ticket,
-      error: ticketError
-    } = await supabase
-      .from('queue_ticket')
-      .select(`
-        queue_id,
-        queue_number,
-        queue_sequence,
-        department_id,
-        counter_id,
-        status,
-        is_priority,
-        issued_at,
-        called_at,
-        service_began_at,
-        completed_at
-      `)
-      .eq(
-        'queue_id',
-        ticketId
-      )
-      .maybeSingle()
-
-    if (ticketError) {
-      console.error(
-        'Tracker ticket fetch error:',
-        ticketError
+    const response =
+      await fetch(
+        `${API_URL}/patients/queue/${encodeURIComponent(
+          ticketId
+        )}`
       )
 
-      return {
-        error:
-          'Unable to load your ticket.'
-      }
-    }
+    const result =
+      await response.json()
 
-    if (!ticket) {
+    if (
+      !response.ok ||
+      !result.success ||
+      !result.data
+    ) {
       return {
         error:
+          result.message ||
           'The ticket could not be found.'
       }
     }
 
-    const {
-      data: department,
-      error: departmentError
-    } = await supabase
-      .from('departments')
-      .select(`
-        department_id,
-        name,
-        est_time
-      `)
-      .eq(
-        'department_id',
-        ticket.department_id
-      )
-      .maybeSingle()
-
-    if (departmentError) {
-      console.error(
-        'Tracker department fetch error:',
-        departmentError
-      )
-    }
-
-    const departmentName =
-      department?.name ||
-      'Hospital Services'
-
-    const issuedDate =
-      new Date(
-        ticket.issued_at
-      )
-
-    const startOfDay =
-      new Date(
-        issuedDate
-      )
-
-    startOfDay.setHours(
-      0,
-      0,
-      0,
-      0
-    )
-
-    const endOfDay =
-      new Date(
-        issuedDate
-      )
-
-    endOfDay.setHours(
-      23,
-      59,
-      59,
-      999
-    )
-
-    const {
-      data: waitingTickets,
-      error: waitingError
-    } = await supabase
-      .from('queue_ticket')
-      .select(`
-        queue_id,
-        queue_sequence,
-        is_priority,
-        issued_at
-      `)
-      .eq(
-        'department_id',
-        ticket.department_id
-      )
-      .eq(
-        'status',
-        'waiting'
-      )
-      .gte(
-        'issued_at',
-        startOfDay.toISOString()
-      )
-      .lte(
-        'issued_at',
-        endOfDay.toISOString()
-      )
-      .order(
-        'is_priority',
-        {
-          ascending: false
-        }
-      )
-      .order(
-        'queue_sequence',
-        {
-          ascending: true
-        }
-      )
-
-    if (waitingError) {
-      console.error(
-        'Tracker waiting queue fetch error:',
-        waitingError
-      )
-    }
-
-    let peopleAhead = 0
-
-    if (waitingTickets) {
-      const ticketIndex =
-        waitingTickets.findIndex(
-          item =>
-            item.queue_id ===
-            ticket.queue_id
-        )
-
-      peopleAhead =
-        ticketIndex >= 0
-          ? ticketIndex
-          : 0
-    }
-
-    const {
-      data: servingTicket,
-      error: servingError
-    } = await supabase
-      .from('queue_ticket')
-      .select(`
-        queue_number,
-        counter_id,
-        called_at
-      `)
-      .eq(
-        'department_id',
-        ticket.department_id
-      )
-      .eq(
-        'status',
-        'serving'
-      )
-      .gte(
-        'issued_at',
-        startOfDay.toISOString()
-      )
-      .lte(
-        'issued_at',
-        endOfDay.toISOString()
-      )
-      .order(
-        'called_at',
-        {
-          ascending: false
-        }
-      )
-      .limit(1)
-      .maybeSingle()
-
-    if (servingError) {
-      console.error(
-        'Tracker serving ticket fetch error:',
-        servingError
-      )
-    }
-
-    const {
-      data: prediction,
-      error: predictionError
-    } = await supabase
-      .from('estimated_time')
-      .select(`
-        predicted_waiting_time,
-        generated_at
-      `)
-      .eq(
-        'department_id',
-        ticket.department_id
-      )
-      .order(
-        'generated_at',
-        {
-          ascending: false
-        }
-      )
-      .limit(1)
-      .maybeSingle()
-
-    if (predictionError) {
-      console.warn(
-        'AI estimate unavailable:',
-        predictionError
-      )
-    }
-
-    const fallbackServiceMinutes =
-      Number(
-        department?.est_time
-      ) || 5
-
-    const aiEstimatedWait =
-      prediction?.predicted_waiting_time
-
-    const estimatedWaitMinutes =
-      aiEstimatedWait !== null &&
-      aiEstimatedWait !== undefined
-        ? Number(
-            aiEstimatedWait
-          )
-        : peopleAhead *
-          fallbackServiceMinutes
+    const ticket =
+      result.data
 
     return {
       status:
@@ -637,26 +417,31 @@ export async function fetchTicketStatus(
         ticket.queue_number,
 
       department:
-        departmentName,
+        ticket.department ||
+        'Hospital Services',
 
       terminal:
-        ticket.counter_number
-          ? `Counter ${ticket.counter_number}`
-          : 'Assigned Counter',
+        ticket.terminal ||
+        'Assigned Counter',
 
       nowServing:
-        servingTicket?.queue_number ||
+        ticket.now_serving ||
         '—',
 
-      peopleAhead,
+      peopleAhead:
+        Number(
+          ticket.people_ahead
+        ) || 0,
 
-      estimatedWaitMinutes,
+      estimatedWaitMinutes:
+        Number(
+          ticket.estimated_wait_minutes
+        ) || 0,
 
       totalAheadAtIssue:
-        Math.max(
-          peopleAhead,
-          1
-        )
+        Number(
+          ticket.total_ahead_at_issue
+        ) || 0
     }
   } catch (error) {
     console.error(
