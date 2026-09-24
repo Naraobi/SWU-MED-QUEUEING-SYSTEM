@@ -811,7 +811,6 @@ const [resettingIds, setResettingIds] =
   const [verifyingResetPin, setVerifyingResetPin] =
   useState(false);  
 
-<<<<<<< HEAD
   useEffect(() => {
     localStorage.setItem(
       'swu_reset_departments',
@@ -822,20 +821,6 @@ const [resettingIds, setResettingIds] =
 // =========================================================
 // REFRESH LIVE QUEUE DATA
 // =========================================================
-=======
-  // =========================================================
-  // FETCH KIOSKS THROUGH NODE.JS
-  // =========================================================
-  //
-  // React no longer talks directly to Firebase.
-  //
-  // React → backendApi.js
-  //       → GET /api/kiosks
-  //       → kioskRoutes.js
-  //       → kioskService.js
-  //       → Firebase / MySQL
-  //
->>>>>>> feature/security-pin-change-email
 
 useEffect(() => {
   const interval = setInterval(() => {
