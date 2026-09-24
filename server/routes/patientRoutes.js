@@ -6,19 +6,46 @@ const { db } = require("../config/firebase");
 
 const router = express.Router();
 
-/*
-|--------------------------------------------------------------------------
-| GET DEPARTMENTS BY KIOSK
-|--------------------------------------------------------------------------
-|
-| GET /api/patients/departments/:kioskId
-|
-| MySQL table:
-| department
-|
-| Returns only active departments assigned to the selected kiosk.
-|--------------------------------------------------------------------------
-*/
+async function triggerQueuePrediction(queueId) {
+  try {
+    const response = await fetch(
+      "https://swu-med-n8n.onrender.com/webhook/queue-prediction",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          event: "queue_created",
+          queue_id: queueId,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        "n8n queue prediction webhook failed:",
+        response.status,
+        await response.text()
+      );
+
+      return false;
+    }
+
+    console.log(
+      `n8n queue prediction triggered for queue: ${queueId}`
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "Failed to trigger n8n queue prediction:",
+      error.message
+    );
+
+    return false;
+  }
+}
 
 router.get("/departments/:kioskId", async (req, res) => {
   const { kioskId } = req.params;
@@ -68,47 +95,6 @@ router.get("/departments/:kioskId", async (req, res) => {
   }
 });
 
-
-/*
-|--------------------------------------------------------------------------
-| CREATE PATIENT QUEUE TICKET
-|--------------------------------------------------------------------------
-|
-| POST /api/patients/queue
-|
-| Creates:
-|
-| 1. patient record in MySQL
-| 2. queue_ticket record in MySQL
-| 3. patient document in Firebase
-| 4. queue_tickets document in Firebase
-|
-| DATABASE STRATEGY:
-|
-| MySQL is written first because it is the local/primary queue database.
-|
-| After MySQL successfully commits, Firebase is synchronized.
-|
-| IMPORTANT:
-| If Firebase fails:
-|
-| - MySQL data remains valid.
-| - Queue creation is still successful.
-| - firebase_synced is returned as false.
-|
-| Firebase document IDs:
-|
-| patients/{transaction_id}
-| queue_tickets/{queue_id}
-|
-| IMPORTANT:
-| queue_ticket uses transaction_id to reference:
-| patient.transaction_id
-|
-| No counter_id.
-| No skip_reason.
-|--------------------------------------------------------------------------
-*/
 
 router.post("/queue", async (req, res) => {
   const {
@@ -445,24 +431,9 @@ router.post("/queue", async (req, res) => {
       ]
     );
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | COMMIT MYSQL TRANSACTION
-    |--------------------------------------------------------------------------
-    |
-    | At this point the local MySQL database contains both:
-    |
-    | patient
-    | queue_ticket
-    |
-    | If Firebase later fails, these records remain valid.
-    |--------------------------------------------------------------------------
-    */
-
     await connection.commit();
 
-
+triggerQueuePrediction(queueId);
     /*
     |--------------------------------------------------------------------------
     | PREPARE RESPONSE / FIREBASE DATA
@@ -648,21 +619,6 @@ router.post("/queue", async (req, res) => {
       );
 
     } catch (firebaseSyncError) {
-
-      /*
-      |--------------------------------------------------------------------------
-      | FIREBASE SYNC FAILED
-      |--------------------------------------------------------------------------
-      |
-      | DO NOT ROLLBACK MYSQL.
-      |
-      | The MySQL transaction has already been committed.
-      |
-      | This allows the hospital queue to continue operating even if
-      | Firebase is temporarily unavailable.
-      |--------------------------------------------------------------------------
-      */
-
       firebaseSynced = false;
 
       firebaseError =
@@ -786,52 +742,54 @@ router.get(
   "/queue/:queueId",
   async (req, res) => {
 
-    const { queueId } =
-      req.params;
+    const { queueId } = req.params;
 
     if (!queueId) {
       return res.status(400).json({
         success: false,
-        message:
-          "Queue ID is required.",
+        message: "Queue ID is required.",
       });
     }
 
     try {
 
-      const [rows] =
-        await pool.query(
-          `
-          SELECT
-            qt.queue_id,
-            qt.issued_at,
-            qt.department_id,
-            qt.transaction_id,
-            qt.queue_number,
-            qt.queue_sequence,
-            qt.called_at,
-            qt.service_began_at,
-            qt.completed_at,
-            qt.status,
-            qt.is_priority,
+      /*
+      |--------------------------------------------------------------------------
+      | GET QUEUE TICKET
+      |--------------------------------------------------------------------------
+      */
 
-            p.transaction_id AS patient_transaction_id,
-            p.department,
-            p.location,
-            p.patient_number
+      const [rows] = await pool.query(
+        `
+        SELECT
+          qt.queue_id,
+          qt.issued_at,
+          qt.department_id,
+          qt.transaction_id,
+          qt.queue_number,
+          qt.queue_sequence,
+          qt.called_at,
+          qt.service_began_at,
+          qt.completed_at,
+          qt.status,
+          qt.is_priority,
 
-          FROM queue_ticket qt
+          p.transaction_id AS patient_transaction_id,
+          p.department,
+          p.location,
+          p.patient_number
 
-          INNER JOIN patient p
-            ON qt.transaction_id =
-               p.transaction_id
+        FROM queue_ticket qt
 
-          WHERE qt.queue_id = ?
+        INNER JOIN patient p
+          ON qt.transaction_id = p.transaction_id
 
-          LIMIT 1
-          `,
-          [queueId]
-        );
+        WHERE qt.queue_id = ?
+
+        LIMIT 1
+        `,
+        [queueId]
+      );
 
 
       /*
@@ -843,21 +801,125 @@ router.get(
       if (rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message:
-            "Queue ticket not found.",
+          message: "Queue ticket not found.",
         });
       }
 
 
+      const ticket = rows[0];
+
+
       /*
       |--------------------------------------------------------------------------
-      | RETURN QUEUE
+      | GET TODAY'S AI PREDICTION
+      |--------------------------------------------------------------------------
+      */
+
+      const [predictionRows] = await pool.query(
+        `
+        SELECT
+          prediction_id,
+          department_id,
+          prediction_date,
+          queue_length,
+          priority_count,
+          active_staff_count,
+          avg_service_minutes,
+          avg_waiting_minutes,
+          predicted_waiting_time,
+          generated_at,
+          updated_at
+
+        FROM ai_queue_prediction
+
+        WHERE department_id = ?
+          AND prediction_date = CURDATE()
+
+        LIMIT 1
+        `,
+        [ticket.department_id]
+      );
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | AI PREDICTION
+      |--------------------------------------------------------------------------
+      */
+
+      const prediction =
+        predictionRows.length > 0
+          ? predictionRows[0]
+          : null;
+
+
+      /*
+      |--------------------------------------------------------------------------
+      | RETURN QUEUE + AI PREDICTION
       |--------------------------------------------------------------------------
       */
 
       return res.json({
         success: true,
-        data: rows[0],
+
+        data: {
+          ...ticket,
+
+          // AI estimated waiting time
+          estimated_waiting_minutes:
+            prediction
+              ? Number(
+                  prediction.predicted_waiting_time
+                )
+              : 0,
+
+          // AI prediction information
+          ai_prediction: prediction
+            ? {
+                prediction_id:
+                  prediction.prediction_id,
+
+                prediction_date:
+                  prediction.prediction_date,
+
+                queue_length:
+                  Number(
+                    prediction.queue_length
+                  ) || 0,
+
+                priority_count:
+                  Number(
+                    prediction.priority_count
+                  ) || 0,
+
+                active_staff_count:
+                  Number(
+                    prediction.active_staff_count
+                  ) || 0,
+
+                avg_service_minutes:
+                  Number(
+                    prediction.avg_service_minutes
+                  ) || 0,
+
+                avg_waiting_minutes:
+                  Number(
+                    prediction.avg_waiting_minutes
+                  ) || 0,
+
+                predicted_waiting_time:
+                  Number(
+                    prediction.predicted_waiting_time
+                  ) || 0,
+
+                generated_at:
+                  prediction.generated_at,
+
+                updated_at:
+                  prediction.updated_at,
+              }
+            : null,
+        },
       });
 
     } catch (error) {
@@ -871,13 +933,11 @@ router.get(
         success: false,
         message:
           "Failed to retrieve queue ticket.",
-        error:
-          error.message,
+        error: error.message,
       });
     }
   }
 );
-
 
 /*
 |--------------------------------------------------------------------------
