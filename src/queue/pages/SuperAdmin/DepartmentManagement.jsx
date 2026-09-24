@@ -11,7 +11,8 @@ import {
   validateSecurityPin,
   resetDepartmentIds,
 } from '../../services/backendApi';
-
+import AddKioskModal from '../../components/modals/AddKioskModal';
+import AddDepartmentModal from '../../components/modals/AddDepartmentModal';
 import {
   Search,
   Building2,
@@ -21,8 +22,6 @@ import {
   Plus,
   X,
   Check,
-  ChevronDown,
-  MapPin,
 } from 'lucide-react';
 
 // ===========================================================
@@ -101,374 +100,6 @@ function getPageNumbers(currentPage, totalPages) {
     (_, i) => start + i
   );
 }
-
-// ===========================================================
-// DEPARTMENT MODAL
-// ===========================================================
-
-function DepartmentModal({
-  open,
-  onClose,
-  onSave,
-  form,
-  setForm,
-  saving,
-  kiosks,
-  isEditing,
-}) {
-  if (!open) {
-    return null;
-  }
-
-  const activeKiosks = kiosks.filter(
-    (kiosk) =>
-      String(kiosk.status || '').toLowerCase() ===
-      'active'
-  );
-
-  const selectedKiosk = kiosks.find(
-    (kiosk) =>
-      String(kiosk.kiosk_id) ===
-        String(form.kiosk_id) ||
-      String(kiosk.firestore_id || '') ===
-        String(form.kiosk_id)
-  );
-
-  const selectableKiosks = [
-    ...activeKiosks,
-    ...(selectedKiosk &&
-    String(selectedKiosk.status || '').toLowerCase() !==
-      'active' &&
-    !activeKiosks.some(
-      (kiosk) =>
-        String(kiosk.kiosk_id) ===
-        String(selectedKiosk.kiosk_id)
-    )
-      ? [selectedKiosk]
-      : []),
-  ];
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-
-        {/* ===================================================
-            HEADER
-        =================================================== */}
-
-        <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
-
-          <div>
-            <h2 className="text-lg font-bold text-[#1F2937]">
-              {isEditing
-                ? 'Edit Department'
-                : 'Add New Department'}
-            </h2>
-
-            <p className="mt-1 text-xs text-[#4B5563]">
-              {isEditing
-                ? 'Update the department configuration below.'
-                : 'Create a department and assign it to a kiosk.'}
-            </p>
-
-            <p className="mt-0.5 text-xs text-[#4B5563]">
-              Fields marked{' '}
-              <span className="text-[#9D0A0E]">*</span>
-              {' '}are required.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30 disabled:opacity-40"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-
-        </div>
-
-
-        {/* ===================================================
-            BODY
-        =================================================== */}
-
-        <div className="space-y-4 px-6 py-5">
-
-          {/* ----- KIOSK ----- */}
-
-          <div>
-
-            <label
-              htmlFor="department-kiosk"
-              className="mb-1 block text-sm font-semibold text-[#1F2937]"
-            >
-              Kiosk
-              <span className="ml-0.5 text-[#9D0A0E]">*</span>
-            </label>
-
-            <div className="relative">
-
-              <Monitor
-                size={16}
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#4B5563]"
-              />
-
-              <select
-                id="department-kiosk"
-                value={form.kiosk_id}
-                onChange={(e) =>
-                  setForm((current) => ({
-                    ...current,
-                    kiosk_id: e.target.value,
-                  }))
-                }
-                disabled={saving}
-                className="w-full appearance-none rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-10 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-
-                <option value="">
-                  Select a kiosk
-                </option>
-
-                {selectableKiosks.length > 0 ? (
-                  selectableKiosks.map(
-                    (kiosk) => (
-                      <option
-                        key={kiosk.kiosk_id}
-                        value={kiosk.kiosk_id}
-                      >
-                        {kiosk.name}
-                        {String(
-                          kiosk.status || ''
-                        ).toLowerCase() !== 'active'
-                          ? ' (Inactive)'
-                          : ''}
-                      </option>
-                    )
-                  )
-                ) : (
-                  <option
-                    value=""
-                    disabled
-                  >
-                    No active kiosks found
-                  </option>
-                )}
-
-              </select>
-
-              <ChevronDown
-                size={16}
-                aria-hidden="true"
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#4B5563]"
-              />
-
-            </div>
-
-            {/* Assignment confirmation chip */}
-
-            {selectedKiosk && (
-              <p className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[#F0DADA] bg-[#FBF1F1] px-2.5 py-1 text-xs font-medium text-[#9D0A0E]">
-                <MapPin size={12} />
-                Assigning to: {selectedKiosk.name}
-              </p>
-            )}
-
-            {activeKiosks.length === 0 && (
-              <p className="mt-1.5 text-xs text-[#9D0A0E]">
-                No active kiosks are available. Please add or activate a kiosk first.
-              </p>
-            )}
-
-            {!form.kiosk_id &&
-              activeKiosks.length > 0 && (
-                <p className="mt-1.5 text-xs text-[#4B5563]">
-                  Select the kiosk where this department will be assigned.
-                </p>
-              )}
-
-          </div>
-
-
-          {/* ----- DEPARTMENT NAME ----- */}
-
-          <div>
-
-            <label
-              htmlFor="department-name"
-              className="mb-1 block text-sm font-semibold text-[#1F2937]"
-            >
-              Department Name
-              <span className="ml-0.5 text-[#9D0A0E]">*</span>
-            </label>
-
-            <input
-              id="department-name"
-              type="text"
-              value={form.department_name}
-              onChange={(e) =>
-                setForm((current) => ({
-                  ...current,
-                  department_name:
-                    e.target.value,
-                }))
-              }
-              disabled={
-                !form.kiosk_id ||
-                saving
-              }
-              className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:cursor-not-allowed disabled:bg-[#F1F3F5] disabled:text-[#9CA3AF]"
-              placeholder={
-                form.kiosk_id
-                  ? 'e.g. Laboratory, Pharmacy, Billing'
-                  : 'Select a kiosk first'
-              }
-            />
-
-            {!form.kiosk_id && (
-              <p className="mt-1.5 text-xs text-[#4B5563]">
-                Department name becomes available after selecting a kiosk.
-              </p>
-            )}
-
-          </div>
-
-
-          {/* ----- PREFIX + STATUS ----- */}
-
-          <div className="grid grid-cols-2 gap-4">
-
-            <div>
-
-              <label
-                htmlFor="department-prefix"
-                className="mb-1 block text-sm font-semibold text-[#1F2937]"
-              >
-                Department Prefix
-                <span className="ml-0.5 text-[#9D0A0E]">*</span>
-              </label>
-
-              <input
-                id="department-prefix"
-                type="text"
-                value={form.prefix}
-                onChange={(e) =>
-                  setForm((current) => ({
-                    ...current,
-                    prefix:
-                      e.target.value.toUpperCase(),
-                  }))
-                }
-                disabled={
-                  !form.kiosk_id ||
-                  saving
-                }
-                className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:cursor-not-allowed disabled:bg-[#F1F3F5] disabled:text-[#9CA3AF]"
-                placeholder="e.g. L or P"
-              />
-
-              <p className="mt-1.5 text-xs text-[#4B5563]">
-                Tickets will show as{' '}
-                {form.prefix
-                  ? `${form.prefix}-001`
-                  : 'ML-001'}
-              </p>
-
-            </div>
-
-
-            <div>
-
-              <label className="mb-1 block text-sm font-semibold text-[#1F2937]">
-                Status
-              </label>
-
-              <div className="inline-flex rounded-lg border border-[#E5E7EB] p-1">
-                {STATUS_OPTIONS.map((status) => {
-                  const isSelected =
-                    form.status === status;
-
-                  const isDisabled =
-                    !form.kiosk_id || saving;
-
-                  return (
-                    <button
-                      key={status}
-                      type="button"
-                      disabled={isDisabled}
-                      onClick={() =>
-                        setForm((current) => ({
-                          ...current,
-                          status: status,
-                        }))
-                      }
-                      aria-pressed={isSelected}
-                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium capitalize transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                        isSelected
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'text-[#4B5563] hover:bg-[#F1F3F5]'
-                      }`}
-                    >
-                      {isSelected && (
-                        <Check size={14} />
-                      )}
-
-                      {status}
-                    </button>
-                  );
-                })}
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-
-        {/* ===================================================
-            FOOTER
-        =================================================== */}
-
-        <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
-
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-40"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={
-              saving ||
-              !form.kiosk_id ||
-              !form.department_name.trim()
-            }
-            className="flex items-center gap-1.5 rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {saving
-              ? 'Saving...'
-              : isEditing
-                ? 'Save Changes'
-                : '+ Add Department'}
-          </button>
-
-        </div>
-
-      </div>
-    </div>
-  );
-}
-
 // ===========================================================
 // RESET DEPARTMENT SELECTION MODAL
 // ===========================================================
@@ -893,7 +524,8 @@ export default function DepartmentCrud() {
     useState({
       ...EMPTY_FORM,
     });
-
+const [showAddKioskModal, setShowAddKioskModal] =
+  useState(false);
   const [selectedResetIds, setSelectedResetIds] = useState([]);
 
 const [showResetSelection, setShowResetSelection] =
@@ -920,6 +552,10 @@ const [resettingIds, setResettingIds] =
       JSON.stringify(resetDepartmentIds)
     );
   }, [resetDepartmentIds]);
+
+  function handleAddKiosk() {
+  setShowAddKioskModal(true);
+}
 
 // =========================================================
 // REFRESH LIVE QUEUE DATA
@@ -2620,17 +2256,57 @@ return (
         ===================================================== */}
 
         {isModalOpen && (
-          <DepartmentModal
-            open={isModalOpen}
-            form={form}
-            setForm={setForm}
-            onSave={handleSave}
-            onClose={closeModal}
-            isEditing={isEditing}
-            saving={saving}
-            kiosks={kiosks}
-          />
+<AddDepartmentModal
+  open={isModalOpen}
+  form={form}
+  setForm={setForm}
+  onSave={handleSave}
+  onClose={closeModal}
+  isEditing={isEditing}
+  saving={saving}
+  kiosks={kiosks}
+  onAddKiosk={handleAddKiosk}
+/>
         )}
+    <AddKioskModal
+  open={showAddKioskModal}
+  onClose={() => setShowAddKioskModal(false)}
+  onSuccess={(newKiosk) => {
+    const formattedKiosk = {
+      kiosk_id:
+        newKiosk.kiosk_id ??
+        newKiosk.id,
+
+      firestore_id:
+        newKiosk.firestore_id ??
+        '',
+
+      name:
+        newKiosk.name ??
+        newKiosk.kiosk ??
+        'Unnamed Kiosk',
+
+      status:
+        String(
+          newKiosk.status ??
+            'active'
+        ).toLowerCase(),
+    };
+
+    setKiosks((current) => [
+      ...current,
+      formattedKiosk,
+    ]);
+
+    setForm((current) => ({
+      ...current,
+      kiosk_id:
+        formattedKiosk.kiosk_id,
+    }));
+
+    setShowAddKioskModal(false);
+  }}
+/>
 
         {/* =====================================================
             RESET DEPARTMENT SELECTION MODAL

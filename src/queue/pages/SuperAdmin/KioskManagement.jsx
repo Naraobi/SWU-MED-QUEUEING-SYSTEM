@@ -12,9 +12,9 @@ import {
   X,
 } from 'lucide-react';
 
+import AddKioskModal from '../../components/modals/AddKioskModal';
 import {
   getKiosks,
-  createKiosk,
   updateKiosk,
   getDepartments,
   getTerminals,
@@ -23,44 +23,18 @@ import {
   updateTerminal,
 } from '../../services/backendApi';
 
+
 export default function KioskManagement() {
-  // =============================================
-  // DATA
-  // =============================================
 
   const [kiosks, setKiosks] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [terminals, setTerminals] = useState([]);
   const [staffOptions, setStaffOptions] = useState([]);
-
-  const [resetDepartmentIds, setResetDepartmentIds] = useState(() => {
-  try {
-    const stored = localStorage.getItem(
-      'swu_reset_departments'
-    );
-
-    return stored
-      ? JSON.parse(stored)
-      : [];
-  } catch {
-    return [];
-  }
-});
-
-  // =============================================
-  // PAGE STATE
-  // =============================================
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const [addKioskModalOpen, setAddKioskModalOpen] = useState(false);
   const [expandedKiosk, setExpandedKiosk] = useState(null);
   const [expandedDepartment, setExpandedDepartment] = useState(null);
-
-  // =============================================
-  // KIOSK MODAL
-  // =============================================
-
   const [kioskModal, setKioskModal] = useState(null);
   const [kioskName, setKioskName] = useState('');
   const [kioskLocation, setKioskLocation] = useState('');
@@ -206,11 +180,6 @@ export default function KioskManagement() {
 
     setError(null);
   }
-
-  // =============================================
-  // CONFIRM KIOSK STATUS CHANGE
-  // =============================================
-
   async function handleConfirmKioskStatus() {
     if (!kioskStatusModal) return;
 
@@ -248,21 +217,6 @@ export default function KioskManagement() {
   }
 
   // =============================================
-  // OPEN ADD KIOSK MODAL
-  // =============================================
-
-  function openAddKioskModal() {
-    setKioskModal({
-      mode: 'add',
-    });
-
-    setKioskName('');
-    setKioskLocation('');
-    setKioskStatus('active');
-    setKioskError(null);
-  }
-
-  // =============================================
   // OPEN EDIT KIOSK MODAL
   // =============================================
 
@@ -277,92 +231,56 @@ export default function KioskManagement() {
     setKioskStatus(kiosk.status || 'inactive');
     setKioskError(null);
   }
+// =============================================
+// SAVE KIOSK
+// =============================================
 
-  // =============================================
-  // SAVE KIOSK
-  // =============================================
+async function handleSaveKiosk() {
+  if (!kioskModal) return;
 
-  async function handleSaveKiosk() {
-    if (!kioskModal) return;
+  const trimmedName = kioskName.trim();
+  const trimmedLocation = kioskLocation.trim();
 
-    const trimmedName = kioskName.trim();
-    const trimmedLocation = kioskLocation.trim();
-
-    if (!trimmedName) {
-      setKioskError('Kiosk name is required.');
-      return;
-    }
-
-    try {
-      setSavingKiosk(true);
-      setKioskError(null);
-
-      // =========================================
-      // ADD KIOSK
-      // =========================================
-
-      if (kioskModal.mode === 'add') {
-        const newKiosk = await createKiosk({
-          name: trimmedName,
-          status: kioskStatus,
-        });
-
-        setKiosks((current) => [
-          ...current,
-          {
-            ...newKiosk,
-            name: trimmedName,
-            location: '',
-            status: kioskStatus,
-          },
-        ]);
-      }
-
-      // =========================================
-      // EDIT KIOSK
-      // =========================================
-
-      else {
-        const updatedKiosk = await updateKiosk(kioskModal.kiosk_id, {
-          name: trimmedName,
-          location: trimmedLocation,
-          status: kioskStatus,
-        });
-
-        setKiosks((current) =>
-          current.map((kiosk) =>
-            kiosk.kiosk_id === kioskModal.kiosk_id
-              ? {
-                  ...kiosk,
-                  ...updatedKiosk,
-                  kiosk_id: kioskModal.kiosk_id,
-                  name: trimmedName,
-                  location: trimmedLocation,
-                  status: kioskStatus,
-                }
-              : kiosk
-          )
-        );
-      }
-
-      setKioskModal(null);
-      setKioskName('');
-      setKioskLocation('');
-      setKioskStatus('active');
-    } catch (err) {
-      console.error('SAVE KIOSK ERROR:', err);
-
-      setKioskError(
-        err.message ||
-          `Failed to ${
-            kioskModal.mode === 'add' ? 'add kiosk' : 'update kiosk'
-          }.`
-      );
-    } finally {
-      setSavingKiosk(false);
-    }
+  if (!trimmedName) {
+    setKioskError('Kiosk name is required.');
+    return;
   }
 
+  try {
+    setSavingKiosk(true);
+    setKioskError(null);
+
+    // =========================================
+    // EDIT KIOSK
+    // =========================================
+
+    const updatedKiosk = await updateKiosk(kioskModal.kiosk_id, {
+      name: trimmedName,
+      location: trimmedLocation,
+      status: kioskStatus,
+    });
+
+    setKiosks((current) =>
+      current.map((kiosk) =>
+        kiosk.kiosk_id === kioskModal.kiosk_id
+          ? {
+              ...kiosk,
+              ...updatedKiosk,
+              kiosk_id: kioskModal.kiosk_id,
+              name: trimmedName,
+              location: trimmedLocation,
+              status: kioskStatus,
+            }
+          : kiosk
+      )
+    );
+  } catch (err) {
+    console.error('SAVE KIOSK ERROR:', err);
+    setKioskError(err.message || 'Failed to update kiosk.');
+  } finally {
+    setSavingKiosk(false);
+  }
+}
   // =============================================
   // TOGGLE KIOSK EXPANSION
   // =============================================
@@ -681,21 +599,15 @@ export default function KioskManagement() {
             Manage kiosks, departments, and terminals.
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={openAddKioskModal}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B]"
-        >
-          <Plus size={16} />
-          Add Kiosk
-        </button>
+          <button
+    type="button"
+    onClick={() => setAddKioskModalOpen(true)}
+    className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B]"
+  >
+    <Plus size={16} />
+    Add Kiosk
+  </button>
       </div>
-
-      {/* =========================================
-          LOADING
-      ========================================== */}
-
       {loading && (
         <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 text-sm text-[#4B5563]">
           Loading kiosks...
@@ -718,15 +630,11 @@ export default function KioskManagement() {
 
       {!loading && !error && (
         <div className="space-y-4">
-          {kiosks.map((kiosk) => {
-            const kioskDepartments = departments.filter(
-  (department) =>
-    department.kiosk_id === kiosk.kiosk_id &&
-    !resetDepartmentIds.includes(department.department_id)
-);
-
-            const isKioskExpanded = expandedKiosk === kiosk.kiosk_id;
-
+         {kiosks.map((kiosk) => {
+  const kioskDepartments = departments.filter(
+    (department) => department.kiosk_id === kiosk.kiosk_id
+  );
+  const isKioskExpanded = expandedKiosk === kiosk.kiosk_id;
             return (
               <div
                 key={kiosk.kiosk_id}
@@ -985,21 +893,26 @@ export default function KioskManagement() {
       {/* =========================================
           ADD / EDIT KIOSK MODAL
       ========================================== */}
+            <AddKioskModal
+            open={addKioskModalOpen}
+            onClose={() => setAddKioskModalOpen(false)}
+            onSuccess={(newKiosk) => {
+              setKiosks((current) => [...current, newKiosk]);
+            }}
+          />
 
       {kioskModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-[#1F2937]">
-                  {kioskModal.mode === 'edit' ? 'Edit Kiosk' : 'Add Kiosk'}
-                </h3>
+             <h3 className="text-lg font-semibold text-[#1F2937]">
+  Edit Kiosk
+</h3>
 
-                <p className="mt-0.5 text-sm text-[#6B7280]">
-                  {kioskModal.mode === 'edit'
-                    ? 'Update kiosk information'
-                    : 'Create a new kiosk.'}
-                </p>
+<p className="mt-0.5 text-sm text-[#6B7280]">
+  Update kiosk information
+</p>
               </div>
 
               <button
@@ -1085,29 +998,12 @@ export default function KioskManagement() {
                 disabled={savingKiosk}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {savingKiosk ? (
-                  'Saving...'
-                ) : kioskModal.mode === 'edit' ? (
-                  'Save Changes'
-                ) : (
-                  <>
-                    <Plus size={16} />
-                    Add Kiosk
-                  </>
-                )}
+               {savingKiosk ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* =========================================
-          KIOSK STATUS MODAL
-      ========================================== */}
-      {/* =========================================
-          KIOSK STATUS MODAL
-      ========================================== */}
-
       {kioskStatusModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
@@ -1163,11 +1059,6 @@ export default function KioskManagement() {
           </div>
         </div>
       )}
-
-      {/* =========================================
-          ADD / EDIT TERMINAL MODAL
-      ========================================== */}
-
       {terminalModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
@@ -1302,7 +1193,6 @@ export default function KioskManagement() {
                   )}
                 </div>
               )}
-
               {/* STATUS SEGMENTED CONTROL */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-[#374151]">
