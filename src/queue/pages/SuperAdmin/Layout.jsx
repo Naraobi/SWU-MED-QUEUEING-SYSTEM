@@ -11,8 +11,6 @@ import {
   ShieldCheck,
   BriefcaseBusiness,
   LogOut,
-  Upload,
-  X,
   User as UserIcon,
 } from 'lucide-react';
 
@@ -22,10 +20,6 @@ import logo from '../../../assets/logo.png';
 import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';
 
-// ⚠️ ProfileModal below calls `supabase.storage` and `supabase.from(...)`, but this file
-// never imports supabase — avatar upload and "Save changes" will throw
-// "supabase is not defined" at runtime. Uncomment the line below with your real path:
-// import { supabase } from '../../services/supabaseClient';
 
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -328,101 +322,49 @@ function LogoutModal({ onCancel, onConfirm }) {
 function ProfileModal({ onClose }) {
   const { user } = useAuth();
 
-  useModalBehavior(onClose);
+  const fullName = user?.full_name || user?.name || '\u2014';
 
-  const [fullName, setFullName] = useState(
-    user?.full_name ?? ''
-  );
+  const roleLabel =
+    typeof user?.role === 'object'
+      ? user?.role?.role ?? '\u2014'
+      : user?.role ?? '\u2014';
 
-  const [avatarUrl, setAvatarUrl] = useState(
-    user?.avatar_url ?? ''
-  );
+  const initials =
+    String(fullName)
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase() || '?';
 
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
-  const [error, setError] = useState(null);
+  const isActive =
+    String(user?.status ?? 'active').toLowerCase() === 'active';
 
-  async function handleAvatarUpload(e) {
-    try {
-      setUploading(true);
-      setError(null);
-      setMessage(null);
-
-      if (!e.target.files || e.target.files.length === 0) {
-        throw new Error('You must select an image to upload.');
-      }
-
-      if (!user?.user_id) {
-        throw new Error('User ID could not be found.');
-      }
-
-      const file = e.target.files[0];
-      const fileExt = file.name.split('.').pop();
-
-      const fileName = `${user.user_id}-${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: publicURLData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      const newAvatarUrl = publicURLData.publicUrl;
-
-      const { error: updateError } = await supabase
-        .from('user')
-        .update({
-          avatar_url: newAvatarUrl,
-        })
-        .eq('user_id', user.user_id);
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      setAvatarUrl(newAvatarUrl);
-      setMessage('Avatar updated successfully!');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setMessage(null);
-    setError(null);
-
-    if (!user?.user_id) {
-      setError('User ID could not be found.');
-      setSaving(false);
-      return;
-    }
-
-    const { error } = await supabase
-      .from('user')
-      .update({
-        full_name: fullName,
-      })
-      .eq('user_id', user.user_id);
-
-    setSaving(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage('Profile updated successfully.');
-    }
-  }
+  const details = [
+    { key: 'name', label: 'Full Name', value: fullName, icon: UserIcon },
+    { key: 'email', label: 'Email Address', value: user?.email || '\u2014', icon: Mail },
+    { key: 'role', label: 'System Role', value: roleLabel, icon: ShieldCheck },
+    {
+      key: 'position',
+      label: 'Position Title',
+      value: user?.position || user?.position_name || '\u2014',
+      icon: BriefcaseBusiness,
+    },
+    {
+      key: 'department',
+      label: 'Department',
+      value: user?.department || user?.department_name || '\u2014',
+      icon: Building2,
+    },
+    {
+      key: 'kiosk',
+      label: 'Assigned Kiosk',
+      value: user?.kiosk || user?.kiosk_name || '\u2014',
+      icon: Monitor,
+    },
+  ];
 
   return (
     <div
@@ -434,126 +376,81 @@ function ProfileModal({ onClose }) {
         aria-modal="true"
         aria-labelledby="profile-title"
         onClick={(event) => event.stopPropagation()}
-        className="swu-pop relative w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-7 shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
+        className="swu-pop w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
       >
-        {/* Close Button */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-md p-1 text-[#4B5563] transition hover:bg-[#F1F3F5] hover:text-[#1F2937] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
-          aria-label="Close profile"
-        >
-          <X size={20} />
-        </button>
 
-        <div className="mb-6">
-          <h2 id="profile-title" className="text-lg font-semibold text-[#1F2937]">
+        {/* BANNER */}
+
+        <div className="h-24 bg-[#9D0A0E]" />
+
+        {/* AVATAR + STATUS */}
+
+        <div className="-mt-12 flex flex-col items-center px-6">
+          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-[#E4E7F5] text-xl font-bold text-[#1F2937] ring-4 ring-white">
+            {user?.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              initials
+            )}
+          </div>
+
+          <span
+            className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+              isActive
+                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20'
+                : 'bg-[#F1F3F5] text-[#4B5563] ring-1 ring-[#E5E7EB]'
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 rounded-full ${
+                isActive ? 'bg-emerald-500' : 'bg-[#9CA3AF]'
+              }`}
+            />
+            Status: {isActive ? 'Active' : 'Inactive'}
+          </span>
+
+          <h2 id="profile-title" className="sr-only">
             My Profile
           </h2>
         </div>
 
-        {/* Avatar Section */}
-        <div className="mb-6 flex flex-col items-center">
-          <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-[#E5E7EB] bg-[#F1F3F5]">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt="Avatar"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <UserIcon
-                size={32}
-                className="text-[#4B5563]"
-              />
-            )}
-          </div>
+        {/* DETAILS */}
 
-          <label className="mt-3 flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]">
-            <Upload size={14} />
+        <div className="grid gap-3 px-6 py-5 sm:grid-cols-2">
+          {details.map(({ key, label, value, icon: Icon }) => (
+            <div
+              key={key}
+              className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5"
+            >
+              <p className="flex items-center gap-1.5 text-xs text-[#9CA3AF]">
+                <Icon size={12} />
+                {label}
+              </p>
 
-            {uploading
-              ? 'Uploading...'
-              : 'Change avatar'}
-
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleAvatarUpload}
-              disabled={uploading}
-              className="hidden"
-            />
-          </label>
+              <p className="mt-0.5 truncate text-sm font-bold text-[#1F2937]" title={value}>
+                {value}
+              </p>
+            </div>
+          ))}
         </div>
 
-        {/* Email */}
-        <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-[#4B5563]">
-            Email
-          </label>
+        {/* FOOTER */}
 
-          <input
-            type="text"
-            value={user?.email ?? ''}
-            disabled
-            className="w-full rounded-lg border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2 text-sm text-[#4B5563]"
-          />
+        <div className="flex justify-end border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="swu-press rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
+          >
+            Close
+          </button>
         </div>
 
-        {/* Role */}
-        <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-[#4B5563]">
-            Role
-          </label>
-
-          <input
-            type="text"
-            value={
-              typeof user?.role === 'object'
-                ? user?.role?.role ?? 'Super Admin'
-                : user?.role ?? 'Super Admin'
-            }
-            disabled
-            className="w-full rounded-lg border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2 text-sm text-[#4B5563]"
-          />
-        </div>
-
-        {/* Full Name */}
-        <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-[#4B5563]">
-            Full name
-          </label>
-
-          <input
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-          />
-        </div>
-
-        {/* Messages */}
-        {message && (
-          <p className="mb-3 text-xs text-emerald-600">
-            {message}
-          </p>
-        )}
-
-        {error && (
-          <p className="mb-3 text-xs text-[#9D0A0E]">
-            {error}
-          </p>
-        )}
-
-        {/* Save Button */}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="h-11 w-full rounded-lg bg-[#9D0A0E] text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Save changes'}
-        </button>
       </div>
     </div>
   );

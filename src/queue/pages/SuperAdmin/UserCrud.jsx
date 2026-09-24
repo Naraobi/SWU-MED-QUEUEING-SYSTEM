@@ -23,7 +23,12 @@ import {
  getDepartments,
 getPositions,
 validateSecurityPin,
+getSecurityPinStatus,
 } from '../../services/backendApi';
+
+import SecurityPinModal, {
+  readPinIsSet,
+} from '../../components/SecurityPinModal';
 
 
 /* =========================================================
@@ -1018,6 +1023,9 @@ const [showResetSelection, setShowResetSelection] =
 const [resettingIds, setResettingIds] = useState([]);
 const [pinInput, setPinInput] = useState('');
 const [showResetPin, setShowResetPin] = useState(false);
+
+// Shown when a reset is attempted before any Security PIN exists.
+const [showPinSetup, setShowPinSetup] = useState(false);
 const [verifyingResetPin, setVerifyingResetPin] =
   useState(false);
 
@@ -2233,7 +2241,7 @@ async function fetchPositions() {
      SUMMARY
   ========================================================= */
 
-function handleResetSelectionContinue() {
+async function handleResetSelectionContinue() {
   if (selectedResetIds.length === 0) {
     return;
   }
@@ -2241,9 +2249,45 @@ function handleResetSelectionContinue() {
   setResettingIds(selectedResetIds);
   setPinInput('');
   setShowResetSelection(false);
-  setShowResetPin(true);
   setError(null);
   setSuccess('');
+
+  /*
+  |--------------------------------------------------------------------------
+  | SECURITY PIN GATE
+  |--------------------------------------------------------------------------
+  |
+  | Resetting user records is a protected action. If this user has no
+  | Security PIN yet, ask them to create one instead of showing a PIN
+  | prompt they cannot possibly satisfy.
+  |
+  */
+  const firebaseUser = auth.currentUser;
+
+  if (!firebaseUser) {
+    setError(
+      'Your authentication session is unavailable. Please log in again.'
+    );
+    return;
+  }
+
+  try {
+    const status = await getSecurityPinStatus(firebaseUser);
+
+    if (readPinIsSet(status)) {
+      setShowResetPin(true);
+    } else {
+      setShowPinSetup(true);
+    }
+  } catch (statusError) {
+    console.error(
+      'Security PIN status check failed:',
+      statusError
+    );
+
+    // Status unavailable - fall back to asking for the PIN.
+    setShowResetPin(true);
+  }
 }
 
 async function handleResetPinConfirm() {
@@ -2953,6 +2997,21 @@ const filteredUsers = visibleUsers.filter((user) => {
         setSelectedResetIds={setSelectedResetIds}
         onContinue={handleResetSelectionContinue}
       />
+
+           {showPinSetup && (
+             <SecurityPinModal
+               mode="setup"
+               onClose={() => {
+                 setShowPinSetup(false);
+                 setResettingIds([]);
+               }}
+               onSuccess={() => {
+                 // PIN created - continue straight to the reset they asked for.
+                 setShowPinSetup(false);
+                 handleReset();
+               }}
+             />
+           )}
 
            <ResetPinModal
         open={showResetPin}

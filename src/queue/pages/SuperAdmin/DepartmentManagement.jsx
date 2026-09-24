@@ -9,7 +9,12 @@ import {
   createDepartment,
   updateDepartment,
   validateSecurityPin,
+  getSecurityPinStatus,
 } from '../../services/backendApi';
+
+import SecurityPinModal, {
+  readPinIsSet,
+} from '../../components/SecurityPinModal';
 
 import {
   Search,
@@ -104,6 +109,139 @@ function getPageNumbers(currentPage, totalPages) {
 // ===========================================================
 // DEPARTMENT MODAL
 // ===========================================================
+
+/* =========================================================
+   DEPARTMENT VOLUME — bar chart
+   Waiting patients per department. Plain SVG, no library.
+========================================================= */
+
+function DepartmentVolumeChart({ departments }) {
+  const rows = departments
+    .map((department) => ({
+      name: department.name || 'Department',
+      value: Number(department.waiting) || 0,
+      wait: parseInt(String(department.avg_wait || ''), 10) || 0,
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+
+  if (rows.length === 0) {
+    return (
+      <p className="py-10 text-center text-xs text-[#4B5563]">
+        No departments to chart yet.
+      </p>
+    );
+  }
+
+  const max = Math.max(...rows.map((row) => row.value), 1);
+  const busiest = rows[0];
+
+  const longestWait = rows.reduce(
+    (worst, row) => (row.wait > (worst?.wait || 0) ? row : worst),
+    null
+  );
+
+  const ticks = [0, 0.5, 1];
+
+  return (
+    <div>
+      <div className="flex gap-3">
+        {/* y axis */}
+        <div className="flex w-8 shrink-0 flex-col justify-between py-1 text-right">
+          {[...ticks].reverse().map((tick) => (
+            <span key={tick} className="text-xs text-[#9CA3AF]">
+              {Math.round(max * tick)}
+            </span>
+          ))}
+        </div>
+
+        {/* plot */}
+        <div className="relative min-w-0 flex-1">
+          {ticks.map((tick) => (
+            <span
+              key={tick}
+              aria-hidden="true"
+              className="absolute left-0 right-0 border-t border-dashed border-[#E5E7EB]"
+              style={{ bottom: `${tick * 100}%` }}
+            />
+          ))}
+
+          <div className="relative flex h-48 items-end gap-3">
+            {rows.map((row, index) => (
+              <div
+                key={row.name}
+                className="group flex min-w-0 flex-1 flex-col items-center justify-end"
+              >
+                <span className="mb-1 text-xs font-semibold text-[#1F2937]">
+                  {row.value}
+                </span>
+
+                <div
+                  title={`${row.name}: ${row.value} waiting`}
+                  className={`swu-grow-y w-full rounded-t-md transition-colors duration-200 ${
+                    index === 0
+                      ? 'bg-[#9D0A0E] group-hover:bg-[#7D080B]'
+                      : 'bg-[#B34C4C] group-hover:bg-[#9D0A0E]'
+                  }`}
+                  style={{
+                    height: `${Math.max((row.value / max) * 100, 2)}%`,
+                    animationDelay: `${index * 60}ms`,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* x labels */}
+          <div className="mt-2 flex gap-3 border-t border-[#E5E7EB] pt-2">
+            {rows.map((row) => (
+              <span
+                key={row.name}
+                className="min-w-0 flex-1 truncate text-center text-xs text-[#4B5563]"
+                title={row.name}
+              >
+                {row.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* legend + summary */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] pt-3 text-xs text-[#4B5563]">
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#9D0A0E]" />
+            Busiest department
+          </span>
+
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#B34C4C]" />
+            Waiting patients
+          </span>
+
+          {longestWait && longestWait.wait > 0 && (
+            <span>
+              Peak wait time:{' '}
+              <span className="font-semibold text-[#1F2937]">
+                {longestWait.name} (~{longestWait.wait} mins)
+              </span>
+            </span>
+          )}
+        </div>
+
+        <span>
+          Total currently in queue:{' '}
+          <span className="font-semibold text-[#1F2937]">
+            {total} patient{total === 1 ? '' : 's'}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function DepartmentModal({
   open,
@@ -817,6 +955,10 @@ const [resettingIds, setResettingIds] =
 
   const [pinInput, setPinInput] =
     useState('');
+
+  // Shown when a reset is attempted before any Security PIN exists.
+  const [showPinSetup, setShowPinSetup] =
+    useState(false);
 
   const [showResetPin, setShowResetPin] =
     useState(false);
@@ -1804,7 +1946,7 @@ if (duplicate) {
     }
   }
 
-  function handleResetSelectionContinue() {
+  async function handleResetSelectionContinue() {
   if (selectedResetIds.length === 0) {
     return;
   }
@@ -1812,9 +1954,45 @@ if (duplicate) {
   setResettingIds(selectedResetIds);
   setPinInput('');
   setShowResetSelection(false);
-  setShowResetPin(true);
   setError(null);
   setSuccess('');
+
+  /*
+  |--------------------------------------------------------------------------
+  | SECURITY PIN GATE
+  |--------------------------------------------------------------------------
+  |
+  | Resetting department records is a protected action. If this user has no
+  | Security PIN yet, ask them to create one instead of showing a PIN prompt
+  | they cannot possibly satisfy.
+  |
+  */
+  const firebaseUser = auth.currentUser;
+
+  if (!firebaseUser) {
+    setError(
+      'Your authentication session is unavailable. Please log in again.'
+    );
+    return;
+  }
+
+  try {
+    const status = await getSecurityPinStatus(firebaseUser);
+
+    if (readPinIsSet(status)) {
+      setShowResetPin(true);
+    } else {
+      setShowPinSetup(true);
+    }
+  } catch (statusError) {
+    console.error(
+      'Security PIN status check failed:',
+      statusError
+    );
+
+    // Status unavailable - fall back to asking for the PIN.
+    setShowResetPin(true);
+  }
 }
 
 async function handleResetPinConfirm() {
@@ -2554,10 +2732,12 @@ return (
           Department Volume
         </h2>
 
-        <div className="mt-4 flex h-32 items-center justify-center rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8F9FA]">
-          <p className="text-xs text-[#4B5563]">
-            Department volume charts and activity logs will render here.
-          </p>
+        <p className="mt-0.5 text-xs text-[#4B5563]">
+          Waiting patients per department
+        </p>
+
+        <div className="mt-4">
+          <DepartmentVolumeChart departments={departments} />
         </div>
       </div>
         {/* =====================================================
@@ -2601,6 +2781,21 @@ return (
         {/* =====================================================
             RESET PIN MODAL
         ===================================================== */}
+
+        {showPinSetup && (
+          <SecurityPinModal
+            mode="setup"
+            onClose={() => {
+              setShowPinSetup(false);
+              setResettingIds([]);
+            }}
+            onSuccess={() => {
+              // PIN created - continue straight to the reset they asked for.
+              setShowPinSetup(false);
+              handleReset();
+            }}
+          />
+        )}
 
         <ResetPinModal
           open={showResetPin}

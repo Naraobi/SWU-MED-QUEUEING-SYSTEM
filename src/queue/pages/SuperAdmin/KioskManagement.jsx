@@ -4,7 +4,6 @@ import {
   Building2,
   Check,
   ChevronDown,
-  ChevronRight,
   MapPin,
   Monitor,
   MoreVertical,
@@ -709,7 +708,7 @@ export default function KioskManagement() {
         <button
           type="button"
           onClick={openAddKioskModal}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B]"
+          className="swu-press inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
         >
           <Plus size={16} />
           Add Kiosk
@@ -754,11 +753,11 @@ export default function KioskManagement() {
             return (
               <div
                 key={kiosk.kiosk_id}
-                className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm"
+                className="swu-card overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm"
               >
                 {/* KIOSK HEADER */}
 
-                <div className="flex w-full items-center gap-4 p-5 transition hover:bg-[#F8F9FA]">
+                <div className="flex w-full items-center gap-4 p-5 transition-colors hover:bg-[#FBF1F1]">
                   <button
                     type="button"
                     onClick={() => toggleKiosk(kiosk.kiosk_id)}
@@ -813,11 +812,12 @@ export default function KioskManagement() {
                     </button>
 
                     <div className="shrink-0 text-[#9CA3AF]">
-                      {isKioskExpanded ? (
-                        <ChevronDown size={20} />
-                      ) : (
-                        <ChevronRight size={20} />
-                      )}
+                      <ChevronDown
+                        size={20}
+                        className={`transition-transform duration-300 ${
+                          isKioskExpanded ? 'rotate-0' : '-rotate-90'
+                        }`}
+                      />
                     </div>
                   </div>
                 </div>
@@ -857,7 +857,7 @@ export default function KioskManagement() {
                           return (
                             <div
                               key={department.department_id}
-                              className="overflow-hidden rounded-xl border border-[#E5E7EB]"
+                              className="swu-enter overflow-hidden rounded-xl border border-[#E5E7EB] transition-colors hover:border-[#F0DADA]"
                             >
                               {/* DEPARTMENT HEADER */}
 
@@ -866,14 +866,15 @@ export default function KioskManagement() {
                                 onClick={() =>
                                   toggleDepartment(department.department_id)
                                 }
-                                className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#F8F9FA]"
+                                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#FBF1F1]"
                               >
                                 <div className="shrink-0 text-[#9CA3AF]">
-                                  {isDepartmentExpanded ? (
-                                    <ChevronDown size={18} />
-                                  ) : (
-                                    <ChevronRight size={18} />
-                                  )}
+                                  <ChevronDown
+                                    size={18}
+                                    className={`transition-transform duration-300 ${
+                                      isDepartmentExpanded ? 'rotate-0' : '-rotate-90'
+                                    }`}
+                                  />
                                 </div>
 
                                 <div className="min-w-0 flex-1">
@@ -1011,8 +1012,8 @@ export default function KioskManagement() {
       ========================================== */}
 
       {kioskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="swu-pop w-full max-w-md rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
               <div>
                 <h3 className="text-lg font-semibold text-[#1F2937]">
@@ -1111,7 +1112,7 @@ export default function KioskManagement() {
               <button
                 type="button"
                 onClick={() => setKioskModal(null)}
-                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA]"
+                className="swu-press rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
               >
                 Cancel
               </button>
@@ -1120,7 +1121,7 @@ export default function KioskManagement() {
                 type="button"
                 onClick={handleSaveKiosk}
                 disabled={savingKiosk}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingKiosk ? (
                   'Saving...'
@@ -1146,8 +1147,8 @@ export default function KioskManagement() {
       ========================================== */}
 
       {kioskStatusModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
+        <div className="swu-enter-fade fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="swu-pop w-full max-w-sm rounded-2xl bg-white shadow-2xl">
             <div className="px-6 py-5">
               <h3 className="text-lg font-semibold text-[#1F2937]">
                 {kioskStatusModal.nextStatus === 'active'
@@ -1179,7 +1180,7 @@ export default function KioskManagement() {
                 type="button"
                 onClick={() => setKioskStatusModal(null)}
                 disabled={changingKioskStatus}
-                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -1188,7 +1189,7 @@ export default function KioskManagement() {
                 type="button"
                 onClick={handleConfirmKioskStatus}
                 disabled={changingKioskStatus}
-                className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {changingKioskStatus
                   ? 'Updating...'
@@ -1206,8 +1207,8 @@ export default function KioskManagement() {
       ========================================== */}
 
       {terminalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="swu-pop w-full max-w-md rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
               <div>
                 <h3 className="text-lg font-semibold text-[#1F2937]">
@@ -1387,7 +1388,7 @@ export default function KioskManagement() {
                 type="button"
                 onClick={() => setTerminalModal(null)}
                 disabled={savingTerminal}
-                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -1396,7 +1397,7 @@ export default function KioskManagement() {
                 type="button"
                 onClick={handleSaveTerminal}
                 disabled={savingTerminal}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingTerminal ? (
                   'Saving...'

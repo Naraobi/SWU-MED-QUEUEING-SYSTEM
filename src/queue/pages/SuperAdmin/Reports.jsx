@@ -187,7 +187,7 @@ export default function Reports() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 flex flex-wrap items-end gap-4 rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+      <div className="swu-enter mb-6 flex flex-wrap items-end gap-4 rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
         <div>
           <label className="mb-1 block text-xs font-medium text-[#4B5563]">
             Date Range
@@ -221,14 +221,14 @@ export default function Reports() {
 
         <button
           type="button"
-          className="ml-auto rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-medium text-white hover:bg-[#7D080B]"
+          className="swu-press ml-auto rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
         >
           Apply Filters
         </button>
       </div>
 
       {/* AI Performance Insights */}
-      <div className="mb-6 rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+      <div className="swu-card mb-6 rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
           <Sparkles
             size={16}
@@ -240,9 +240,9 @@ export default function Reports() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="swu-stagger grid grid-cols-1 gap-4 md:grid-cols-3">
           {/* Total Waiting */}
-          <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+          <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF]">
                 TOTAL WAITING
@@ -266,7 +266,7 @@ export default function Reports() {
           </div>
 
           {/* Average Wait */}
-          <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+          <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF]">
                 AVERAGE WAIT
@@ -290,7 +290,7 @@ export default function Reports() {
           </div>
 
           {/* Active Terminals */}
-          <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+          <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF]">
                 TERMINAL
@@ -318,7 +318,7 @@ export default function Reports() {
       {/* Main 2-Column Section */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column */}
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:col-span-7">
+        <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:col-span-7">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Lightbulb
@@ -394,7 +394,7 @@ export default function Reports() {
         </div>
 
         {/* Right Column */}
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:col-span-5">
+        <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:col-span-5">
           <div>
             <h2 className="mb-4 text-sm font-bold text-[#1F2937]">
               Queue Distribution
@@ -432,7 +432,7 @@ export default function Reports() {
 
                         <div className="h-2 overflow-hidden rounded-full bg-[#F1F3F5]">
                           <div
-                            className="h-full rounded-full bg-[#9D0A0E]"
+                            className="h-full rounded-full bg-[#9D0A0E] transition-all duration-700"
                             style={{
                               width: `${Math.min(
                                 100,
@@ -462,7 +462,7 @@ export default function Reports() {
       {/* Department Volume + Staff Efficiency */}
       <div className="mb-6 mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Department Volume */}
-        <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+        <div className="swu-card rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold text-[#1F2937]">
             Department Volume
           </h2>
@@ -488,7 +488,7 @@ export default function Reports() {
                       className="flex flex-1 flex-col items-center gap-2"
                     >
                       <div
-                        className="w-full rounded-t-md bg-[#9D0A0E]"
+                        className="swu-grow-y w-full rounded-t-md bg-[#9D0A0E] transition-all duration-200 hover:bg-[#7D080B]"
                         style={{
                           height: `${
                             maxVolume > 0
@@ -531,7 +531,7 @@ export default function Reports() {
         </div>
 
         {/* Staff Efficiency */}
-        <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+        <div className="swu-card rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold text-[#1F2937]">
             Staff Efficiency Highlights
           </h2>
@@ -578,7 +578,7 @@ export default function Reports() {
       </div>
 
       {/* Daily Queue Detailed Report */}
-      <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+      <div className="swu-enter overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
         <div className="border-b border-[#E5E7EB] px-5 py-4">
           <h2 className="text-sm font-semibold text-[#1F2937]">
             Daily Queue Detailed Report
@@ -614,7 +614,7 @@ export default function Reports() {
             {QUEUE_LOG.map((queue) => (
               <tr
                 key={queue.id}
-                className="border-b border-[#F1F3F5] last:border-0 hover:bg-[#F8F9FA]"
+                className="border-b border-[#F1F3F5] transition-colors last:border-0 hover:bg-[#FBF1F1]"
               >
                 <td className="px-5 py-3 font-mono text-[#1F2937]">
                   {queue.id}

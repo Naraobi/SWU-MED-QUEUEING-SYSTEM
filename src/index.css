@@ -176,3 +176,110 @@ html.admin-dark main {
   }
   .swu-card:hover { transform: none; }
 }
+/* =========================================================
+   SWUMed appearance layer — accent colour + theme mode
+   Append this to the bottom of src/index.css, AFTER the
+   motion layer.
+
+   How it works: the pages use Tailwind arbitrary colours like
+   bg-[#9D0A0E]. Those compile to real classes, so we redefine
+   those same classes to read from a CSS variable instead. One
+   variable changes the accent everywhere, with no edits to the
+   page files.
+========================================================= */
+
+:root {
+  --swu-accent: #9D0A0E;
+  --swu-accent-dark: color-mix(in srgb, var(--swu-accent) 78%, black);
+  --swu-accent-soft: color-mix(in srgb, var(--swu-accent) 35%, white);
+  --swu-accent-tint: color-mix(in srgb, var(--swu-accent) 7%, white);
+  --swu-accent-line: color-mix(in srgb, var(--swu-accent) 18%, white);
+  --swu-accent-wash: color-mix(in srgb, var(--swu-accent) 12%, white);
+
+  /* surfaces — swapped in dark mode */
+  --swu-surface: #FFFFFF;
+  --swu-surface-2: #F8F9FA;
+  --swu-surface-3: #F1F3F5;
+  --swu-line: #E5E7EB;
+  --swu-text: #1F2937;
+  --swu-text-2: #4B5563;
+  --swu-text-3: #9CA3AF;
+}
+
+/* ---- accent ------------------------------------------------ */
+
+.bg-\[\#9D0A0E\]        { background-color: var(--swu-accent); }
+.text-\[\#9D0A0E\]      { color: var(--swu-accent); }
+.border-\[\#9D0A0E\]    { border-color: var(--swu-accent); }
+.ring-\[\#9D0A0E\]      { --tw-ring-color: var(--swu-accent); }
+.fill-\[\#9D0A0E\]      { fill: var(--swu-accent); }
+.stroke-\[\#9D0A0E\]    { stroke: var(--swu-accent); }
+.accent-\[\#9D0A0E\]    { accent-color: var(--swu-accent); }
+
+.hover\:bg-\[\#7D080B\]:hover   { background-color: var(--swu-accent-dark); }
+.hover\:text-\[\#7D080B\]:hover { color: var(--swu-accent-dark); }
+.bg-\[\#7D080B\]        { background-color: var(--swu-accent-dark); }
+
+.bg-\[\#B34C4C\]        { background-color: var(--swu-accent-soft); }
+.text-\[\#B34C4C\]      { color: var(--swu-accent-soft); }
+
+.bg-\[\#FBF1F1\]        { background-color: var(--swu-accent-tint); }
+.hover\:bg-\[\#FBF1F1\]:hover { background-color: var(--swu-accent-tint); }
+.border-\[\#F0DADA\]    { border-color: var(--swu-accent-line); }
+.hover\:border-\[\#F0DADA\]:hover { border-color: var(--swu-accent-line); }
+.bg-\[\#F6E7E7\]        { background-color: var(--swu-accent-wash); }
+.hover\:bg-\[\#F6E7E7\]:hover  { background-color: var(--swu-accent-wash); }
+
+.hover\:text-\[\#9D0A0E\]:hover   { color: var(--swu-accent); }
+.focus\:border-\[\#9D0A0E\]:focus { border-color: var(--swu-accent); }
+
+/* ---- dark mode --------------------------------------------- */
+
+[data-theme='dark'] {
+  --swu-surface: #1F2937;
+  --swu-surface-2: #111827;
+  --swu-surface-3: #374151;
+  --swu-line: #374151;
+  --swu-text: #F3F4F6;
+  --swu-text-2: #D1D5DB;
+  --swu-text-3: #9CA3AF;
+
+  --swu-accent-tint: color-mix(in srgb, var(--swu-accent) 22%, #1F2937);
+  --swu-accent-line: color-mix(in srgb, var(--swu-accent) 45%, #1F2937);
+  --swu-accent-wash: color-mix(in srgb, var(--swu-accent) 28%, #1F2937);
+
+  color-scheme: dark;
+}
+
+[data-theme='dark'] body { background-color: var(--swu-surface-2); }
+
+[data-theme='dark'] .bg-white          { background-color: var(--swu-surface); }
+[data-theme='dark'] .bg-\[\#F8F9FA\]   { background-color: var(--swu-surface-2); }
+[data-theme='dark'] .hover\:bg-\[\#F8F9FA\]:hover { background-color: var(--swu-surface-2); }
+[data-theme='dark'] .bg-\[\#F1F3F5\]   { background-color: var(--swu-surface-3); }
+[data-theme='dark'] .hover\:bg-\[\#F1F3F5\]:hover { background-color: var(--swu-surface-3); }
+
+[data-theme='dark'] .border-\[\#E5E7EB\] { border-color: var(--swu-line); }
+[data-theme='dark'] .divide-\[\#F1F3F5\] > :not([hidden]) ~ :not([hidden]) { border-color: var(--swu-line); }
+[data-theme='dark'] .divide-\[\#E5E7EB\] > :not([hidden]) ~ :not([hidden]) { border-color: var(--swu-line); }
+
+[data-theme='dark'] .text-\[\#1F2937\] { color: var(--swu-text); }
+[data-theme='dark'] .text-\[\#4B5563\] { color: var(--swu-text-2); }
+[data-theme='dark'] .text-\[\#9CA3AF\] { color: var(--swu-text-3); }
+[data-theme='dark'] .text-\[\#D1D5DB\] { color: #6B7280; }
+
+[data-theme='dark'] .bg-\[\#E5E7EB\]   { background-color: var(--swu-surface-3); }
+[data-theme='dark'] .placeholder\:text-\[\#9CA3AF\]::placeholder { color: #6B7280; }
+
+/* inputs and selects keep their own background in dark mode */
+[data-theme='dark'] input,
+[data-theme='dark'] select,
+[data-theme='dark'] textarea {
+  background-color: var(--swu-surface-2);
+  color: var(--swu-text);
+}
+
+[data-theme='dark'] .swu-skeleton {
+  background: linear-gradient(90deg, #374151 25%, #4B5563 37%, #374151 63%);
+  background-size: 600px 100%;
+}

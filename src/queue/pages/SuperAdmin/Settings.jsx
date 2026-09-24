@@ -13,6 +13,8 @@ import {
   Upload,
   KeyRound,
   Globe,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
@@ -24,6 +26,14 @@ import {
 } from '../../services/backendApi';
 
 import ChangePasswordModal from '../../components/changePasswordModal';
+import LegalModal, { LAST_UPDATED } from '../../components/LegalModal';
+
+import {
+  getAccentColor,
+  getThemeMode,
+  setAccentColor as persistAccentColor,
+  setThemeMode as persistThemeMode,
+} from '../../services/appearance';
 import Logo from '../../../assets/logo.png';
 
 const ACCENT_PRESETS = [
@@ -693,11 +703,35 @@ export default function Settings() {
     'SWUMed Queuing System'
   );
 
-  const [accentColor, setAccentColor] = useState(
-    ACCENT_PRESETS[0]
+  /*
+  |--------------------------------------------------------------------------
+  | APPEARANCE
+  |--------------------------------------------------------------------------
+  |
+  | Accent colour and theme mode apply across the whole app and are
+  | remembered on this browser, so they survive a refresh.
+  |
+  */
+  const [accentColor, setAccentColorState] = useState(
+    () => getAccentColor()
   );
 
-  const [themeMode, setThemeMode] = useState('light');
+  function setAccentColor(color) {
+    setAccentColorState(color);
+    persistAccentColor(color);
+  }
+
+  // Which legal document is open, if any.
+  const [legalDocument, setLegalDocument] = useState(null);
+
+  const [themeMode, setThemeModeState] = useState(
+    () => getThemeMode()
+  );
+
+  function setThemeMode(mode) {
+    setThemeModeState(mode);
+    persistThemeMode(mode);
+  }
   const [language, setLanguage] = useState('English');
   const [activeModal, setActiveModal] = useState(null);
   const [pinConfigured, setPinConfigured] = useState(false);
@@ -1133,7 +1167,65 @@ export default function Settings() {
         </div>
       </SettingsSection>
 
+      {/* =====================================================
+          TERMS & CONDITIONS
+      ===================================================== */}
+
+      <SettingsSection
+        icon={FileText}
+        title="Terms &amp; Conditions"
+        subtitle="Review the agreements that govern the use of this system."
+        badge={`Updated ${LAST_UPDATED}`}
+      >
+        <div className="divide-y divide-[#E5E7EB]">
+
+          {[
+            {
+              key: 'terms',
+              title: 'Terms & Conditions',
+              caption:
+                'System purpose, authorized access, proper use, and administrative controls.',
+            },
+            {
+              key: 'privacy',
+              title: 'Privacy Policy',
+              caption:
+                'What information is collected, how it is used, and the rights of users.',
+            },
+          ].map((item, index) => (
+            <div
+              key={item.key}
+              className={`flex flex-wrap items-center justify-between gap-4 ${
+                index === 0 ? 'pb-5' : 'pt-5'
+              }`}
+            >
+              <div>
+                <p className="text-sm font-bold text-[#1F2937]">{item.title}</p>
+                <p className="mt-0.5 text-xs text-[#4B5563]">{item.caption}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setLegalDocument(item.key)}
+                className="swu-press flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
+              >
+                <ExternalLink size={14} />
+                View
+              </button>
+            </div>
+          ))}
+
+        </div>
+      </SettingsSection>
+
       {/* Modals */}
+      {legalDocument && (
+        <LegalModal
+          document={legalDocument}
+          onClose={() => setLegalDocument(null)}
+        />
+      )}
+
       {showChangePassword && (
         <ChangePasswordModal
           onSuccess={() => setShowChangePassword(false)}
