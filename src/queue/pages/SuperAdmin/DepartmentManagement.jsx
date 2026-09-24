@@ -9,7 +9,7 @@ import {
   createDepartment,
   updateDepartment,
   validateSecurityPin,
-  resetDepartments,
+  resetDepartmentIds,
 } from '../../services/backendApi';
 
 import {

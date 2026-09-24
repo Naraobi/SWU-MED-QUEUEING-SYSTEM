@@ -550,11 +550,10 @@ const codeInputRefs = useRef([]);
 ========================================================= */
 
 const RULES = [
-  { key: 'length', label: 'At least 8 characters', test: (v) => v.length >= 8 },
-  { key: 'upper', label: 'Include at least one uppercase letter', test: (v) => /[A-Z]/.test(v) },
-  { key: 'number', label: 'Include at least one number', test: (v) => /\d/.test(v) },
-  { key: 'special', label: 'Include at least one special character', test: (v) => /[^A-Za-z0-9]/.test(v) },
-];
+{ key: 'length', label: 'At least 8 characters', test: (value) => value.length >= 8, },
+  { key: 'upper', label: 'Include at least one uppercase letter', test: (value) => /[A-Z]/.test(value),},
+  { key: 'number', label: 'Include at least one number', test: (value) => /\d/.test(value), },
+  { key: 'special', label: 'Include at least one special character', test: (value) => /[^A-Za-z0-9]/.test(value),}, ];
 
 function PasswordField({ id, label, value, onChange, disabled, autoFocus }) {
   const [show, setShow] = useState(false);
