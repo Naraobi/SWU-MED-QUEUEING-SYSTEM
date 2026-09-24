@@ -5,11 +5,14 @@ const {
   getUserById,
   getUserByEmail,
   getStaffByDepartment,
+  getAuthenticatedUserProfile,
   createUser,
   updateUser,
   deleteUser,
   createUserDeletionLog,
 } = require("../services/userService");
+
+const { auth } = require("../config/firebase");
 
 const router = express.Router();
 
@@ -36,6 +39,149 @@ router.get("/", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to retrieve users",
+      error: error.message,
+    });
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| GET CURRENT AUTHENTICATED USER PROFILE
+|--------------------------------------------------------------------------
+|
+| GET /api/users/profile
+|
+| Requires:
+| Authorization: Bearer <Firebase ID Token>
+|
+| IMPORTANT:
+| This route MUST be before /:id.
+|
+*/
+
+router.get("/profile", async (req, res) => {
+  try {
+    /*
+    |--------------------------------------------------------------------------
+    | CHECK AUTHORIZATION HEADER
+    |--------------------------------------------------------------------------
+    */
+
+    const authHeader = req.headers.authorization || "";
+
+    if (!authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization token is required",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET FIREBASE ID TOKEN
+    |--------------------------------------------------------------------------
+    */
+
+    const token = authHeader.substring(7).trim();
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization token is required",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | VERIFY FIREBASE TOKEN
+    |--------------------------------------------------------------------------
+    */
+
+    const decodedToken = await auth.verifyIdToken(token);
+
+    if (!decodedToken || !decodedToken.uid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authentication token",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET APPLICATION USER PROFILE
+    |--------------------------------------------------------------------------
+    |
+    | Firebase Authentication confirms the identity.
+    | MySQL provides the application profile.
+    |
+    */
+
+    const user = await getAuthenticatedUserProfile(
+      decodedToken.uid,
+      decodedToken.email || null,
+      decodedToken.email_verified ?? true
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | RETURN PROFILE
+    |--------------------------------------------------------------------------
+    */
+
+    return res.json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    console.error("GET CURRENT USER PROFILE ERROR:", error);
+
+    /*
+    |--------------------------------------------------------------------------
+    | FIREBASE AUTHENTICATION ERRORS
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      error.code === "auth/id-token-expired" ||
+      error.code === "auth/argument-error" ||
+      error.code === "auth/invalid-id-token" ||
+      error.code === "auth/user-disabled"
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication token is invalid or expired",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | USER PROFILE NOT FOUND / APPLICATION AUTH ERRORS
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      error.message &&
+      (
+        error.message.includes("no application user profile") ||
+        error.message.includes("User not found") ||
+        error.message.includes("not found")
+      )
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | OTHER ERRORS
+    |--------------------------------------------------------------------------
+    */
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve authenticated user profile",
       error: error.message,
     });
   }

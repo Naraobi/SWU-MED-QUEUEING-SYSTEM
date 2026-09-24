@@ -231,11 +231,7 @@ SWU Med Queue System`,
 
   await transporter.sendMail(mailOptions);
 }
-// =====================================================
-// PASSWORD RESET VERIFICATION EMAIL
-// =====================================================
-
-async function sendPasswordResetVerificationEmail(
+async function sendPasswordResetCodeEmail(
   recipientEmail,
   firstName,
   verificationCode

@@ -204,15 +204,80 @@ const enrichedDepartments =
     };
   });
 
-  /*
-  |--------------------------------------------------------------------------
-  | RETURN
-  |--------------------------------------------------------------------------
-  */
-
   return enrichedDepartments;
 }
 
+/*
+|--------------------------------------------------------------------------
+| GET DEPARTMENT BY ID
+|--------------------------------------------------------------------------
+*/
+
+async function getDepartmentById(departmentId) {
+  const firebaseAvailable = FORCE_FIREBASE_OFFLINE
+    ? false
+    : await checkFirebaseConnection();
+
+  /*
+  |--------------------------------------------------------------------------
+  | GET FROM FIREBASE
+  |--------------------------------------------------------------------------
+  */
+
+  if (firebaseAvailable) {
+    try {
+      const doc = await db
+        .collection("department")
+        .doc(departmentId)
+        .get();
+
+      if (doc.exists) {
+        return doc.data();
+      }
+
+      console.log(
+        `Department ${departmentId} not found in Firebase. Checking MySQL...`
+      );
+    } catch (error) {
+      console.error(
+        "Firebase GET department by ID failed:",
+        error.message
+      );
+
+      console.log("Falling back to MySQL...");
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | GET FROM MYSQL
+  |--------------------------------------------------------------------------
+  */
+
+  const [rows] = await pool.query(
+    `
+    SELECT
+      department_id,
+      name,
+      classification,
+      location,
+      prefix,
+      est_time,
+      kiosk_id,
+      status
+    FROM department
+    WHERE department_id = ?
+    LIMIT 1
+    `,
+    [departmentId]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return rows[0];
+}
   /*
   |--------------------------------------------------------------------------
   | CREATE DEPARTMENT
