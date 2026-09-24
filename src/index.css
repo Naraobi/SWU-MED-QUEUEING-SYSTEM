@@ -78,3 +78,101 @@ html.admin-dark main {
   70% { box-shadow: 0 0 0 8px rgba(29, 78, 137, 0); }
   100% { box-shadow: 0 0 0 0 rgba(29, 78, 137, 0); }
 }
+/* =========================================================
+   SWUMed motion + interaction layer
+   Append this to the bottom of src/index.css
+   Plain CSS — works with Tailwind v4, no packages needed.
+========================================================= */
+
+@keyframes swu-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes swu-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes swu-pop-in {
+  from { opacity: 0; transform: scale(.96) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes swu-draw {
+  from { stroke-dashoffset: var(--swu-dash, 1200); }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes swu-grow-y {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+@keyframes swu-shimmer {
+  from { background-position: -600px 0; }
+  to   { background-position: 600px 0; }
+}
+
+/* entrances ------------------------------------------------ */
+
+.swu-enter      { animation: swu-fade-up .45s cubic-bezier(.22,1,.36,1) both; }
+.swu-enter-fade { animation: swu-fade-in .4s ease-out both; }
+.swu-pop        { animation: swu-pop-in .22s cubic-bezier(.22,1,.36,1) both; }
+
+/* stagger children: <div class="swu-stagger"> */
+.swu-stagger > *            { animation: swu-fade-up .45s cubic-bezier(.22,1,.36,1) both; }
+.swu-stagger > *:nth-child(1) { animation-delay: .04s }
+.swu-stagger > *:nth-child(2) { animation-delay: .08s }
+.swu-stagger > *:nth-child(3) { animation-delay: .12s }
+.swu-stagger > *:nth-child(4) { animation-delay: .16s }
+.swu-stagger > *:nth-child(5) { animation-delay: .20s }
+.swu-stagger > *:nth-child(6) { animation-delay: .24s }
+.swu-stagger > *:nth-child(7) { animation-delay: .28s }
+.swu-stagger > *:nth-child(8) { animation-delay: .32s }
+
+/* interaction ---------------------------------------------- */
+
+/* cards lift on hover */
+.swu-card {
+  transition: transform .2s cubic-bezier(.22,1,.36,1),
+              box-shadow .2s ease,
+              border-color .2s ease;
+}
+.swu-card:hover {
+  transform: translateY(-2px);
+  border-color: #F0DADA;
+  box-shadow: 0 8px 24px -10px rgba(157, 10, 14, .25);
+}
+
+/* buttons press down when clicked */
+.swu-press { transition: transform .12s ease, background-color .2s ease, color .2s ease, border-color .2s ease; }
+.swu-press:active:not(:disabled) { transform: translateY(1px) scale(.985); }
+
+/* icon tiles tint toward the brand on card hover */
+.swu-card:hover .swu-tile { background-color: #F6E7E7; }
+.swu-tile { transition: background-color .2s ease, color .2s ease; }
+
+/* charts ---------------------------------------------------- */
+
+.swu-draw   { stroke-dasharray: var(--swu-dash, 1200); animation: swu-draw 1s ease-out .15s both; }
+.swu-grow-y { transform-origin: bottom; animation: swu-grow-y .5s cubic-bezier(.22,1,.36,1) both; }
+
+/* skeleton loading ------------------------------------------ */
+
+.swu-skeleton {
+  background: linear-gradient(90deg, #F1F3F5 25%, #E9ECEF 37%, #F1F3F5 63%);
+  background-size: 600px 100%;
+  animation: swu-shimmer 1.3s linear infinite;
+  border-radius: .5rem;
+}
+
+/* respect the user's motion setting -------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .swu-enter, .swu-enter-fade, .swu-pop,
+  .swu-stagger > *, .swu-draw, .swu-grow-y, .swu-skeleton {
+    animation: none !important;
+  }
+  .swu-card:hover { transform: none; }
+}

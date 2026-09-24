@@ -23,6 +23,8 @@ import {
   updateTerminal,
 } from '../../services/backendApi';
 
+import useFormDraft, { DraftRestoreBar } from '../../hooks/useFormDraft';
+
 export default function KioskManagement() {
   // =============================================
   // DATA
@@ -68,6 +70,25 @@ export default function KioskManagement() {
 
   const [savingKiosk, setSavingKiosk] = useState(false);
   const [kioskError, setKioskError] = useState(null);
+
+  /*
+  |--------------------------------------------------------------------------
+  | UNSAVED DRAFT
+  |--------------------------------------------------------------------------
+  |
+  | Keeps whatever has been typed into Add Kiosk on this browser, so a
+  | refresh, crash or power cut does not lose it. The PIN is never stored.
+  |
+  */
+  const kioskDraft = useFormDraft('kiosk-add', {
+    enabled: kioskModal?.mode === 'add',
+    exclude: ['kioskPin'],
+    values: {
+      kioskName,
+      kioskLocation,
+      kioskStatus,
+    },
+  });
 
   // =============================================
   // KIOSK STATUS CONFIRMATION
@@ -316,6 +337,9 @@ export default function KioskManagement() {
             status: kioskStatus,
           },
         ]);
+
+        // Saved for real - the draft is no longer needed.
+        kioskDraft.clear();
       }
 
       // =========================================
@@ -1013,6 +1037,19 @@ export default function KioskManagement() {
             </div>
 
             <div className="space-y-4 px-6 py-5">
+              {kioskModal.mode === 'add' && kioskDraft.pending && (
+                <DraftRestoreBar
+                  savedAt={kioskDraft.savedAt}
+                  onRestore={() => {
+                    const saved = kioskDraft.restore();
+                    setKioskName(saved.kioskName ?? '');
+                    setKioskLocation(saved.kioskLocation ?? '');
+                    setKioskStatus(saved.kioskStatus ?? 'active');
+                  }}
+                  onDiscard={kioskDraft.discard}
+                />
+              )}
+
               {kioskError && (
                 <div className="rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2.5 text-sm text-[#9D0A0E]">
                   {kioskError}

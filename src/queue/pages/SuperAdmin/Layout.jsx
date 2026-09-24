@@ -129,7 +129,7 @@ export default function Layout({ activePage, onNavigate, children }) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-0.5 px-3 py-4">
+          <nav className="swu-stagger flex-1 space-y-0.5 px-3 py-4">
             {visibleNavItems.map(({ key, label, icon: Icon }) => {
               const isActive = activePage === key;
 
@@ -138,13 +138,16 @@ export default function Layout({ activePage, onNavigate, children }) {
                   key={key}
                   type="button"
                   onClick={() => handleNavigate(key)}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                  className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                     isActive
-                      ? 'bg-[#9D0A0E] text-white'
-                      : 'text-[#4B5563] hover:bg-[#F1F3F5] hover:text-[#1F2937]'
+                      ? 'bg-[#9D0A0E] text-white shadow-sm shadow-[#9D0A0E]/30'
+                      : 'text-[#4B5563] hover:translate-x-1 hover:bg-[#FBF1F1] hover:text-[#9D0A0E]'
                   }`}
                 >
-                  <Icon size={18} />
+                  <Icon
+                    size={18}
+                    className="shrink-0 transition-transform duration-200 group-hover:scale-110"
+                  />
                   {label}
                 </button>
               );
@@ -156,7 +159,7 @@ export default function Layout({ activePage, onNavigate, children }) {
             <button
               type="button"
               onClick={() => setShowLogoutModal(true)}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#9D0A0E] transition hover:bg-[#FBF1F1]"
+              className="swu-press group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#9D0A0E] transition-all duration-200 hover:translate-x-1 hover:bg-[#FBF1F1]"
             >
               <LogOut size={18} />
               Log out
@@ -194,7 +197,7 @@ export default function Layout({ activePage, onNavigate, children }) {
               <button
                 type="button"
                 onClick={() => setShowProfileModal(true)}
-                className="flex items-center gap-3 rounded-lg px-1 py-1 transition hover:bg-[#F8F9FA] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
+                className="swu-press group flex items-center gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-[#FBF1F1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
                 aria-label="Profile"
                 title="Profile"
               >
@@ -272,7 +275,7 @@ function LogoutModal({ onCancel, onConfirm }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 px-4"
+      className="swu-enter-fade fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 px-4"
       onClick={onCancel}
     >
       <div
@@ -281,7 +284,7 @@ function LogoutModal({ onCancel, onConfirm }) {
         aria-labelledby="logout-title"
         aria-describedby="logout-description"
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-[520px] rounded-2xl bg-white px-10 py-9 text-center shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
+        className="swu-pop w-full max-w-[520px] rounded-2xl bg-white px-10 py-9 text-center shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
       >
         <h2
           id="logout-title"
@@ -423,7 +426,7 @@ function ProfileModal({ onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 px-4"
+      className="swu-enter-fade fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 px-4"
       onClick={onClose}
     >
       <div
@@ -431,7 +434,7 @@ function ProfileModal({ onClose }) {
         aria-modal="true"
         aria-labelledby="profile-title"
         onClick={(event) => event.stopPropagation()}
-        className="relative w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-7 shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
+        className="swu-pop relative w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-7 shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
       >
         {/* Close Button */}
         <button

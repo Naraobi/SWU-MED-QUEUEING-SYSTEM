@@ -8,7 +8,6 @@ import {
   Search,
   RotateCw,
   Users,
-  Timer,
   CheckCheck,
   ChevronsRight,
   Monitor,
@@ -104,7 +103,7 @@ function StatusChip({ status }) {
 
 function StatCard({ label, value, caption, icon: Icon }) {
   return (
-    <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+    <div className="swu-card rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between">
         <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">{label}</p>
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
@@ -156,15 +155,14 @@ function ExpandedPanel({ department, state, terminalNames, now, onOpenHistory })
 
   return (
     <div className="border-t border-[#E5E7EB] bg-[#F8F9FA] p-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-3 gap-3">
         <MiniStat label="Waiting" value={stats.waiting} />
-        <MiniStat label="Serving" value={stats.currentlyServing} />
         <MiniStat label="Completed" value={stats.completed} />
         <MiniStat label="Skipped" value={stats.skipped} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+        <div className="swu-enter rounded-xl border border-[#E5E7EB] bg-white p-5">
           <div className="flex items-center justify-between">
             <p className="text-sm font-bold text-[#1F2937]">Current Queue Status</p>
             <span className="text-xs text-[#9CA3AF]">Today</span>
@@ -205,7 +203,7 @@ function ExpandedPanel({ department, state, terminalNames, now, onOpenHistory })
           )}
         </div>
 
-        <div className="h-fit rounded-xl border border-[#E5E7EB] bg-white p-4">
+        <div className="swu-enter h-fit rounded-xl border border-[#E5E7EB] bg-white p-4">
           <p className="mb-3 text-sm font-bold text-[#1F2937]">Department Actions</p>
           <div className="space-y-2">
             {actions.map(({ key, title, description, icon: Icon, to, onClick }) => {
@@ -221,7 +219,7 @@ function ExpandedPanel({ department, state, terminalNames, now, onOpenHistory })
                   <ChevronRight size={15} className="shrink-0 text-[#9CA3AF]" />
                 </>
               );
-              const className = 'flex w-full items-center gap-3 rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-left transition hover:border-[#9D0A0E]/40 hover:bg-[#FBF1F1]';
+              const className = 'swu-press flex w-full items-center gap-3 rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-left transition-all duration-200 hover:translate-x-1 hover:border-[#9D0A0E]/40 hover:bg-[#FBF1F1]';
               return to ? (
                 <Link key={key} to={to} className={className}>{body}</Link>
               ) : (
@@ -237,8 +235,8 @@ function ExpandedPanel({ department, state, terminalNames, now, onOpenHistory })
 
 function RemoveConfirmModal({ count, onCancel, onConfirm }) {
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+    <div className="swu-enter-fade fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="swu-pop w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
         <div className="flex items-start gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
             <Trash2 size={16} />
@@ -252,7 +250,7 @@ function RemoveConfirmModal({ count, onCancel, onConfirm }) {
         </div>
         <div className="mt-5 flex justify-end gap-2 border-t border-[#E5E7EB] pt-4">
           <button type="button" onClick={onCancel} className="rounded-lg border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]">Cancel</button>
-          <button type="button" onClick={onConfirm} className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B]">Remove</button>
+          <button type="button" onClick={onConfirm} className="swu-press rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25">Remove</button>
         </div>
       </div>
     </div>
@@ -356,8 +354,8 @@ function QueueHistoryModal({ department, onClose, onRemove }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4 py-6">
-      <div className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="swu-enter-fade fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4 py-6">
+      <div className="swu-pop flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
           <div className="flex items-start gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
@@ -437,7 +435,7 @@ function QueueHistoryModal({ department, onClose, onRemove }) {
               {!loading && error && <tr><td colSpan={8} className="px-6 py-10 text-center text-[#9D0A0E]">{error}</td></tr>}
               {!loading && !error && pageRows.length === 0 && <tr><td colSpan={8} className="px-6 py-10 text-center text-[#9CA3AF]">No transactions found.</td></tr>}
               {!loading && !error && pageRows.map((r) => (
-                <tr key={r.key} className={selected.has(r.key) ? 'bg-[#F8F9FA]' : 'hover:bg-[#F8F9FA]'}>
+                <tr key={r.key} className={`transition-colors ${selected.has(r.key) ? 'bg-[#FBF1F1]' : 'hover:bg-[#FBF1F1]'}`}>
                   <td className="px-6 py-3"><TicketPill ticket={r.raw} number={r.number} /></td>
                   <td className="px-3 py-3 text-[#4B5563]">{r.service}</td>
                   <td className="px-3 py-3 text-center"><StatusChip status={r.status} /></td>
@@ -577,14 +575,13 @@ export default function AdminQueueManagement({ onNavigate, onRemoveHistory }) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="swu-stagger grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Waiting" value={totals.waiting} caption="Across all departments" icon={Users} />
-        <StatCard label="Serving" value={totals.serving} caption="Active terminals serving" icon={Timer} />
         <StatCard label="Completed" value={totals.completed} caption="Served today" icon={CheckCheck} />
         <StatCard label="Skipped" value={totals.skipped} caption="Missed or skipped today" icon={ChevronsRight} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-sm">
+      <div className="swu-enter flex flex-wrap items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-sm">
         <div className="relative w-full max-w-xs">
           <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search department..." aria-label="Search department"
@@ -619,9 +616,9 @@ export default function AdminQueueManagement({ onNavigate, onRemoveHistory }) {
           const active = d.status === 'active';
 
           return (
-            <div key={d.department_id} className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+            <div key={d.department_id} className="swu-card overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
               <button type="button" onClick={() => setExpanded(open ? null : d.department_id)} aria-expanded={open}
-                className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-[#F8F9FA]">
+                className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[#FBF1F1]">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F1F3F5] text-[#4B5563]">
                   <Building2 size={16} />
                 </span>

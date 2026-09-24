@@ -11,13 +11,6 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
-const VOLUME = [
-  { label: 'CSH', value: 62 },
-  { label: 'LAB', value: 44 },
-  { label: 'PHA', value: 51 },
-  { label: 'RAD', value: 22 },
-];
-
 const STAFF = [
   { name: 'Cashier 1', avgTime: '2m 15s', ratio: '98%' },
   { name: 'Cashier 4', avgTime: '4m 30s', ratio: '85%' },
@@ -69,8 +62,12 @@ export default function Reports() {
   const [queueDistribution, setQueueDistribution] = useState([]);
   const [insights, setInsights] = useState([]);
 
+  // Scale the bars against the values actually being drawn, not the
+  // placeholder data.
   const maxVolume = Math.max(
-    ...VOLUME.map((v) => v.value),
+    ...departmentVolume.map(
+      (d) => Number(d.value) || 0
+    ),
     1
   );
 

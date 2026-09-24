@@ -148,8 +148,8 @@ function DepartmentModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="swu-pop w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
 
         {/* ===================================================
             HEADER
@@ -452,7 +452,7 @@ function DepartmentModal({
               !form.kiosk_id ||
               !form.department_name.trim()
             }
-            className="flex items-center gap-1.5 rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+            className="swu-press flex items-center gap-1.5 rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-sm"
           >
             {saving
               ? 'Saving...'
@@ -510,8 +510,8 @@ function ResetDepartmentSelectionModal({
 }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="swu-pop w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
           <div>
             <h2 className="text-lg font-bold text-[#1F2937]">
@@ -637,7 +637,7 @@ function ResetDepartmentSelectionModal({
               disabled={
                 selectedResetIds.length === 0
               }
-              className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+              className="swu-press rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-sm"
             >
               Continue
             </button>
@@ -665,7 +665,7 @@ function ResetPinModal({
   }
 
 return (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+  <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
     <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
 
       {/* Header */}
@@ -722,7 +722,7 @@ return (
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
+          className="swu-press rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
         >
           Cancel
         </button>
@@ -731,7 +731,7 @@ return (
           type="button"
           onClick={onConfirm}
           disabled={pinInput.length !== 6}
-          className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+          className="swu-press rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-sm"
         >
           {verifying ? 'Verifying...' : 'Verify PIN'}
         </button>
@@ -2128,7 +2128,7 @@ return (
             setError(null);
             setSuccess('');
           }}
-          className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition-colors hover:bg-[#F8F9FA]"
+          className="swu-press rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
         >
           Reset Departments
         </button>
@@ -2137,7 +2137,7 @@ return (
           type="button"
           onClick={openAdd}
           disabled={loadingKiosks}
-          className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
+          className="swu-press flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus size={15} />
           {loadingKiosks ? 'Loading Kiosks...' : 'Add Department'}
@@ -2165,11 +2165,11 @@ return (
 
     {/* SUMMARY CARDS */}
 
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="swu-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
       {/* DEPARTMENT */}
 
-      <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+      <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
         <div className="flex items-center justify-between">
 
@@ -2199,7 +2199,7 @@ return (
       </div>
         {/* TOTAL WAITING */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
@@ -2230,7 +2230,7 @@ return (
 
         {/* AVERAGE WAIT */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
@@ -2261,7 +2261,7 @@ return (
 
         {/* TERMINAL */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
@@ -2298,7 +2298,7 @@ return (
           DEPARTMENT OVERVIEW
       ===================================================== */}
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+      <div className="swu-enter rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
 
         {/* HEADER */}
 
@@ -2414,7 +2414,7 @@ return (
                   <tr
                     key={department.id}
                     onClick={() => openEdit(department)}
-                    className="cursor-pointer transition-colors hover:bg-[#F8F9FA]"
+                    className="cursor-pointer transition-colors hover:bg-[#FBF1F1]"
                   >
                     {/* DEPARTMENT */}
 
@@ -2508,7 +2508,7 @@ return (
                 setPage((p) => Math.max(1, p - 1))
               }
               disabled={currentPage === 1}
-              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:text-[#4B5563] disabled:opacity-50"
+              className="swu-press rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Prev
             </button>
@@ -2537,7 +2537,7 @@ return (
                 setPage((p) => Math.min(totalPages, p + 1))
               }
               disabled={currentPage === totalPages}
-              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:text-[#4B5563] disabled:opacity-50"
+              className="swu-press rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
             </button>

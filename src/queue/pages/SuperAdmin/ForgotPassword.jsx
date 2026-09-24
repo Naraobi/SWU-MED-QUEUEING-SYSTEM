@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Mail,
   ArrowRight,
-  ArrowLeft,
   Check,
   Eye,
   EyeOff,
@@ -18,6 +17,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Circle,
+  X,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
@@ -29,9 +29,13 @@ import LoginBG1 from '../../../assets/LoginBG1.jpg';
  *   /forgot-password  -> sendPasswordResetEmail()  emails a reset link
  *   /reset-password   -> confirmPasswordReset()    sets the new password
  *
- * No backend is involved. For the emailed link to open /reset-password
- * (instead of Firebase's default page), set the action URL in
- * Firebase Console -> Authentication -> Templates -> Password reset.
+ * For the emailed link to open /reset-password (instead of Firebase's
+ * default page), set the action URL in Firebase Console -> Authentication
+ * -> Templates -> Password reset.
+ *
+ * PREVIEW (no email needed):
+ *   /reset-password?preview=form
+ *   /reset-password?preview=done
  */
 
 /* =========================================================
@@ -285,12 +289,12 @@ const RULES = [
   { key: 'special', label: 'Include at least one special character', test: (v) => /[^A-Za-z0-9]/.test(v) },
 ];
 
-function PasswordField({ id, label, value, onChange, disabled, autoFocus }) {
+function PasswordField({ id, label, value, onChange, disabled, autoFocus, placeholder }) {
   const [show, setShow] = useState(false);
 
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-[#1F2937]">
+      <label htmlFor={id} className="mb-1.5 block text-xs font-bold text-[#1F2937]">
         {label}
         <span className="ml-0.5 text-[#9D0A0E]">*</span>
       </label>
@@ -304,7 +308,8 @@ function PasswordField({ id, label, value, onChange, disabled, autoFocus }) {
           autoComplete="new-password"
           autoFocus={autoFocus}
           disabled={disabled}
-          className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 pr-10 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"
+          placeholder={placeholder}
+          className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 pr-10 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"
         />
 
         <button
@@ -313,7 +318,7 @@ function PasswordField({ id, label, value, onChange, disabled, autoFocus }) {
           className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-[#4B5563] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
           aria-label={show ? 'Hide password' : 'Show password'}
         >
-          {show ? <EyeOff size={16} /> : <Eye size={16} />}
+          {show ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
       </div>
     </div>
@@ -323,19 +328,27 @@ function PasswordField({ id, label, value, onChange, disabled, autoFocus }) {
 export function ResetPassword() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
+
+  const preview = ['form', 'done'].includes(params.get('preview'))
+    ? params.get('preview')
+    : null;
+
   const oobCode = params.get('oobCode');
 
-  const [checking, setChecking] = useState(true);
-  const [accountEmail, setAccountEmail] = useState(null);
+  const [checking, setChecking] = useState(!preview);
   const [linkError, setLinkError] = useState(null);
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [completedAt, setCompletedAt] = useState(null);
+  const [completedAt, setCompletedAt] = useState(
+    preview === 'done' ? new Date() : null
+  );
 
   useEffect(() => {
+    if (preview) return undefined;
+
     let cancelled = false;
 
     if (!oobCode) {
@@ -345,9 +358,6 @@ export function ResetPassword() {
     }
 
     verifyPasswordResetCode(auth, oobCode)
-      .then((email) => {
-        if (!cancelled) setAccountEmail(email);
-      })
       .catch((verifyError) => {
         if (!cancelled) {
           setLinkError(friendlyAuthError(verifyError, 'This reset link is not valid.'));
@@ -360,7 +370,7 @@ export function ResetPassword() {
     return () => {
       cancelled = true;
     };
-  }, [oobCode]);
+  }, [oobCode, preview]);
 
   const results = useMemo(
     () => RULES.map((rule) => ({ ...rule, ok: rule.test(password) })),
@@ -380,6 +390,12 @@ export function ResetPassword() {
 
     if (password !== confirm) {
       setError('The two passwords do not match.');
+      return;
+    }
+
+    // Preview never touches Firebase.
+    if (preview) {
+      setCompletedAt(new Date());
       return;
     }
 
@@ -422,20 +438,45 @@ export function ResetPassword() {
     );
   }
 
+  /* ----- Password Reset Complete ----- */
+
   if (completedAt) {
     return (
       <RecoveryShell>
-        <CardHeader
-          icon={Check}
-          tone="green"
-          title="Password Reset Complete!"
-          description="Your password has been successfully updated. You can now log in with your new credentials."
-        />
+        <div className="px-7 pb-7 pt-4 text-center">
+          <span
+            aria-hidden="true"
+            className="mx-auto block h-1 w-10 rounded-full bg-[#F0DADA]"
+          />
 
-        <div className="px-7 pb-7">
-          <p className="flex items-center justify-center gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-xs text-[#4B5563]">
-            <ShieldCheck size={13} className="text-[#9D0A0E]" />
-            Updated on {completedAt.toLocaleString()}
+          <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-200">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-white">
+              <Check size={16} strokeWidth={3} />
+            </span>
+          </div>
+
+          <h1 className="mt-5 text-xl font-bold text-[#1F2937]">
+            Password Reset Complete!
+          </h1>
+
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#4B5563]">
+            Your password has been successfully updated. You can now log in with
+            your new credentials.
+          </p>
+
+          <p className="mt-4 flex items-center justify-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-xs text-[#4B5563]">
+            <ShieldCheck size={13} className="shrink-0 text-[#9D0A0E]" />
+            Updated on{' '}
+            {completedAt.toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+            {' \u2022 '}
+            {completedAt.toLocaleTimeString([], {
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
           </p>
 
           <PrimaryButton onClick={() => navigate('/superadmin/login')}>
@@ -447,52 +488,71 @@ export function ResetPassword() {
     );
   }
 
+  /* ----- Set New Password ----- */
+
   return (
     <RecoveryShell>
-      <div className="flex items-center gap-3 border-b border-[#E5E7EB] px-7 py-5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
-          <ShieldAlert size={18} />
-        </div>
-        <h1 className="text-lg font-bold text-[#1F2937]">Set New Password</h1>
-      </div>
+      <form onSubmit={handleSubmit} className="px-6 pb-6 pt-5">
 
-      <form onSubmit={handleSubmit} className="space-y-4 px-7 pb-7 pt-5">
-        <p className="text-sm leading-6 text-[#4B5563]">
-          Create a strong new password for{' '}
-          <span className="font-semibold text-[#1F2937]">{accountEmail}</span>.
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
+              <ShieldAlert size={18} />
+            </span>
+
+            <h1 className="text-lg font-bold text-[#1F2937]">Set New Password</h1>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/superadmin/login')}
+            disabled={saving}
+            className="rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30 disabled:opacity-40"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs leading-5 text-[#4B5563]">
+          Link verified! Please create a strong new password for your account.
         </p>
 
-        <PasswordField
-          id="new-password"
-          label="New Password"
-          value={password}
-          onChange={setPassword}
-          disabled={saving}
-          autoFocus
-        />
+        <div className="mt-5 space-y-4">
+          <PasswordField
+            id="new-password"
+            label="New Password"
+            value={password}
+            onChange={setPassword}
+            disabled={saving}
+            autoFocus
+            placeholder="Enter new password"
+          />
 
-        <PasswordField
-          id="confirm-password"
-          label="Confirm New Password"
-          value={confirm}
-          onChange={setConfirm}
-          disabled={saving}
-        />
+          <PasswordField
+            id="confirm-password"
+            label="Confirm New Password"
+            value={confirm}
+            onChange={setConfirm}
+            disabled={saving}
+            placeholder="Confirm new password"
+          />
+        </div>
 
-        <div className="rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3">
+        <div className="mt-4 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3">
           <p className="mb-2 text-xs font-bold text-[#1F2937]">Password requirements:</p>
           <ul className="space-y-1.5">
             {results.map((rule) => (
               <li
                 key={rule.key}
                 className={`flex items-center gap-2 text-xs ${
-                  rule.ok ? 'text-emerald-700' : 'text-[#4B5563]'
+                  rule.ok ? 'text-[#1F2937]' : 'text-[#4B5563]'
                 }`}
               >
                 {rule.ok ? (
                   <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
                 ) : (
-                  <Circle size={14} className="shrink-0 text-[#9CA3AF]" />
+                  <Circle size={14} className="shrink-0 text-[#D1D5DB]" />
                 )}
                 {rule.label}
               </li>
@@ -506,16 +566,6 @@ export function ResetPassword() {
           {saving ? 'Updating...' : 'Update Password & Login'}
           {!saving && <ArrowRight size={16} />}
         </PrimaryButton>
-
-        <button
-          type="button"
-          onClick={() => navigate('/superadmin/login')}
-          disabled={saving}
-          className="flex w-full items-center justify-center gap-1.5 text-xs font-medium text-[#4B5563] transition hover:text-[#9D0A0E]"
-        >
-          <ArrowLeft size={12} />
-          Back to Login
-        </button>
       </form>
     </RecoveryShell>
   );
