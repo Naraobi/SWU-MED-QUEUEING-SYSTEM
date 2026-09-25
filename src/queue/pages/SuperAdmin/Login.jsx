@@ -28,9 +28,23 @@ export default function Login() {
   const [loggedInUser, setLoggedInUser] =
     useState(null);
 
-  // Consent gate shown in the design. UI-only; not sent to the backend.
+  /*
+  |--------------------------------------------------------------------------
+  | TERMS AGREEMENT
+  |--------------------------------------------------------------------------
+  |
+  | Once someone agrees and logs in successfully, this browser remembers it
+  | and the checkbox is hidden on every later login.
+  |
+  */
+  const TERMS_KEY = 'swumed_terms_accepted';
+
+  const [alreadyAgreed] = useState(
+    () => localStorage.getItem(TERMS_KEY) === 'true'
+  );
+
   const [agreedToTerms, setAgreedToTerms] =
-    useState(false);
+    useState(alreadyAgreed);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -66,6 +80,10 @@ export default function Login() {
 
         return;
       }
+
+      // Login succeeded - remember the agreement on this browser so the
+      // checkbox is not shown again on later logins.
+      localStorage.setItem(TERMS_KEY, 'true');
 
       /*
       |--------------------------------------------------------------------------
@@ -257,7 +275,7 @@ async function handlePasswordChangeSuccess(
             LOGIN CARD
         ===================================================== */}
 
-        <div className="w-full shrink-0 self-center rounded-2xl bg-white p-8 shadow-2xl sm:p-10 lg:max-w-md">
+        <div className="swu-pop w-full shrink-0 self-center rounded-2xl bg-white p-8 shadow-2xl sm:p-10 lg:max-w-md">
 
           {/* LOGO + TITLE */}
 
@@ -301,7 +319,7 @@ async function handlePasswordChangeSuccess(
                 placeholder="example.swu@phinmaed.com"
                 autoComplete="email"
                 disabled={loading}
-                className="w-full rounded-md border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2.5 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"
+                className="w-full rounded-md border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2.5 text-sm text-[#1F2937] transition-all duration-200 placeholder:text-[#9CA3AF] hover:border-[#9CA3AF] hover:bg-white focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"
               />
 
               {errors.email && (
@@ -339,7 +357,7 @@ async function handlePasswordChangeSuccess(
                   placeholder="••••••••"
                   autoComplete="current-password"
                   disabled={loading}
-                  className="w-full rounded-md border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2.5 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60 pr-10"
+                  className="w-full rounded-md border border-[#E5E7EB] bg-[#F1F3F5] px-3 py-2.5 pr-10 text-sm text-[#1F2937] transition-all duration-200 placeholder:text-[#9CA3AF] hover:border-[#9CA3AF] hover:bg-white focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"
                 />
 
                 <button
@@ -349,7 +367,7 @@ async function handlePasswordChangeSuccess(
                       (prev) => !prev
                     )
                   }
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-[#4B5563] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
+                  className="swu-press absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[#4B5563] transition-colors hover:bg-[#F1F3F5] hover:text-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
                   aria-label={
                     showPassword
                       ? 'Hide password'
@@ -381,7 +399,7 @@ async function handlePasswordChangeSuccess(
                       '/forgot-password'
                     )
                   }
-                  className="rounded text-xs font-semibold text-[#9D0A0E] transition hover:underline focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
+                  className="swu-press rounded text-xs font-semibold text-[#9D0A0E] underline-offset-4 transition-colors hover:text-[#7D080B] hover:underline focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
                 >
                   Forgot Password?
                 </button>
@@ -390,36 +408,38 @@ async function handlePasswordChangeSuccess(
 
             {/* TERMS */}
 
-            <label className="flex cursor-pointer items-start gap-2 text-xs text-[#4B5563]">
-              <input
-                type="checkbox"
-                checked={agreedToTerms}
-                onChange={(e) =>
-                  setAgreedToTerms(
-                    e.target.checked
-                  )
-                }
-                disabled={loading}
-                className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-[#9CA3AF] accent-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/30"
-              />
+            {!alreadyAgreed && (
+              <label className="-mx-2 flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-xs text-[#4B5563] transition-colors hover:bg-[#F8F9FA]">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) =>
+                    setAgreedToTerms(
+                      e.target.checked
+                    )
+                  }
+                  disabled={loading}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-[#9CA3AF] accent-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/30"
+                />
 
-              <span>
-                I agree to the{' '}
-                <span className="font-semibold text-[#9D0A0E]">
-                  Terms &amp; Conditions
+                <span>
+                  I agree to the{' '}
+                  <span className="font-semibold text-[#9D0A0E]">
+                    Terms &amp; Conditions
+                  </span>
+                  {' '}and{' '}
+                  <span className="font-semibold text-[#9D0A0E]">
+                    Privacy Policy
+                  </span>
+                  .
                 </span>
-                {' '}and{' '}
-                <span className="font-semibold text-[#9D0A0E]">
-                  Privacy Policy
-                </span>
-                .
-              </span>
-            </label>
+              </label>
+            )}
 
             {/* GENERAL ERROR */}
 
             {errors.form && (
-              <div className="rounded-md border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2 text-xs text-[#9D0A0E]">
+              <div className="swu-enter rounded-md border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2 text-xs text-[#9D0A0E]">
                 {errors.form}
               </div>
             )}
@@ -429,7 +449,7 @@ async function handlePasswordChangeSuccess(
             <button
               type="submit"
               disabled={loading || !agreedToTerms}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-3 text-base font-bold text-white transition-colors hover:bg-[#7D080B] focus:outline-none focus:ring-4 focus:ring-[#9D0A0E]/30 disabled:cursor-not-allowed disabled:opacity-50"
+              className="swu-press group flex w-full items-center justify-center gap-2 rounded-md bg-[#9D0A0E] py-3 text-base font-bold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-lg hover:shadow-[#9D0A0E]/25 focus:outline-none focus:ring-4 focus:ring-[#9D0A0E]/30 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
             >
               {loading
                 ? 'Logging in...'
@@ -456,7 +476,7 @@ async function handlePasswordChangeSuccess(
               type="button"
               onClick={handleGoogleSignIn}
               disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-[#E5E7EB] bg-white py-2.5 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-50"
+              className="swu-press flex w-full items-center justify-center gap-2 rounded-md border border-[#E5E7EB] bg-white py-2.5 text-sm font-medium text-[#1F2937] transition-all duration-200 hover:border-[#9CA3AF] hover:bg-[#F8F9FA] hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-50"
             >
               <svg
                 width="16"
@@ -486,7 +506,7 @@ async function handlePasswordChangeSuccess(
             WELCOME PANEL
         ===================================================== */}
 
-        <div className="hidden flex-1 flex-col justify-end pb-12 lg:flex">
+        <div className="swu-enter hidden flex-1 flex-col justify-end pb-12 lg:flex">
           <h1 className="text-3xl font-bold text-white">
             Welcome to SWUMed
           </h1>

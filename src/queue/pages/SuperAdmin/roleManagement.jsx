@@ -1171,8 +1171,8 @@ export default function RoleManagement() {
       ================================================= */}
 
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-2xl">
+        <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="swu-pop max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-2xl">
 
             {/* MODAL HEADER */}
 
@@ -1368,7 +1368,7 @@ export default function RoleManagement() {
                                 permission
                               )
                             }
-                            className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-[#1F2937] transition hover:bg-[#F8F9FA]"
+                            className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-[#1F2937] transition-all duration-200 hover:translate-x-1 hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
                           >
                             <span
                               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${
@@ -1419,7 +1419,7 @@ export default function RoleManagement() {
                 type="button"
                 onClick={closeEditRole}
                 disabled={saving}
-                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#4B5563] hover:bg-[#F8F9FA] disabled:opacity-50"
+                className="swu-press rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1428,7 +1428,7 @@ export default function RoleManagement() {
                 type="button"
                 onClick={handleUpdateRole}
                 disabled={saving}
-                className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
+                className="swu-press rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
               >
                 {saving
                   ? 'Saving...'
@@ -1444,8 +1444,8 @@ export default function RoleManagement() {
       ================================================= */}
 
       {showDeleteModal && deletingRole && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl">
+        <div className="swu-enter-fade fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="swu-pop w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl">
 
             {/* ICON */}
 
@@ -1485,7 +1485,7 @@ export default function RoleManagement() {
                   closeDeleteConfirmation
                 }
                 disabled={deleting}
-                className="flex-1 rounded-lg border border-[#E5E7EB] px-4 py-2.5 text-sm font-medium text-[#4B5563] hover:bg-[#F8F9FA] disabled:opacity-50"
+                className="swu-press flex-1 rounded-lg border border-[#E5E7EB] px-4 py-2.5 text-sm font-medium text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1510,9 +1510,9 @@ export default function RoleManagement() {
       ================================================= */}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8">
+        <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8">
 
-          <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="swu-pop flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
             {/* HEADER */}
 
@@ -1792,7 +1792,7 @@ export default function RoleManagement() {
             ROLE LIST
         ================================================= */}
 
-        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <section className="swu-card rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           {/* SEARCH */}
 
@@ -1906,7 +1906,7 @@ export default function RoleManagement() {
             ROLE DETAILS
         ================================================= */}
 
-        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+        <section className="swu-card rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
 
           {selectedRole ? (
             <>
@@ -1945,7 +1945,7 @@ export default function RoleManagement() {
                         selectedRole
                       )
                     }
-                    className="inline-flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm font-medium text-[#1F2937] hover:bg-[#F8F9FA]"
+                    className="swu-press inline-flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
                   >
                     <PencilLine
                       size={15}

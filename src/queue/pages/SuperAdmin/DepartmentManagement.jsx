@@ -10,9 +10,15 @@ import {
   updateDepartment,
   validateSecurityPin,
   resetDepartmentIds,
+   getSecurityPinStatus,
 } from '../../services/backendApi';
 import AddKioskModal from '../../components/modals/AddKioskModal';
+
 import AddDepartmentModal from '../../components/modals/AddDepartmentModal';
+import SecurityPinModal, {
+  readPinIsSet,
+} from '../../components/SecurityPinModal';
+
 import {
   Search,
   Building2,
@@ -100,6 +106,507 @@ function getPageNumbers(currentPage, totalPages) {
     (_, i) => start + i
   );
 }
+
+// ===========================================================
+// DEPARTMENT MODAL
+// ===========================================================
+
+/* =========================================================
+   DEPARTMENT VOLUME — bar chart
+   Waiting patients per department. Plain SVG, no library.
+========================================================= */
+
+function DepartmentVolumeChart({ departments }) {
+  const rows = departments
+    .map((department) => ({
+      name: department.name || 'Department',
+      value: Number(department.waiting) || 0,
+      wait: parseInt(String(department.avg_wait || ''), 10) || 0,
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+
+  if (rows.length === 0) {
+    return (
+      <p className="py-10 text-center text-xs text-[#4B5563]">
+        No departments to chart yet.
+      </p>
+    );
+  }
+
+  const max = Math.max(...rows.map((row) => row.value), 1);
+  const busiest = rows[0];
+
+  const longestWait = rows.reduce(
+    (worst, row) => (row.wait > (worst?.wait || 0) ? row : worst),
+    null
+  );
+
+  const ticks = [0, 0.5, 1];
+
+  return (
+    <div>
+      <div className="flex gap-3">
+        {/* y axis */}
+        <div className="flex w-8 shrink-0 flex-col justify-between py-1 text-right">
+          {[...ticks].reverse().map((tick) => (
+            <span key={tick} className="text-xs text-[#9CA3AF]">
+              {Math.round(max * tick)}
+            </span>
+          ))}
+        </div>
+
+        {/* plot */}
+        <div className="relative min-w-0 flex-1">
+          {ticks.map((tick) => (
+            <span
+              key={tick}
+              aria-hidden="true"
+              className="absolute left-0 right-0 border-t border-dashed border-[#E5E7EB]"
+              style={{ bottom: `${tick * 100}%` }}
+            />
+          ))}
+
+          <div className="relative flex h-48 items-end gap-3">
+            {rows.map((row, index) => (
+              <div
+                key={row.name}
+                className="group flex min-w-0 flex-1 flex-col items-center justify-end"
+              >
+                <span className="mb-1 text-xs font-semibold text-[#1F2937]">
+                  {row.value}
+                </span>
+
+                <div
+                  title={`${row.name}: ${row.value} waiting`}
+                  className={`swu-grow-y w-full rounded-t-md transition-colors duration-200 ${
+                    index === 0
+                      ? 'bg-[#9D0A0E] group-hover:bg-[#7D080B]'
+                      : 'bg-[#B34C4C] group-hover:bg-[#9D0A0E]'
+                  }`}
+                  style={{
+                    height: `${Math.max((row.value / max) * 100, 2)}%`,
+                    animationDelay: `${index * 60}ms`,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* x labels */}
+          <div className="mt-2 flex gap-3 border-t border-[#E5E7EB] pt-2">
+            {rows.map((row) => (
+              <span
+                key={row.name}
+                className="min-w-0 flex-1 truncate text-center text-xs text-[#4B5563]"
+                title={row.name}
+              >
+                {row.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* legend + summary */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#E5E7EB] pt-3 text-xs text-[#4B5563]">
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#9D0A0E]" />
+            Busiest department
+          </span>
+
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#B34C4C]" />
+            Waiting patients
+          </span>
+
+          {longestWait && longestWait.wait > 0 && (
+            <span>
+              Peak wait time:{' '}
+              <span className="font-semibold text-[#1F2937]">
+                {longestWait.name} (~{longestWait.wait} mins)
+              </span>
+            </span>
+          )}
+        </div>
+
+        <span>
+          Total currently in queue:{' '}
+          <span className="font-semibold text-[#1F2937]">
+            {total} patient{total === 1 ? '' : 's'}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function DepartmentModal({
+  open,
+  onClose,
+  onSave,
+  form,
+  setForm,
+  saving,
+  kiosks,
+  isEditing,
+}) {
+  if (!open) {
+    return null;
+  }
+
+  const activeKiosks = kiosks.filter(
+    (kiosk) =>
+      String(kiosk.status || '').toLowerCase() ===
+      'active'
+  );
+
+  const selectedKiosk = kiosks.find(
+    (kiosk) =>
+      String(kiosk.kiosk_id) ===
+        String(form.kiosk_id) ||
+      String(kiosk.firestore_id || '') ===
+        String(form.kiosk_id)
+  );
+
+  const selectableKiosks = [
+    ...activeKiosks,
+    ...(selectedKiosk &&
+    String(selectedKiosk.status || '').toLowerCase() !==
+      'active' &&
+    !activeKiosks.some(
+      (kiosk) =>
+        String(kiosk.kiosk_id) ===
+        String(selectedKiosk.kiosk_id)
+    )
+      ? [selectedKiosk]
+      : []),
+  ];
+
+  return (
+    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="swu-pop w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+
+        {/* ===================================================
+            HEADER
+        =================================================== */}
+
+        <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
+
+          <div>
+            <h2 className="text-lg font-bold text-[#1F2937]">
+              {isEditing
+                ? 'Edit Department'
+                : 'Add New Department'}
+            </h2>
+
+            <p className="mt-1 text-xs text-[#4B5563]">
+              {isEditing
+                ? 'Update the department configuration below.'
+                : 'Create a department and assign it to a kiosk.'}
+            </p>
+
+            <p className="mt-0.5 text-xs text-[#4B5563]">
+              Fields marked{' '}
+              <span className="text-[#9D0A0E]">*</span>
+              {' '}are required.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30 disabled:opacity-40"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+
+        </div>
+
+
+        {/* ===================================================
+            BODY
+        =================================================== */}
+
+        <div className="space-y-4 px-6 py-5">
+
+          {/* ----- KIOSK ----- */}
+
+          <div>
+
+            <label
+              htmlFor="department-kiosk"
+              className="mb-1 block text-sm font-semibold text-[#1F2937]"
+            >
+              Kiosk
+              <span className="ml-0.5 text-[#9D0A0E]">*</span>
+            </label>
+
+            <div className="relative">
+
+              <Monitor
+                size={16}
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#4B5563]"
+              />
+
+              <select
+                id="department-kiosk"
+                value={form.kiosk_id}
+                onChange={(e) =>
+                  setForm((current) => ({
+                    ...current,
+                    kiosk_id: e.target.value,
+                  }))
+                }
+                disabled={saving}
+                className="w-full appearance-none rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-10 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+
+                <option value="">
+                  Select a kiosk
+                </option>
+
+                {selectableKiosks.length > 0 ? (
+                  selectableKiosks.map(
+                    (kiosk) => (
+                      <option
+                        key={kiosk.kiosk_id}
+                        value={kiosk.kiosk_id}
+                      >
+                        {kiosk.name}
+                        {String(
+                          kiosk.status || ''
+                        ).toLowerCase() !== 'active'
+                          ? ' (Inactive)'
+                          : ''}
+                      </option>
+                    )
+                  )
+                ) : (
+                  <option
+                    value=""
+                    disabled
+                  >
+                    No active kiosks found
+                  </option>
+                )}
+
+              </select>
+
+              <ChevronDown
+                size={16}
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#4B5563]"
+              />
+
+            </div>
+
+            {/* Assignment confirmation chip */}
+
+            {selectedKiosk && (
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[#F0DADA] bg-[#FBF1F1] px-2.5 py-1 text-xs font-medium text-[#9D0A0E]">
+                <MapPin size={12} />
+                Assigning to: {selectedKiosk.name}
+              </p>
+            )}
+
+            {activeKiosks.length === 0 && (
+              <p className="mt-1.5 text-xs text-[#9D0A0E]">
+                No active kiosks are available. Please add or activate a kiosk first.
+              </p>
+            )}
+
+            {!form.kiosk_id &&
+              activeKiosks.length > 0 && (
+                <p className="mt-1.5 text-xs text-[#4B5563]">
+                  Select the kiosk where this department will be assigned.
+                </p>
+              )}
+
+          </div>
+
+
+          {/* ----- DEPARTMENT NAME ----- */}
+
+          <div>
+
+            <label
+              htmlFor="department-name"
+              className="mb-1 block text-sm font-semibold text-[#1F2937]"
+            >
+              Department Name
+              <span className="ml-0.5 text-[#9D0A0E]">*</span>
+            </label>
+
+            <input
+              id="department-name"
+              type="text"
+              value={form.department_name}
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
+                  department_name:
+                    e.target.value,
+                }))
+              }
+              disabled={
+                !form.kiosk_id ||
+                saving
+              }
+              className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:cursor-not-allowed disabled:bg-[#F1F3F5] disabled:text-[#9CA3AF]"
+              placeholder={
+                form.kiosk_id
+                  ? 'e.g. Laboratory, Pharmacy, Billing'
+                  : 'Select a kiosk first'
+              }
+            />
+
+            {!form.kiosk_id && (
+              <p className="mt-1.5 text-xs text-[#4B5563]">
+                Department name becomes available after selecting a kiosk.
+              </p>
+            )}
+
+          </div>
+
+
+          {/* ----- PREFIX + STATUS ----- */}
+
+          <div className="grid grid-cols-2 gap-4">
+
+            <div>
+
+              <label
+                htmlFor="department-prefix"
+                className="mb-1 block text-sm font-semibold text-[#1F2937]"
+              >
+                Department Prefix
+                <span className="ml-0.5 text-[#9D0A0E]">*</span>
+              </label>
+
+              <input
+                id="department-prefix"
+                type="text"
+                value={form.prefix}
+                onChange={(e) =>
+                  setForm((current) => ({
+                    ...current,
+                    prefix:
+                      e.target.value.toUpperCase(),
+                  }))
+                }
+                disabled={
+                  !form.kiosk_id ||
+                  saving
+                }
+                className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:cursor-not-allowed disabled:bg-[#F1F3F5] disabled:text-[#9CA3AF]"
+                placeholder="e.g. L or P"
+              />
+
+              <p className="mt-1.5 text-xs text-[#4B5563]">
+                Tickets will show as{' '}
+                {form.prefix
+                  ? `${form.prefix}-001`
+                  : 'ML-001'}
+              </p>
+
+            </div>
+
+
+            <div>
+
+              <label className="mb-1 block text-sm font-semibold text-[#1F2937]">
+                Status
+              </label>
+
+              <div className="inline-flex rounded-lg border border-[#E5E7EB] p-1">
+                {STATUS_OPTIONS.map((status) => {
+                  const isSelected =
+                    form.status === status;
+
+                  const isDisabled =
+                    !form.kiosk_id || saving;
+
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          status: status,
+                        }))
+                      }
+                      aria-pressed={isSelected}
+                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium capitalize transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                        isSelected
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'text-[#4B5563] hover:bg-[#F1F3F5]'
+                      }`}
+                    >
+                      {isSelected && (
+                        <Check size={14} />
+                      )}
+
+                      {status}
+                    </button>
+                  );
+                })}
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        {/* ===================================================
+            FOOTER
+        =================================================== */}
+
+        <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-40"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={
+              saving ||
+              !form.kiosk_id ||
+              !form.department_name.trim()
+            }
+            className="swu-press flex items-center gap-1.5 rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-sm"
+          >
+            {saving
+              ? 'Saving...'
+              : isEditing
+                ? 'Save Changes'
+                : '+ Add Department'}
+          </button>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // ===========================================================
 // RESET DEPARTMENT SELECTION MODAL
 // ===========================================================
@@ -142,8 +649,8 @@ function ResetDepartmentSelectionModal({
 }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="swu-pop w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
           <div>
             <h2 className="text-lg font-bold text-[#1F2937]">
@@ -269,7 +776,7 @@ function ResetDepartmentSelectionModal({
               disabled={
                 selectedResetIds.length === 0
               }
-              className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+              className="swu-press rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-sm"
             >
               Continue
             </button>
@@ -397,7 +904,7 @@ function ResetPinModal({
   }
 
 return (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+  <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
     <div className="w-full max-w-sm rounded-xl bg-white shadow-xl">
 
       {/* Header */}
@@ -454,7 +961,7 @@ return (
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
+          className="swu-press rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
         >
           Cancel
         </button>
@@ -463,7 +970,7 @@ return (
           type="button"
           onClick={onConfirm}
           disabled={pinInput.length !== 6}
-          className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
+          className="swu-press rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:shadow-sm"
         >
           {verifying ? 'Verifying...' : 'Verify PIN'}
         </button>
@@ -539,6 +1046,10 @@ const [resettingIds, setResettingIds] =
 
   const [pinInput, setPinInput] =
     useState('');
+
+  // Shown when a reset is attempted before any Security PIN exists.
+  const [showPinSetup, setShowPinSetup] =
+    useState(false);
 
   const [showResetPin, setShowResetPin] =
     useState(false);
@@ -1514,16 +2025,52 @@ if (duplicate) {
     }
   }
 
-  function handleResetSelectionContinue() {
+  async function handleResetSelectionContinue() {
   if (selectedResetIds.length === 0) {
     return;
   }
 
   setResettingIds(selectedResetIds);
-  setShowResetSelection(false);
-  setShowResetConfirmation(true);
-  setError(null);
-  setSuccess('');
+setShowResetSelection(false);
+setShowResetConfirmation(true);
+setError(null);
+setSuccess('');
+  /*
+  |--------------------------------------------------------------------------
+  | SECURITY PIN GATE
+  |--------------------------------------------------------------------------
+  |
+  | Resetting department records is a protected action. If this user has no
+  | Security PIN yet, ask them to create one instead of showing a PIN prompt
+  | they cannot possibly satisfy.
+  |
+  */
+  const firebaseUser = auth.currentUser;
+
+  if (!firebaseUser) {
+    setError(
+      'Your authentication session is unavailable. Please log in again.'
+    );
+    return;
+  }
+
+  try {
+    const status = await getSecurityPinStatus(firebaseUser);
+
+    if (readPinIsSet(status)) {
+      setShowResetPin(true);
+    } else {
+      setShowPinSetup(true);
+    }
+  } catch (statusError) {
+    console.error(
+      'Security PIN status check failed:',
+      statusError
+    );
+
+    // Status unavailable - fall back to asking for the PIN.
+    setShowResetPin(true);
+  }
 }
 
 
@@ -1819,7 +2366,7 @@ return (
             setError(null);
             setSuccess('');
           }}
-          className="rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition-colors hover:bg-[#F8F9FA]"
+          className="swu-press rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-[#4B5563] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
         >
           Reset Departments
         </button>
@@ -1828,7 +2375,7 @@ return (
           type="button"
           onClick={openAdd}
           disabled={loadingKiosks}
-          className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
+          className="swu-press flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus size={15} />
           {loadingKiosks ? 'Loading Kiosks...' : 'Add Department'}
@@ -1856,11 +2403,11 @@ return (
 
     {/* SUMMARY CARDS */}
 
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="swu-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
       {/* DEPARTMENT */}
 
-      <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+      <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
         <div className="flex items-center justify-between">
 
@@ -1890,7 +2437,7 @@ return (
       </div>
         {/* TOTAL WAITING */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
@@ -1921,7 +2468,7 @@ return (
 
         {/* AVERAGE WAIT */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
@@ -1952,7 +2499,7 @@ return (
 
         {/* TERMINAL */}
 
-        <div className="flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+        <div className="swu-card flex flex-col justify-between rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
 
           <div className="flex items-center justify-between">
 
@@ -1989,7 +2536,7 @@ return (
           DEPARTMENT OVERVIEW
       ===================================================== */}
 
-      <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+      <div className="swu-enter rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
 
         {/* HEADER */}
 
@@ -2105,7 +2652,7 @@ return (
                   <tr
                     key={department.id}
                     onClick={() => openEdit(department)}
-                    className="cursor-pointer transition-colors hover:bg-[#F8F9FA]"
+                    className="cursor-pointer transition-colors hover:bg-[#FBF1F1]"
                   >
                     {/* DEPARTMENT */}
 
@@ -2199,7 +2746,7 @@ return (
                 setPage((p) => Math.max(1, p - 1))
               }
               disabled={currentPage === 1}
-              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:text-[#4B5563] disabled:opacity-50"
+              className="swu-press rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Prev
             </button>
@@ -2228,7 +2775,7 @@ return (
                 setPage((p) => Math.min(totalPages, p + 1))
               }
               disabled={currentPage === totalPages}
-              className="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:text-[#4B5563] disabled:opacity-50"
+              className="swu-press rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
             </button>
@@ -2245,10 +2792,12 @@ return (
           Department Volume
         </h2>
 
-        <div className="mt-4 flex h-32 items-center justify-center rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8F9FA]">
-          <p className="text-xs text-[#4B5563]">
-            Department volume charts and activity logs will render here.
-          </p>
+        <p className="mt-0.5 text-xs text-[#4B5563]">
+          Waiting patients per department
+        </p>
+
+        <div className="mt-4">
+          <DepartmentVolumeChart departments={departments} />
         </div>
       </div>
         {/* =====================================================
@@ -2323,37 +2872,54 @@ return (
           setSelectedResetIds={setSelectedResetIds}
           onContinue={handleResetSelectionContinue}
         />
-{/* =====================================================
-    RESET DEPARTMENT CONFIRMATION MODAL
-===================================================== */}
 
-<ResetDepartmentConfirmationModal
-  open={showResetConfirmation}
-  onClose={handleResetConfirmationNo}
-  onConfirm={handleResetConfirmationYes}
-  selectedDepartments={departments.filter((department) =>
-    resettingIds.some(
-      (id) =>
-        String(id) === String(department.id)
-    )
-  )}
-/>
-        <ResetPinModal
-          open={showResetPin}
-          onClose={() => {
-            if (verifyingResetPin) {
-              return;
-            }
+    <ResetDepartmentConfirmationModal
+      open={showResetConfirmation}
+      onClose={handleResetConfirmationNo}
+      onConfirm={handleResetConfirmationYes}
+      selectedDepartments={departments.filter((department) =>
+        resettingIds.some(
+          (id) =>
+            String(id) === String(department.id)
+        )
+      )}
+    />
 
-            setShowResetPin(false);
-            setResettingIds([]);
-            setPinInput('');
-          }}
-          onConfirm={handleResetPinConfirm}
-          pinInput={pinInput}
-          setPinInput={setPinInput}
-          verifying={verifyingResetPin}
-        />
+    {/* =====================================================
+        RESET PIN MODAL
+    ===================================================== */}
+
+    {showPinSetup && (
+      <SecurityPinModal
+        mode="setup"
+        onClose={() => {
+          setShowPinSetup(false);
+          setResettingIds([]);
+        }}
+        onSuccess={() => {
+          // PIN created - continue straight to the reset they asked for.
+          setShowPinSetup(false);
+          handleReset();
+        }}
+      />
+    )}
+
+    <ResetPinModal
+      open={showResetPin}
+      onClose={() => {
+        if (verifyingResetPin) {
+          return;
+        }
+
+        setShowResetPin(false);
+        setResettingIds([]);
+        setPinInput('');
+      }}
+      onConfirm={handleResetPinConfirm}
+      pinInput={pinInput}
+      setPinInput={setPinInput}
+      verifying={verifyingResetPin}
+    />
 
       </div>
     );

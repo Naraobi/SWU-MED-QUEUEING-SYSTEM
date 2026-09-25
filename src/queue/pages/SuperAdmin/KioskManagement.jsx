@@ -4,7 +4,6 @@ import {
   Building2,
   Check,
   ChevronDown,
-  ChevronRight,
   MapPin,
   Monitor,
   MoreVertical,
@@ -23,6 +22,7 @@ import {
   updateTerminal,
 } from '../../services/backendApi';
 
+import useFormDraft, { DraftRestoreBar } from '../../hooks/useFormDraft';
 
 export default function KioskManagement() {
 
@@ -42,6 +42,25 @@ export default function KioskManagement() {
 
   const [savingKiosk, setSavingKiosk] = useState(false);
   const [kioskError, setKioskError] = useState(null);
+
+  /*
+  |--------------------------------------------------------------------------
+  | UNSAVED DRAFT
+  |--------------------------------------------------------------------------
+  |
+  | Keeps whatever has been typed into Add Kiosk on this browser, so a
+  | refresh, crash or power cut does not lose it. The PIN is never stored.
+  |
+  */
+  const kioskDraft = useFormDraft('kiosk-add', {
+    enabled: kioskModal?.mode === 'add',
+    exclude: ['kioskPin'],
+    values: {
+      kioskName,
+      kioskLocation,
+      kioskStatus,
+    },
+  });
 
   // =============================================
   // KIOSK STATUS CONFIRMATION
@@ -238,49 +257,87 @@ export default function KioskManagement() {
 async function handleSaveKiosk() {
   if (!kioskModal) return;
 
-  const trimmedName = kioskName.trim();
-  const trimmedLocation = kioskLocation.trim();
+    const trimmedName = kioskName.trim();
+    const trimmedLocation = kioskLocation.trim();
 
-  if (!trimmedName) {
-    setKioskError('Kiosk name is required.');
-    return;
+    if (!trimmedName) {
+      setKioskError('Kiosk name is required.');
+      return;
+    }
+
+    try {
+      setSavingKiosk(true);
+      setKioskError(null);
+
+      // =========================================
+      // ADD KIOSK
+      // =========================================
+
+      if (kioskModal.mode === 'add') {
+        const newKiosk = await createKiosk({
+          name: trimmedName,
+          status: kioskStatus,
+        });
+
+        setKiosks((current) => [
+          ...current,
+          {
+            ...newKiosk,
+            name: trimmedName,
+            location: '',
+            status: kioskStatus,
+          },
+        ]);
+
+        // Saved for real - the draft is no longer needed.
+        kioskDraft.clear();
+      }
+
+      // =========================================
+      // EDIT KIOSK
+      // =========================================
+
+      else {
+        const updatedKiosk = await updateKiosk(kioskModal.kiosk_id, {
+          name: trimmedName,
+          location: trimmedLocation,
+          status: kioskStatus,
+        });
+
+        setKiosks((current) =>
+          current.map((kiosk) =>
+            kiosk.kiosk_id === kioskModal.kiosk_id
+              ? {
+                  ...kiosk,
+                  ...updatedKiosk,
+                  kiosk_id: kioskModal.kiosk_id,
+                  name: trimmedName,
+                  location: trimmedLocation,
+                  status: kioskStatus,
+                }
+              : kiosk
+          )
+        );
+      }
+
+      setKioskModal(null);
+      setKioskName('');
+      setKioskLocation('');
+      setKioskStatus('active');
+    } catch (err) {
+      console.error('SAVE KIOSK ERROR:', err);
+
+      setKioskError(
+        err.message ||
+          `Failed to ${
+            kioskModal.mode === 'add' ? 'add kiosk' : 'update kiosk'
+          }.`
+      );
+    } finally {
+      setSavingKiosk(false);
+    }
   }
 
-  try {
-    setSavingKiosk(true);
-    setKioskError(null);
-
-    // =========================================
-    // EDIT KIOSK
-    // =========================================
-
-    const updatedKiosk = await updateKiosk(kioskModal.kiosk_id, {
-      name: trimmedName,
-      location: trimmedLocation,
-      status: kioskStatus,
-    });
-
-    setKiosks((current) =>
-      current.map((kiosk) =>
-        kiosk.kiosk_id === kioskModal.kiosk_id
-          ? {
-              ...kiosk,
-              ...updatedKiosk,
-              kiosk_id: kioskModal.kiosk_id,
-              name: trimmedName,
-              location: trimmedLocation,
-              status: kioskStatus,
-            }
-          : kiosk
-      )
-    );
-  } catch (err) {
-    console.error('SAVE KIOSK ERROR:', err);
-    setKioskError(err.message || 'Failed to update kiosk.');
-  } finally {
-    setSavingKiosk(false);
-  }
-}
   // =============================================
   // TOGGLE KIOSK EXPANSION
   // =============================================
@@ -323,7 +380,6 @@ async function handleSaveKiosk() {
       throw err;
     }
   }
-
   // =============================================
   // OPEN ADD TERMINAL MODAL
   // =============================================
@@ -599,14 +655,15 @@ async function handleSaveKiosk() {
             Manage kiosks, departments, and terminals.
           </p>
         </div>
-          <button
-    type="button"
-    onClick={() => setAddKioskModalOpen(true)}
-    className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B]"
-  >
-    <Plus size={16} />
-    Add Kiosk
-  </button>
+
+        <button
+          type="button"
+          onClick={openAddKioskModal}
+          className="swu-press inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
+        >
+          <Plus size={16} />
+          Add Kiosk
+        </button>
       </div>
       {loading && (
         <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 text-sm text-[#4B5563]">
@@ -638,11 +695,11 @@ async function handleSaveKiosk() {
             return (
               <div
                 key={kiosk.kiosk_id}
-                className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm"
+                className="swu-card overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm"
               >
                 {/* KIOSK HEADER */}
 
-                <div className="flex w-full items-center gap-4 p-5 transition hover:bg-[#F8F9FA]">
+                <div className="flex w-full items-center gap-4 p-5 transition-colors hover:bg-[#FBF1F1]">
                   <button
                     type="button"
                     onClick={() => toggleKiosk(kiosk.kiosk_id)}
@@ -697,11 +754,12 @@ async function handleSaveKiosk() {
                     </button>
 
                     <div className="shrink-0 text-[#9CA3AF]">
-                      {isKioskExpanded ? (
-                        <ChevronDown size={20} />
-                      ) : (
-                        <ChevronRight size={20} />
-                      )}
+                      <ChevronDown
+                        size={20}
+                        className={`transition-transform duration-300 ${
+                          isKioskExpanded ? 'rotate-0' : '-rotate-90'
+                        }`}
+                      />
                     </div>
                   </div>
                 </div>
@@ -741,7 +799,7 @@ async function handleSaveKiosk() {
                           return (
                             <div
                               key={department.department_id}
-                              className="overflow-hidden rounded-xl border border-[#E5E7EB]"
+                              className="swu-enter overflow-hidden rounded-xl border border-[#E5E7EB] transition-colors hover:border-[#F0DADA]"
                             >
                               {/* DEPARTMENT HEADER */}
 
@@ -750,14 +808,15 @@ async function handleSaveKiosk() {
                                 onClick={() =>
                                   toggleDepartment(department.department_id)
                                 }
-                                className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#F8F9FA]"
+                                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#FBF1F1]"
                               >
                                 <div className="shrink-0 text-[#9CA3AF]">
-                                  {isDepartmentExpanded ? (
-                                    <ChevronDown size={18} />
-                                  ) : (
-                                    <ChevronRight size={18} />
-                                  )}
+                                  <ChevronDown
+                                    size={18}
+                                    className={`transition-transform duration-300 ${
+                                      isDepartmentExpanded ? 'rotate-0' : '-rotate-90'
+                                    }`}
+                                  />
                                 </div>
 
                                 <div className="min-w-0 flex-1">
@@ -902,8 +961,8 @@ async function handleSaveKiosk() {
           />
 
       {kioskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="swu-pop w-full max-w-md rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
               <div>
              <h3 className="text-lg font-semibold text-[#1F2937]">
@@ -926,6 +985,19 @@ async function handleSaveKiosk() {
             </div>
 
             <div className="space-y-4 px-6 py-5">
+              {kioskModal.mode === 'add' && kioskDraft.pending && (
+                <DraftRestoreBar
+                  savedAt={kioskDraft.savedAt}
+                  onRestore={() => {
+                    const saved = kioskDraft.restore();
+                    setKioskName(saved.kioskName ?? '');
+                    setKioskLocation(saved.kioskLocation ?? '');
+                    setKioskStatus(saved.kioskStatus ?? 'active');
+                  }}
+                  onDiscard={kioskDraft.discard}
+                />
+              )}
+
               {kioskError && (
                 <div className="rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2.5 text-sm text-[#9D0A0E]">
                   {kioskError}
@@ -987,7 +1059,7 @@ async function handleSaveKiosk() {
               <button
                 type="button"
                 onClick={() => setKioskModal(null)}
-                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA]"
+                className="swu-press rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
               >
                 Cancel
               </button>
@@ -996,7 +1068,7 @@ async function handleSaveKiosk() {
                 type="button"
                 onClick={handleSaveKiosk}
                 disabled={savingKiosk}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-60"
               >
                {savingKiosk ? 'Saving...' : 'Save Changes'}
               </button>
@@ -1005,8 +1077,8 @@ async function handleSaveKiosk() {
         </div>
       )}
       {kioskStatusModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
+        <div className="swu-enter-fade fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="swu-pop w-full max-w-sm rounded-2xl bg-white shadow-2xl">
             <div className="px-6 py-5">
               <h3 className="text-lg font-semibold text-[#1F2937]">
                 {kioskStatusModal.nextStatus === 'active'
@@ -1019,6 +1091,7 @@ async function handleSaveKiosk() {
                 {kioskStatusModal.nextStatus === 'active'
                   ? 'activate'
                   : 'deactivate'}{' '}
+
                 <span className="font-medium text-[#1F2937]">
                   "{kioskStatusModal.name}"
                 </span>
@@ -1038,7 +1111,7 @@ async function handleSaveKiosk() {
                 type="button"
                 onClick={() => setKioskStatusModal(null)}
                 disabled={changingKioskStatus}
-                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -1047,7 +1120,7 @@ async function handleSaveKiosk() {
                 type="button"
                 onClick={handleConfirmKioskStatus}
                 disabled={changingKioskStatus}
-                className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {changingKioskStatus
                   ? 'Updating...'
@@ -1060,8 +1133,8 @@ async function handleSaveKiosk() {
         </div>
       )}
       {terminalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="swu-pop w-full max-w-md rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] px-6 py-4">
               <div>
                 <h3 className="text-lg font-semibold text-[#1F2937]">
@@ -1240,7 +1313,7 @@ async function handleSaveKiosk() {
                 type="button"
                 onClick={() => setTerminalModal(null)}
                 disabled={savingTerminal}
-                className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition hover:bg-[#F8F9FA] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -1249,7 +1322,7 @@ async function handleSaveKiosk() {
                 type="button"
                 onClick={handleSaveTerminal}
                 disabled={savingTerminal}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-60"
+                className="swu-press inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingTerminal ? (
                   'Saving...'
@@ -1268,4 +1341,4 @@ async function handleSaveKiosk() {
       )}
     </div>
   );
-}
+  }

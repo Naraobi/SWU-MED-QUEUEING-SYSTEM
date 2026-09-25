@@ -196,7 +196,7 @@ function CalendarPopup({ value, onChange, onClose }) {
 
   return (
     <div
-      className="absolute right-0 top-full z-50 mt-2 w-[32rem] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
+      className="swu-pop absolute right-0 top-full z-50 mt-2 w-[32rem] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
       onClick={(event) => event.stopPropagation()}
     >
       <div className="flex">
@@ -307,6 +307,151 @@ function CalendarPopup({ value, onChange, onClose }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/* =========================================================
+   DEPARTMENT VOLUME — line chart
+   Plain SVG, no chart library. Draws itself in on load.
+========================================================= */
+
+function DepartmentVolumeChart({ data }) {
+  const points = data.slice(0, 6);
+
+  if (points.length === 0) {
+    return (
+      <p className="py-10 text-center text-sm text-[#9CA3AF]">
+        No queue volume recorded for the selected period.
+      </p>
+    );
+  }
+
+  const W = 560;
+  const H = 210;
+  const padL = 34;
+  const padR = 14;
+  const padT = 14;
+  const padB = 38;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+
+  const max = Math.max(...points.map((d) => Number(d.value) || 0), 1);
+
+  const x = (i) =>
+    points.length === 1
+      ? padL + innerW / 2
+      : padL + (i * innerW) / (points.length - 1);
+
+  const y = (v) => padT + innerH - ((Number(v) || 0) / max) * innerH;
+
+  const line = points
+    .map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(d.value).toFixed(1)}`)
+    .join(' ');
+
+  const area = `${line} L${x(points.length - 1).toFixed(1)},${padT + innerH} L${x(0).toFixed(1)},${padT + innerH} Z`;
+
+  const ticks = [0, 0.5, 1];
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="h-56 w-full"
+      role="img"
+      aria-label="Queue volume per department"
+    >
+      <defs>
+        <linearGradient id="swuVolumeFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#9D0A0E" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#9D0A0E" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* grid + y labels */}
+      {ticks.map((t) => {
+        const gy = padT + innerH - t * innerH;
+        return (
+          <g key={t}>
+            <line
+              x1={padL}
+              x2={W - padR}
+              y1={gy}
+              y2={gy}
+              stroke="#E5E7EB"
+              strokeWidth="1"
+              strokeDasharray={t === 0 ? '0' : '4 4'}
+            />
+            <text
+              x={padL - 8}
+              y={gy + 4}
+              textAnchor="end"
+              className="fill-[#9CA3AF]"
+              style={{ fontSize: 10 }}
+            >
+              {Math.round(max * t)}
+            </text>
+          </g>
+        );
+      })}
+
+      <path d={area} fill="url(#swuVolumeFill)" className="swu-enter-fade" />
+
+      <path
+        d={line}
+        fill="none"
+        stroke="#9D0A0E"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="swu-draw"
+        style={{ '--swu-dash': 1400 }}
+      />
+
+      {points.map((d, i) => (
+        <g key={d.department_id || d.name} className="swu-enter-fade">
+          <circle
+            cx={x(i)}
+            cy={y(d.value)}
+            r="9"
+            fill="transparent"
+            className="cursor-pointer"
+          >
+            <title>{`${d.name}: ${d.value}`}</title>
+          </circle>
+
+          <circle
+            cx={x(i)}
+            cy={y(d.value)}
+            r="4"
+            fill="#FFFFFF"
+            stroke="#9D0A0E"
+            strokeWidth="2.5"
+            className="transition-all duration-150 hover:r-6"
+          />
+
+          <text
+            x={x(i)}
+            y={y(d.value) - 12}
+            textAnchor="middle"
+            className="fill-[#1F2937] font-semibold"
+            style={{ fontSize: 10 }}
+          >
+            {d.value}
+          </text>
+
+          <text
+            x={x(i)}
+            y={H - 14}
+            textAnchor="middle"
+            className="fill-[#4B5563]"
+            style={{ fontSize: 10 }}
+          >
+            {String(d.name).length > 11
+              ? `${String(d.name).slice(0, 10)}\u2026`
+              : d.name}
+          </text>
+        </g>
+      ))}
+    </svg>
   );
 }
 
@@ -642,7 +787,7 @@ return (
 
             setCalendarOpen(false);
           }}
-          className="rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B]"
+          className="swu-press rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#7D080B] hover:shadow-md"
         >
           Apply Filter
         </button>
@@ -656,7 +801,7 @@ return (
               appliedEndDate
             )
           }
-          className="flex h-10 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-3.5 py-2 text-xs font-medium text-[#4B5563] shadow-sm transition-colors hover:border-[#E5E7EB] hover:bg-white"
+          className="swu-press flex h-10 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-medium text-[#4B5563] shadow-sm transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
         >
           <RotateCw size={12} />
           Refresh
@@ -665,14 +810,14 @@ return (
     </div>
 
   {/* Statistics */}
-<div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-6">
+<div className="swu-stagger mb-6 grid grid-cols-2 gap-4 xl:grid-cols-6">
   {STATS.map((stat) => {
     const Icon = stat.icon;
 
     return (
       <div
         key={stat.label}
-        className="min-w-0 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm"
+        className="swu-card min-w-0 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm"
       >
         <div className="mb-3 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
@@ -701,7 +846,7 @@ return (
     <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
 
       {/* AI-Assisted Insights */}
-      <div className="rounded-xl border border-[#F0DADA] bg-[#FBF1F1] p-5 shadow-sm">
+      <div className="swu-card rounded-xl border border-[#F0DADA] bg-[#FBF1F1] p-5 shadow-sm">
         <div className="flex items-center gap-2">
           <Sparkles
             size={16}
@@ -748,59 +893,19 @@ return (
       </div>
 
       {/* Department Volume */}
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-sm font-bold text-[#1F2937]">
+      <div className="swu-card rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+        <h2 className="mb-1 text-sm font-bold text-[#1F2937]">
           Department Volume
         </h2>
+        <p className="mb-3 text-xs text-[#9CA3AF]">
+          Waiting patients per department
+        </p>
 
-        <div className="space-y-4">
-          {departmentVolume.length === 0 ? (
-            <p className="text-sm text-[#9CA3AF]">
-              No queue volume recorded for the selected period.
-            </p>
-          ) : (
-            departmentVolume.slice(0, 6).map((dept) => {
-              const maxVolume = Math.max(
-                ...departmentVolume.map(
-                  (item) => item.value
-                ),
-                1
-              );
-
-              const percentage = Math.min(
-                100,
-                (dept.value / maxVolume) * 100
-              );
-
-              return (
-                <div key={dept.department_id}>
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="font-medium text-[#1F2937]">
-                      {dept.name}
-                    </span>
-
-                    <span className="text-[#9CA3AF]">
-                      {dept.value}
-                    </span>
-                  </div>
-
-                  <div className="h-2 w-full rounded-full bg-[#F1F3F5]">
-                    <div
-                      className="h-2 rounded-full bg-[#9D0A0E]"
-                      style={{
-                        width: `${percentage}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+        <DepartmentVolumeChart data={departmentVolume} />
       </div>
 
       {/* Queue Status Distribution */}
-      <div className="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
+      <div className="swu-card rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-sm font-bold text-[#1F2937]">
           Queue Status Distribution
         </h2>
@@ -832,7 +937,7 @@ return (
 </div>
 
     {/* Department Overview */}
-    <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+    <div className="swu-enter overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
       <div className="flex items-center justify-between gap-4 border-b border-[#E5E7EB] px-5 py-4">
         <h2 className="shrink-0 text-sm font-semibold text-[#1F2937]">
           Department Overview

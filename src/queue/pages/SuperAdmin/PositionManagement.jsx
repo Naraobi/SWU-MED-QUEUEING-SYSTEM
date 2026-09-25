@@ -100,12 +100,12 @@ function PositionModal({ mode, draft, setDraft, onClose, onSave, saving, lastUpd
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6"
+      className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6"
       onMouseDown={e => {
         if (e.target === e.currentTarget && !saving) onClose();
       }}
     >
-      <div className="w-full max-w-[580px] overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-2xl">
+      <div className="swu-pop w-full max-w-[580px] overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-2xl">
         <div className="border-b border-[#E5E7EB] px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -240,7 +240,7 @@ function PositionModal({ mode, draft, setDraft, onClose, onSave, saving, lastUpd
             type="button"
             onClick={onSave}
             disabled={saving || !draft.name.trim() || draft.tabs.length === 0}
-            className="h-9 rounded-lg bg-[#9D0A0E] px-4 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
+            className="swu-press h-9 rounded-lg bg-[#9D0A0E] px-4 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
           >
             {saving ? 'Saving...' : edit ? 'Save Changes' : 'Save Position'}
           </button>
@@ -256,8 +256,8 @@ function PositionModal({ mode, draft, setDraft, onClose, onSave, saving, lastUpd
 
 function DeletePositionModal({ position, onCancel, onConfirm, deleting }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 px-4">
-      <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="swu-enter-fade fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 px-4">
+      <div className="swu-pop w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="px-7 pb-5 pt-7 text-center">
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
             <Trash2 size={18} />
@@ -270,7 +270,7 @@ function DeletePositionModal({ position, onCancel, onConfirm, deleting }) {
 
         <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-7 py-4">
           <button type="button" onClick={onCancel} disabled={deleting} className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-xs font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-50">Cancel</button>
-          <button type="button" onClick={onConfirm} disabled={deleting} className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" onClick={onConfirm} disabled={deleting} className="swu-press rounded-lg bg-[#9D0A0E] px-5 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
             {deleting ? 'Deleting...' : 'Delete Position'}
           </button>
         </div>
@@ -404,7 +404,7 @@ export default function PositionManagement() {
           <h1 className="text-2xl font-bold text-[#1F2937]">Position Management</h1>
           <p className="mt-0.5 text-xs text-[#4B5563]">Control which tabs each position can view in the system.</p>
         </div>
-        <button type="button" onClick={openAdd} className="flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7D080B]">
+        <button type="button" onClick={openAdd} className="swu-press flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25">
           <Plus size={14} /> Add Position
         </button>
       </div>
@@ -423,7 +423,7 @@ export default function PositionManagement() {
 
         {/* ---------- LIST ---------- */}
 
-        <section className="flex flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+        <section className="swu-enter flex flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
           <div className="border-b border-[#E5E7EB] p-4">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
@@ -455,7 +455,7 @@ export default function PositionManagement() {
             {!loading && filtered.map(position => {
               const active = selected?.id === position.id;
               return (
-                <button key={position.id} type="button" onClick={() => setSelectedId(position.id)} className={`relative flex w-full items-center gap-3 border-b border-[#F1F3F5] px-4 py-3 text-left transition ${active ? 'bg-[#FBF1F1]' : 'hover:bg-[#F8F9FA]'}`}>
+                <button key={position.id} type="button" onClick={() => setSelectedId(position.id)} className={`relative flex w-full items-center gap-3 border-b border-[#F1F3F5] px-4 py-3 text-left transition-all duration-200 ${active ? 'bg-[#FBF1F1]' : 'hover:translate-x-1 hover:bg-[#FBF1F1]'}`}>
                   {active && <span className="absolute inset-y-0 left-0 w-1 bg-[#9D0A0E]" />}
                   <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${active ? 'text-[#9D0A0E]' : 'text-[#1F2937]'}`}>{position.name}</span>
                   <span className="flex shrink-0 items-center gap-2.5 text-xs text-[#9CA3AF]">
@@ -480,7 +480,7 @@ export default function PositionManagement() {
 
         {/* ---------- DETAIL ---------- */}
 
-        <section className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+        <section className="swu-enter overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
           {selected ? (
             <>
               <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
@@ -492,7 +492,7 @@ export default function PositionManagement() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button type="button" onClick={openEdit} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] px-3 text-xs font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"><PencilLine size={12} />Edit</button>
+                  <button type="button" onClick={openEdit} className="swu-press inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] px-3 text-xs font-medium text-[#4B5563] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"><PencilLine size={12} />Edit</button>
                   <button type="button" onClick={() => setPendingDelete(selected)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] text-[#9D0A0E] transition hover:border-[#F0DADA] hover:bg-[#FBF1F1]" aria-label="Delete position"><Trash2 size={12} /></button>
                 </div>
               </div>
@@ -513,7 +513,7 @@ export default function PositionManagement() {
                         const Icon = tab.icon;
                         const visible = selected.tabs.includes(tab.key);
                         return (
-                          <div key={tab.key} className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 ${visible ? 'border-[#E5E7EB] bg-white' : 'border-transparent bg-[#F1F3F5]'}`}>
+                          <div key={tab.key} className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm ${visible ? 'border-[#E5E7EB] bg-white' : 'border-transparent bg-[#F1F3F5]'}`}>
                             <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded ${visible ? 'bg-[#FBF1F1] text-[#9D0A0E]' : 'bg-[#E5E7EB] text-[#9CA3AF]'}`}><Icon size={13} /></div>
                             <span className={`min-w-0 flex-1 truncate text-xs ${visible ? 'font-medium text-[#1F2937]' : 'text-[#4B5563]'}`}>{tab.label}</span>
                             <span className={`inline-flex shrink-0 items-center gap-1 text-xs font-medium ${visible ? 'text-[#9D0A0E]' : 'text-[#9CA3AF]'}`}>

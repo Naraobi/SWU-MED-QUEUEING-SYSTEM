@@ -94,7 +94,7 @@ export default function NotificationsBell() {
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="relative text-[#4B5563] transition hover:text-[#1F2937]"
+        className="swu-press relative rounded-md p-1 text-[#4B5563] transition-colors hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
         aria-label={
           unreadCount > 0
             ? `Notifications, ${unreadCount} unread`
@@ -105,7 +105,7 @@ export default function NotificationsBell() {
       >
         <Bell size={20} />
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#9D0A0E] ring-2 ring-white" />
+          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-[#9D0A0E] ring-2 ring-white" />
         )}
       </button>
 
@@ -113,7 +113,7 @@ export default function NotificationsBell() {
         <div
           role="dialog"
           aria-label="Notifications"
-          className="absolute right-0 top-full z-40 mt-2 w-96 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
+          className="swu-pop absolute right-0 top-full z-40 mt-2 w-96 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-3">
@@ -129,7 +129,7 @@ export default function NotificationsBell() {
           </div>
 
           {/* List */}
-          <div className="max-h-96 divide-y divide-[#F1F3F5] overflow-y-auto">
+          <div className="swu-stagger max-h-96 divide-y divide-[#F1F3F5] overflow-y-auto">
             {notifications.length === 0 && (
               <p className="px-4 py-8 text-center text-xs text-[#4B5563]">
                 You have no notifications.
@@ -176,7 +176,7 @@ export default function NotificationsBell() {
                     {item.action && (
                       <button
                         type="button"
-                        className="mt-2 rounded-md border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
+                        className="swu-press mt-2 rounded-md border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
                       >
                         {item.action}
                       </button>
