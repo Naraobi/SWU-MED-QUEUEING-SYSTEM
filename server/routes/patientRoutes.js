@@ -16,7 +16,7 @@ async function triggerQueuePrediction(queueId) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          event: "queue_created",
+         event: eventType,
           queue_id: queueId,
         }),
       }
@@ -433,7 +433,7 @@ router.post("/queue", async (req, res) => {
 
     await connection.commit();
 
-triggerQueuePrediction(queueId);
+await triggerQueuePrediction(queue_created);
     /*
     |--------------------------------------------------------------------------
     | PREPARE RESPONSE / FIREBASE DATA

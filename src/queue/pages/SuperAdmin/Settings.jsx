@@ -11,6 +11,8 @@ import {
   Palette,
   Copy,
   Upload,
+ Eye, 
+ EyeOff,
   KeyRound,
   Globe,
 } from 'lucide-react';
@@ -319,6 +321,10 @@ function CreatePinModal({ onClose, onContinue }) {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState('');
+  
+  // States for toggling PIN visibility
+  const [showPin, setShowPin] = useState(false);
+  const [showConfirmPin, setShowConfirmPin] = useState(false);
 
   const handleContinue = () => {
     setError('');
@@ -388,17 +394,26 @@ function CreatePinModal({ onClose, onContinue }) {
               New PIN
             </label>
 
-            <input
-              id="security-pin"
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              maxLength={6}
-              value={pin}
-              onChange={(e) => handlePinChange(e.target.value, setPin)}
-              placeholder="Enter 6-digit PIN"
-              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm tracking-[0.35em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
-            />
+            <div className="relative">
+              <input
+                id="security-pin"
+                type={showPin ? 'text' : 'password'}
+                inputMode="numeric"
+                autoComplete="new-password"
+                maxLength={6}
+                value={pin}
+                onChange={(e) => handlePinChange(e.target.value, setPin)}
+                placeholder="Enter 6-digit PIN"
+                className="w-full rounded-lg border border-[#E5E7EB] pl-3 pr-10 py-2.5 text-sm tracking-[0.35em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-[#9CA3AF] hover:text-[#4B5563] focus:outline-none"
+              >
+                {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           {/* Confirm PIN */}
@@ -410,19 +425,26 @@ function CreatePinModal({ onClose, onContinue }) {
               Confirm PIN
             </label>
 
-            <input
-              id="confirm-security-pin"
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              maxLength={6}
-              value={confirmPin}
-              onChange={(e) =>
-                handlePinChange(e.target.value, setConfirmPin)
-              }
-              placeholder="Re-enter 6-digit PIN"
-              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm tracking-[0.35em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
-            />
+            <div className="relative">
+              <input
+                id="confirm-security-pin"
+                type={showConfirmPin ? 'text' : 'password'}
+                inputMode="numeric"
+                autoComplete="new-password"
+                maxLength={6}
+                value={confirmPin}
+                onChange={(e) => handlePinChange(e.target.value, setConfirmPin)}
+                placeholder="Re-enter 6-digit PIN"
+                className="w-full rounded-lg border border-[#E5E7EB] pl-3 pr-10 py-2.5 text-sm tracking-[0.35em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPin(!showConfirmPin)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-[#9CA3AF] hover:text-[#4B5563] focus:outline-none"
+              >
+                {showConfirmPin ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           {error && (

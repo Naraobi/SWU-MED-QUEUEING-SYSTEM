@@ -2736,18 +2736,6 @@ function handleAddDepartment() {
               subtitle="ADMIN/STAFF ON DUTY"
               icon={<UserCheck size={18} />}
             />
-
-            <SummaryCard
-              title="TERMINAL"
-              count={terminals.filter(
-                (terminal) =>
-                  String(terminal.status || '').toLowerCase() ===
-                  'active'
-              ).length}
-              subtitle="ACTIVE TERMINAL"
-              icon={<Monitor size={18} />}
-            />
-
           </div>
 
 

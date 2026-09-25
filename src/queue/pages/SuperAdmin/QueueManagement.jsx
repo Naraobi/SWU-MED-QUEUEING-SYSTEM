@@ -579,7 +579,6 @@ export default function AdminQueueManagement({ onNavigate, onRemoveHistory }) {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Waiting" value={totals.waiting} caption="Across all departments" icon={Users} />
-        <StatCard label="Serving" value={totals.serving} caption="Active terminals serving" icon={Timer} />
         <StatCard label="Completed" value={totals.completed} caption="Served today" icon={CheckCheck} />
         <StatCard label="Skipped" value={totals.skipped} caption="Missed or skipped today" icon={ChevronsRight} />
       </div>
