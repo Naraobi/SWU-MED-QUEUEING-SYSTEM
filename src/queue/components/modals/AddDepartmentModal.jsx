@@ -136,8 +136,7 @@ const selectableKiosks = [
                 size={16}
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]"
               />
-
-           <select
+<select
   id="department-kiosk"
   value={form.kiosk_id || ''}
   onChange={(e) =>
@@ -146,25 +145,22 @@ const selectableKiosks = [
       kiosk_id: e.target.value,
     }))
   }
-  disabled={true}
-                className="w-full appearance-none rounded-lg border border-[#D1D5DB] bg-white py-2.5 pl-10 pr-10 text-sm text-[#1F2937] outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10 disabled:cursor-not-allowed disabled:bg-gray-100"
-              >
-
-                <option value="">
-                  Select a kiosk
-                </option>
-
-                {selectableKiosks.map((kiosk) => (
-  <option
-    key={kiosk.id}
-    value={kiosk.id}
-  >
-    {kiosk.name}
+  disabled={saving}
+  className="w-full appearance-none rounded-lg border border-[#D1D5DB] bg-white py-2.5 pl-10 pr-10 text-sm text-[#1F2937] outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10 disabled:cursor-not-allowed disabled:bg-gray-100"
+>
+  <option value="">
+    Select a kiosk
   </option>
-))}
 
-              </select>
-
+  {selectableKiosks.map((kiosk) => (
+    <option
+      key={kiosk.id}
+      value={kiosk.id}
+    >
+      {kiosk.name}
+    </option>
+  ))}
+</select>
               <ChevronDown
                 size={16}
                 className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280]"
