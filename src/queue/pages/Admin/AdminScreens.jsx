@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
+  Copy,
   FileText,
   Gavel,
   LockKeyhole,
@@ -27,6 +28,7 @@ import {
   Pipette,
   Plus,
   RefreshCw,
+  Save,
   Search,
   ShieldCheck,
   Sun,
@@ -77,6 +79,7 @@ import {
 
 import { useLanguage } from './LanguageContext';
 import { useAppearance } from './AppearanceContext';
+import { useUnsavedChanges } from './UnsavedChangesContext';
 import { LEGAL_DOCUMENTS, LEGAL_ORGANIZATION } from './legalDocuments';
 import Logo from '../../../assets/logo.png';
 
@@ -245,6 +248,40 @@ export function QueueManagementPage() {
   const [departmentTerminals, setDepartmentTerminals] = useState([]);
   const [selectedTerminalId, setSelectedTerminalId] = useState('all');
 
+  // Same "issued_at -> called_at" average wait SuperAdmin's Dashboard and
+  // Reports pages compute server-side (server/routes/dashboardRoutes.js),
+  // reused here instead of the department's average SERVICE time that
+  // QueueContext/staffQueueRoutes.js exposes as `averageServiceMinutes` —
+  // that one times how long a ticket takes once called, not how long a
+  // patient waits before being called, so it isn't the same stat.
+  const [averageWaitMinutes, setAverageWaitMinutes] = useState(0);
+  const [averageWaitLoading, setAverageWaitLoading] = useState(true);
+
+  async function loadAverageWait(start, end) {
+    setAverageWaitLoading(true);
+
+    try {
+      const firebaseUser = auth.currentUser;
+
+      if (!firebaseUser) {
+        throw new Error('Your authentication session is unavailable.');
+      }
+
+      const analytics = await getDashboardAnalytics(
+        firebaseUser,
+        toDateKey(start),
+        toDateKey(end)
+      );
+
+      setAverageWaitMinutes(analytics?.queue?.averageWaitMinutes ?? 0);
+    } catch (err) {
+      console.error('Failed to load average wait time:', err);
+      setAverageWaitMinutes(0);
+    } finally {
+      setAverageWaitLoading(false);
+    }
+  }
+
   async function loadTerminalStats() {
     setTerminalLoading(true);
 
@@ -290,7 +327,7 @@ export function QueueManagementPage() {
     });
 
     async function load() {
-      await loadTerminalStats();
+      await Promise.all([loadTerminalStats(), loadAverageWait(start, end)]);
     }
 
     load();
@@ -319,6 +356,7 @@ export function QueueManagementPage() {
           end: toDateKey(end),
         }),
         loadTerminalStats(),
+        loadAverageWait(start, end),
       ]);
     } finally {
       setRefreshing(false);
@@ -413,7 +451,7 @@ export function QueueManagementPage() {
 
       <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <QueueStatCard label={t('common.stat.totalWaiting')} value={loading ? '…' : String(totalWaiting)} caption={t('common.stat.forThisDepartment')} icon={Users} />
-        <QueueStatCard label={t('common.stat.averageWait')} value="18m" caption={t('common.stat.noColumnYet')} icon={Timer} />
+        <QueueStatCard label={t('common.stat.averageWait')} value={averageWaitLoading ? '…' : `${averageWaitMinutes}m`} caption={t('common.stat.averagePatientWait')} icon={Timer} />
         <QueueStatCard label={t('common.stat.skipped')} value={loading ? '…' : String(stats?.skipped || 0)} caption={t('common.stat.totalSkipped')} icon={Undo2} />
         <QueueStatCard label={t('common.stat.completed')} value={loading ? '…' : String(stats?.completed || 0)} caption={t('common.stat.completedQueuing')} icon={CheckCircle2} highlight />
         <QueueStatCard label={t('common.stat.terminal')} value={terminalLoading ? '…' : terminalLabel} caption={t('common.stat.activeTerminals')} icon={Monitor} />
@@ -2332,16 +2370,16 @@ function settingsQuadrantGradient(colors) {
 function SettingsExactSection({ icon: Icon, title, subtitle, badge, children }) {
   return (
     <section className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
-      <div className="flex items-start justify-between gap-4 px-6 py-4">
+      <div className="flex items-start justify-between gap-4 px-6 py-5">
         <div className="flex items-start gap-2.5">
           <Icon size={16} className="mt-0.5 shrink-0 text-[#9D0A0E]" />
           <div>
-            <h2 className="text-base font-bold text-[#1F2937]">{title}</h2>
-            <p className="mt-0.5 text-xs leading-4.5 text-[#667085]">{subtitle}</p>
+            <h2 className="text-sm font-bold text-[#1F2937]">{title}</h2>
+            <p className="mt-0.5 text-xs text-[#667085]">{subtitle}</p>
           </div>
         </div>
         {badge && (
-          <span className="shrink-0 rounded-full bg-[#F1F3F5] px-2.5 py-1 text-[10px] font-semibold text-[#667085]">
+          <span className="shrink-0 rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-2.5 py-1 text-xs font-medium text-[#667085]">
             {badge}
           </span>
         )}
@@ -2353,20 +2391,20 @@ function SettingsExactSection({ icon: Icon, title, subtitle, badge, children }) 
 
 function SettingsExactFieldLabel({ children, required = false, rightLabel = '' }) {
   return (
-    <div className="mb-1.5 flex items-center justify-between">
-      <label className="text-[10px] font-bold uppercase tracking-[0.04em] text-[#4B5563]">
+    <div className="mb-2 flex items-center justify-between">
+      <label className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">
         {children}
         {required && <span className="ml-0.5 text-[#9D0A0E]">*</span>}
       </label>
       {rightLabel && (
-        <span className="text-[10px] font-semibold uppercase text-[#98A2B3]">{rightLabel}</span>
+        <span className="text-xs font-semibold uppercase text-[#98A2B3]">{rightLabel}</span>
       )}
     </div>
   );
 }
 
 function SettingsExactHint({ children }) {
-  return <p className="mt-1.5 text-[10px] leading-4 text-[#98A2B3]">{children}</p>;
+  return <p className="mt-2 text-xs leading-5 text-[#98A2B3]">{children}</p>;
 }
 
 function SettingsPinBoxes({ value, onChange, ariaLabel, autoFocus = false, showToggle = true, boxed = true }) {
@@ -3867,6 +3905,7 @@ function LegalDocumentModal({ document: doc, onClose }) {
 function SettingsExactPage() {
   const { user } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+  const { setIsDirty, registerDiscard } = useUnsavedChanges();
 
   const {
     theme: themeMode,
@@ -3887,6 +3926,48 @@ function SettingsExactPage() {
   const [pendingVerificationCode, setPendingVerificationCode] = useState('');
   const [pinSaveLoading, setPinSaveLoading] = useState(false);
   const [pinError, setPinError] = useState('');
+
+  // Baseline "last saved" values. Save moves this baseline forward;
+  // leaving without saving (sidebar nav or a closed tab) reverts the
+  // live values back to it instead of quietly keeping half-made edits.
+  const [savedAccent, setSavedAccent] = useState(accentColor);
+  const [savedTheme, setSavedTheme] = useState(themeMode);
+  const [savedLanguage, setSavedLanguage] = useState(language);
+  const [savedClockFormat, setSavedClockFormat] = useState(clockFormat);
+  const [savedSystemName, setSavedSystemName] = useState(systemName);
+  const [justSaved, setJustSaved] = useState(false);
+
+  const isDirty =
+    accentColor !== savedAccent ||
+    themeMode !== savedTheme ||
+    language !== savedLanguage ||
+    clockFormat !== savedClockFormat ||
+    systemName !== savedSystemName;
+
+  useEffect(() => {
+    setIsDirty(isDirty);
+  }, [isDirty, setIsDirty]);
+
+  useEffect(() => {
+    registerDiscard(() => {
+      setAccentColor(savedAccent);
+      setThemeMode(savedTheme);
+      setLanguage(savedLanguage);
+      setClockFormat(savedClockFormat);
+      setSystemName(savedSystemName);
+    });
+  }, [registerDiscard, savedAccent, savedTheme, savedLanguage, savedClockFormat, savedSystemName, setAccentColor, setThemeMode, setLanguage]);
+
+  // Covers a closed tab / browser refresh the in-app nav guard can't see.
+  useEffect(() => {
+    function handleBeforeUnload(event) {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     let isMounted = true;
@@ -3916,56 +3997,90 @@ function SettingsExactPage() {
     }).catch(() => setCopied(false));
   }
 
+  function handleSaveSettings() {
+    if (!isDirty) return;
+    setSavedAccent(accentColor);
+    setSavedTheme(themeMode);
+    setSavedLanguage(language);
+    setSavedClockFormat(clockFormat);
+    setSavedSystemName(systemName);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
+  }
+
   const applyThemeSelection = setThemeMode;
   const applyAccentSelection = setAccentColor;
 
   return (
     <div className="space-y-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="mb-2">
-        <h1 className="text-2xl font-bold text-[#1F2937]">{t('settings.title')}</h1>
-        <p className="mt-0.5 text-xs text-[#4B5563]">{t('settingsPage.subtitle')}</p>
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[#1F2937]">{t('settings.title')}</h1>
+          <p className="mt-0.5 text-xs text-[#4B5563]">{t('settingsPage.subtitle')}</p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {isDirty && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-[#9D0A0E]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#9D0A0E]" />
+              {t('settingsPage.unsavedChanges')}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSaveSettings}
+            disabled={!isDirty}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-sm transition-colors ${
+              isDirty
+                ? 'bg-[#9D0A0E] text-white hover:bg-[#7d0809]'
+                : 'cursor-not-allowed bg-[#F1F3F5] text-[#98A2B3]'
+            }`}
+          >
+            {justSaved ? <Check size={14} /> : <Save size={14} />}
+            {justSaved ? t('settingsPage.saved') : t('settingsPage.saveChanges')}
+          </button>
+        </div>
       </div>
 
       <SettingsExactSection icon={Palette} title={t('settingsPage.branding.title')} subtitle={t('settingsPage.branding.subtitle')} badge={t('settingsPage.branding.badge')}>
         <div>
           <SettingsExactFieldLabel>{t('settingsPage.branding.systemName')}</SettingsExactFieldLabel>
-          <div className="relative max-w-[520px]">
-            <input value={systemName} onChange={(event) => setSystemName(event.target.value)} className="h-10 w-full rounded-md border border-[#D0D5DD] bg-white px-3 pr-9 text-[10px] text-[#344054] outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]/10" />
-            <button type="button" onClick={handleCopyName} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#98A2B3] hover:text-[#344054]" aria-label="Copy system name">{copied ? <Check size={12} className="text-emerald-600" /> : <span className="text-[10px]">▣</span>}</button>
+          <div className="relative">
+            <input value={systemName} onChange={(event) => setSystemName(event.target.value)} className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 pr-10 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20" />
+            <button type="button" onClick={handleCopyName} className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-[#98A2B3] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30" aria-label="Copy system name" title={copied ? 'Copied' : 'Copy'}>{copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}</button>
           </div>
           <SettingsExactHint>{t('settingsPage.branding.systemNameHint')}</SettingsExactHint>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-6">
           <SettingsExactFieldLabel>{t('settingsPage.branding.systemLogo')}</SettingsExactFieldLabel>
-          <div className="flex max-w-[620px] flex-wrap items-center justify-between gap-4 rounded-md border border-[#E5E7EB] px-4 py-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-[100px] items-center justify-center rounded border border-[#E5E7EB] bg-white">
-                <img src={Logo} alt="Current brand logo" className="h-8 w-auto object-contain" />
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] px-4 py-3">
+            <div className="flex items-center gap-4">
+              <img src={Logo} alt="Current brand logo" className="h-7 w-auto object-contain" />
               <div>
-                <p className="flex items-center gap-1.5 text-[9px] font-semibold text-[#1F2937]">{t('settingsPage.branding.currentLogo')} <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[7px] font-bold text-emerald-800">{t('settingsPage.branding.active')}</span></p>
-                <p className="mt-0.5 text-[8px] text-[#98A2B3]">{t('settingsPage.branding.logoHint')}</p>
+                <p className="flex items-center gap-2 text-xs font-semibold text-[#1F2937]">{t('settingsPage.branding.currentLogo')} <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-600/30">{t('settingsPage.branding.active')}</span></p>
+                <p className="mt-0.5 text-xs text-[#98A2B3]">{t('settingsPage.branding.logoHint')}</p>
               </div>
             </div>
-            <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-[8px] font-semibold text-[#344054] hover:bg-[#F8F9FA]">
-              <Upload size={11} />{t('settingsPage.branding.uploadLogo')}<input type="file" accept="image/png,image/svg+xml" className="hidden" />
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]">
+              <Upload size={14} />{t('settingsPage.branding.uploadLogo')}<input type="file" accept="image/png,image/svg+xml" className="hidden" />
             </label>
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-6">
           <SettingsExactFieldLabel>{t('settingsPage.branding.accent')}</SettingsExactFieldLabel>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex h-10 items-center gap-1.5 rounded-md border border-[#E5E7EB] px-3">
-              <span className="h-4 w-4 rounded-full ring-1 ring-black/10" style={{ backgroundColor: accentColor }} />
-              <span className="text-[10px] font-semibold uppercase text-[#344054]">{t('settingsPage.branding.hex')} {accentColor.toUpperCase()}</span>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] px-3 py-2">
+              <span className="h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10" style={{ backgroundColor: accentColor }} />
+              <span className="text-xs font-semibold uppercase text-[#1F2937]">{t('settingsPage.branding.hex')} {accentColor.toUpperCase()}</span>
             </div>
-            <div className="flex items-center gap-1.5 border-l border-[#E5E7EB] pl-3">
-              <span className="text-[10px] text-[#667085]">{t('settingsPage.branding.presets')}</span>
+            <div className="flex items-center gap-2 border-l border-[#E5E7EB] pl-4">
+              <span className="text-xs text-[#667085]">{t('settingsPage.branding.presets')}</span>
               {SETTINGS_ACCENT_PRESETS.map((preset) => (
-                <button key={preset} type="button" onClick={() => applyAccentSelection(preset)} aria-label={`Accent ${preset}`} className={`flex h-5 w-5 items-center justify-center rounded-full ${accentColor.toUpperCase() === preset.toUpperCase() ? 'ring-2 ring-[#9D0A0E] ring-offset-1' : 'ring-1 ring-black/10'}`} style={{ backgroundColor: preset }}>
-                  {accentColor.toUpperCase() === preset.toUpperCase() && <Check size={9} strokeWidth={3} className="text-white" />}
+                <button key={preset} type="button" onClick={() => applyAccentSelection(preset)} aria-label={`Accent ${preset}`} aria-pressed={accentColor.toUpperCase() === preset.toUpperCase()} className={`flex h-6 w-6 items-center justify-center rounded-full transition ${accentColor.toUpperCase() === preset.toUpperCase() ? 'ring-2 ring-[#9D0A0E] ring-offset-2' : 'ring-1 ring-black/10 hover:ring-[#98A2B3]'}`} style={{ backgroundColor: preset }}>
+                  {accentColor.toUpperCase() === preset.toUpperCase() && <Check size={12} strokeWidth={3} className="text-white" />}
                 </button>
               ))}
             </div>
@@ -3976,44 +4091,44 @@ function SettingsExactPage() {
 
       <SettingsExactSection icon={ShieldCheck} title={t('settingsPage.security.title')} subtitle={t('settingsPage.security.subtitle')}>
         <div className="divide-y divide-[#E5E7EB]">
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-5">
             <div>
               <p className="text-sm font-bold text-[#1F2937]">{t('settingsPage.security.password')}</p>
-              <p className="mt-0.5 text-[10px] text-[#667085]">{t('settingsPage.security.passwordHint')}</p>
-              <p className="mt-0.5 text-[8px] text-[#98A2B3]">{t('settingsPage.security.lastChanged')}</p>
+              <p className="mt-0.5 text-xs text-[#667085]">{t('settingsPage.security.passwordHint')}</p>
+              <p className="mt-0.5 text-xs text-[#98A2B3]">{t('settingsPage.security.lastChanged')}</p>
             </div>
-            <button type="button" onClick={() => setActiveModal('changePassword')} className="flex items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-white px-3.5 py-2 text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA]"><KeyRound size={11} />{t('settingsPage.security.changePassword')}</button>
+            <button type="button" onClick={() => setActiveModal('changePassword')} className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"><KeyRound size={14} />{t('settingsPage.security.changePassword')}</button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-5">
             <div>
               <p className="text-sm font-bold text-[#1F2937]">{t('settingsPage.security.pin')}</p>
-              <p className="mt-0.5 max-w-[600px] text-[9px] text-[#667085]">{t('settingsPage.security.pinHint')}</p>
-              {pinConfigured && <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[#E9F9EF] px-2 py-0.5 text-[8px] font-semibold text-[#18824B]"><Check size={9} />{t('settingsPage.security.pinSet')}</span>}
-              {pinError && <p className="mt-1 text-[10px] font-medium text-[#9D0A0E]">{pinError}</p>}
+              <p className="mt-0.5 text-xs text-[#667085]">{t('settingsPage.security.pinHint')}</p>
+              {pinConfigured && <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[#E9F9EF] px-2 py-0.5 text-xs font-semibold text-[#18824B]"><Check size={10} strokeWidth={3} />{t('settingsPage.security.pinSet')}</span>}
+              {pinError && <p className="mt-1.5 text-xs font-medium text-[#9D0A0E]">{pinError}</p>}
             </div>
-            <button type="button" disabled={pinStatusLoading} onClick={() => setActiveModal('pinEmail')} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2.5 text-[10px] font-bold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"><LockKeyhole size={11} />{pinStatusLoading ? t('settingsPage.security.loading') : pinConfigured ? t('settingsPage.security.changePin') : t('settingsPage.security.setPin')}</button>
+            <button type="button" disabled={pinStatusLoading} onClick={() => setActiveModal('pinEmail')} className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#9D0A0E] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7d0809] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50"><LockKeyhole size={14} />{pinStatusLoading ? t('settingsPage.security.loading') : pinConfigured ? t('settingsPage.security.changePin') : t('settingsPage.security.setPin')}</button>
           </div>
         </div>
       </SettingsExactSection>
 
       <SettingsExactSection icon={Monitor} title={t('settings.appearance')} subtitle={t('settingsPage.appearance.subtitle')}>
         <SettingsExactFieldLabel>{t('settingsPage.appearance.themeMode')}</SettingsExactFieldLabel>
-        <div className="grid max-w-[760px] gap-3 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SETTINGS_THEME_MODES.map(({ key, labelKey, captionKey, icon: Icon }) => {
             const selected = themeMode === key;
             return (
-              <button key={key} type="button" onClick={() => applyThemeSelection(key)} aria-pressed={selected} className={`rounded-lg border p-4 text-left transition ${selected ? 'border-[#9D0A0E] ring-1 ring-[#9D0A0E]' : 'border-[#E5E7EB] hover:border-[#98A2B3]'}`}>
+              <button key={key} type="button" onClick={() => applyThemeSelection(key)} aria-pressed={selected} className={`rounded-xl border p-4 text-left transition ${selected ? 'border-[#9D0A0E] ring-1 ring-[#9D0A0E]' : 'border-[#E5E7EB] hover:border-[#98A2B3]'}`}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2.5">
-                    <Icon size={11} className="mt-0.5 text-[#9D0A0E]" />
-                    <div><p className="text-xs font-bold text-[#1F2937]">{t(labelKey)}</p><p className="mt-0.5 text-[9px] text-[#98A2B3]">{t(captionKey)}</p></div>
+                  <div className="flex items-start gap-2">
+                    <Icon size={14} className="mt-0.5 shrink-0 text-[#9D0A0E]" />
+                    <div><p className="text-xs font-bold text-[#1F2937]">{t(labelKey)}</p><p className="mt-0.5 text-xs text-[#98A2B3]">{t(captionKey)}</p></div>
                   </div>
-                  <span className={`flex h-3 w-3 items-center justify-center rounded-full border ${selected ? 'border-[#9D0A0E]' : 'border-[#D0D5DD]'}`}>{selected && <span className="h-1.5 w-1.5 rounded-full bg-[#9D0A0E]" />}</span>
+                  <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${selected ? 'border-[#9D0A0E]' : 'border-[#D0D5DD]'}`}>{selected && <span className="h-2 w-2 rounded-full bg-[#9D0A0E]" />}</span>
                 </div>
-                <div className={`mt-2 rounded-md border border-[#E5E7EB] p-2 ${key === 'dark' ? 'bg-[#1F2937]' : key === 'system' ? 'bg-gradient-to-r from-white to-[#1F2937]' : 'bg-white'}`}>
-                  <span className={`block h-1.5 w-10 rounded-sm ${key === 'dark' ? 'bg-white/70' : 'bg-[#4B5563]'}`} />
-                  <div className="mt-1.5 flex items-center gap-1"><span className="h-2 w-6 rounded-sm" style={{ backgroundColor: accentColor }} /><span className={`h-2 flex-1 rounded-sm ${key === 'dark' ? 'bg-white/20' : 'bg-[#E5E7EB]'}`} /></div>
+                <div className={`mt-3 overflow-hidden rounded-md border border-[#E5E7EB] px-3 py-3 ${key === 'dark' ? 'bg-[#1F2937]' : key === 'system' ? 'bg-gradient-to-r from-white to-[#1F2937]' : 'bg-white'}`}>
+                  <span className={`block h-2 w-16 rounded-sm ${key === 'dark' ? 'bg-white/70' : 'bg-[#4B5563]'}`} />
+                  <div className="mt-2 flex items-center gap-2"><span className="h-3 w-8 rounded-sm" style={{ backgroundColor: accentColor }} /><span className={`h-3 flex-1 rounded-sm ${key === 'dark' ? 'bg-white/20' : 'bg-[#E5E7EB]'}`} /></div>
                 </div>
               </button>
             );
@@ -4023,16 +4138,16 @@ function SettingsExactPage() {
 
       <SettingsExactSection icon={Globe} title={t('settingsPage.locale.title')} subtitle={t('settingsPage.locale.subtitle')}>
         <SettingsExactFieldLabel>{t('settingsPage.locale.primaryLanguage')}</SettingsExactFieldLabel>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           {SETTINGS_LANGUAGES.map((lang) => {
             const selected = language === lang;
-            return <button key={lang} type="button" onClick={() => setLanguage(lang)} className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-[10px] font-semibold ${selected ? 'bg-[#B34C4C] text-white' : 'border border-[#E5E7EB] bg-white text-[#667085] hover:bg-[#F8F9FA]'}`}>{selected && <Check size={9} />}{lang}</button>;
+            return <button key={lang} type="button" onClick={() => setLanguage(lang)} aria-pressed={selected} className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${selected ? 'bg-[#B34C4C] text-white' : 'border border-[#E5E7EB] bg-white text-[#667085] hover:bg-[#F1F3F5]'}`}>{selected && <Check size={12} strokeWidth={3} />}{lang}</button>;
           })}
         </div>
         <SettingsExactHint>{t('settingsPage.locale.languageHint')}</SettingsExactHint>
         <div className="mt-5 border-t border-[#E5E7EB] pt-5">
           <SettingsExactFieldLabel>{t('settingsPage.locale.clockFormat')}</SettingsExactFieldLabel>
-          <select value={clockFormat} onChange={(event) => setClockFormat(event.target.value)} className="h-10 w-full max-w-[240px] rounded-md border border-[#D0D5DD] bg-white px-3 text-[10px] text-[#344054] outline-none focus:border-[#9D0A0E]">
+          <select value={clockFormat} onChange={(event) => setClockFormat(event.target.value)} aria-label={t('settingsPage.locale.clockFormat')} className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20">
             {SETTINGS_CLOCK_FORMATS.map((format) => (
               <option key={format.key} value={format.key}>{t(format.labelKey)}</option>
             ))}
@@ -4046,16 +4161,16 @@ function SettingsExactPage() {
           {LEGAL_DOCUMENTS.map((doc, index) => (
             <div
               key={doc.id}
-              className={`flex flex-wrap items-center justify-between gap-4 ${index === 0 ? 'pb-4' : 'pt-4'}`}
+              className={`flex flex-wrap items-center justify-between gap-4 ${index === 0 ? 'pb-5' : 'pt-5'}`}
             >
               <div>
                 <p className="text-sm font-bold text-[#1F2937]">
                   {t(`settingsPage.legal.${doc.id}Title`)}
                 </p>
-                <p className="mt-0.5 text-[10px] text-[#667085]">
+                <p className="mt-0.5 text-xs text-[#667085]">
                   {t(`settingsPage.legal.${doc.id}Desc`)}
                 </p>
-                <p className="mt-0.5 text-[8px] text-[#98A2B3]">
+                <p className="mt-0.5 text-xs text-[#98A2B3]">
                   {t('settingsPage.legal.lastChanged', { date: doc.lastUpdated })}
                 </p>
               </div>
@@ -4063,9 +4178,9 @@ function SettingsExactPage() {
               <button
                 type="button"
                 onClick={() => setActiveLegalDocument(doc)}
-                className="flex shrink-0 items-center gap-1.5 rounded-md border border-[#D0D5DD] bg-white px-3.5 py-2 text-[10px] font-semibold text-[#344054] hover:bg-[#F8F9FA]"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
               >
-                <FileText size={11} />
+                <FileText size={14} />
                 {t('settingsPage.legal.view')}
               </button>
             </div>
