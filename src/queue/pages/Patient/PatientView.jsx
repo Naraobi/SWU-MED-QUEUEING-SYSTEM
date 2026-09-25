@@ -51,7 +51,7 @@ import {
 
 import { QRCodeSVG } from 'qrcode.react';
 
-import logoImage from '../../../assets/logo.png';
+import logoImage from '../../../assets/logo-transparent.png';
 import { THEME } from '../../theme/colors';
 const TransitionContext = createContext({ leaving: false });
 
