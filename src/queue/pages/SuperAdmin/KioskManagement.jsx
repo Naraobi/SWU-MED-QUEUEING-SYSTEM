@@ -18,6 +18,7 @@ import {
   getDepartments,
   getTerminals,
   getStaffByDepartment,
+  createKiosk,
   createTerminal,
   updateTerminal,
 } from '../../services/backendApi';
@@ -250,6 +251,14 @@ export default function KioskManagement() {
     setKioskStatus(kiosk.status || 'inactive');
     setKioskError(null);
   }
+  // =============================================
+// OPEN ADD KIOSK MODAL
+// =============================================
+
+function openAddKioskModal() {
+  setAddKioskModalOpen(true);
+}
+
 // =============================================
 // SAVE KIOSK
 // =============================================
