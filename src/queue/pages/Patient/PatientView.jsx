@@ -684,7 +684,8 @@ function KioskHeader({ step = null }) {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between">
-        <Wordmark size="h-9" />
+        {/* Logo size: change "h-7" below (e.g. h-6 smaller, h-8/h-9 bigger) to resize */}
+        <Wordmark size="h-3.5" />
 
         <div className="flex items-center gap-3 text-[11px] font-medium text-[#434655]">
           <span className="flex items-center gap-1">
