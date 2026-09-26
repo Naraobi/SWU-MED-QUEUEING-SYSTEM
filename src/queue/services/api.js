@@ -385,7 +385,7 @@ export async function fetchTicketStatus(
 
     const response =
       await fetch(
-        `${API_URL}/patients/queue/${encodeURIComponent(
+          `${API_URL}/tracker/${encodeURIComponent(
           ticketId
         )}`
       )

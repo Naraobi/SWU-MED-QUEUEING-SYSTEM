@@ -72,7 +72,7 @@ useEffect(() => {
     }
 
     try {
-      const result = await api.getTrackerTicket(ticketId)
+     const result = await api.fetchTicketStatus(ticketId)
 
       if (!cancelled) {
         setError(null)
