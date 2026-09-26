@@ -1,5 +1,5 @@
 const API_URL =
-  `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`
+  `${import.meta.env.VITE_API_URL || 'https://lightsteelblue-mandrill-330485.hostingersite.com/'}/api`
 
 /* ============================================================================
    DEMO DATA
