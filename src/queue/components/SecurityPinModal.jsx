@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -7,9 +7,8 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
+  Lock,
   Mail,
-  Info,
-  Clock,
   AlertTriangle,
   RotateCw,
 } from 'lucide-react';
@@ -21,83 +20,77 @@ import {
   validateSecurityPin,
 } from '../services/backendApi';
 
-/*
- * Security PIN
- *
- * Setting or changing a PIN runs through the steps in the design:
- *
- *   email  ->  emailed code  ->  new PIN  ->  confirm  ->  done
- *
- * The server checks the code and stores the PIN in one call, so the code is
- * submitted together with the new PIN at the confirm step. A wrong code
- * therefore surfaces at the end, and the person is returned to the code
- * screen with the attempts they have left.
- *
- * mode="verify" is the short version: confirm an existing PIN before a
- * protected action such as resetting records.
- */
-
 export const SECURITY_PIN_LENGTH = 6;
 const CODE_LENGTH = 6;
-const RESEND_SECONDS = 45;
 
-/* Reads "is a PIN set?" without assuming one exact field name. */
+/* ---------------------------------------------------------------
+   Reads "is a PIN set?" from the status response without assuming
+   one exact field name - the endpoint returns the whole envelope.
+--------------------------------------------------------------- */
 export function readPinIsSet(statusResponse) {
-  const data = statusResponse?.data ?? statusResponse ?? {};
+  const d = statusResponse?.data ?? statusResponse ?? {};
 
   const value =
-    statusResponse?.configured ??
-    data.configured ??
-    data.isSet ??
-    data.is_set ??
-    data.hasPin ??
-    data.has_pin ??
-    data.pinSet ??
-    data.pin_set;
+    d.isSet ??
+    d.is_set ??
+    d.hasPin ??
+    d.has_pin ??
+    d.pinSet ??
+    d.pin_set ??
+    d.configured ??
+    statusResponse?.isSet ??
+    statusResponse?.hasPin;
 
   return value === true || value === 1 || value === 'true';
 }
 
-function maskEmail(email) {
-  if (!email || !email.includes('@')) return email || '';
-  const [name, domain] = email.split('@');
-  const head = name.slice(0, 1);
-  return `${head}${'\u2022'.repeat(Math.max(name.length - 1, 3))}@${domain}`;
-}
-
 /* ---------------------------------------------------------------
-   Digit boxes over one real input
+   Digit boxes over one real input: typing, backspace and paste
+   all behave normally.
 --------------------------------------------------------------- */
-
-function DigitInput({ id, value, onChange, length, disabled, autoFocus, secret, label, invalid }) {
+function DigitInput({
+  id,
+  value,
+  onChange,
+  length,
+  disabled,
+  autoFocus,
+  secret = true,
+  label,
+}) {
   const [show, setShow] = useState(false);
 
-  const digits = Array.from({ length }, (_, index) => value[index] ?? '');
+  const digits = Array.from(
+    { length },
+    (_, index) => value[index] ?? ''
+  );
 
   return (
     <div className="relative">
       <div
         aria-hidden="true"
-        className={`pointer-events-none flex items-center gap-1.5 rounded-lg border-2 p-1.5 ${
-          invalid ? 'border-[#9D0A0E]' : 'border-[#E5E7EB]'
-        }`}
+        className="pointer-events-none flex items-center gap-2 rounded-lg border-2 border-[#E5E7EB] p-2"
       >
         {digits.map((digit, index) => (
           <span
             key={index}
-            className={`flex h-10 flex-1 items-center justify-center rounded-md border text-base font-bold text-[#1F2937] ${
+            className={`flex h-10 flex-1 items-center justify-center rounded-md border text-lg font-bold text-[#1F2937] ${
               index === value.length && !disabled
                 ? 'border-[#9D0A0E] bg-white'
                 : 'border-[#E5E7EB] bg-white'
             }`}
           >
-            {digit === '' ? '' : secret && !show ? '\u2022' : digit}
+            {digit === ''
+              ? ''
+              : secret && !show
+                ? '\u2022'
+                : digit}
           </span>
         ))}
 
         {secret && (
           <span className="px-1 text-[#4B5563]">
-            {show ? <EyeOff size={15} /> : <Eye size={15} />}
+            {show ? <EyeOff size={16} /> : <Eye size={16} />}
           </span>
         )}
       </div>
@@ -112,7 +105,11 @@ function DigitInput({ id, value, onChange, length, disabled, autoFocus, secret, 
         disabled={disabled}
         autoFocus={autoFocus}
         onChange={(event) =>
-          onChange(event.target.value.replace(/\D/g, '').slice(0, length))
+          onChange(
+            event.target.value
+              .replace(/\D/g, '')
+              .slice(0, length)
+          )
         }
         className="absolute inset-0 h-full w-full cursor-pointer rounded-lg opacity-0 disabled:cursor-not-allowed"
         aria-label={label}
@@ -122,7 +119,7 @@ function DigitInput({ id, value, onChange, length, disabled, autoFocus, secret, 
         <button
           type="button"
           onClick={() => setShow((previous) => !previous)}
-          className="absolute right-1.5 top-1/2 h-8 w-8 -translate-y-1/2 rounded focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
+          className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 rounded focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
           aria-label={show ? 'Hide' : 'Show'}
         />
       )}
@@ -130,13 +127,9 @@ function DigitInput({ id, value, onChange, length, disabled, autoFocus, secret, 
   );
 }
 
-/* ---------------------------------------------------------------
-   Shared pieces
---------------------------------------------------------------- */
-
 function Shell({ children }) {
   return (
-    <div className="swu-enter-fade fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4 py-6">
+    <div className="swu-enter-fade fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 px-4">
       <div className="swu-pop w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
         {children}
       </div>
@@ -144,32 +137,32 @@ function Shell({ children }) {
   );
 }
 
-function Head({ icon: Icon, title, description, onClose, disabled, tone = 'red' }) {
+function Header({ icon: Icon, title, description, onClose, disabled, tone = 'red' }) {
   return (
-    <div className="relative px-7 pb-4 pt-7 text-center">
+    <div className="relative px-7 pb-5 pt-7 text-center">
       {onClose && (
         <button
           type="button"
           onClick={onClose}
           disabled={disabled}
+          className="absolute right-5 top-5 rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30 disabled:opacity-40"
           aria-label="Close"
-          className="swu-press absolute right-5 top-5 rounded text-[#9CA3AF] transition-colors hover:text-[#1F2937] disabled:opacity-40"
         >
-          <X size={16} />
+          <X size={18} />
         </button>
       )}
 
       <div
-        className={`mx-auto flex h-10 w-10 items-center justify-center rounded-xl ${
+        className={`mx-auto flex h-11 w-11 items-center justify-center rounded-xl ${
           tone === 'green'
-            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+            ? 'bg-emerald-100 text-emerald-700'
             : 'bg-[#FBF1F1] text-[#9D0A0E]'
         }`}
       >
-        <Icon size={18} />
+        <Icon size={20} />
       </div>
 
-      <h2 className="mt-3 text-base font-bold text-[#1F2937]">{title}</h2>
+      <h2 className="mt-4 text-lg font-bold text-[#1F2937]">{title}</h2>
 
       {description && (
         <p className="mx-auto mt-1.5 max-w-xs text-xs leading-5 text-[#4B5563]">
@@ -184,62 +177,82 @@ function ErrorLine({ children }) {
   if (!children) return null;
 
   return (
-    <p className="mt-2 flex items-start gap-1.5 text-xs text-[#9D0A0E]">
-      <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+    <p className="mt-3 flex items-start gap-1.5 text-xs text-[#9D0A0E]">
+      <AlertTriangle size={12} className="mt-0.5 shrink-0" />
       {children}
     </p>
   );
 }
 
-function Primary({ children, onClick, disabled }) {
+function PrimaryButton({ children, disabled, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="swu-press mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
+      className="swu-press mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-bold text-white transition-all duration-200 hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
   );
 }
 
-function Secondary({ children, onClick, disabled }) {
+function SecondaryButton({ children, disabled, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="swu-press mt-2 w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 text-sm font-medium text-[#4B5563] transition-colors hover:bg-[#F1F3F5] disabled:opacity-50"
+      className="swu-press mt-2 w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-50"
     >
       {children}
     </button>
+  );
+}
+
+function PrivacyNote() {
+  return (
+    <p className="mt-3 flex items-center gap-2 rounded-lg bg-[#F8F9FA] px-3 py-2.5 text-xs text-[#4B5563]">
+      <ShieldCheck size={14} className="shrink-0" />
+      Keep your Security PIN private. Do not share it with other users.
+    </p>
+  );
+}
+
+function ProtocolFooter() {
+  return (
+    <p className="mt-4 flex items-center justify-center gap-1.5 text-xs uppercase tracking-wide text-[#9CA3AF]">
+      <Lock size={10} />
+      256-bit encrypted hospital administration protocol
+    </p>
   );
 }
 
 /* =========================================================
    SECURITY PIN MODAL
+
+   mode="setup"  new PIN -> emailed code -> saved -> success
+   mode="verify" confirm the PIN before a protected action
+
+   onSuccess() fires only after the server has confirmed.
 ========================================================= */
 
 export default function SecurityPinModal({
   mode = 'setup',
-  isChange = false,
+  title,
+  description,
   onClose,
   onSuccess,
 }) {
-  const accountEmail = auth.currentUser?.email || '';
+  const [step, setStep] = useState(mode === 'verify' ? 'verify' : 'pin');
 
-  const [step, setStep] = useState(mode === 'verify' ? 'verify' : 'email');
-
-  const [email, setEmail] = useState(accountEmail);
-  const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [code, setCode] = useState('');
 
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [configuredAt, setConfiguredAt] = useState(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
 
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -253,36 +266,29 @@ export default function SecurityPinModal({
     return () => document.removeEventListener('keydown', handleKey);
   }, [busy]);
 
-  useEffect(() => {
-    if (secondsLeft <= 0) return undefined;
-    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [secondsLeft]);
-
-  const currentUser = useCallback(() => {
+  function currentUser() {
     const user = auth.currentUser;
+
     if (!user) {
       setError('Your session has expired. Please log in again.');
       return null;
     }
+
     return user;
-  }, []);
+  }
 
-  /* ----- step 1: send the code ----- */
+  /* ----- setup: step 1, choose the PIN, then request a code ----- */
 
-  async function sendCode(next = 'code') {
+  async function submitNewPin() {
     setError(null);
 
-    if (!email.trim()) {
-      setError('Email is required.');
+    if (pin.length !== SECURITY_PIN_LENGTH) {
+      setError(`Please enter a ${SECURITY_PIN_LENGTH}-digit PIN. Only digits (0-9) are accepted.`);
       return;
     }
 
-    if (
-      accountEmail &&
-      email.trim().toLowerCase() !== accountEmail.toLowerCase()
-    ) {
-      setError('That does not match your registered email address.');
+    if (pin !== confirmPin) {
+      setError('The two PINs do not match.');
       return;
     }
 
@@ -294,8 +300,7 @@ export default function SecurityPinModal({
     try {
       await requestSecurityPinVerification(user);
       setCode('');
-      setSecondsLeft(RESEND_SECONDS);
-      setStep(next);
+      setStep('code');
     } catch (requestError) {
       setError(requestError?.message || 'Failed to send the verification code.');
     } finally {
@@ -303,10 +308,15 @@ export default function SecurityPinModal({
     }
   }
 
-  /* ----- final step: the server checks the code and stores the PIN ----- */
+  /* ----- setup: step 2, emailed code saves the PIN ----- */
 
-  async function commit() {
+  async function submitCode() {
     setError(null);
+
+    if (code.length !== CODE_LENGTH) {
+      setError(`Enter the ${CODE_LENGTH}-digit code sent to your email.`);
+      return;
+    }
 
     const user = currentUser();
     if (!user) return;
@@ -326,25 +336,41 @@ export default function SecurityPinModal({
       setConfirmPin('');
       setCode('');
       setStep('done');
-    } catch (commitError) {
-      const remaining = commitError?.attemptsRemaining;
+    } catch (verifyError) {
+      const remaining = verifyError?.attemptsRemaining;
 
       setError(
-        (commitError?.message || 'That verification code is incorrect.') +
+        (verifyError?.message || 'That code is incorrect.') +
           (Number.isFinite(remaining)
             ? ` ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
             : '')
       );
 
-      // The code is what failed - send them back to enter it again.
       setCode('');
-      setStep('code');
     } finally {
       setBusy(false);
     }
   }
 
-  /* ----- verify mode ----- */
+  async function resendCode() {
+    setError(null);
+
+    const user = currentUser();
+    if (!user) return;
+
+    setBusy(true);
+
+    try {
+      await requestSecurityPinVerification(user);
+      setCode('');
+    } catch (requestError) {
+      setError(requestError?.message || 'Failed to resend the code.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /* ----- verify: before a protected action ----- */
 
   async function submitVerify() {
     setError(null);
@@ -372,21 +398,21 @@ export default function SecurityPinModal({
   }
 
   /* =======================================================
-     STEP 5 — success
+     SCREENS
   ======================================================= */
 
   if (step === 'done') {
     return (
-      <Shell>
-        <Head
+      <Shell key={step}>
+        <Header
           icon={Check}
           tone="green"
           title="Security PIN Set Successfully"
           description="Your Security PIN can now be used to authorize protected system actions."
         />
 
-        <div className="px-7 pb-7">
-          <div className="flex items-start gap-2 rounded-lg bg-[#F8F9FA] px-3 py-3 text-left">
+        <div className="px-7 pb-6">
+          <div className="flex items-start gap-2 rounded-lg bg-[#F8F9FA] px-3 py-3">
             <ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-600" />
             <div>
               <p className="text-xs font-semibold text-[#1F2937]">
@@ -406,7 +432,7 @@ export default function SecurityPinModal({
               onSuccess?.();
               onClose?.();
             }}
-            className="swu-press mt-5 w-full rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#7D080B]"
+            className="swu-press mt-5 w-full rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-all duration-200 hover:bg-[#7D080B]"
           >
             Done
           </button>
@@ -420,161 +446,20 @@ export default function SecurityPinModal({
     );
   }
 
-  /* =======================================================
-     STEP 4 — are you sure
-  ======================================================= */
-
-  if (step === 'confirm') {
-    return (
-      <Shell>
-        <Head
-          icon={ShieldAlert}
-          title={isChange ? 'Change Security PIN?' : 'Set Security PIN?'}
-          description={
-            isChange
-              ? 'Are you sure you want to change your security PIN? Make sure you remember your new PIN before continuing.'
-              : 'Make sure you remember your new PIN before continuing.'
-          }
-          onClose={onClose}
-          disabled={busy}
-        />
-
-        <div className="px-7 pb-7">
-          <ErrorLine>{error}</ErrorLine>
-
-          <Primary onClick={commit} disabled={busy}>
-            {busy ? 'Please wait...' : 'Confirm Change'}
-            {!busy && <ArrowRight size={15} />}
-          </Primary>
-
-          <Secondary onClick={() => setStep('pin')} disabled={busy}>
-            Cancel
-          </Secondary>
-        </div>
-      </Shell>
-    );
-  }
-
-  /* =======================================================
-     STEP 3 — choose the PIN
-  ======================================================= */
-
-  if (step === 'pin') {
-    const matches =
-      pin.length === SECURITY_PIN_LENGTH &&
-      confirmPin.length === SECURITY_PIN_LENGTH;
-
-    return (
-      <Shell>
-        <Head
-          icon={ShieldAlert}
-          title="Set Up Security PIN"
-          description="Create an Security PIN to authorize protected system actions such as resetting records."
-          onClose={onClose}
-          disabled={busy}
-        />
-
-        <div className="px-7 pb-7">
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <label htmlFor="new-pin" className="text-xs font-bold text-[#1F2937]">
-              New Security PIN
-              <span className="ml-0.5 text-[#9D0A0E]">*</span>
-            </label>
-            <span className="text-xs uppercase tracking-wide text-[#9CA3AF]">
-              6 digits
-            </span>
-          </div>
-
-          <DigitInput
-            id="new-pin"
-            value={pin}
-            onChange={setPin}
-            length={SECURITY_PIN_LENGTH}
-            disabled={busy}
-            autoFocus
-            secret
-            label="New Security PIN"
-            invalid={Boolean(error)}
-          />
-
-          <p className="mt-1.5 flex items-start gap-1.5 text-xs text-[#9D0A0E]">
-            <Info size={11} className="mt-0.5 shrink-0" />
-            Please enter a 6-digit PIN. Only digits (0-9) are accepted.
-          </p>
-
-          <div className="mb-1.5 mt-3 flex items-baseline justify-between">
-            <label htmlFor="confirm-pin" className="text-xs font-bold text-[#1F2937]">
-              Confirm Security PIN
-              <span className="ml-0.5 text-[#9D0A0E]">*</span>
-            </label>
-            <span className="text-xs uppercase tracking-wide text-[#9CA3AF]">
-              Match new PIN
-            </span>
-          </div>
-
-          <DigitInput
-            id="confirm-pin"
-            value={confirmPin}
-            onChange={setConfirmPin}
-            length={SECURITY_PIN_LENGTH}
-            disabled={busy}
-            secret
-            label="Confirm Security PIN"
-          />
-
-          <p className="mt-3 flex items-center gap-2 rounded-lg bg-[#F8F9FA] px-3 py-2.5 text-xs text-[#4B5563]">
-            <ShieldCheck size={13} className="shrink-0" />
-            Keep your Security PIN private. Do not share it with other users.
-          </p>
-
-          <ErrorLine>{error}</ErrorLine>
-
-          <Primary
-            onClick={() => {
-              if (pin !== confirmPin) {
-                setError('The two PINs do not match.');
-                return;
-              }
-              setError(null);
-              setStep('confirm');
-            }}
-            disabled={busy || !matches}
-          >
-            {isChange ? 'Change PIN' : 'Set Up PIN'}
-            <ArrowRight size={15} />
-          </Primary>
-
-          <Secondary onClick={onClose} disabled={busy}>
-            Cancel
-          </Secondary>
-        </div>
-      </Shell>
-    );
-  }
-
-  /* =======================================================
-     STEP 2 — the emailed code
-  ======================================================= */
-
   if (step === 'code') {
     return (
-      <Shell>
-        <Head
-          icon={ShieldAlert}
-          title="Verify Your Email"
+      <Shell key={step}>
+        <Header
+          icon={Mail}
+          title="Verification Code"
           description="We sent a 6-digit verification code to your registered email address."
           onClose={onClose}
           disabled={busy}
         />
 
-        <div className="px-7 pb-7">
-          <p className="mx-auto mb-3 flex w-fit items-center gap-1.5 rounded-md border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-1 text-xs text-[#4B5563]">
-            <Mail size={11} />
-            {maskEmail(accountEmail || email)}
-          </p>
-
+        <div className="px-7 pb-6">
           <DigitInput
-            id="pin-code"
+            id="security-pin-code"
             value={code}
             onChange={setCode}
             length={CODE_LENGTH}
@@ -582,169 +467,167 @@ export default function SecurityPinModal({
             autoFocus
             secret={false}
             label="Verification code"
-            invalid={Boolean(error)}
           />
 
           <ErrorLine>{error}</ErrorLine>
 
-          <p className="mt-3 text-center text-xs text-[#9CA3AF]">
-            Didn&rsquo;t receive the code?
-          </p>
-
-          <p className="mt-1 flex items-center justify-center gap-2 text-xs text-[#4B5563]">
-            <span className="inline-flex items-center gap-1">
-              <Clock size={11} />
-              Resend code in{' '}
-              <span className="font-semibold text-[#1F2937]">
-                {String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:
-                {String(secondsLeft % 60).padStart(2, '0')}
-              </span>
-            </span>
-
+          <p className="mt-3 text-center text-xs text-[#4B5563]">
+            Didn&rsquo;t receive the code?{' '}
             <button
               type="button"
-              onClick={() => sendCode('code')}
-              disabled={busy || secondsLeft > 0}
-              className="font-semibold text-[#9D0A0E] transition-colors hover:underline disabled:cursor-not-allowed disabled:text-[#9CA3AF] disabled:no-underline"
+              onClick={resendCode}
+              disabled={busy}
+              className="font-semibold text-[#9D0A0E] hover:underline disabled:opacity-50"
             >
               Resend Code
             </button>
           </p>
 
-          <Primary
+          <PrimaryButton
+            onClick={submitCode}
+            disabled={busy || code.length !== CODE_LENGTH}
+          >
+            {busy ? 'Please wait...' : 'Verify Code'}
+            {!busy && <ArrowRight size={16} />}
+          </PrimaryButton>
+
+          <SecondaryButton
             onClick={() => {
               setError(null);
               setStep('pin');
             }}
-            disabled={busy || code.length !== CODE_LENGTH}
+            disabled={busy}
           >
-            Verify Code
-            <ArrowRight size={15} />
-          </Primary>
-
-          <Secondary onClick={onClose} disabled={busy}>
-            Cancel
-          </Secondary>
+            Back
+          </SecondaryButton>
         </div>
       </Shell>
     );
   }
 
-  /* =======================================================
-     verify mode — confirm an existing PIN
-  ======================================================= */
-
   if (step === 'verify') {
     return (
-      <Shell>
-        <Head
+      <Shell key={step}>
+        <Header
           icon={ShieldAlert}
-          title="Enter Security PIN"
-          description="Enter your Security PIN to authorize this action."
+          title={title || 'Enter Security PIN'}
+          description={description || 'Enter your Security PIN to authorize this action.'}
           onClose={onClose}
           disabled={busy}
         />
 
-        <div className="px-7 pb-7">
+        <div className="px-7 pb-6">
           <div className="mb-1.5 flex items-baseline justify-between">
-            <label htmlFor="verify-pin" className="text-xs font-bold text-[#1F2937]">
-              Security PIN
-              <span className="ml-0.5 text-[#9D0A0E]">*</span>
+            <label htmlFor="security-pin-verify" className="text-sm font-semibold text-[#1F2937]">
+              Security PIN<span className="ml-0.5 text-[#9D0A0E]">*</span>
             </label>
             <span className="text-xs uppercase tracking-wide text-[#9CA3AF]">
-              6 digits
+              {SECURITY_PIN_LENGTH} digits
             </span>
           </div>
 
           <DigitInput
-            id="verify-pin"
+            id="security-pin-verify"
             value={pin}
             onChange={setPin}
             length={SECURITY_PIN_LENGTH}
             disabled={busy}
             autoFocus
-            secret
             label="Security PIN"
-            invalid={Boolean(error)}
           />
 
           <ErrorLine>{error}</ErrorLine>
+          <PrivacyNote />
 
-          <p className="mt-3 flex items-center gap-2 rounded-lg bg-[#F8F9FA] px-3 py-2.5 text-xs text-[#4B5563]">
-            <ShieldCheck size={13} className="shrink-0" />
-            Keep your Security PIN private. Do not share it with other users.
-          </p>
-
-          <Primary
+          <PrimaryButton
             onClick={submitVerify}
             disabled={busy || pin.length !== SECURITY_PIN_LENGTH}
           >
             {busy ? 'Please wait...' : 'Verify & Continue'}
-            {!busy && <ArrowRight size={15} />}
-          </Primary>
+            {!busy && <ArrowRight size={16} />}
+          </PrimaryButton>
 
-          <Secondary onClick={onClose} disabled={busy}>
+          <SecondaryButton onClick={onClose} disabled={busy}>
             Cancel
-          </Secondary>
+          </SecondaryButton>
         </div>
       </Shell>
     );
   }
 
-  /* =======================================================
-     STEP 1 — email
-  ======================================================= */
+  /* ----- step === 'pin' (setup) ----- */
 
   return (
-    <Shell>
-      <Head
+    <Shell key={step}>
+      <Header
         icon={ShieldAlert}
-        title={isChange ? 'Change Security PIN' : 'Set Up Security PIN'}
-        description="For your security, we'll send a verification code to your registered email address."
+        title={title || 'Set Up Security PIN'}
+        description={
+          description ||
+          'Create a Security PIN to authorize protected system actions such as resetting records.'
+        }
         onClose={onClose}
         disabled={busy}
       />
 
-      <div className="px-7 pb-7">
-        <label htmlFor="pin-email" className="mb-1.5 block text-xs font-bold text-[#1F2937]">
-          Email
-        </label>
-
-        <div className="relative">
-          <Mail
-            size={14}
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]"
-          />
-
-          <input
-            id="pin-email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="Enter email"
-            autoComplete="email"
-            disabled={busy}
-            className="w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 pl-9 pr-3 text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-60"
-          />
+      <div className="px-7 pb-6">
+        <div className="mb-1.5 flex items-baseline justify-between">
+          <label htmlFor="security-pin-new" className="text-sm font-semibold text-[#1F2937]">
+            New Security PIN<span className="ml-0.5 text-[#9D0A0E]">*</span>
+          </label>
+          <span className="text-xs uppercase tracking-wide text-[#9CA3AF]">
+            {SECURITY_PIN_LENGTH} digits
+          </span>
         </div>
 
+        <DigitInput
+          id="security-pin-new"
+          value={pin}
+          onChange={setPin}
+          length={SECURITY_PIN_LENGTH}
+          disabled={busy}
+          autoFocus
+          label="New Security PIN"
+        />
+
+        <div className="mb-1.5 mt-4 flex items-baseline justify-between">
+          <label htmlFor="security-pin-confirm" className="text-sm font-semibold text-[#1F2937]">
+            Confirm Security PIN<span className="ml-0.5 text-[#9D0A0E]">*</span>
+          </label>
+          <span className="text-xs uppercase tracking-wide text-[#9CA3AF]">
+            Match new PIN
+          </span>
+        </div>
+
+        <DigitInput
+          id="security-pin-confirm"
+          value={confirmPin}
+          onChange={setConfirmPin}
+          length={SECURITY_PIN_LENGTH}
+          disabled={busy}
+          label="Confirm Security PIN"
+        />
+
         <ErrorLine>{error}</ErrorLine>
+        <PrivacyNote />
 
-        <p className="mt-3 flex items-start gap-2 rounded-lg bg-[#F8F9FA] px-3 py-2.5 text-xs text-[#4B5563]">
-          <Info size={13} className="mt-0.5 shrink-0 text-[#9D0A0E]" />
-          Authorized admin verification code remains valid for 10 minutes. Check
-          spam folder if not received.
-        </p>
+        <PrimaryButton
+          onClick={submitNewPin}
+          disabled={
+            busy ||
+            pin.length !== SECURITY_PIN_LENGTH ||
+            confirmPin.length !== SECURITY_PIN_LENGTH
+          }
+        >
+          {busy ? 'Sending code...' : 'Set Up PIN'}
+          {!busy && <ArrowRight size={16} />}
+        </PrimaryButton>
 
-        <Primary onClick={() => sendCode('code')} disabled={busy || !email.trim()}>
-          {busy ? 'Sending...' : 'Send Verification Code'}
-          {!busy && <ArrowRight size={15} />}
-        </Primary>
-
-        <Secondary onClick={onClose} disabled={busy}>
+        <SecondaryButton onClick={onClose} disabled={busy}>
           Cancel
-        </Secondary>
+        </SecondaryButton>
+
+        <ProtocolFooter />
       </div>
     </Shell>
   );

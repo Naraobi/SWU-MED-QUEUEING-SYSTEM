@@ -455,7 +455,7 @@ function DepartmentVolumeChart({ data }) {
   );
 }
 
-export default function Dashboard() {
+export default function Dashboard({ onNavigate }) {
   const [departments, setDepartments] = useState([]);
   const [kiosks, setKiosks] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -642,18 +642,27 @@ useEffect(() => {
       )
   ).length;
 
+  // Tooltip text for the clickable statistic cards.
+  const PAGE_LABELS = {
+    departments: 'Department Management',
+    queues: 'Queue Management',
+    kiosks: 'Kiosk Management',
+  };
+
   const STATS = [
     {
       label: 'Departments',
       value: `${visibleDepartmentCount}/${departments.length}`,
       caption: 'Active departments',
       icon: Building2,
+      page: 'departments',
     },
     {
       label: 'Total Waiting',
       value: String(queueStats.waiting),
       caption: 'Across all departments',
       icon: Users,
+      page: 'queues',
     },
     {
       label: 'Average Wait',
@@ -666,18 +675,21 @@ useEffect(() => {
       value: String(queueStats.skipped),
       caption: 'Skipped queuing',
       icon: RotateCw,
+      page: 'queues',
     },
     {
       label: 'Completed',
       value: String(queueStats.completed),
       caption: 'Completed queuing',
       icon: TrendingUp,
+      page: 'queues',
     },
     {
       label: 'Terminals',
       value: `${terminalStats.active}/${terminalStats.total}`,
       caption: 'Active terminals',
       icon: Monitor,
+      page: 'kiosks',
     },
   ];
 
@@ -813,11 +825,30 @@ return (
 <div className="swu-stagger mb-6 grid grid-cols-2 gap-4 xl:grid-cols-6">
   {STATS.map((stat) => {
     const Icon = stat.icon;
+    const clickable = Boolean(stat.page && onNavigate);
 
     return (
       <div
         key={stat.label}
-        className="swu-card min-w-0 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm"
+        role={clickable ? 'button' : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        title={clickable ? `Open ${PAGE_LABELS[stat.page] || stat.page}` : undefined}
+        onClick={clickable ? () => onNavigate(stat.page) : undefined}
+        onKeyDown={
+          clickable
+            ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onNavigate(stat.page);
+                }
+              }
+            : undefined
+        }
+        className={`swu-card min-w-0 rounded-xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm ${
+          clickable
+            ? 'swu-press cursor-pointer hover:border-[#F0DADA] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30'
+            : ''
+        }`}
       >
         <div className="mb-3 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
@@ -1036,7 +1067,13 @@ return (
               .map((dept) => (
               <tr
                 key={dept.department_id}
-                className="border-b border-[#F1F3F5] last:border-0 hover:bg-[#F8F9FA]"
+                title={onNavigate ? 'Open Department Management' : undefined}
+                onClick={
+                  onNavigate ? () => onNavigate('departments') : undefined
+                }
+                className={`border-b border-[#F1F3F5] last:border-0 hover:bg-[#F8F9FA] ${
+                  onNavigate ? 'cursor-pointer' : ''
+                }`}
               >
                 <td className="px-5 py-3 font-medium text-[#1F2937]">
                   {dept.name}

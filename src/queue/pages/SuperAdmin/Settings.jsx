@@ -1256,6 +1256,7 @@ export default function Settings() {
       {showChangePassword && (
         <ChangePasswordModal
           onSuccess={() => setShowChangePassword(false)}
+          onClose={() => setShowChangePassword(false)}
         />
       )}
 
