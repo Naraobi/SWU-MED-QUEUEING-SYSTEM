@@ -14,6 +14,8 @@ import {
   linkWithCredential,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  setPersistence,
+  browserLocalPersistence,
 } from "firebase/auth";
 
 import {
@@ -21,6 +23,7 @@ import {
 } from "./backendApi";
 
 import { auth } from "../../firebase";
+import "./socketService";
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -994,12 +997,17 @@ export function AuthProvider({
         };
       }
 
-      const credential =
-        await signInWithEmailAndPassword(
-          auth,
-          normalizedEmail,
-          password
-        );
+await setPersistence(
+  auth,
+  browserLocalPersistence
+);
+
+const credential =
+  await signInWithEmailAndPassword(
+    auth,
+    normalizedEmail,
+    password
+  );
 
       const firebaseUser =
         credential.user;
@@ -1322,13 +1330,18 @@ export function AuthProvider({
 
     let googleResult;
 
-    try {
-      googleResult =
-        await signInWithPopup(
-          auth,
-          googleProvider
-        );
-    } catch (googleError) {
+try {
+  await setPersistence(
+    auth,
+    browserLocalPersistence
+  );
+
+  googleResult =
+    await signInWithPopup(
+      auth,
+      googleProvider
+    );
+} catch (googleError) {
 
       /*
       |--------------------------------------------------------------------------
@@ -1412,12 +1425,17 @@ export function AuthProvider({
         |--------------------------------------------------------------------------
         */
 
-        const existingCredential =
-          await signInWithEmailAndPassword(
-            auth,
-            googleEmail,
-            password
-          );
+await setPersistence(
+  auth,
+  browserLocalPersistence
+);
+
+const existingCredential =
+  await signInWithEmailAndPassword(
+    auth,
+    googleEmail,
+    password
+  );
 
         const existingFirebaseUser =
           existingCredential.user;

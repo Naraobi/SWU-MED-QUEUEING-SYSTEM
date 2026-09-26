@@ -1,9 +1,13 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const http = require("http");
+const {
+  initializeSocket,
+} = require("./services/socketService");
 
 const pool = require("./config/mysql");
-const { db } = require("./config/firebase");
+const { db, realtimeDb } = require("./config/firebase");
 
 const {
   getDatabaseMode,
@@ -30,6 +34,9 @@ const securityPinRoutes = require("./routes/securityPinRoutes");
 const positionRoutes = require("./routes/positionRoutes");
 
 const app = express();
+const server = http.createServer(app);
+
+initializeSocket(server);
 
 const PORT = process.env.PORT || 5000;
 
@@ -166,6 +173,30 @@ app.get("/api/test/firebase", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Firebase connection failed",
+      error: error.message,
+    });
+  }
+});
+
+// -----------------------------------------------------
+// TEST FIREBASE REALTIME DATABASE
+// -----------------------------------------------------
+app.get("/api/test/firebase-realtime", async (req, res) => {
+  try {
+    const snapshot = await realtimeDb.ref("connection_test").get();
+
+    res.json({
+      success: true,
+      message: "Firebase Realtime Database connection is working!",
+      exists: snapshot.exists(),
+      data: snapshot.val(),
+    });
+  } catch (error) {
+    console.error("Firebase Realtime Database test failed:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Firebase Realtime Database connection failed.",
       error: error.message,
     });
   }
@@ -320,7 +351,7 @@ setInterval(
 |--------------------------------------------------------------------------
 */
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
  console.log(`Node.js server running on port ${PORT}`
   );
 

@@ -30,6 +30,11 @@ import {
   assignTerminal,
 } from '../../services/backendApi.js'
 
+import {
+  joinDepartment,
+  onQueueUpdated,
+} from '../../services/socketService'
+
 // Matches TerminalSelectionPage.jsx's per-staff key so both components
 // agree on where a staff member's chosen terminal lives. Two staff on
 // the same browser must never share one terminal's saved state.
@@ -595,6 +600,34 @@ export default function DashboardPage() {
     user?.departmentPrefix,
     user?.prefix,
   ])
+
+  // Join this staff member's department WebSocket room
+  // once the department prefix has been resolved.
+  useEffect(() => {
+    if (!staffPrefix) return
+
+    joinDepartment(staffPrefix)
+
+    console.log(
+      'Joined WebSocket department room:',
+      staffPrefix
+    )
+  }, [staffPrefix])
+
+  useEffect(() => {
+  if (!staffPrefix || !terminalId) return
+
+  const unsubscribe = onQueueUpdated((event) => {
+    console.log('QUEUE_UPDATED received:', event)
+
+    refresh(staffPrefix, undefined, {
+      terminalId,
+      silent: true,
+    })
+  })
+
+  return unsubscribe
+}, [staffPrefix, terminalId, refresh])
 
   useEffect(() => {
     if (!staffPrefix || !terminalId) return
