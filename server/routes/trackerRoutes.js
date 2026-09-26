@@ -121,44 +121,104 @@ router.get("/:queueId", async (req, res) => {
     // P-002's tracker only looks at Terminal 2.
     //
     // ============================================================
+// ============================================================
+// 2. GET CURRENTLY SERVING PATIENT
+// ============================================================
+//
+// If the patient has already been called:
+//
+//   Use their assigned counter.
+//
+// If the patient is still waiting:
+//
+//   Show the most recently called/serving patient
+//   in the department.
+//
+// This allows the Waiting Screen to always show
+// a current "Now Serving" number.
+//
+// ============================================================
 
-    let nowServing = null;
+let nowServing = null
 
-    if (ticket.counter_id) {
-      const [servingRows] = await pool.query(
-        `
-        SELECT
-          qt.queue_id,
-          qt.queue_number,
-          qt.queue_sequence,
-          qt.status,
-          qt.is_priority,
-          qt.called_at,
-          qt.service_began_at
+if (ticket.counter_id) {
+  // ----------------------------------------------------------
+  // Patient already has a terminal assigned.
+  // Only look at that terminal.
+  // ----------------------------------------------------------
 
-        FROM queue_ticket qt
+  const [servingRows] = await pool.query(
+    `
+    SELECT
+      qt.queue_id,
+      qt.queue_number,
+      qt.queue_sequence,
+      qt.status,
+      qt.is_priority,
+      qt.called_at,
+      qt.service_began_at
 
-        WHERE qt.department_id = ?
-          AND qt.counter_id = ?
-          AND DATE(qt.issued_at) = CURDATE()
-          AND qt.status IN ('called', 'serving')
+    FROM queue_ticket qt
 
-        ORDER BY
-          qt.called_at DESC
+    WHERE qt.department_id = ?
+      AND qt.counter_id = ?
+      AND DATE(qt.issued_at) = CURDATE()
+      AND qt.status IN ('called', 'serving')
 
-        LIMIT 1
-        `,
-        [
-          ticket.department_id,
-          ticket.counter_id,
-        ]
-      );
+    ORDER BY
+      qt.called_at DESC
 
-      nowServing =
-        servingRows.length > 0
-          ? servingRows[0].queue_number
-          : null;
-    }
+    LIMIT 1
+    `,
+    [
+      ticket.department_id,
+      ticket.counter_id,
+    ]
+  )
+
+  nowServing =
+    servingRows.length > 0
+      ? servingRows[0].queue_number
+      : null
+
+} else {
+  // ----------------------------------------------------------
+  // Patient is still waiting.
+  //
+  // No counter has been assigned yet, so show the latest
+  // patient currently called/served in this department.
+  // ----------------------------------------------------------
+
+  const [servingRows] = await pool.query(
+    `
+    SELECT
+      qt.queue_id,
+      qt.queue_number,
+      qt.queue_sequence,
+      qt.status,
+      qt.is_priority,
+      qt.called_at,
+      qt.service_began_at
+
+    FROM queue_ticket qt
+
+    WHERE qt.department_id = ?
+      AND DATE(qt.issued_at) = CURDATE()
+      AND qt.status IN ('called', 'serving')
+
+    ORDER BY
+      qt.called_at DESC
+
+    LIMIT 1
+    `,
+    [ticket.department_id]
+  )
+
+  nowServing =
+    servingRows.length > 0
+      ? servingRows[0].queue_number
+      : null
+}
 
     // ============================================================
     // 3. COUNT PEOPLE AHEAD

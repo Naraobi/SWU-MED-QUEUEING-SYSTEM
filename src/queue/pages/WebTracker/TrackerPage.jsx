@@ -8,7 +8,7 @@ import YourTurnScreen from '../../components/YourTurnScreen.jsx'
 
 import CompletedScreen from '../../components/CompletedScreen.jsx'
 
-
+import logo from '../../../assets/logo.png'
 
 const POLL_INTERVAL_MS = 2000
 
@@ -111,11 +111,11 @@ return (
 
 <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg">
 
-<p className="text-xl font-bold">
-<span className="text-[#9D0A0E]">SWU</span>
-<span className="text-[#1F2937]">Med</span>
-</p>
-
+<img
+  src={logo}
+  alt="SWU Med"
+  className="mx-auto h-14 w-auto object-contain"
+/>
 <h1 className="mt-5 text-xl font-bold text-[#1F2937]">
 
 Ticket Not Found

@@ -1,15 +1,16 @@
 import React from 'react'
+import logo from '../../assets/logo.png'
 
 export default function TrackerShell({ title, subtitle, children, footer }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#EAF3FB] px-4 py-8">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-lg sm:max-w-lg md:max-w-xl">
         <div className="px-6 pt-6 pb-4 text-center">
-          <p className="text-xl font-bold sm:text-2xl">
-            <span className="text-[#9D0A0E]">SWU</span>
-            <span className="text-[#1F2937]">Med</span>
-          </p>
-
+      <img
+  src={logo}
+  alt="SWU Med"
+  className="mx-auto h-14 w-auto object-contain"
+/>
           {title && (
             <p className="mt-2 text-sm font-bold text-[#1F2937] sm:text-base">
               {title}

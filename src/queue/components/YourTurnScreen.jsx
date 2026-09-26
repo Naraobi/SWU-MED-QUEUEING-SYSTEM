@@ -1,5 +1,6 @@
 import React from 'react'
 import { BellRing } from 'lucide-react'
+import logo from '../../assets/logo.png'
 
 export default function YourTurnScreen({ ticket }) {
   // Priority tickets carry a "P-" prefix; they render in brand red.
@@ -13,10 +14,11 @@ export default function YourTurnScreen({ ticket }) {
     <div className="flex min-h-screen items-center justify-center bg-[#EAF3FB] px-4 py-8">
       <div className="w-full max-w-md sm:max-w-lg md:max-w-xl">
 
-        <p className="mb-5 text-center text-xl font-bold sm:text-2xl">
-          <span className="text-[#9D0A0E]">SWU</span>
-          <span className="text-[#1F2937]">Med</span>
-        </p>
+      <img
+  src={logo}
+  alt="SWU Med"
+  className="mx-auto mb-5 h-14 w-auto object-contain"
+/>
 
         <div className="overflow-hidden rounded-2xl border-2 border-[#9D0A0E] bg-white shadow-lg">
 

@@ -28,9 +28,51 @@ if (ticket.status === 'called' || ticket.status === 'serving') {
   const isPriority = String(ticket.queueNumber || '')
     .toUpperCase()
     .startsWith('P-')
+const numberColor = isPriority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'
 
-  const numberColor = isPriority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'
+const estimatedWaitText =
+  formatWaitTime(ticket.estimatedWaitMinutes)
 
+function formatWaitTime(minutes) {
+  const totalSeconds = Math.max(
+    0,
+    Math.round(Number(minutes || 0) * 60)
+  )
+
+  const hours = Math.floor(totalSeconds / 3600)
+
+  const remainingAfterHours =
+    totalSeconds % 3600
+
+  const mins = Math.floor(
+    remainingAfterHours / 60
+  )
+
+  const seconds =
+    remainingAfterHours % 60
+
+  if (hours > 0) {
+    if (mins > 0 && seconds > 0) {
+      return `${hours} hr ${mins} min ${seconds} sec`
+    }
+
+    if (mins > 0) {
+      return `${hours} hr ${mins} min`
+    }
+
+    return `${hours} hr`
+  }
+
+  if (mins > 0 && seconds > 0) {
+    return `${mins} min ${seconds} sec`
+  }
+
+  if (mins > 0) {
+    return `${mins} min`
+  }
+
+  return `${seconds} sec`
+}
   return (
     <TrackerShell
       title={`${ticket.department} Waiting Area`}
@@ -102,10 +144,9 @@ if (ticket.status === 'called' || ticket.status === 'serving') {
             Estimated Wait
           </p>
 
-          <p className="mt-1 text-2xl font-bold text-[#1F2937]">
-            ~{ticket.estimatedWaitMinutes}
-            <span className="ml-0.5 text-xs font-medium text-[#6B7280]">min</span>
-          </p>
+    <p className="mt-1 text-2xl font-bold text-[#1F2937]">
+  ~{estimatedWaitText}
+</p>
         </div>
       </div>
 

@@ -1298,115 +1298,83 @@ async function createUser(
 
   const mode =
     await getDatabaseMode();
-
-  /*
-  |--------------------------------------------------------------------------
-  | NEW LOGIN ACCOUNTS REQUIRE FIREBASE
-  |--------------------------------------------------------------------------
-  */
-
-  if (mode === "mysql") {
-    throw new Error(
-      "Firebase Authentication is required to create a new login account."
-    );
-  }
-
   /*
   |--------------------------------------------------------------------------
   | FIREBASE MODE
   |--------------------------------------------------------------------------
   */
+if (mode === "firebase" || mode === "mysql") {
+  let firebaseUser = null;
 
-  if (mode === "firebase") {
-    let firebaseUser = null;
+  /*
+  |--------------------------------------------------------------------------
+  | STEP 1 — CREATE FIREBASE AUTH ACCOUNT
+  |--------------------------------------------------------------------------
+  */
 
-    /*
-    |--------------------------------------------------------------------------
-    | STEP 1 — CREATE FIREBASE AUTH ACCOUNT
-    |--------------------------------------------------------------------------
-    */
+  try {
+    firebaseUser = await auth.createUser({
+      email: profile.email,
+
+      password: temporaryPassword,
+
+      displayName: buildDisplayName(profile),
+
+      disabled:
+        toMySQLStatus(profile.status) === "inactive",
+    });
+
+    console.log(
+      `Firebase Authentication user created: ${firebaseUser.uid}`
+    );
+  } catch (error) {
+    console.error(
+      "FIREBASE AUTH CREATE USER ERROR:",
+      error.message
+    );
+
+    throw new Error(
+      `User was not created in Firebase Authentication: ${error.message}`
+    );
+  }
+
+  profile.firebase_uid = firebaseUser.uid;
+
+  /*
+  |--------------------------------------------------------------------------
+  | STEP 2 — CREATE MYSQL PROFILE
+  |--------------------------------------------------------------------------
+  */
+
+  try {
+    await insertUserIntoMySQL(profile);
+
+    console.log(
+      `MySQL user created: ${profile.user_id}`
+    );
+  } catch (mysqlError) {
+    console.error(
+      "MYSQL CREATE USER ERROR:",
+      mysqlError.message
+    );
 
     try {
-      firebaseUser =
-        await auth.createUser({
-          email:
-            profile.email,
-
-          password:
-            temporaryPassword,
-
-          displayName:
-            buildDisplayName(
-              profile
-            ),
-
-          disabled:
-            toMySQLStatus(
-              profile.status
-            ) === "inactive",
-        });
+      await auth.deleteUser(firebaseUser.uid);
 
       console.log(
-        `Firebase Authentication user created: ${firebaseUser.uid}`
+        `Firebase Authentication rollback successful: ${firebaseUser.uid}`
       );
-    } catch (error) {
+    } catch (rollbackError) {
       console.error(
-        "FIREBASE AUTH CREATE USER ERROR:",
-        error.message
-      );
-
-      throw new Error(
-        `User was not created in Firebase Authentication: ${error.message}`
+        "FIREBASE AUTH ROLLBACK ERROR:",
+        rollbackError.message
       );
     }
 
-    profile.firebase_uid =
-      firebaseUser.uid;
+    throw mysqlError;
+  }
 
-    /*
-    |--------------------------------------------------------------------------
-    | STEP 2 — CREATE MYSQL PROFILE
-    |--------------------------------------------------------------------------
-    */
-
-    try {
-      await insertUserIntoMySQL(
-        profile
-      );
-
-      console.log(
-        `MySQL user created: ${profile.user_id}`
-      );
-    } catch (mysqlError) {
-      console.error(
-        "MYSQL CREATE USER ERROR:",
-        mysqlError.message
-      );
-
-      /*
-      |--------------------------------------------------------------------------
-      | ROLLBACK FIREBASE ACCOUNT
-      |--------------------------------------------------------------------------
-      */
-
-      try {
-        await auth.deleteUser(
-          firebaseUser.uid
-        );
-
-        console.log(
-          `Firebase Authentication rollback successful: ${firebaseUser.uid}`
-        );
-      } catch (rollbackError) {
-        console.error(
-          "FIREBASE AUTH ROLLBACK ERROR:",
-          rollbackError.message
-        );
-      }
-
-      throw mysqlError;
-    }
-
+  
     /*
     |--------------------------------------------------------------------------
     | STEP 3 — FIRESTORE PROFILE COPY
