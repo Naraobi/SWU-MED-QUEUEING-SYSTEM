@@ -1,119 +1,14 @@
 const express = require("express");
 const router = express.Router();
-
 const pool = require("../config/mysql");
-const { db } = require("../config/firebase");
 
+const {
+  syncQueueTicketToFirebase,
+  triggerQueuePrediction,
+} = require("../services/queueTicketService");
 // ============================================================
 // HELPER: SYNC QUEUE TICKET TO FIREBASE
 // ============================================================
-
-async function syncQueueTicketToFirebase(queueId) {
-  if (!queueId) {
-    throw new Error(
-      "Queue ID is required for Firebase synchronization."
-    );
-  }
-
-  const [rows] = await pool.query(
-    `
-    SELECT
-      qt.queue_id,
-      qt.department_id,
-      qt.transaction_id,
-      qt.queue_number,
-      qt.queue_sequence,
-      qt.issued_at,
-      qt.called_at,
-      qt.service_began_at,
-      qt.completed_at,
-      qt.status,
-      qt.is_priority,
-
-      p.patient_number,
-
-      d.name AS department,
-      d.prefix,
-      d.kiosk_id
-
-    FROM queue_ticket qt
-
-    INNER JOIN patient p
-      ON qt.transaction_id = p.transaction_id
-
-    INNER JOIN department d
-      ON qt.department_id = d.department_id
-
-    WHERE qt.queue_id = ?
-
-    LIMIT 1
-    `,
-    [queueId]
-  );
-
-  if (rows.length === 0) {
-    throw new Error(
-      "Queue ticket not found while synchronizing with Firebase."
-    );
-  }
-
-  const queue = rows[0];
-
-  await db
-    .collection("queue_tickets")
-    .doc(queue.queue_id)
-    .set(
-      {
-        queue_id: queue.queue_id,
-        department_id: queue.department_id,
-        transaction_id: queue.transaction_id,
-        queue_number: queue.queue_number,
-        queue_sequence: Number(queue.queue_sequence),
-
-        issued_at: queue.issued_at || null,
-        called_at: queue.called_at || null,
-        service_began_at:
-          queue.service_began_at || null,
-        completed_at:
-          queue.completed_at || null,
-
-        status: queue.status,
-
-        is_priority: Boolean(
-          queue.is_priority
-        ),
-
-        patient_number:
-          queue.patient_number,
-
-        department:
-          queue.department,
-
-        prefix:
-          queue.prefix,
-
-        kiosk_id:
-          queue.kiosk_id,
-
-        firebase_synced_at:
-          new Date(),
-      },
-      {
-        merge: true,
-      }
-    );
-
-  console.log(
-    `Firebase queue sync successful: ${queue.queue_number}`
-  );
-
-  return queue;
-}
-
-// ============================================================
-// HELPER: GET TODAY'S QUEUE STATE
-// ============================================================
-
 async function getQueueState(
   departmentPrefix,
   { start, end, terminalId } = {}
@@ -673,22 +568,26 @@ router.post(
 
       const nextPatient =
         nextRows[0];
+await connection.query(
+  `
+  UPDATE queue_ticket
 
-      await connection.query(
-        `
-        UPDATE queue_ticket
+  SET
+    status = 'called',
+    called_at = NOW(),
+    counter_id = ?
 
-        SET
-          status = 'called',
-          called_at = NOW(),
-          counter_id = ?
+  WHERE queue_id = ?
+  `,
+  [terminalId || null, nextPatient.queue_id]
+);
 
-        WHERE queue_id = ?
-        `,
-        [terminalId || null, nextPatient.queue_id]
-      );
+await connection.commit();
 
-      await connection.commit();
+void triggerQueuePrediction(
+  "queue_called",
+  nextPatient.queue_id
+);
 
       let firebaseSynced = true;
       let firebaseError = null;
@@ -858,6 +757,10 @@ router.post(
         `,
         [patient.queue_id]
       );
+      void triggerQueuePrediction(
+  "service_started",
+  patient.queue_id
+);
 
       const [updatedRows] =
         await pool.query(
@@ -1231,6 +1134,10 @@ router.post(
         `,
         [queueId]
       );
+      void triggerQueuePrediction(
+  "queue_completed",
+  queueId
+);
 
       let firebaseSynced = true;
       let firebaseError = null;
@@ -1429,7 +1336,10 @@ router.post(
         `,
         [queueId]
       );
-
+      void triggerQueuePrediction(
+  "queue_cancelled",
+    queueId
+  );
       let firebaseSynced = true;
       let firebaseError = null;
 

@@ -25,7 +25,10 @@ const auth = getAuth(app);
 const functions = getFunctions(app, 'us-central1');
 
 const storage = getStorage(app);
-
+console.log(
+  "🔥 FRONTEND FIREBASE PROJECT:",
+  firebaseConfig.projectId
+);
 export {
   app,
   db,

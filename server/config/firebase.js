@@ -22,7 +22,10 @@ const firebaseApp = initializeApp({
 
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
-
+console.log(
+  "🔥 BACKEND FIREBASE PROJECT:",
+  firebaseApp.options.projectId
+);
 module.exports = {
   db,
   auth,

@@ -58,77 +58,43 @@ const previewTicket = previewMode
   ? buildPreviewTicket(previewMode, params.get('type') === 'regular')
   : null
 
-
-
 useEffect(() => {
+  let cancelled = false
 
-let cancelled = false
+  const load = async () => {
+    if (previewMode) {
+      return
+    }
 
+    if (!ticketId) {
+      setError('No ticket number was provided.')
+      return
+    }
 
+    try {
+      const result = await api.getTrackerTicket(ticketId)
 
-const load = async () => {
+      if (!cancelled) {
+        setError(null)
+        setTicket(result)
+      }
+    } catch (err) {
+      if (!cancelled) {
+        setError(err.message || 'Failed to retrieve ticket information.')
+        setTicket(null)
+      }
+    }
+  }
 
-if (previewMode) {
+  load()
 
-return
+  const interval = setInterval(load, POLL_INTERVAL_MS)
 
-}
-
-if (!ticketId) {
-
-setError('No ticket number was provided.')
-
-return
-
-}
-
-
-
-const result = await api.fetchTicketStatus(ticketId)
-
-
-
-if (!cancelled) {
-
-if (result.error) {
-
-setError(result.error)
-
-setTicket(null)
-
-} else {
-
-setError(null)
-
-setTicket(result)
-
-}
-
-}
-
-}
-
-
-
-load()
-
-
-
-const interval = setInterval(load, POLL_INTERVAL_MS)
-
-
-
-return () => {
-
-cancelled = true
-
-clearInterval(interval)
-
-}
-
+  return () => {
+    cancelled = true
+    clearInterval(interval)
+  }
 }, [ticketId, previewMode])
-
-
 
 const shown = previewTicket || ticket
 

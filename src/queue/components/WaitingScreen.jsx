@@ -3,9 +3,26 @@ import { Megaphone, Users, Clock, BellRing, RefreshCw } from 'lucide-react'
 import TrackerShell from './TrackerShell.jsx'
 
 export default function WaitingScreen({ ticket }) {
-  const total = ticket.totalAheadAtIssue || Math.max(ticket.peopleAhead, 1)
-  const servedSoFar = total - ticket.peopleAhead
-  const progressPct = Math.min(100, Math.round((servedSoFar / total) * 100))
+const total = Math.max(
+  Number(ticket.totalAheadAtIssue) || 0,
+  Number(ticket.peopleAhead) || 0
+)
+
+const peopleAhead = Number(ticket.peopleAhead) || 0
+
+let progressPct = 0
+
+if (ticket.status === 'called' || ticket.status === 'serving') {
+  progressPct = 100
+} else if (ticket.status === 'completed') {
+  progressPct = 100
+} else if (total > 0) {
+  const servedSoFar = Math.max(total - peopleAhead, 0)
+  progressPct = Math.min(
+    100,
+    Math.round((servedSoFar / total) * 100)
+  )
+}
 
   // Priority tickets carry a "P-" prefix; they render in brand red.
   const isPriority = String(ticket.queueNumber || '')

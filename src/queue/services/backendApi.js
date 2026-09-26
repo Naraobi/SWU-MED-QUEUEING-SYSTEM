@@ -970,6 +970,27 @@ export async function completeCurrentPatient(departmentPrefix) {
   return result.data;
 }
 
+export async function getTrackerTicket(queueId) {
+  if (!queueId) {
+    throw new Error("Queue ID is required")
+  }
+
+  const response = await fetch(
+    `${API_URL}/tracker/${encodeURIComponent(queueId)}`
+  )
+
+  const result = await response.json()
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to retrieve tracker data"
+    )
+  }
+
+  return result.data
+}
+
+
 export async function skipCurrentPatient(departmentPrefix) {
   if (!departmentPrefix) {
     throw new Error("Department prefix is required");

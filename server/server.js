@@ -28,6 +28,7 @@ const staffQueueRoutes = require("./routes/staffQueueRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const securityPinRoutes = require("./routes/securityPinRoutes");
 const positionRoutes = require("./routes/positionRoutes");
+const trackerRoutes = require("./routes/trackerRoutes");
 
 const app = express();
 
@@ -96,6 +97,7 @@ app.use(
   "/api/positions",
   positionRoutes
 );
+app.use("/api/tracker", trackerRoutes);
 
 // =====================================================
 // BASIC BACKEND TEST

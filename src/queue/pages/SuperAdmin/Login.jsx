@@ -95,15 +95,11 @@ export default function Login() {
       |
       */
 
-      if (
-        result.user?.must_change_password === true
-      ) {
-        setLoggedInUser(result.user);
-        setShowChangePassword(true);
-
-        return;
-      }
-
+if (result.user?.must_change_password === true) {
+  setLoggedInUser(result.user);
+  setShowChangePassword(true);
+  return;
+}
       /*
       |--------------------------------------------------------------------------
       | NORMAL LOGIN
@@ -171,7 +167,8 @@ export default function Login() {
     }
 
     if (
-      result.user?.must_change_password === true
+      result.user?.must_change_password === true  ||
+    result.hasPasswordProvider === false
     ) {
       setLoggedInUser(
         result.user

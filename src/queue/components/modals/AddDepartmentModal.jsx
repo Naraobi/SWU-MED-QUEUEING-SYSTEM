@@ -30,11 +30,15 @@ const activeKiosks = kiosks.filter(
     String(kiosk.status || '').toLowerCase() ===
     'active'
 );
-
 const selectedKiosk = kiosks.find(
   (kiosk) =>
-    String(kiosk.id) ===
-    String(form.kiosk_id)
+    String(kiosk.kiosk_id) ===
+      String(form.kiosk_id) ||
+    (
+      kiosk.firestore_id &&
+      String(kiosk.firestore_id) ===
+        String(form.kiosk_id)
+    )
 );
 
 const selectableKiosks = [
@@ -44,8 +48,8 @@ const selectableKiosks = [
     'active' &&
   !activeKiosks.some(
     (kiosk) =>
-      String(kiosk.id) ===
-      String(selectedKiosk.id)
+      String(kiosk.kiosk_id) ===
+String(selectedKiosk.kiosk_id)
   )
     ? [selectedKiosk]
     : []),
@@ -154,9 +158,9 @@ const selectableKiosks = [
 
   {selectableKiosks.map((kiosk) => (
     <option
-      key={kiosk.id}
-      value={kiosk.id}
-    >
+  key={kiosk.kiosk_id}
+  value={kiosk.kiosk_id}
+>
       {kiosk.name}
     </option>
   ))}

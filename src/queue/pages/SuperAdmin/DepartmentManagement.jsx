@@ -117,12 +117,15 @@ function getPageNumbers(currentPage, totalPages) {
 ========================================================= */
 
 function DepartmentVolumeChart({ departments }) {
-  const rows = departments
-    .map((department) => ({
-      name: department.name || 'Department',
-      value: Number(department.waiting) || 0,
-      wait: parseInt(String(department.avg_wait || ''), 10) || 0,
-    }))
+const rows = departments.map((department) => ({
+  id: department.id || department.department_id,
+  name:
+    department.department_name ||
+    department.name ||
+    'Department',
+  value: Number(department.waiting) || 0,
+  wait: department.est_time || 0,
+}))
     .sort((a, b) => b.value - a.value)
     .slice(0, 6);
 

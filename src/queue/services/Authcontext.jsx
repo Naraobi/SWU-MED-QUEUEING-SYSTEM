@@ -994,12 +994,19 @@ export function AuthProvider({
         };
       }
 
-      const credential =
-        await signInWithEmailAndPassword(
-          auth,
-          normalizedEmail,
-          password
-        );
+ console.log("EMAIL LOGIN DEBUG:", {
+  email: normalizedEmail,
+  passwordProvided: !!password,
+  passwordLength: password?.length,
+  firebaseProject: auth.app.options.projectId,
+  authDomain: auth.app.options.authDomain,
+});
+
+const credential = await signInWithEmailAndPassword(
+  auth,
+  normalizedEmail,
+  password
+);
 
       const firebaseUser =
         credential.user;
@@ -1204,32 +1211,19 @@ export function AuthProvider({
         }
       );
 
-      /*
-      |--------------------------------------------------------------------------
-      | RETURN RESULT
-      |--------------------------------------------------------------------------
-      */
+const hasPasswordProvider = firebaseUser.providerData.some(
+  (provider) => provider.providerId === "password"
+);
 
-      return {
-        error: null,
-
-        user:
-          finalUser,
-
-        role:
-          accessValidation.role,
-
-        position:
-          finalUser.position ??
-          null,
-
-        position_id:
-          finalUser.position_id ??
-          null,
-
-        position_tabs:
-          finalUser.position_tabs ?? [],
-      };
+return {
+  error: null,
+  user: finalUser,
+  role: accessValidation.role,
+  position: finalUser.position ?? null,
+  position_id: finalUser.position_id ?? null,
+  position_tabs: finalUser.position_tabs ?? [],
+  hasPasswordProvider,
+};
     } catch (error) {
       console.error(
         "Firebase authentication error:",
@@ -1495,18 +1489,30 @@ export function AuthProvider({
     | GET FIREBASE USER
     |--------------------------------------------------------------------------
     */
+const firebaseUser = googleResult?.user;
 
-    const firebaseUser =
-      googleResult?.user;
+if (!firebaseUser) {
+  return {
+    error: {
+      message: "Google authentication failed.",
+    },
+  };
+}
 
-    if (!firebaseUser) {
-      return {
-        error: {
-          message:
-            "Google authentication failed.",
-        },
-      };
-    }
+const hasPasswordProvider =
+  firebaseUser.providerData.some(
+    (provider) => provider.providerId === "password"
+  );
+
+console.log(
+  "GOOGLE LOGIN PROVIDERS:",
+  firebaseUser.providerData.map(
+    (provider) => ({
+      providerId: provider.providerId,
+      email: provider.email,
+    })
+  )
+);
 
     /*
     |--------------------------------------------------------------------------
@@ -1628,12 +1634,11 @@ export function AuthProvider({
     |--------------------------------------------------------------------------
     */
 
-    const finalUser =
-      buildFinalUser(
-        userData,
-        firebaseUser
-      );
-
+  const finalUser =
+  buildFinalUser(
+    userData,
+    firebaseUser
+  );
     /*
     |--------------------------------------------------------------------------
     | STEP 7
@@ -1687,6 +1692,7 @@ export function AuthProvider({
       position_tabs:
         finalUser.position_tabs ??
         [],
+        hasPasswordProvider,
     };
 
   } catch (error) {

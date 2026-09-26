@@ -1731,43 +1731,77 @@ export default function DepartmentCrud({
       setVerifyingResetPin(false);
     }
   }
+async function handleReset() {
+  if (resettingIds.length === 0) {
+    return;
+  }
 
-  function handleReset() {
-    if (resettingIds.length === 0) {
-      return;
-    }
+  const selectedUsers = users.filter((user) =>
+    resettingIds.some(
+      (id) => String(id) === String(user.user_id ?? user.id)
+    )
+  );
 
-    const selectedUsers = users.filter((user) =>
-      resettingIds.some(
-        (id) => String(id) === String(user.user_id ?? user.id)
-      )
+  if (selectedUsers.length === 0) {
+    setError('No selected users were found.');
+    return;
+  }
+
+  setSaving(true);
+  setError(null);
+  setSuccess(null);
+
+  try {
+    const results = await Promise.all(
+      selectedUsers.map(async (user) => {
+        const userId = user.user_id ?? user.id;
+
+        await deleteUser(
+          userId,
+          'User reset by superadmin',
+          'superadmin'
+        );
+
+        return userId;
+      })
     );
 
-    if (selectedUsers.length === 0) {
-      setError('No selected users were found.');
-      return;
-    }
-
-    setResetUserIds((currentIds) => {
-      const idsToHide = selectedUsers.map(
-        (user) => user.user_id ?? user.id
-      );
-
-      return Array.from(new Set([...currentIds, ...idsToHide]));
-    });
+    /*
+     * Remove successfully deleted users from the UI.
+     */
+    setUsers((currentUsers) =>
+      currentUsers.filter(
+        (user) =>
+          !results.some(
+            (id) =>
+              String(id) ===
+              String(user.user_id ?? user.id)
+          )
+      )
+    );
 
     setShowResetPin(false);
     setShowPinSetup(false);
     setResettingIds([]);
     setSelectedResetIds([]);
     setPinInput('');
-    setError(null);
+
     setSuccess(
-      selectedUsers.length === 1
-        ? 'User has been reset.'
-        : `${selectedUsers.length} users have been reset.`
+      results.length === 1
+        ? 'User has been reset successfully.'
+        : `${results.length} users have been reset successfully.`
     );
+  } catch (err) {
+    console.error('RESET USERS ERROR:', err);
+
+    setError(
+      err?.message ||
+      'Unable to reset the selected users.'
+    );
+  } finally {
+    setSaving(false);
   }
+}
 
   const visibleUsers = users.filter(
     (user) =>

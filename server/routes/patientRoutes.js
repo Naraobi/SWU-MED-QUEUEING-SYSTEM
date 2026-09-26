@@ -5,47 +5,9 @@ const pool = require("../config/mysql");
 const { db } = require("../config/firebase");
 
 const router = express.Router();
-
-async function triggerQueuePrediction(queueId) {
-  try {
-    const response = await fetch(
-      "https://swu-med-n8n.onrender.com/webhook/queue-prediction",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-         event: eventType,
-          queue_id: queueId,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      console.error(
-        "n8n queue prediction webhook failed:",
-        response.status,
-        await response.text()
-      );
-
-      return false;
-    }
-
-    console.log(
-      `n8n queue prediction triggered for queue: ${queueId}`
-    );
-
-    return true;
-  } catch (error) {
-    console.error(
-      "Failed to trigger n8n queue prediction:",
-      error.message
-    );
-
-    return false;
-  }
-}
+const {
+  triggerQueuePrediction,
+} = require("../services/queueTicketService");
 
 router.get("/departments/:kioskId", async (req, res) => {
   const { kioskId } = req.params;
@@ -433,7 +395,10 @@ router.post("/queue", async (req, res) => {
 
     await connection.commit();
 
-await triggerQueuePrediction(queue_created);
+    void triggerQueuePrediction(
+      "queue_created",
+      queueId
+    );
     /*
     |--------------------------------------------------------------------------
     | PREPARE RESPONSE / FIREBASE DATA
