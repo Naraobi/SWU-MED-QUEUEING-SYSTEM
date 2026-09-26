@@ -28,6 +28,11 @@ import {
   Plus,
   X,
   Check,
+  ChevronDown,
+  MapPin,
+  Eye,
+  EyeOff,
+  CheckCircle2,
 } from 'lucide-react';
 
 // ===========================================================
@@ -803,8 +808,8 @@ function ResetDepartmentConfirmationModal({
   const count = selectedDepartments.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="swu-pop w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
 
         {/* Header */}
         <div className="flex items-start gap-3 border-b border-[#E5E7EB] px-6 py-5">
@@ -899,6 +904,15 @@ function ResetPinModal({
   setPinInput,
   verifying,
 }) {
+  const [showPin, setShowPin] = useState(false);
+
+  // Always reopen hidden, so a PIN is never left on screen.
+  useEffect(() => {
+    if (open) {
+      setShowPin(false);
+    }
+  }, [open]);
+
   if (!open) {
     return null;
   }
@@ -940,19 +954,33 @@ return (
             Security PIN
           </label>
 
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            value={pinInput}
-            onChange={(e) => {
-              const value = e.target.value.replace(/\D/g, '');
-              setPinInput(value);
-            }}
-            placeholder="Enter 6-digit PIN"
-            className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-            autoFocus
-          />
+          <div className="relative">
+            <input
+              type={showPin ? 'text' : 'password'}
+              inputMode="numeric"
+              maxLength={6}
+              value={pinInput}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, '');
+                setPinInput(value);
+              }}
+              placeholder="Enter 6-digit PIN"
+              className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] py-2 pl-3 pr-10 text-sm tracking-[0.3em] text-[#1F2937] placeholder:tracking-normal focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+              disabled={verifying}
+              autoFocus
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowPin((current) => !current)}
+              disabled={verifying}
+              aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+              title={showPin ? 'Hide PIN' : 'Show PIN'}
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-[#9CA3AF] transition hover:text-[#4B5563] disabled:opacity-40"
+            >
+              {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1054,15 +1082,12 @@ const [resettingIds, setResettingIds] =
   const [showResetPin, setShowResetPin] =
     useState(false);
 
+  const [showResetDone, setShowResetDone] = useState(false);
+  const [resetDoneCount, setResetDoneCount] = useState(0);
+
   const [verifyingResetPin, setVerifyingResetPin] =
   useState(false);  
 
-  useEffect(() => {
-    localStorage.setItem(
-      'swu_reset_departments',
-      JSON.stringify(resetDepartmentIds)
-    );
-  }, [resetDepartmentIds]);
 
   function handleAddKiosk() {
   setShowAddKioskModal(true);
@@ -2025,65 +2050,67 @@ if (duplicate) {
     }
   }
 
-  async function handleResetSelectionContinue() {
-  if (selectedResetIds.length === 0) {
-    return;
+  // Step 1 -> Step 2. Selecting departments only opens the confirmation
+  // message. Nothing is deleted and no PIN is requested until it is confirmed.
+  function handleResetSelectionContinue() {
+    if (selectedResetIds.length === 0) {
+      return;
+    }
+
+    setResettingIds(selectedResetIds);
+    setShowResetSelection(false);
+    setShowResetConfirmation(true);
+    setError(null);
+    setSuccess('');
   }
 
-  setResettingIds(selectedResetIds);
-setShowResetSelection(false);
-setShowResetConfirmation(true);
-setError(null);
-setSuccess('');
+  function handleResetConfirmationNo() {
+    setShowResetConfirmation(false);
+    setResettingIds([]);
+    setSelectedResetIds([]);
+  }
+
   /*
   |--------------------------------------------------------------------------
   | SECURITY PIN GATE
   |--------------------------------------------------------------------------
   |
-  | Resetting department records is a protected action. If this user has no
-  | Security PIN yet, ask them to create one instead of showing a PIN prompt
-  | they cannot possibly satisfy.
+  | Step 2 -> Step 3. Resetting department records is a protected action. If
+  | this user has no Security PIN yet, ask them to create one instead of
+  | showing a PIN prompt they cannot possibly satisfy.
   |
   */
-  const firebaseUser = auth.currentUser;
+  async function handleResetConfirmationYes() {
+    setShowResetConfirmation(false);
+    setPinInput('');
 
-  if (!firebaseUser) {
-    setError(
-      'Your authentication session is unavailable. Please log in again.'
-    );
-    return;
-  }
+    const firebaseUser = auth.currentUser;
 
-  try {
-    const status = await getSecurityPinStatus(firebaseUser);
-
-    if (readPinIsSet(status)) {
-      setShowResetPin(true);
-    } else {
-      setShowPinSetup(true);
+    if (!firebaseUser) {
+      setError(
+        'Your authentication session is unavailable. Please log in again.'
+      );
+      return;
     }
-  } catch (statusError) {
-    console.error(
-      'Security PIN status check failed:',
-      statusError
-    );
 
-    // Status unavailable - fall back to asking for the PIN.
-    setShowResetPin(true);
+    try {
+      const status = await getSecurityPinStatus(firebaseUser);
+
+      if (readPinIsSet(status)) {
+        setShowResetPin(true);
+      } else {
+        setShowPinSetup(true);
+      }
+    } catch (statusError) {
+      console.error(
+        'Security PIN status check failed:',
+        statusError
+      );
+
+      // Status unavailable - fall back to asking for the PIN.
+      setShowResetPin(true);
+    }
   }
-}
-
-
-function handleResetConfirmationNo() {
-  setShowResetConfirmation(false);
-  setResettingIds([]);
-}
-
-function handleResetConfirmationYes() {
-  setShowResetConfirmation(false);
-  setPinInput('');
-  setShowResetPin(true);
-}
 
 async function handleResetPinConfirm() {
   if (resettingIds.length === 0) {
@@ -2184,6 +2211,10 @@ await resetDepartmentIds(
         ? `Department "${selectedDepartments[0].department_name}" was deleted successfully.`
         : `${selectedDepartments.length} departments were deleted successfully.`
     );
+
+    // Step 4. Done.
+    setResetDoneCount(selectedDepartments.length);
+    setShowResetDone(true);
   } catch (error) {
     console.error(
       'Department reset backend error:',
@@ -2921,6 +2952,49 @@ return (
       verifying={verifyingResetPin}
     />
 
+    <ResetDepartmentDoneModal
+      open={showResetDone}
+      count={resetDoneCount}
+      onClose={() => setShowResetDone(false)}
+    />
+
       </div>
     );
+}
+
+// Step 4 of the reset flow: done.
+function ResetDepartmentDoneModal({ open, count, onClose }) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="swu-pop w-full max-w-sm rounded-xl bg-white shadow-xl">
+        <div className="px-6 pb-2 pt-6 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <CheckCircle2 size={22} />
+          </div>
+
+          <h2 className="text-lg font-bold text-[#1F2937]">Reset complete</h2>
+
+          <p className="mt-2 text-sm text-[#4B5563]">
+            {count === 1
+              ? '1 department has been reset.'
+              : `${count} departments have been reset.`}
+          </p>
+        </div>
+
+        <div className="mt-4 flex items-center justify-center rounded-b-xl border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="swu-press rounded-lg bg-[#9D0A0E] px-6 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B]"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

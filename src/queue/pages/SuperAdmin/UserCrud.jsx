@@ -6,10 +6,13 @@ import {
   Users,
   Contact,
   UserCheck,
-  Monitor,
   X,
   Lock,
   Check,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
@@ -1153,6 +1156,9 @@ export default function DepartmentCrud({
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [verifyingResetPin, setVerifyingResetPin] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showResetDone, setShowResetDone] = useState(false);
+  const [resetDoneCount, setResetDoneCount] = useState(0);
 
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1669,7 +1675,9 @@ export default function DepartmentCrud({
     }
   }
 
-  async function handleResetSelectionContinue() {
+  // Step 1 -> Step 2. Selecting users only opens the confirmation message;
+  // nothing is reset and no PIN is requested until the user confirms.
+  function handleResetSelectionContinue() {
     if (selectedResetIds.length === 0) {
       return;
     }
@@ -1679,6 +1687,12 @@ export default function DepartmentCrud({
     setShowResetSelection(false);
     setError(null);
     setSuccess(null);
+    setShowResetConfirm(true);
+  }
+
+  // Step 2 -> Step 3. Confirmed, so now ask for the Security PIN.
+  async function handleResetConfirmProceed() {
+    setShowResetConfirm(false);
 
     const firebaseUser = auth.currentUser;
 
@@ -1767,6 +1781,10 @@ export default function DepartmentCrud({
         ? 'User has been reset.'
         : `${selectedUsers.length} users have been reset.`
     );
+
+    // Step 4. Done.
+    setResetDoneCount(selectedUsers.length);
+    setShowResetDone(true);
   }
 
   const visibleUsers = users.filter(
@@ -1880,7 +1898,7 @@ export default function DepartmentCrud({
         </div>
       )}
 
-      <div className="swu-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="swu-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           title="SUPER ADMIN"
           count={superAdminCount}
@@ -1904,15 +1922,6 @@ export default function DepartmentCrud({
           count={activeCount}
           subtitle="ADMIN/STAFF ON DUTY"
           icon={<UserCheck size={18} />}
-        />
-        <SummaryCard
-          title="TERMINAL"
-          count={terminals.filter(
-            (terminal) =>
-              String(terminal.status || '').toLowerCase() === 'active'
-          ).length}
-          subtitle="ACTIVE TERMINAL"
-          icon={<Monitor size={18} />}
         />
       </div>
 
@@ -2162,6 +2171,17 @@ export default function DepartmentCrud({
         onContinue={handleResetSelectionContinue}
       />
 
+      <ResetConfirmModal
+        open={showResetConfirm}
+        count={resettingIds.length}
+        onCancel={() => {
+          setShowResetConfirm(false);
+          setResettingIds([]);
+          setSelectedResetIds([]);
+        }}
+        onConfirm={handleResetConfirmProceed}
+      />
+
       {showPinSetup && (
         <SecurityPinModal
           mode="setup"
@@ -2194,6 +2214,100 @@ export default function DepartmentCrud({
         setPinInput={setPinInput}
         verifying={verifyingResetPin}
       />
+
+      <ResetDoneModal
+        open={showResetDone}
+        count={resetDoneCount}
+        onClose={() => setShowResetDone(false)}
+      />
+    </div>
+  );
+}
+
+// Step 2 of the reset flow: are you sure?
+function ResetConfirmModal({ open, count, onCancel, onConfirm }) {
+  if (!open) {
+    return null;
+  }
+
+  const label = count === 1 ? '1 user' : `${count} users`;
+
+  return (
+    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="swu-pop w-full max-w-sm rounded-xl bg-white shadow-xl">
+        <div className="px-6 pb-2 pt-6 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
+            <AlertTriangle size={22} />
+          </div>
+
+          <h2 className="text-lg font-bold text-[#1F2937]">
+            Are you sure you want to reset?
+          </h2>
+
+          <p className="mt-2 text-sm text-[#4B5563]">
+            You selected {label}. Resetting hides them from User Management.
+          </p>
+
+          <p className="mt-1 text-xs text-[#9CA3AF]">
+            You will be asked for your Security PIN next.
+          </p>
+        </div>
+
+        <div className="mt-4 flex items-center justify-center gap-3 rounded-b-xl border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F8F9FA]"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="swu-press rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B]"
+          >
+            Yes, reset
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Step 4 of the reset flow: done.
+function ResetDoneModal({ open, count, onClose }) {
+  if (!open) {
+    return null;
+  }
+
+  const label = count === 1 ? 'User' : `${count} users`;
+
+  return (
+    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div className="swu-pop w-full max-w-sm rounded-xl bg-white shadow-xl">
+        <div className="px-6 pb-2 pt-6 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <CheckCircle2 size={22} />
+          </div>
+
+          <h2 className="text-lg font-bold text-[#1F2937]">Reset complete</h2>
+
+          <p className="mt-2 text-sm text-[#4B5563]">
+            {label} {count === 1 ? 'has' : 'have'} been reset.
+          </p>
+        </div>
+
+        <div className="mt-4 flex items-center justify-center rounded-b-xl border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="swu-press rounded-lg bg-[#9D0A0E] px-6 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B]"
+          >
+            Done
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2384,6 +2498,15 @@ function ResetPinModal({
   setPinInput,
   verifying,
 }) {
+  const [showPin, setShowPin] = useState(false);
+
+  // Always reopen hidden, so a PIN is never left on screen.
+  useEffect(() => {
+    if (open) {
+      setShowPin(false);
+    }
+  }, [open]);
+
   if (!open) {
     return null;
   }
@@ -2418,19 +2541,32 @@ function ResetPinModal({
             <label className="mb-1.5 block text-xs font-semibold text-[#4B5563]">
               Security PIN
             </label>
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              value={pinInput}
-              onChange={(event) =>
-                setPinInput(event.target.value.replace(/\D/g, ''))
-              }
-              placeholder="Enter 6-digit PIN"
-              className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2 text-sm text-[#1F2937] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-              disabled={verifying}
-              autoFocus
-            />
+            <div className="relative">
+              <input
+                type={showPin ? 'text' : 'password'}
+                inputMode="numeric"
+                maxLength={6}
+                value={pinInput}
+                onChange={(event) =>
+                  setPinInput(event.target.value.replace(/\D/g, ''))
+                }
+                placeholder="Enter 6-digit PIN"
+                className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] py-2 pl-3 pr-10 text-sm tracking-[0.3em] text-[#1F2937] placeholder:tracking-normal focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+                disabled={verifying}
+                autoFocus
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPin((current) => !current)}
+                disabled={verifying}
+                aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+                title={showPin ? 'Hide PIN' : 'Show PIN'}
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-[#9CA3AF] transition hover:text-[#4B5563] disabled:opacity-40"
+              >
+                {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
         </div>
 

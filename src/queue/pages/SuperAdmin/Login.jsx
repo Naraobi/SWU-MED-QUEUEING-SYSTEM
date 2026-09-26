@@ -4,6 +4,7 @@ import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '../../services/Authcontext';
 import { getLandingPath } from '../../services/accessControl';
 import ChangePasswordModal from '../../components/changePasswordModal';
+import LegalModal from '../../components/LegalModal';
 import LoginBG1 from '../../../assets/LoginBG1.jpg';
 import Logo from '../../../assets/logo.png';
 
@@ -24,6 +25,9 @@ export default function Login() {
 
   const [showChangePassword, setShowChangePassword] =
     useState(false);
+
+  // 'terms' | 'privacy' | null - which legal document is open.
+  const [legalDocument, setLegalDocument] = useState(null);
 
   const [loggedInUser, setLoggedInUser] =
     useState(null);
@@ -424,13 +428,29 @@ async function handlePasswordChangeSuccess(
 
                 <span>
                   I agree to the{' '}
-                  <span className="font-semibold text-[#9D0A0E]">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setLegalDocument('terms');
+                    }}
+                    className="font-semibold text-[#9D0A0E] underline decoration-[#9D0A0E]/40 underline-offset-2 transition hover:decoration-[#9D0A0E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
+                  >
                     Terms &amp; Conditions
-                  </span>
+                  </button>
                   {' '}and{' '}
-                  <span className="font-semibold text-[#9D0A0E]">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setLegalDocument('privacy');
+                    }}
+                    className="font-semibold text-[#9D0A0E] underline decoration-[#9D0A0E]/40 underline-offset-2 transition hover:decoration-[#9D0A0E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
+                  >
                     Privacy Policy
-                  </span>
+                  </button>
                   .
                 </span>
               </label>
@@ -529,6 +549,13 @@ async function handlePasswordChangeSuccess(
           onSuccess={
             handlePasswordChangeSuccess
           }
+        />
+      )}
+
+      {legalDocument && (
+        <LegalModal
+          document={legalDocument}
+          onClose={() => setLegalDocument(null)}
         />
       )}
     </div>

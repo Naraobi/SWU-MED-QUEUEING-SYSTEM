@@ -45,7 +45,6 @@ import {
   CheckCircle2,
   MapPin,
   ClipboardList,
-  Lock,
   Check,
 } from 'lucide-react';
 
@@ -1742,8 +1741,8 @@ function PrintingScreen({
       header={<KioskHeader step="ticket" />}
     >
       <div className="relative">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-blue-600/5 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-blue-200/20 blur-2xl" />
+        <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-[#9D0A0E]/5 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-[#9D0A0E]/5 blur-2xl" />
 
         <div
           className="kiosk-ticket-reveal relative rounded-lg border bg-white p-6 text-center shadow-sm"

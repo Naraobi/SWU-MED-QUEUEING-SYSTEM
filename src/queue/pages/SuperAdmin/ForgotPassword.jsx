@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Circle,
   X,
+  ArrowLeft,
 } from 'lucide-react';
 import LoginBG1 from '../../../assets/LoginBG1.jpg';
 
@@ -44,7 +45,7 @@ function RecoveryShell({ children }) {
         className="pointer-events-none absolute inset-0 bg-[#6B1119]/45"
       />
 
-      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="swu-pop relative z-10 w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
         {children}
       </div>
     </div>
@@ -79,7 +80,7 @@ function ErrorBox({ children }) {
   if (!children) return null;
 
   return (
-    <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2 text-xs text-[#9D0A0E]">
+    <div className="swu-enter mt-3 flex items-start gap-2 rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2 text-xs text-[#9D0A0E]">
       <AlertTriangle size={12} className="mt-0.5 shrink-0" />
       {children}
     </div>
@@ -92,7 +93,7 @@ function PrimaryButton({ children, disabled, onClick, type = 'button' }) {
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#7D080B] focus:outline-none focus:ring-4 focus:ring-[#9D0A0E]/30 disabled:cursor-not-allowed disabled:opacity-50"
+      className="swu-press mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-bold text-white transition-all duration-200 hover:bg-[#7D080B] focus:outline-none focus:ring-4 focus:ring-[#9D0A0E]/30 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -105,7 +106,7 @@ function SecondaryButton({ children, onClick, disabled }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="mt-2 w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-50"
+      className="swu-press mt-2 w-full rounded-lg border border-[#E5E7EB] bg-white py-2.5 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-50"
     >
       {children}
     </button>
@@ -741,7 +742,7 @@ export function ResetPassword() {
             className="mx-auto block h-1 w-10 rounded-full bg-[#F0DADA]"
           />
 
-          <div className="mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-200">
+          <div className="swu-pop mx-auto mt-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-200">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-white">
               <Check
                 size={16}
