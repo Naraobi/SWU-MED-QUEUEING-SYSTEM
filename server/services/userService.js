@@ -2293,86 +2293,30 @@ async function deleteUser(userId) {
   |--------------------------------------------------------------------------
   */
 
-  const existingUser = await getUserFromMySQL(userId);
+  const existingUser =
+    await getUserFromMySQL(userId);
 
   if (!existingUser) {
     return false;
   }
 
-  const mode = await getDatabaseMode();
+  const mode =
+    await getDatabaseMode();
 
   /*
   |--------------------------------------------------------------------------
   | FIREBASE MODE
   |--------------------------------------------------------------------------
-  */
-if (mode === "mysql") {
-  if (existingUser.firebase_uid) {
-    try {
-      await auth.deleteUser(existingUser.firebase_uid);
-
-      console.log(
-        `Firebase Authentication user deleted: ${existingUser.firebase_uid}`
-      );
-    } catch (firebaseAuthError) {
-      if (firebaseAuthError.code === "auth/user-not-found") {
-        console.log(
-          `Firebase Authentication user already deleted: ${existingUser.firebase_uid}`
-        );
-      } else {
-        console.error(
-          "FIREBASE AUTH DELETE USER ERROR:",
-          firebaseAuthError
-        );
-
-        throw new Error(
-          `Firebase Authentication user could not be deleted: ${firebaseAuthError.message}`
-        );
-      }
-    }
-  }
-
-  const mysqlDeleted = await deleteUserFromMySQL(userId);
-
-  if (!mysqlDeleted) {
-    throw new Error(
-      "Firebase Authentication user was deleted, but the MySQL user could not be deleted."
-    );
-  }
-
-  try {
-    await db
-      .collection(USERS_COLLECTION)
-      .doc(userId)
-      .delete();
-
-    console.log(
-      `Firestore user profile deleted: ${userId}`
-    );
-  } catch (firestoreError) {
-    console.error(
-      "FIRESTORE DELETE USER ERROR:",
-      firestoreError.message
-    );
-  }
-
-  return true;
-}
-  /*
-  |--------------------------------------------------------------------------
-  | MYSQL-ONLY MODE
-  |--------------------------------------------------------------------------
+  |
+  | Firebase Authentication is responsible for login accounts.
+  | MySQL stores the application user profile.
+  |
   */
 
-  if (mode === "mysql") {
+  if (mode === "firebase") {
     /*
     |--------------------------------------------------------------------------
-    | IMPORTANT:
-    |
-    | Even if database mode is MySQL, this user may still have a
-    | Firebase Authentication account because your application uses
-    | Firebase Authentication for login.
-    |
+    | STEP 1 — DELETE FIREBASE AUTH ACCOUNT
     |--------------------------------------------------------------------------
     */
 
@@ -2406,14 +2350,177 @@ if (mode === "mysql") {
       }
     }
 
-    const mysqlDeleted =
-      await deleteUserFromMySQL(userId);
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 2 — DELETE MYSQL PROFILE
+    |--------------------------------------------------------------------------
+    */
 
-    return mysqlDeleted;
+    const mysqlDeleted =
+      await deleteUserFromMySQL(
+        userId
+      );
+
+    if (!mysqlDeleted) {
+      throw new Error(
+        "Firebase Authentication user was deleted, but the MySQL user could not be deleted."
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 3 — DELETE FIRESTORE PROFILE
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+      await db
+        .collection(
+          USERS_COLLECTION
+        )
+        .doc(userId)
+        .delete();
+
+      console.log(
+        `Firestore user profile deleted: ${userId}`
+      );
+    } catch (firestoreError) {
+      console.error(
+        "FIRESTORE DELETE USER ERROR:",
+        firestoreError.message
+      );
+
+      /*
+      |----------------------------------------------------------------------
+      | Do not fail the entire deletion because Firestore cleanup failed.
+      | MySQL and Firebase Auth have already been deleted.
+      |----------------------------------------------------------------------
+      */
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | STEP 4 — CLEAN STALE COUNTER ASSIGNMENTS
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+      await cleanupStaleAssignments();
+    } catch (cleanupError) {
+      console.error(
+        "CLEANUP STALE ASSIGNMENTS ERROR:",
+        cleanupError.message
+      );
+    }
+
+    return true;
   }
 
+  /*
+  |--------------------------------------------------------------------------
+  | MYSQL-ONLY MODE
+  |--------------------------------------------------------------------------
+  */
+
+  if (mode === "mysql") {
+    /*
+    |--------------------------------------------------------------------------
+    | Firebase Authentication is still used for login, so remove the
+    | Firebase Auth account when one exists.
+    |--------------------------------------------------------------------------
+    */
+
+    if (existingUser.firebase_uid) {
+      try {
+        await auth.deleteUser(
+          existingUser.firebase_uid
+        );
+
+        console.log(
+          `Firebase Authentication user deleted: ${existingUser.firebase_uid}`
+        );
+      } catch (firebaseAuthError) {
+        if (
+          firebaseAuthError.code ===
+          "auth/user-not-found"
+        ) {
+          console.log(
+            `Firebase Authentication user already deleted: ${existingUser.firebase_uid}`
+          );
+        } else {
+          console.error(
+            "FIREBASE AUTH DELETE USER ERROR:",
+            firebaseAuthError
+          );
+
+          throw new Error(
+            `Firebase Authentication user could not be deleted: ${firebaseAuthError.message}`
+          );
+        }
+      }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Delete MySQL profile
+    |--------------------------------------------------------------------------
+    */
+
+    const mysqlDeleted =
+      await deleteUserFromMySQL(
+        userId
+      );
+
+    if (!mysqlDeleted) {
+      throw new Error(
+        "The MySQL user could not be deleted."
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Delete Firestore profile copy
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+      await db
+        .collection(
+          USERS_COLLECTION
+        )
+        .doc(userId)
+        .delete();
+
+      console.log(
+        `Firestore user profile deleted: ${userId}`
+      );
+    } catch (firestoreError) {
+      console.error(
+        "FIRESTORE DELETE USER ERROR:",
+        firestoreError.message
+      );
+    }
+
+    try {
+      await cleanupStaleAssignments();
+    } catch (cleanupError) {
+      console.error(
+        "CLEANUP STALE ASSIGNMENTS ERROR:",
+        cleanupError.message
+      );
+    }
+
+    return true;
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | UNKNOWN DATABASE MODE
+  |--------------------------------------------------------------------------
+  */
+
   throw new Error(
-    "No database is currently available."
+    `No database is currently available. Database mode: ${mode}`
   );
 }
 /*

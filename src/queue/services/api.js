@@ -355,94 +355,35 @@ function mapQueueItem(
       row.completed_at
   }
 }
-
-/* ============================================================================
-   PATIENT TRACKER
-   ============================================================================ */
-
-export async function fetchTicketStatus(
-  ticketId
-) {
+export async function fetchTicketStatus(ticketId) {
   try {
     if (!ticketId) {
       return {
-        error:
-          'No ticket ID was provided.'
+        error: 'No ticket ID was provided.',
       }
     }
 
-    /*
-     * Patient tracker uses the Node.js backend.
-     *
-     * React
-     *   ↓
-     * api.js
-     *   ↓
-     * Node.js
-     *   ↓
-     * MySQL
-     */
+    const response = await fetch(
+      `${API_URL}/tracker/${encodeURIComponent(ticketId)}`,
+      {
+        cache: 'no-store',
+      }
+    )
 
-    const response =
-      await fetch(
-          `${API_URL}/tracker/${encodeURIComponent(
-          ticketId
-        )}`
-      )
+    const result = await response.json()
 
-    const result =
-      await response.json()
-
-    if (
-      !response.ok ||
-      !result.success ||
-      !result.data
-    ) {
+    if (!response.ok || !result.success || !result.data) {
       return {
         error:
           result.message ||
-          'The ticket could not be found.'
+          'The ticket could not be found.',
       }
     }
 
-    const ticket =
-      result.data
+    // Backend already returns the correct tracker structure.
+    // Do not remap the fields here.
+    return result.data
 
-    return {
-      status:
-        ticket.status ||
-        'waiting',
-
-      queueNumber:
-        ticket.queue_number,
-
-      department:
-        ticket.department ||
-        'Hospital Services',
-
-      terminal:
-        ticket.terminal ||
-        'Assigned Counter',
-
-      nowServing:
-        ticket.now_serving ||
-        '—',
-
-      peopleAhead:
-        Number(
-          ticket.people_ahead
-        ) || 0,
-
-      estimatedWaitMinutes:
-        Number(
-          ticket.estimated_wait_minutes
-        ) || 0,
-
-      totalAheadAtIssue:
-        Number(
-          ticket.total_ahead_at_issue
-        ) || 0
-    }
   } catch (error) {
     console.error(
       'Ticket status fetch failed:',
@@ -451,36 +392,10 @@ export async function fetchTicketStatus(
 
     return {
       error:
-        'Something went wrong while loading your ticket.'
+        'Something went wrong while loading your ticket.',
     }
   }
 }
-
-/* ============================================================================
-   QUEUE STATE
-   ============================================================================ */
-
-/*
- * IMPORTANT
- *
- * Staff Queue now communicates with Node.js.
- *
- * React
- *   ↓
- * api.js
- *   ↓
- * Node.js
- *   ↓
- * MySQL
- *
- * The current Node.js queue-state route still accepts
- * the department PREFIX:
- *
- * GET /api/staff-queue/state/:departmentPrefix
- *
- * The Node.js backend performs the actual department
- * filtering using the department relationship.
- */
 
 export async function fetchQueueState(
   departmentPrefix,

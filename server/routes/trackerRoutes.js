@@ -12,7 +12,8 @@ const pool = require("../config/mysql");
 // Returns:
 // - queue number
 // - department
-// - now serving
+// - assigned terminal
+// - now serving at that terminal
 // - people ahead
 // - estimated wait from AI prediction
 // - priority information
@@ -39,6 +40,18 @@ router.get("/:queueId", async (req, res) => {
     // ============================================================
     // 1. GET THE PATIENT'S QUEUE TICKET
     // ============================================================
+    //
+    // IMPORTANT:
+    // We get the patient's own counter_id here.
+    //
+    // The staff Call Patient route sets:
+    //
+    //   counter_id = terminalId
+    //
+    // Therefore the tracker can tell the patient exactly
+    // which terminal they were called to.
+    //
+    // ============================================================
 
     const [ticketRows] = await pool.query(
       `
@@ -48,6 +61,11 @@ router.get("/:queueId", async (req, res) => {
         qt.transaction_id,
         qt.queue_number,
         qt.queue_sequence,
+
+        qt.counter_id,
+
+        c.counter_number,
+
         qt.issued_at,
         qt.called_at,
         qt.service_began_at,
@@ -61,6 +79,9 @@ router.get("/:queueId", async (req, res) => {
 
       INNER JOIN patient p
         ON qt.transaction_id = p.transaction_id
+
+      LEFT JOIN counter c
+        ON qt.counter_id = c.counter_id
 
       WHERE qt.queue_id = ?
 
@@ -82,38 +103,62 @@ router.get("/:queueId", async (req, res) => {
       Number(ticket.is_priority) === 1;
 
     // ============================================================
-    // 2. GET CURRENTLY SERVING PATIENT
+    // 2. GET CURRENTLY SERVING PATIENT AT THIS TERMINAL
+    // ============================================================
+    //
+    // IMPORTANT:
+    //
+    // We DO NOT search the whole department anymore.
+    //
+    // We search using the patient's own counter_id.
+    //
+    // Example:
+    //
+    // Terminal 1 -> P-001
+    // Terminal 2 -> P-002
+    //
+    // P-001's tracker only looks at Terminal 1.
+    // P-002's tracker only looks at Terminal 2.
+    //
     // ============================================================
 
-    const [servingRows] = await pool.query(
-      `
-      SELECT
-        qt.queue_id,
-        qt.queue_number,
-        qt.queue_sequence,
-        qt.status,
-        qt.is_priority,
-        qt.called_at,
-        qt.service_began_at
+    let nowServing = null;
 
-      FROM queue_ticket qt
+    if (ticket.counter_id) {
+      const [servingRows] = await pool.query(
+        `
+        SELECT
+          qt.queue_id,
+          qt.queue_number,
+          qt.queue_sequence,
+          qt.status,
+          qt.is_priority,
+          qt.called_at,
+          qt.service_began_at
 
-      WHERE qt.department_id = ?
-        AND DATE(qt.issued_at) = CURDATE()
-        AND qt.status IN ('called', 'serving')
+        FROM queue_ticket qt
 
-      ORDER BY
-        qt.called_at DESC
+        WHERE qt.department_id = ?
+          AND qt.counter_id = ?
+          AND DATE(qt.issued_at) = CURDATE()
+          AND qt.status IN ('called', 'serving')
 
-      LIMIT 1
-      `,
-      [ticket.department_id]
-    );
+        ORDER BY
+          qt.called_at DESC
 
-    const nowServing =
-      servingRows.length > 0
-        ? servingRows[0].queue_number
-        : null;
+        LIMIT 1
+        `,
+        [
+          ticket.department_id,
+          ticket.counter_id,
+        ]
+      );
+
+      nowServing =
+        servingRows.length > 0
+          ? servingRows[0].queue_number
+          : null;
+    }
 
     // ============================================================
     // 3. COUNT PEOPLE AHEAD
@@ -132,7 +177,7 @@ router.get("/:queueId", async (req, res) => {
     //   only earlier priority patients are ahead.
     //
     // Regular patient:
-    //   all waiting priority patients are ahead,
+    //   all priority patients are ahead,
     //   plus earlier regular patients.
     //
     // ============================================================
@@ -176,13 +221,6 @@ router.get("/:queueId", async (req, res) => {
     // ============================================================
     // 4. COUNT PRIORITY PATIENTS CURRENTLY WAITING
     // ============================================================
-    //
-    // This is included so the tracker knows how many priority
-    // patients are currently affecting the queue.
-    //
-    // The AI prediction also has its own priority_count.
-    //
-    // ============================================================
 
     const [priorityRows] = await pool.query(
       `
@@ -206,12 +244,12 @@ router.get("/:queueId", async (req, res) => {
     // 5. GET TODAY'S AI PREDICTION
     // ============================================================
     //
-    // ai_queue_prediction is department/day based.
+    // Current version still uses department + prediction date.
     //
-    // priority_count is already considered by the AI calculation.
+    // If ai_queue_prediction is changed to one row per department,
+    // this query can later be changed to:
     //
-    // We use predicted_waiting_time as the patient's current
-    // estimated waiting time.
+    // WHERE department_id = ?
     //
     // ============================================================
 
@@ -258,7 +296,9 @@ router.get("/:queueId", async (req, res) => {
     // ============================================================
 
     const estimatedWaitMinutes = prediction
-      ? Number(prediction.predicted_waiting_time) || 0
+      ? Number(
+          prediction.predicted_waiting_time
+        ) || 0
       : 0;
 
     // ============================================================
@@ -266,19 +306,13 @@ router.get("/:queueId", async (req, res) => {
     // ============================================================
 
     const aiPriorityCount = prediction
-      ? Number(prediction.priority_count) || 0
+      ? Number(
+          prediction.priority_count
+        ) || 0
       : currentPriorityCount;
 
     // ============================================================
     // 8. QUEUE PROGRESS
-    // ============================================================
-    //
-    // For now, calculate the patient's initial position using
-    // all tickets that were issued before this patient's ticket
-    // according to the SAME priority ordering.
-    //
-    // This gives us a stable starting position for the tracker.
-    //
     // ============================================================
 
     const [initialPositionRows] = await pool.query(
@@ -320,8 +354,6 @@ router.get("/:queueId", async (req, res) => {
         initialPositionRows[0]?.initial_people_ahead
       ) || 0;
 
-    // How many people have moved ahead of the patient
-    // since the ticket was issued.
     const servedSoFar = Math.max(
       0,
       totalAheadAtIssue - peopleAhead
@@ -334,14 +366,38 @@ router.get("/:queueId", async (req, res) => {
             Math.max(
               0,
               Math.round(
-                (servedSoFar / totalAheadAtIssue) * 100
+                (servedSoFar /
+                  totalAheadAtIssue) *
+                  100
               )
             )
           )
         : 0;
 
     // ============================================================
-    // 9. RETURN TRACKER DATA
+    // 9. FORMAT TERMINAL NAME
+    // ============================================================
+    //
+    // counter_number is what the patient sees.
+    //
+    // Example:
+    //
+    // counter_number = 1
+    //       ↓
+    // "Terminal 1"
+    //
+    // counter_id remains available for internal identification.
+    //
+    // ============================================================
+
+    const terminal =
+      ticket.counter_number !== null &&
+      ticket.counter_number !== undefined
+        ? `Terminal ${ticket.counter_number}`
+        : null;
+
+    // ============================================================
+    // 10. RETURN TRACKER DATA
     // ============================================================
 
     return res.json({
@@ -361,7 +417,15 @@ router.get("/:queueId", async (req, res) => {
           ticket.department_id,
 
         queueSequence:
-          Number(ticket.queue_sequence),
+          Number(
+            ticket.queue_sequence
+          ),
+
+        // Patient's assigned physical terminal
+        counterId:
+          ticket.counter_id,
+
+        terminal,
 
         status:
           ticket.status,
@@ -369,6 +433,8 @@ router.get("/:queueId", async (req, res) => {
         isPriority:
           patientIsPriority,
 
+        // Patient currently being called/served
+        // at THIS patient's assigned terminal.
         nowServing,
 
         peopleAhead,
@@ -384,51 +450,52 @@ router.get("/:queueId", async (req, res) => {
 
         currentPriorityCount,
 
-        aiPrediction: prediction
-          ? {
-              predictionId:
-                prediction.prediction_id,
+        aiPrediction:
+          prediction
+            ? {
+                predictionId:
+                  prediction.prediction_id,
 
-              predictionDate:
-                prediction.prediction_date,
+                predictionDate:
+                  prediction.prediction_date,
 
-              queueLength:
-                Number(
-                  prediction.queue_length
-                ) || 0,
+                queueLength:
+                  Number(
+                    prediction.queue_length
+                  ) || 0,
 
-              priorityCount:
-                Number(
-                  prediction.priority_count
-                ) || 0,
+                priorityCount:
+                  Number(
+                    prediction.priority_count
+                  ) || 0,
 
-              activeStaffCount:
-                Number(
-                  prediction.active_staff_count
-                ) || 0,
+                activeStaffCount:
+                  Number(
+                    prediction.active_staff_count
+                  ) || 0,
 
-              avgServiceMinutes:
-                Number(
-                  prediction.avg_service_minutes
-                ) || 0,
+                avgServiceMinutes:
+                  Number(
+                    prediction.avg_service_minutes
+                  ) || 0,
 
-              avgWaitingMinutes:
-                Number(
-                  prediction.avg_waiting_minutes
-                ) || 0,
+                avgWaitingMinutes:
+                  Number(
+                    prediction.avg_waiting_minutes
+                  ) || 0,
 
-              predictedWaitingTime:
-                Number(
-                  prediction.predicted_waiting_time
-                ) || 0,
+                predictedWaitingTime:
+                  Number(
+                    prediction.predicted_waiting_time
+                  ) || 0,
 
-              generatedAt:
-                prediction.generated_at,
+                generatedAt:
+                  prediction.generated_at,
 
-              updatedAt:
-                prediction.updated_at,
-            }
-          : null,
+                updatedAt:
+                  prediction.updated_at,
+              }
+            : null,
       },
     });
 

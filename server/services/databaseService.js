@@ -4,7 +4,7 @@ const pool = require("../config/mysql");
 // TEMPORARY TEST SWITCH
 // false = automatically use Firebase first
 // true = force MySQL for testing
-const FORCE_MYSQL = false;
+const FORCE_MYSQL = true;
 
 let currentMode = "firebase";
 

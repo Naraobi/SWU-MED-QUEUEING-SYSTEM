@@ -10,7 +10,7 @@ import CompletedScreen from '../../components/CompletedScreen.jsx'
 
 
 
-const POLL_INTERVAL_MS = 30000
+const POLL_INTERVAL_MS = 2000
 
 /*
  * PREVIEW MODE — for checking the screens without a live ticket.
@@ -72,12 +72,17 @@ useEffect(() => {
     }
 
     try {
-     const result = await api.fetchTicketStatus(ticketId)
+const result = await api.fetchTicketStatus(ticketId)
 
-      if (!cancelled) {
-        setError(null)
-        setTicket(result)
-      }
+if (!cancelled) {
+  if (result.error) {
+    setError(result.error)
+    setTicket(null)
+  } else {
+    setError(null)
+    setTicket(result)
+  }
+}
     } catch (err) {
       if (!cancelled) {
         setError(err.message || 'Failed to retrieve ticket information.')

@@ -51,7 +51,7 @@ export default function YourTurnScreen({ ticket }) {
             {/* DIRECTION */}
 
             <p className="mt-4 text-sm leading-6 text-[#4B5563]">
-              Please proceed to the{' '}
+              Please proceed to{' '}
               <span className="font-semibold text-[#1F2937]">
                 {ticket.terminal}
               </span>
@@ -61,7 +61,7 @@ export default function YourTurnScreen({ ticket }) {
             {/* NOW SERVING */}
 
             <p className="mt-5 text-sm font-bold text-[#1F2937]">
-              Now Serving {ticket.queueNumber}
+              Now Serving {ticket.nowServing || ticket.queueNumber}
             </p>
 
             <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-[#9D0A0E]">
