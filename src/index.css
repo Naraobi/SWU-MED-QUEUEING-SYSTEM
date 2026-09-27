@@ -94,14 +94,74 @@ body,
   --tw-ring-color: var(--staff-accent);
 }
 
+.staff-shell [class~="focus:border-[#9D0A0E]" i]:focus {
+  border-color: var(--staff-accent);
+}
+
+.staff-shell [class~="focus:ring-[#9D0A0E]" i]:focus {
+  --tw-ring-color: var(--staff-accent);
+}
+
+.staff-shell [class~="focus:ring-[#9D0A0E]/10" i]:focus { --tw-ring-color: color-mix(in srgb, var(--staff-accent) 10%, transparent); }
+.staff-shell [class~="focus:ring-[#9D0A0E]/15" i]:focus { --tw-ring-color: color-mix(in srgb, var(--staff-accent) 15%, transparent); }
+.staff-shell [class~="focus:ring-[#9D0A0E]/20" i]:focus { --tw-ring-color: color-mix(in srgb, var(--staff-accent) 20%, transparent); }
+.staff-shell [class~="focus:ring-[#9D0A0E]/30" i]:focus { --tw-ring-color: color-mix(in srgb, var(--staff-accent) 30%, transparent); }
+
+.staff-shell [class~="hover:shadow-[#9D0A0E]/25" i]:hover {
+  --tw-shadow-color: color-mix(in srgb, var(--staff-accent) 25%, transparent);
+}
+
 .staff-shell [class~="bg-[#f3d0d0]" i],
-.staff-shell [class~="bg-[#fce8e8]" i] {
+.staff-shell [class~="bg-[#fce8e8]" i],
+.staff-shell [class~="bg-[#FBEAEA]" i],
+.staff-shell [class~="hover:bg-[#FBF1F1]" i]:hover {
   background-color: var(--staff-accent-soft);
 }
 
-.staff-shell [class~="border-[#f5c6c6]" i] {
+.staff-shell [class~="border-[#f5c6c6]" i],
+.staff-shell [class~="hover:border-[#F0DADA]" i]:hover {
   border-color: var(--staff-accent-soft);
 }
+
+.staff-shell [class~="hover:text-[#9D0A0E]" i]:hover {
+  color: var(--staff-accent);
+}
+
+.staff-shell [class~="hover:text-[#7D080B]" i]:hover {
+  color: var(--staff-accent-strong);
+}
+
+/* -----------------------------------------------------
+   Accent at partial opacity — Tailwind's bg-[#hex]/NN syntax
+   produces its own distinct class token per opacity value, so
+   each one needs its own selector; a plain "bg-[#9D0A0E]" rule
+   never matches "bg-[#9D0A0E]/10". color-mix(...,transparent)
+   reproduces the same translucency Tailwind's opacity modifier
+   would have given the literal color, but tied to the live
+   accent variable instead.
+   ----------------------------------------------------- */
+
+.staff-shell [class~="bg-[#9D0A0E]/5" i] { background-color: color-mix(in srgb, var(--staff-accent) 5%, transparent); }
+.staff-shell [class~="bg-[#9D0A0E]/10" i] { background-color: color-mix(in srgb, var(--staff-accent) 10%, transparent); }
+.staff-shell [class~="bg-[#9D0A0E]/[0.08]" i] { background-color: color-mix(in srgb, var(--staff-accent) 8%, transparent); }
+.staff-shell [class~="bg-[#B34C4C]/10" i] { background-color: color-mix(in srgb, var(--staff-accent) 10%, transparent); }
+.staff-shell [class~="bg-[#B34C4C]/15" i] { background-color: color-mix(in srgb, var(--staff-accent) 15%, transparent); }
+.staff-shell [class~="hover:bg-[#9D0A0E]/5" i]:hover { background-color: color-mix(in srgb, var(--staff-accent) 5%, transparent); }
+.staff-shell [class~="hover:bg-[#B34C4C]/20" i]:hover { background-color: color-mix(in srgb, var(--staff-accent) 20%, transparent); }
+
+.staff-shell [class~="border-[#9D0A0E]/15" i] { border-color: color-mix(in srgb, var(--staff-accent) 15%, transparent); }
+.staff-shell [class~="border-[#9D0A0E]/20" i] { border-color: color-mix(in srgb, var(--staff-accent) 20%, transparent); }
+.staff-shell [class~="border-[#9D0A0E]/40" i] { border-color: color-mix(in srgb, var(--staff-accent) 40%, transparent); }
+.staff-shell [class~="hover:border-[#9D0A0E]/30" i]:hover { border-color: color-mix(in srgb, var(--staff-accent) 30%, transparent); }
+.staff-shell [class~="hover:border-[#9D0A0E]/40" i]:hover { border-color: color-mix(in srgb, var(--staff-accent) 40%, transparent); }
+.staff-shell [class~="hover:border-[#9D0A0E]/60" i]:hover { border-color: color-mix(in srgb, var(--staff-accent) 60%, transparent); }
+
+.staff-shell [class~="ring-[#9D0A0E]/10" i] { --tw-ring-color: color-mix(in srgb, var(--staff-accent) 10%, transparent); }
+.staff-shell [class~="ring-[#9D0A0E]/15" i] { --tw-ring-color: color-mix(in srgb, var(--staff-accent) 15%, transparent); }
+.staff-shell [class~="ring-[#9D0A0E]/20" i] { --tw-ring-color: color-mix(in srgb, var(--staff-accent) 20%, transparent); }
+.staff-shell [class~="ring-[#9D0A0E]/30" i] { --tw-ring-color: color-mix(in srgb, var(--staff-accent) 30%, transparent); }
+
+.staff-shell [class~="text-[#9D0A0E]/70" i] { color: color-mix(in srgb, var(--staff-accent) 70%, transparent); }
 
 /* -----------------------------------------------------
    Dark theme surface / text / border remapping
@@ -145,7 +205,9 @@ body,
 }
 
 .staff-shell.staff-dark [class~="hover:bg-slate-50" i]:hover,
-.staff-shell.staff-dark [class~="hover:bg-slate-100" i]:hover {
+.staff-shell.staff-dark [class~="hover:bg-slate-100" i]:hover,
+.staff-shell.staff-dark [class~="hover:bg-[#F1F3F5]" i]:hover,
+.staff-shell.staff-dark [class~="hover:bg-[#F8F9FA]" i]:hover {
   background-color: var(--staff-surface-3);
 }
 
@@ -154,8 +216,13 @@ body,
   background-color: var(--staff-danger-soft);
 }
 
-.staff-shell.staff-dark [class~="bg-emerald-100" i] {
+.staff-shell.staff-dark [class~="bg-emerald-100" i],
+.staff-shell.staff-dark [class~="bg-emerald-50" i] {
   background-color: var(--staff-success-soft);
+}
+
+.staff-shell.staff-dark [class~="text-emerald-700" i] {
+  color: #34d399;
 }
 
 .staff-shell.staff-dark [class~="text-[#1F2937]" i],
@@ -329,9 +396,73 @@ body {
 .admin-shell [class~="bg-[#FBF1F1]" i],
 .admin-shell [class~="bg-[#F7EEEE]" i],
 .admin-shell [class~="bg-[#FFF0F0]" i],
-.admin-shell [class~="bg-[#FFF5F5]" i] {
+.admin-shell [class~="bg-[#FFF5F5]" i],
+.admin-shell [class~="bg-[#FBEAEA]" i],
+.admin-shell [class~="hover:bg-[#FBF1F1]" i]:hover {
   background-color: var(--admin-accent-soft);
 }
+
+.admin-shell [class~="hover:border-[#F0DADA]" i]:hover {
+  border-color: var(--admin-accent-soft);
+}
+
+.admin-shell [class~="hover:text-[#9D0A0E]" i]:hover {
+  color: var(--admin-accent);
+}
+
+.admin-shell [class~="hover:text-[#7D080B]" i]:hover {
+  color: var(--admin-accent-strong);
+}
+
+.admin-shell [class~="focus:border-[#9D0A0E]" i]:focus {
+  border-color: var(--admin-accent);
+}
+
+.admin-shell [class~="focus:ring-[#9D0A0E]" i]:focus {
+  --tw-ring-color: var(--admin-accent);
+}
+
+.admin-shell [class~="focus:ring-[#9D0A0E]/10" i]:focus { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 10%, transparent); }
+.admin-shell [class~="focus:ring-[#9D0A0E]/15" i]:focus { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 15%, transparent); }
+.admin-shell [class~="focus:ring-[#9D0A0E]/20" i]:focus { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 20%, transparent); }
+.admin-shell [class~="focus:ring-[#9D0A0E]/30" i]:focus { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 30%, transparent); }
+
+.admin-shell [class~="hover:shadow-[#9D0A0E]/25" i]:hover {
+  --tw-shadow-color: color-mix(in srgb, var(--admin-accent) 25%, transparent);
+}
+
+/* -----------------------------------------------------
+   Accent at partial opacity — Tailwind's bg-[#hex]/NN syntax
+   produces its own distinct class token per opacity value, so
+   each one needs its own selector; a plain "bg-[#9D0A0E]" rule
+   never matches "bg-[#9D0A0E]/10". color-mix(...,transparent)
+   reproduces the same translucency Tailwind's opacity modifier
+   would have given the literal color, but tied to the live
+   accent variable instead.
+   ----------------------------------------------------- */
+
+.admin-shell [class~="bg-[#9D0A0E]/5" i] { background-color: color-mix(in srgb, var(--admin-accent) 5%, transparent); }
+.admin-shell [class~="bg-[#9D0A0E]/10" i] { background-color: color-mix(in srgb, var(--admin-accent) 10%, transparent); }
+.admin-shell [class~="bg-[#9D0A0E]/[0.08]" i] { background-color: color-mix(in srgb, var(--admin-accent) 8%, transparent); }
+.admin-shell [class~="bg-[#B34C4C]/10" i] { background-color: color-mix(in srgb, var(--admin-accent) 10%, transparent); }
+.admin-shell [class~="bg-[#B34C4C]/15" i] { background-color: color-mix(in srgb, var(--admin-accent) 15%, transparent); }
+.admin-shell [class~="hover:bg-[#9D0A0E]/5" i]:hover { background-color: color-mix(in srgb, var(--admin-accent) 5%, transparent); }
+.admin-shell [class~="hover:bg-[#B34C4C]/20" i]:hover { background-color: color-mix(in srgb, var(--admin-accent) 20%, transparent); }
+
+.admin-shell [class~="border-[#9D0A0E]/15" i] { border-color: color-mix(in srgb, var(--admin-accent) 15%, transparent); }
+.admin-shell [class~="border-[#9D0A0E]/20" i] { border-color: color-mix(in srgb, var(--admin-accent) 20%, transparent); }
+.admin-shell [class~="border-[#9D0A0E]/40" i] { border-color: color-mix(in srgb, var(--admin-accent) 40%, transparent); }
+.admin-shell [class~="hover:border-[#9D0A0E]" i]:hover { border-color: var(--admin-accent); }
+.admin-shell [class~="hover:border-[#9D0A0E]/30" i]:hover { border-color: color-mix(in srgb, var(--admin-accent) 30%, transparent); }
+.admin-shell [class~="hover:border-[#9D0A0E]/40" i]:hover { border-color: color-mix(in srgb, var(--admin-accent) 40%, transparent); }
+.admin-shell [class~="hover:border-[#9D0A0E]/60" i]:hover { border-color: color-mix(in srgb, var(--admin-accent) 60%, transparent); }
+
+.admin-shell [class~="ring-[#9D0A0E]/10" i] { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 10%, transparent); }
+.admin-shell [class~="ring-[#9D0A0E]/15" i] { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 15%, transparent); }
+.admin-shell [class~="ring-[#9D0A0E]/20" i] { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 20%, transparent); }
+.admin-shell [class~="ring-[#9D0A0E]/30" i] { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 30%, transparent); }
+
+.admin-shell [class~="text-[#9D0A0E]/70" i] { color: color-mix(in srgb, var(--admin-accent) 70%, transparent); }
 
 /* -----------------------------------------------------
    Dark theme surface / text / border remapping
@@ -361,6 +492,17 @@ body {
 .admin-shell.admin-dark [class~="bg-slate-200" i],
 .admin-shell.admin-dark [class~="bg-slate-900" i] {
   background-color: var(--admin-surface-3);
+}
+
+/* "Active" status pill (e.g. ProfileModal) — a fixed light-green badge
+   would otherwise sit unchanged on top of the dark surface. */
+.admin-shell.admin-dark [class~="bg-emerald-100" i],
+.admin-shell.admin-dark [class~="bg-emerald-50" i] {
+  background-color: #123326;
+}
+
+.admin-shell.admin-dark [class~="text-emerald-700" i] {
+  color: #34d399;
 }
 
 .admin-shell.admin-dark [class~="hover:bg-slate-50" i]:hover,

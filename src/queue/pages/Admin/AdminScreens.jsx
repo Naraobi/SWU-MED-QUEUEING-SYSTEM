@@ -484,28 +484,64 @@ export function QueueManagementPage() {
               {departmentTerminals.map((terminal) => {
                 const ticket = activeTicketsByTerminal[String(terminal.counter_id)] || null;
                 const label = terminal.prefix || `Terminal ${terminal.counter_number}`;
+                const isOffline = normalizeRole(terminal.status) !== 'active';
+                const priority = ticket ? isPriorityTicket(ticket.id) : false;
+
+                if (isOffline) {
+                  return (
+                    <div
+                      key={terminal.counter_id}
+                      className="flex flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-[#F1F3F5] p-4 opacity-60"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg font-semibold text-[#98A2B3]">{label}</span>
+                        <span className="rounded-full bg-[#E5E7EB] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#98A2B3]">
+                          {t('queue.offlineBadge')}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-[#98A2B3]">{t('queue.counterClosed')}</p>
+                    </div>
+                  );
+                }
 
                 return (
                   <div
                     key={terminal.counter_id}
-                    className="flex flex-col gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FB] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#9D0A0E]/30 hover:bg-white hover:shadow-md"
+                    className={`flex flex-col gap-2 rounded-lg border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                      priority
+                        ? 'border-[#9D0A0E]/40 bg-[#FBEAEA] hover:border-[#9D0A0E]/60'
+                        : 'border-[#E5E7EB] bg-[#F8F9FB] hover:border-[#9D0A0E]/30 hover:bg-white'
+                    }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-lg font-semibold text-[#1F2937]">{label}</span>
-                      <span className={`flex items-center gap-1.5 text-xs font-medium ${ticket ? 'text-[#065F46]' : 'text-slate-400'}`}>
+                      {ticket && (
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                            priority ? 'bg-[#9D0A0E] text-white' : 'bg-[#EFF3FA] text-[#3D5A80]'
+                          }`}
+                        >
+                          {priority ? t('queue.priorityBadge') : t('queue.regularBadge')}
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-2xl font-bold ${priority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'}`}>
+                      {loading ? '…' : ticket?.id || '--'}
+                    </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-xs text-[#4B5563]">
+                        {ticket
+                          ? (ticket.service || 'Service') +
+                            (ticket.secondsElapsed
+                              ? ` · serving for ${Math.floor(ticket.secondsElapsed / 60)}m`
+                              : '')
+                          : 'Not currently serving a patient'}
+                      </p>
+                      <span className={`flex shrink-0 items-center gap-1.5 text-xs font-medium ${ticket ? 'text-[#065F46]' : 'text-slate-400'}`}>
                         <span className={`h-2 w-2 rounded-full ${ticket ? 'bg-[#16A34A]' : 'bg-slate-300'}`} />
                         {ticket ? 'Serving' : 'Idle'}
                       </span>
                     </div>
-                    <p className="text-2xl font-bold text-[#9D0A0E]">{loading ? '…' : ticket?.id || '--'}</p>
-                    <p className="text-xs text-[#4B5563]">
-                      {ticket
-                        ? (ticket.service || 'Service') +
-                          (ticket.secondsElapsed
-                            ? ` · serving for ${Math.floor(ticket.secondsElapsed / 60)}m`
-                            : '')
-                        : 'Not currently serving a patient'}
-                    </p>
                   </div>
                 );
               })}
