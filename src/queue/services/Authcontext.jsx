@@ -18,6 +18,8 @@ import {
 
 import {
   getCurrentUserProfile,
+  getStaffTerminal,
+  releaseTerminal,
 } from "./backendApi";
 
 import { auth } from "../../firebase";
@@ -1766,6 +1768,56 @@ console.log(
   */
 
   async function signOut() {
+    /*
+    |--------------------------------------------------------------------------
+    | RELEASE THE STAFF TERMINAL
+    |--------------------------------------------------------------------------
+    |
+    | A staff member's assigned terminal must be freed the moment they log
+    | out, so another staff member can pick it (or be assigned to it) right
+    | away. Without this, the counter row keeps assigned_staff_id set after
+    | the session ends, and the terminal stays stuck as "occupied" even
+    | though nobody is signed in on it.
+    |
+    | Best-effort: a failed release should never block logout itself.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    const staffId =
+      user?.staff_id ??
+      user?.user_id ??
+      user?.id ??
+      null;
+
+    if (
+      normalizeRole(user?.role) === "staff" &&
+      staffId
+    ) {
+      try {
+        const terminal =
+          await getStaffTerminal(staffId);
+
+        const terminalId =
+          terminal?.counter_id ??
+          terminal?.terminal_id ??
+          terminal?.id ??
+          null;
+
+        if (terminalId) {
+          await releaseTerminal(
+            terminalId,
+            staffId
+          );
+        }
+      } catch (releaseError) {
+        console.error(
+          "Failed to release staff terminal on logout:",
+          releaseError
+        );
+      }
+    }
+
     try {
       await firebaseSignOut(
         auth
