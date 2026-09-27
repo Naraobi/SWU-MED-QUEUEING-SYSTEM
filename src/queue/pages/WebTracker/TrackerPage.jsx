@@ -10,7 +10,7 @@ import CompletedScreen from '../../components/CompletedScreen.jsx'
 
 import logo from '../../../assets/logo.png'
 
-const POLL_INTERVAL_MS = 2000
+const POLL_INTERVAL_MS = 20000
 
 /*
  * PREVIEW MODE — for checking the screens without a live ticket.
