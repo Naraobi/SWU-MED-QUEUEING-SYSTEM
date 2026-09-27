@@ -33,6 +33,7 @@ import {
   setupSecurityPin,
 } from "../../services/backendApi";
 import { useAuth } from '../../services/Authcontext';
+import { canAccessAdminPage } from '../../services/accessControl';
 import { useQueue } from '../../context/QueueContext';
 
 import { DateRangePicker, StatCard } from './shared';
@@ -255,11 +256,78 @@ function DonutChart({ slices }) {
 // =====================================================
 
 
+// =====================================================
+// CLICKABLE CARD NAVIGATION
+// =====================================================
+//
+// The Admin section has no router of its own: AdminApp keeps the
+// current page in a `activeItem` string and swaps components
+// (AdminApp.jsx). The sidebar navigates by calling onSelect with a
+// NAV_ITEMS key, so dashboard cards navigate the same way rather than
+// inventing URL paths that do not exist here.
+//
+// role="link" on a div, not a real <button>: these cards contain
+// block-level children (<p>, <div>), which are not valid inside a
+// <button>. role="link" + tabIndex + Enter/Space keeps them reachable
+// and operable by keyboard without changing the existing markup.
+//
+function getCardNavProps(
+  isNavigable,
+  onNavigate,
+  ariaLabel
+) {
+  if (!isNavigable) {
+    return {};
+  }
+
+  function handleKeyDown(
+    event
+  ) {
+    if (
+      event.key !==
+        'Enter' &&
+      event.key !==
+        ' ' &&
+      event.key !==
+        'Spacebar'
+    ) {
+      return;
+    }
+
+    // Space would otherwise scroll the page instead of activating.
+    event.preventDefault();
+
+    onNavigate();
+  }
+
+  return {
+    role: 'link',
+    tabIndex: 0,
+    'aria-label': ariaLabel,
+    onClick: onNavigate,
+    onKeyDown: handleKeyDown,
+  };
+}
+
+// Cursor + keyboard focus affordance, shared by every clickable card.
+// The ring colour comes from the admin accent via the
+// focus-visible:ring-[#9D0A0E] remap in index.css — no new colour.
+const CARD_NAV_CLASSES =
+  'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E] focus-visible:ring-offset-2';
+
 // Dashboard metric card — mirrors the exact Queue Management typography,
 // spacing, borders, and sizing without changing the shared StatCard.
-function DashboardStatCard({ label, value, caption, icon: Icon, highlight = false }) {
+//
+// `navKey`/`navLabel` are optional. Without them the card renders exactly
+// as before, so a card with no sensible destination stays inert.
+function DashboardStatCard({ label, value, caption, icon: Icon, highlight = false, navKey, navLabel, onNavigate }) {
+  const isNavigable = Boolean(navKey && onNavigate);
+
   return (
-    <div className={`flex h-[152px] flex-col justify-between rounded-xl border bg-white p-[25px] transition-all duration-200 hover:-translate-y-1 hover:border-[#9D0A0E]/40 hover:shadow-lg ${highlight ? 'border-[#E6E6E6]' : 'border-[#C3C6D7]'}`}>
+    <div
+      {...getCardNavProps(isNavigable, onNavigate, navLabel)}
+      className={`flex h-[152px] flex-col justify-between rounded-xl border bg-white p-[25px] transition-all duration-200 hover:-translate-y-1 hover:border-[#9D0A0E]/40 hover:shadow-lg ${isNavigable ? CARD_NAV_CLASSES : ''} ${highlight ? 'border-[#E6E6E6]' : 'border-[#C3C6D7]'}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-[0.6px] text-[#1F2937]">{label}</p>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F7EEEE] text-[#9D0A0E]">
@@ -272,7 +340,10 @@ function DashboardStatCard({ label, value, caption, icon: Icon, highlight = fals
   );
 }
 
-export default function AdminDashboard() {
+// onNavigate is AdminShell's handleSelect — the same function the
+// sidebar uses, so a card click and a sidebar click are indistinguishable
+// (including the unsaved-Settings guard handleSelect already applies).
+export default function AdminDashboard({ onNavigate }) {
   const { user } = useAuth();
   const { t, langCode } = useLanguage();
 
@@ -361,6 +432,62 @@ export default function AdminDashboard() {
     } finally {
       setPinSetupSaving(false);
     }
+  }
+
+  // ===================================================
+  // CARD NAVIGATION
+  // ===================================================
+
+  // A card is only clickable when the admin's role/position actually
+  // grants that page. canAccessAdminPage is the same check the sidebar
+  // uses to decide which nav items to render, so a card can never be a
+  // back door around a position-tab restriction. When it returns false
+  // the card renders exactly as it does today — no cursor, no ring, no
+  // click handler.
+  function canOpen(navKey) {
+    return Boolean(
+      navKey && onNavigate && canAccessAdminPage(user, navKey)
+    );
+  }
+
+  function goTo(navKey) {
+    if (!canOpen(navKey)) return;
+    onNavigate(navKey);
+  }
+
+  // Props for a card, or {}/null when the destination is unavailable.
+  function cardNav(navKey, pageLabelKey) {
+    if (!canOpen(navKey)) {
+      return {};
+    }
+
+    return {
+      navKey,
+      navLabel: t('dashboard.cardGoTo', {
+        page: t(pageLabelKey),
+      }),
+      onNavigate: () => goTo(navKey),
+    };
+  }
+
+  // Same contract as cardNav, for the <section> panels below.
+  function panelNav(navKey, pageLabelKey) {
+    if (!canOpen(navKey)) {
+      return null;
+    }
+
+    return {
+      navProps: getCardNavProps(
+        true,
+        () => goTo(navKey),
+        t('dashboard.cardGoTo', {
+          page: t(pageLabelKey),
+        })
+      ),
+      ariaLabel: t('dashboard.cardGoTo', {
+        page: t(pageLabelKey),
+      }),
+    };
   }
 
   // ===================================================
@@ -989,6 +1116,40 @@ const endDate = toDateKey(
       )}, ${dateRange.end.getFullYear()}`;
 
   // ===================================================
+  // CARD DESTINATIONS
+  // ===================================================
+  //
+  // Mapped to pages that already exist in the Admin section
+  // (AdminApp.jsx) and are already reachable from the sidebar:
+  //
+  //   Total Waiting / Average Wait / Skipped / Completed
+  //       -> 'queues'   these four are all queue_ticket states.
+  //   Staff
+  //       -> 'staff'    drawn from getUsers(), same source the
+  //                     Staff Management page lists.
+  //   Terminal
+  //       -> 'terminal' same getTerminals() source as Terminal
+  //                     Management.
+  //   AI Insights
+  //       -> 'reports'  a cross-cutting analysis summary; Reports is
+  //                     the Admin's analytics page and computes the
+  //                     same insight types over the selected range.
+  //   Queue Status Distribution
+  //       -> 'queues'   waiting / completed / serving are the three
+  //                     states Queue Management displays.
+  //   Terminal Dispatch Log
+  //       -> 'terminal' the panel's subject is terminal counters.
+  //
+  // Recent Alerts is deliberately left inert: notifications come from
+  // fetchNotifications() and the Admin section has no notifications or
+  // alerts page. The trailing MoreHorizontal icon is decorative and is
+  // not even a button, so there is no existing destination to reuse.
+  //
+  const insightsPanel = panelNav('reports', 'nav.reports');
+  const distributionPanel = panelNav('queues', 'nav.queues');
+  const dispatchLogNav = panelNav('terminal', 'nav.terminal');
+
+  // ===================================================
   // RENDER
   // ===================================================
 
@@ -1084,6 +1245,7 @@ const endDate = toDateKey(
           }
           caption={t('common.stat.acrossAllDepartments')}
           icon={Users}
+          {...cardNav('queues', 'nav.queues')}
         />
 
               <DashboardStatCard
@@ -1091,6 +1253,7 @@ const endDate = toDateKey(
           value={`${stats.averageWait || 0}m`}
           caption="Average patient wait"
           icon={Clock3}
+          {...cardNav('queues', 'nav.queues')}
         />
 
         <DashboardStatCard
@@ -1104,6 +1267,7 @@ const endDate = toDateKey(
           }
           caption={t('common.stat.skippedQueuing')}
           icon={Undo2}
+          {...cardNav('queues', 'nav.queues')}
         />
 
         <DashboardStatCard
@@ -1117,6 +1281,7 @@ const endDate = toDateKey(
           }
           caption={t('common.stat.completedQueuing')}
           icon={CheckCircle2}
+          {...cardNav('queues', 'nav.queues')}
         />
 
         <DashboardStatCard
@@ -1128,6 +1293,7 @@ const endDate = toDateKey(
           }
           caption={t('dashboard.stat.staffOnDuty')}
           icon={IdCard}
+          {...cardNav('staff', 'nav.staff')}
         />
 
       <DashboardStatCard
@@ -1135,6 +1301,7 @@ const endDate = toDateKey(
         value={`${stats.terminalStats?.active || 0}/${stats.terminalStats?.total || 0}`}
         caption="Active terminals / total"
         icon={Monitor}
+        {...cardNav('terminal', 'nav.terminal')}
       />
       </div>
 
@@ -1148,7 +1315,10 @@ const endDate = toDateKey(
             AI-ASSISTED INSIGHTS
         ================================================= */}
 
-        <section className="rounded-xl border border-[#C3C6D7] bg-white p-5">
+        <section
+          {...insightsPanel.navProps}
+          className={`rounded-xl border border-[#C3C6D7] bg-white p-5 ${insightsPanel ? `transition-all duration-200 hover:-translate-y-1 hover:border-[#9D0A0E]/40 hover:shadow-lg ${CARD_NAV_CLASSES}` : ''}`}
+        >
 
           <div className="mb-3 flex items-center gap-2">
 
@@ -1292,7 +1462,10 @@ const endDate = toDateKey(
             QUEUE STATUS DISTRIBUTION
         ================================================= */}
 
-        <section className="rounded-xl border border-[#C3C6D7] bg-white p-5">
+        <section
+          {...distributionPanel.navProps}
+          className={`rounded-xl border border-[#C3C6D7] bg-white p-5 ${distributionPanel ? `transition-all duration-200 hover:-translate-y-1 hover:border-[#9D0A0E]/40 hover:shadow-lg ${CARD_NAV_CLASSES}` : ''}`}
+        >
 
           <h2 className="mb-4 text-sm font-bold text-[#1F2937]">
             {t('dashboard.queueDistribution')}
@@ -1359,7 +1532,19 @@ const endDate = toDateKey(
         <div className="mb-3 flex items-center justify-between">
 
           <div>
-            <h2 className="text-lg font-semibold text-[#1F2937]">
+            {/* This panel is NOT wrapped in a link the way the other
+                panels are: it contains its own "Refresh Log" button, and
+                nesting a button inside a link is invalid. The heading is
+                the click target instead, which also avoids navigating
+                away by accident when the admin means to refresh. */}
+            <h2
+              {...getCardNavProps(
+                Boolean(dispatchLogNav),
+                () => goTo('terminal'),
+                dispatchLogNav?.ariaLabel
+              )}
+              className={`text-lg font-semibold text-[#1F2937] ${dispatchLogNav ? `w-fit rounded transition hover:text-[#9D0A0E] ${CARD_NAV_CLASSES}` : ''}`}
+            >
               Terminal Dispatch Log
             </h2>
             <p className="mt-0.5 text-[11px] text-[#4B5563]">

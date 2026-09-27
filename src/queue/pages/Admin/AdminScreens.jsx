@@ -60,6 +60,7 @@ import {
   getSecurityPinStatus,
   requestSecurityPinVerification,
   verifySecurityPinCode,
+  resetQueue,
 } from '../../services/backendApi';
 
 import { fetchNotifications, fetchQueueState } from '../../services/api';
@@ -241,6 +242,16 @@ export function QueueManagementPage() {
   const [queuePage, setQueuePage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
 
+  // --- Reset Queue (two-step: page button -> confirm modal -> request) ---
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetNotice, setResetNotice] = useState('');
+  // A ref, not state: two clicks within one tick would both read a
+  // stale `resetting === false` and fire two resets. A ref updates
+  // synchronously, so the duplicate can never get through.
+  const resetInFlight = useRef(false);
+
   const [dateRange, setDateRange] = useState(() => getPresetRange('Today'));
   const rangeRef = useRef(dateRange);
 
@@ -368,6 +379,95 @@ export function QueueManagementPage() {
     await applyDateRange(getPresetRange('Today'));
   }
 
+  // =========================================================
+  // RESET QUEUE
+  // -------------------------------------------------------------
+  // Deliberately two separate actions:
+  //
+  //   1. The "Reset Queue" button in the page header calls
+  //      openResetConfirm() and does nothing else. No request,
+  //      no state change beyond showing the modal.
+  //   2. The "Reset Queue" button inside the confirmation modal
+  //      calls confirmResetQueue(), and only that sends the
+  //      request to the backend.
+  // =========================================================
+
+  function openResetConfirm() {
+    if (resetInFlight.current) {
+      return;
+    }
+
+    setResetError('');
+    setShowResetConfirm(true);
+  }
+
+  function closeResetConfirm() {
+    // While the reset is in flight the modal is locked: closing it
+    // would hide the request that is still running.
+    if (resetInFlight.current) {
+      return;
+    }
+
+    setShowResetConfirm(false);
+    setResetError('');
+  }
+
+  async function confirmResetQueue() {
+    // Duplicate-submit guard. The button is also disabled while
+    // resetting, but a keyboard repeat or a fast double-tap can
+    // still fire onClick twice before React re-renders.
+    if (resetInFlight.current) {
+      return;
+    }
+
+    if (!departmentPrefix) {
+      return;
+    }
+
+    const firebaseUser = auth.currentUser;
+
+    if (!firebaseUser) {
+      setResetError(t('queue.resetError'));
+      return;
+    }
+
+    resetInFlight.current = true;
+    setResetting(true);
+    setResetError('');
+
+    try {
+      const result = await resetQueue(
+        firebaseUser,
+        departmentPrefix
+      );
+
+      // Only now, after the backend confirmed, do we close the
+      // modal, refresh the queue, and report success.
+      setShowResetConfirm(false);
+      setResetError('');
+
+      await handleApplyFilter();
+
+      setResetNotice(
+        Number(result?.totalCleared || 0) > 0
+          ? t('queue.resetSuccess')
+          : t('queue.resetNothing')
+      );
+    } catch (err) {
+      // The modal stays open so the admin can read the failure and
+      // decide whether to retry. Nothing is claimed to have worked.
+      console.error(
+        'Queue reset backend error:',
+        err
+      );
+
+      setResetError(t('queue.resetError'));
+    } finally {
+      resetInFlight.current = false;
+      setResetting(false);
+    }
+  }
+
   // Multiple terminals in this department can each be actively serving
   // a different patient at the same time, so `activeTickets` (one entry
   // per terminal that currently has a called/serving patient) replaces
@@ -447,8 +547,40 @@ export function QueueManagementPage() {
           >
             {t('common.reset')}
           </button>
+
+          {/* Destructive action, kept visually apart from the neutral
+              date-filter Reset above. This only opens the confirmation
+              modal - it never resets anything on its own. */}
+          <span className="hidden h-[30px] w-px bg-[#C3C6D7] sm:block" />
+
+          <button
+            type="button"
+            onClick={openResetConfirm}
+            disabled={refreshing || resetting}
+            className="flex h-[50px] items-center gap-2 rounded-lg border border-[#9D0A0E]/40 bg-white px-5 text-sm font-semibold text-[#9D0A0E] transition hover:bg-[#FBF1F1] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <Trash2 size={15} />
+            {t('queue.resetQueue')}
+          </button>
         </div>
       </div>
+
+      {resetNotice && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 size={16} />
+            {resetNotice}
+          </span>
+          <button
+            type="button"
+            onClick={() => setResetNotice('')}
+            aria-label={t('common.close')}
+            className="rounded p-0.5 text-green-700 transition hover:bg-green-100"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <QueueStatCard label={t('common.stat.totalWaiting')} value={loading ? '…' : String(totalWaiting)} caption={t('common.stat.forThisDepartment')} icon={Users} />
@@ -685,6 +817,116 @@ export function QueueManagementPage() {
           </div>
         </div>
       )}
+
+      <ResetQueueConfirmModal
+        open={showResetConfirm}
+        onClose={closeResetConfirm}
+        onConfirm={confirmResetQueue}
+        resetting={resetting}
+        error={resetError}
+        t={t}
+      />
+    </div>
+  );
+}
+
+// Confirmation step for Reset Queue. Rendered as a sibling inside the
+// page (not a portal to document.body) on purpose: the admin accent
+// colour reaches the DOM through the --admin-accent variable set on
+// .admin-shell, so a portal would drop this button out of the subtree
+// and hard-fall back to the default red.
+function ResetQueueConfirmModal({
+  open,
+  onClose,
+  onConfirm,
+  resetting,
+  error,
+  t,
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4"
+      onClick={resetting ? undefined : onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resetQueueConfirmTitle"
+        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-sm rounded-lg border border-[#E5E7EB] bg-white p-6 text-center shadow-xl"
+      >
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={resetting}
+            aria-label={t('common.close')}
+            className="rounded p-1 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
+          <TriangleAlert size={22} />
+        </span>
+
+        <h2
+          id="resetQueueConfirmTitle"
+          className="text-lg font-bold text-[#1F2937]"
+        >
+          {t('queue.resetConfirmTitle')}
+        </h2>
+
+        <p className="mt-2 text-xs leading-5 text-[#4B5563]">
+          {t('queue.resetConfirmBody')}
+        </p>
+
+        <p className="mt-3 rounded-md bg-[#F1F3F5] px-3 py-2 text-[11px] leading-4 text-[#667085]">
+          {t('queue.resetConfirmNote')}
+        </p>
+
+        {error && (
+          <p
+            role="alert"
+            className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-700"
+          >
+            {error}
+          </p>
+        )}
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={resetting}
+            className="flex-1 rounded-md border border-[#E5E7EB] bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t('common.cancel')}
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={resetting}
+            className="flex flex-1 items-center justify-center gap-2 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {resetting && (
+              <RefreshCw
+                size={13}
+                className="animate-spin"
+              />
+            )}
+            {resetting
+              ? t('queue.resetting')
+              : t('queue.resetConfirm')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -6,6 +6,12 @@ const {
   syncQueueTicketToFirebase,
   triggerQueuePrediction,
 } = require("../services/queueTicketService");
+
+const {
+  authenticateRequest,
+  authorizeRoles,
+} = require("../middleware/authMiddleware");
+
 // ============================================================
 // HELPER: SYNC QUEUE TICKET TO FIREBASE
 // ============================================================
@@ -1465,6 +1471,199 @@ router.post(
 );
 
 // ============================================================
+// RESET DEPARTMENT QUEUE
+// POST /api/staff-queue/reset/:departmentPrefix
+// ============================================================
+
+/*
+|--------------------------------------------------------------------------
+| RESET A DEPARTMENT'S CURRENT QUEUE
+|--------------------------------------------------------------------------
+|
+| Clears every patient still in TODAY's queue for one department - both
+| the waiting list and anything already called or being served at a
+| terminal - so a shift change, a system test, or a bad kiosk session
+| can start the department over without deleting records.
+|
+| Affected rows are moved to status 'reset' rather than 'cancelled'.
+| They are deliberately NOT counted as skipped: 'cancelled' is the
+| Skip action and feeds the skip-rate metric, so reusing it here would
+| make a routine reset look like a pile of skipped patients on the
+| Reports page. 'reset' falls through every existing status filter,
+| which is exactly what we want - the rows drop out of the live queue
+| and out of the aggregates, but stay in history.
+|
+| counter_id is intentionally left intact so history still records which
+| terminal a patient occupied. Nothing resolves a terminal by counter_id
+| alone (call-next and the state queries all filter on status first), so
+| a reset still frees every terminal.
+|
+*/
+router.post(
+  "/reset/:departmentPrefix",
+  authenticateRequest,
+  authorizeRoles("admin", "superadmin"),
+  async (req, res) => {
+    let connection = null;
+
+    try {
+      const prefix =
+        String(
+          req.params.departmentPrefix || ""
+        ).trim();
+
+      if (!prefix) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Department prefix is required.",
+        });
+      }
+
+      // Inside the try so a pool-level failure still returns the JSON
+      // envelope the client expects rather than Express's HTML error page.
+      connection = await pool.getConnection();
+
+      await connection.beginTransaction();
+
+      // Lock the rows first so a ticket that gets called or started
+      // mid-reset can't slip through between the SELECT and the UPDATE.
+      const [rows] =
+        await connection.query(
+          `
+          SELECT
+            qt.queue_id,
+            qt.status
+
+          FROM queue_ticket qt
+
+          INNER JOIN department d
+            ON qt.department_id = d.department_id
+
+          WHERE d.prefix = ?
+            AND DATE(qt.issued_at) = CURDATE()
+            AND qt.status IN (
+              'waiting',
+              'called',
+              'serving'
+            )
+
+          FOR UPDATE
+          `,
+          [prefix]
+        );
+
+      if (rows.length === 0) {
+        // Nothing queued. Report success rather than 404 so the UI can
+        // treat "already empty" as a completed no-op instead of an error.
+        await connection.rollback();
+
+        const currentState =
+          await getQueueState(prefix);
+
+        return res.json({
+          success: true,
+
+          message:
+            "Queue is already empty.",
+
+          data: {
+            clearedWaiting: 0,
+            clearedActive: 0,
+            totalCleared: 0,
+            stats:
+              currentState.stats,
+          },
+        });
+      }
+
+      await connection.query(
+        `
+        UPDATE queue_ticket
+
+        SET
+          status = 'reset'
+
+        WHERE queue_id IN (?)
+        `,
+        [rows.map((row) => row.queue_id)]
+      );
+
+      await connection.commit();
+
+      const clearedWaiting =
+        rows.filter(
+          (row) =>
+            row.status ===
+            "waiting"
+        ).length;
+
+      const clearedActive =
+        rows.length -
+        clearedWaiting;
+
+      // Fire-and-forget, same as /complete and /cancel: MySQL is the
+      // source of truth and a Firestore hiccup must not fail the reset.
+      for (const row of rows) {
+        void triggerQueuePrediction(
+          "queue_reset",
+          row.queue_id
+        );
+
+        void syncQueueTicketToFirebase(
+          row.queue_id
+        ).catch(
+          (syncError) => {
+            console.error(
+              "Firebase queue reset sync failed:",
+              syncError
+            );
+          }
+        );
+      }
+
+      const currentState =
+        await getQueueState(prefix);
+
+      return res.json({
+        success: true,
+
+        message:
+          "Queue reset successfully.",
+
+        data: {
+          clearedWaiting,
+          clearedActive,
+          totalCleared: rows.length,
+          stats: currentState.stats,
+        },
+      });
+    } catch (error) {
+      try {
+        await connection?.rollback();
+      } catch {
+        // Already committed or the connection is gone; the
+        // original error below is the one worth reporting.
+      }
+
+      console.error(
+        "Reset queue error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to reset queue.",
+        error: error.message,
+      });
+    } finally {
+      connection?.release();
+    }
+  }
+);
+
+// ============================================================
 // QUEUE HISTORY
 // GET /api/staff-queue/history/:departmentId
 // ============================================================
@@ -1779,6 +1978,17 @@ router.get(
           ) {
             displayStatus =
               "Cancelled";
+          }
+
+          // Patients cleared by POST /reset/:departmentPrefix. They are
+          // not skips, so they get their own label instead of being
+          // reported as Cancelled.
+          if (
+            row.status ===
+            "reset"
+          ) {
+            displayStatus =
+              "Reset";
           }
 
           if (

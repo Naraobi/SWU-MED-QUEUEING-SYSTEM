@@ -427,6 +427,19 @@ body {
 .admin-shell [class~="focus:ring-[#9D0A0E]/20" i]:focus { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 20%, transparent); }
 .admin-shell [class~="focus:ring-[#9D0A0E]/30" i]:focus { --tw-ring-color: color-mix(in srgb, var(--admin-accent) 30%, transparent); }
 
+/* focus-visible is the keyboard-only variant of the rule above. It is
+   listed separately because Tailwind emits "focus-visible:ring-..." as a
+   different class token, which the plain "focus:ring-..." selector never
+   matches. Without this, a keyboard focus ring on a clickable card would
+   fall back to the literal #9D0A0E and ignore the admin's accent. */
+.admin-shell [class~="focus-visible:ring-[#9D0A0E]" i]:focus-visible {
+  --tw-ring-color: var(--admin-accent);
+}
+
+.admin-shell [class~="focus-visible:border-[#9D0A0E]" i]:focus-visible {
+  border-color: var(--admin-accent);
+}
+
 .admin-shell [class~="hover:shadow-[#9D0A0E]/25" i]:hover {
   --tw-shadow-color: color-mix(in srgb, var(--admin-accent) 25%, transparent);
 }
