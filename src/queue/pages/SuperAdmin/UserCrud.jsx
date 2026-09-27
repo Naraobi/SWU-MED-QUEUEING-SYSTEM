@@ -1800,12 +1800,16 @@ async function handleReset() {
     setSelectedResetIds([]);
     setPinInput('');
 
-    setSuccess(
+       setSuccess(
       results.length === 1
         ? 'User has been reset successfully.'
         : `${results.length} users have been reset successfully.`
     );
-<<<<<<< HEAD
+
+    // Step 4. Done.
+    setResetDoneCount(selectedUsers.length);
+    setShowResetDone(true);
+
   } catch (err) {
     console.error('RESET USERS ERROR:', err);
 
@@ -1815,12 +1819,6 @@ async function handleReset() {
     );
   } finally {
     setSaving(false);
-=======
-
-    // Step 4. Done.
-    setResetDoneCount(selectedUsers.length);
-    setShowResetDone(true);
->>>>>>> origin/design-round-3
   }
 }
 
