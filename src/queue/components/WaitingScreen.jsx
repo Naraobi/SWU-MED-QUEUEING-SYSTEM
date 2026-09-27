@@ -52,39 +52,30 @@ function formatWaitTime(minutes) {
     Math.round(Number(minutes || 0) * 60)
   )
 
-  const hours = Math.floor(totalSeconds / 3600)
-
-  const remainingAfterHours =
-    totalSeconds % 3600
+  const hours = Math.floor(
+    totalSeconds / 3600
+  )
 
   const mins = Math.floor(
-    remainingAfterHours / 60
+    (totalSeconds % 3600) / 60
   )
 
   const seconds =
-    remainingAfterHours % 60
+    totalSeconds % 60
 
   if (hours > 0) {
-    if (mins > 0 && seconds > 0) {
-      return `${hours} hr ${mins} min ${seconds} sec`
-    }
-
-    if (mins > 0) {
-      return `${hours} hr ${mins} min`
-    }
-
-    return `${hours} hr`
-  }
-
-  if (mins > 0 && seconds > 0) {
-    return `${mins} min ${seconds} sec`
+    return mins > 0
+      ? `${hours}h ${mins}m`
+      : `${hours}h`
   }
 
   if (mins > 0) {
-    return `${mins} min`
+    return seconds > 0
+      ? `${mins}m ${seconds}s`
+      : `${mins}m`
   }
 
-  return `${seconds} sec`
+  return `${seconds}s`
 }
   return (
     <TrackerShell
@@ -157,7 +148,7 @@ function formatWaitTime(minutes) {
             Estimated Wait
           </p>
 
-    <p className="mt-1 text-2xl font-bold text-[#1F2937]">
+<p className="mt-1 text-xl font-bold whitespace-nowrap text-[#1F2937]">
   ~{estimatedWaitText}
 </p>
         </div>
