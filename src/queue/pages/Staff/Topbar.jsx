@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQueue } from '../../context/QueueContext.jsx';
 import { useAuth } from '../../services/Authcontext.jsx';
+import { useStaffPreferences } from './StaffPreferencesContext.jsx';
 import { X, CheckCheck, Bell, Activity, RefreshCw, Megaphone, CheckCircle2, Wrench } from 'lucide-react';
 
 const STAFF_TERMINAL_KEY = 'swumed_staff_terminal';
 const LAST_MILESTONE_KEY = 'swumed_last_celebrated_milestone';
 
 export default function Topbar({ title, subtitle, currentTerminal, onOpenTerminalModal }) {
+  const { t } = useStaffPreferences();
   const [online, setOnline] = useState(true);
   const [showPanel, setShowPanel] = useState(false);
   const [selectedTerminal, setSelectedTerminal] = useState(currentTerminal || null);
@@ -24,18 +26,18 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
       id: 1,
       type: 'system',
       category: 'notice',
-      title: 'System Notice',
-      message: 'A system update is scheduled for later today. Please save your work.',
-      time: '4h ago',
+      title: t('topbar.systemNoticeTitle'),
+      message: t('topbar.systemNoticeMessage'),
+      time: t('topbar.hoursAgo', { count: 4 }),
       read: false,
     },
     {
       id: 2,
       type: 'system',
       category: 'maintenance',
-      title: 'Terminal 2 Maintenance',
-      message: 'Scheduled peripheral hardware and printer diagnostics completed successfully.',
-      time: '2 days ago',
+      title: t('topbar.maintenanceTitle'),
+      message: t('topbar.maintenanceMessage'),
+      time: t('topbar.daysAgo', { count: 2 }),
       read: true,
     },
   ]);
@@ -50,8 +52,8 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
       if (completedCount > lastCelebrated) {
         window.localStorage.setItem(LAST_MILESTONE_KEY, completedCount);
 
-        const titleText = completedCount % 10 === 0 ? 'Shift Target Milestone' : 'Performance Recognition';
-        const bodyText = `Great job! You have successfully completed ${completedCount} transactions today.`;
+        const titleText = completedCount % 10 === 0 ? t('topbar.shiftMilestoneTitle') : t('topbar.performanceTitle');
+        const bodyText = t('topbar.milestoneMessage', { count: completedCount });
 
         const newNotification = {
           id: Date.now(),
@@ -59,7 +61,7 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
           category: completedCount % 10 === 0 ? 'target' : 'performance',
           title: titleText,
           message: bodyText,
-          time: 'Just now',
+          time: t('topbar.justNow'),
           read: false,
         };
 
@@ -169,7 +171,7 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
     <div className="flex h-[84px] min-h-[84px] w-full items-center justify-between border-b border-slate-200 bg-white">
       <div className="min-w-0 pl-[60px]">
         <h1 className="truncate text-2xl font-bold text-slate-800">
-          Staff · {department}
+          {t('topbar.staffLabel')} · {department}
         </h1>
       </div>
 
@@ -205,8 +207,8 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
             <div className="fixed right-0 top-0 bottom-0 z-50 w-[420px] border-l border-slate-200 bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 text-left">
               <div className="flex items-start justify-between border-b border-slate-100 px-6 pt-6 pb-4">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Notifications</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Stay updated with your queue activity and system notices.</p>
+                  <h3 className="text-lg font-bold text-slate-900">{t('topbar.notifications')}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{t('topbar.notificationsSubtitle')}</p>
                 </div>
                 <button
                   onClick={() => setShowPanel(false)}
@@ -218,7 +220,11 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
 
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-3 bg-slate-50/40">
                 <div className="flex gap-2">
-                  {['All', 'Queue', 'System'].map((tab) => (
+                  {[
+                    { key: 'All', labelKey: 'topbar.tabAll' },
+                    { key: 'Queue', labelKey: 'topbar.tabQueue' },
+                    { key: 'System', labelKey: 'topbar.tabSystem' },
+                  ].map(({ key: tab, labelKey }) => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -228,7 +234,7 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
                           : 'text-slate-600 hover:bg-slate-200/60'
                       }`}
                     >
-                      {tab}
+                      {t(labelKey)}
                     </button>
                   ))}
                 </div>
@@ -237,7 +243,7 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
                   onClick={handleMarkAllRead}
                   className="text-xs font-bold text-[#9D0A0E] hover:underline cursor-pointer"
                 >
-                  Mark all as read
+                  {t('topbar.markAllRead')}
                 </button>
               </div>
 
@@ -272,8 +278,8 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
                 ) : (
                   <div className="py-24 text-center">
                     <BellIcon size={32} className="mx-auto mb-2 text-slate-300 stroke-[1.5]" />
-                    <p className="text-xs font-semibold text-slate-600">No notifications yet</p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">We'll notify you when new queue updates arrive.</p>
+                    <p className="text-xs font-semibold text-slate-600">{t('topbar.noNotifications')}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">{t('topbar.noNotificationsHint')}</p>
                   </div>
                 )}
               </div>
@@ -285,17 +291,17 @@ export default function Topbar({ title, subtitle, currentTerminal, onOpenTermina
           type="button"
           onClick={() => onOpenTerminalModal?.()}
           className="hidden items-center gap-2 rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 hover:bg-slate-50 transition sm:flex cursor-pointer"
-          title="Click to switch terminal"
+          title={t('topbar.switchTerminal')}
         >
-          <span>{selectedTerminal?.name || 'Select terminal'}</span>
+          <span>{selectedTerminal?.name || t('topbar.selectTerminal')}</span>
           <span className="text-slate-300">|</span>
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          <span>Online</span>
+          <span>{t('topbar.online')}</span>
         </button>
 
         <div className="hidden items-center gap-3 border-l border-slate-200 pl-4 sm:flex">
           <div className="text-right leading-tight">
-            <p className="text-[10px] font-bold uppercase text-slate-500">Staff</p>
+            <p className="text-[10px] font-bold uppercase text-slate-500">{t('topbar.staffLabel')}</p>
             <p className="text-xs text-slate-500">{staffName}</p>
           </div>
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#dce8f9] text-sm font-bold text-[#315a91]">

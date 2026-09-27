@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Info, Monitor, RefreshCw, ShieldAlert } from 'lucide-react'
 
 import { useAuth } from '../../services/Authcontext.jsx'
+import { useStaffPreferences } from './StaffPreferencesContext.jsx'
 import {
   getTerminals,
   getStaffTerminal,
@@ -128,7 +129,7 @@ function getTerminalId(terminal) {
 // STATUS HELPERS
 // =====================================================
 
-function getTerminalStatusMeta(terminal, staffId) {
+function getTerminalStatusMeta(terminal, staffId, t) {
   const status = String(
     terminal.status ?? 'active'
   ).toLowerCase()
@@ -160,11 +161,11 @@ function getTerminalStatusMeta(terminal, staffId) {
 
   if (isOffline) {
     return {
-      label: 'Offline',
+      label: t('terminal.statusOffline'),
       pillClass: 'bg-slate-200 text-slate-600',
       detail:
         terminal.offline_reason ||
-        'Hardware maintenance / connection lost',
+        t('terminal.statusOfflineDetail'),
       selectable: false,
     }
   }
@@ -174,30 +175,30 @@ function getTerminalStatusMeta(terminal, staffId) {
   // it must NOT be treated as occupied by another staff member.
   if (isAssignedToCurrentStaff) {
     return {
-      label: 'Assigned to you',
+      label: t('terminal.statusAssignedToYou'),
       pillClass: 'bg-emerald-100 text-emerald-700',
-      detail: 'This terminal is assigned to your staff account.',
+      detail: t('terminal.statusAssignedToYouDetail'),
       selectable: true,
     }
   }
 
   if (isOccupiedByOther) {
     return {
-      label: 'Occupied',
+      label: t('terminal.statusOccupied'),
       pillClass: 'bg-red-100 text-[#c62828]',
       detail: assignedStaffName
-        ? `Occupied by ${assignedStaffName}`
-        : 'Currently occupied by another staff member',
+        ? t('terminal.statusOccupiedByDetail', { name: assignedStaffName })
+        : t('terminal.statusOccupiedDetail'),
       selectable: false,
     }
   }
 
   return {
-    label: 'Available',
+    label: t('terminal.statusAvailable'),
     pillClass: 'bg-emerald-100 text-emerald-700',
     detail: terminal.idle_since
-      ? `Idle since ${terminal.idle_since}`
-      : 'Ready for immediate patient assignment',
+      ? t('terminal.statusIdleSince', { time: terminal.idle_since })
+      : t('terminal.statusReady'),
     selectable: true,
   }
 }
@@ -211,6 +212,7 @@ export default function TerminalSelectModal({
   onConfirm,
 }) {
   const { user, signOut } = useAuth()
+  const { t, isDark, accent } = useStaffPreferences()
   const navigate = useNavigate()
 
   const [terminals, setTerminals] = useState([])
@@ -402,7 +404,7 @@ export default function TerminalSelectModal({
         if (mounted) {
           setError(
             loadError?.message ||
-              'Unable to load available terminals.'
+              t('terminal.errorLoadFailed')
           )
         }
       } finally {
@@ -440,12 +442,13 @@ export default function TerminalSelectModal({
     const meta =
       getTerminalStatusMeta(
         terminal,
-        staffId
+        staffId,
+        t
       )
 
     if (!meta.selectable) {
       setError(
-        'This terminal is already assigned or unavailable.'
+        t('terminal.errorAlreadyAssigned')
       )
       return
     }
@@ -456,7 +459,7 @@ export default function TerminalSelectModal({
 
     if (!id) {
       setError(
-        'This terminal has no valid terminal ID.'
+        t('terminal.errorNoId')
       )
       return
     }
@@ -485,14 +488,14 @@ export default function TerminalSelectModal({
   const handleConfirm = async () => {
     if (!selectedTerminal) {
       setError(
-        'Please select a terminal before continuing.'
+        t('terminal.errorSelectFirst')
       )
       return
     }
 
     if (!staffId) {
       setError(
-        'Your staff account could not be identified. Please log in again.'
+        t('terminal.errorNoStaffId')
       )
       return
     }
@@ -504,7 +507,7 @@ export default function TerminalSelectModal({
 
     if (!terminalId) {
       setError(
-        'The selected terminal has no valid terminal ID.'
+        t('terminal.errorNoId')
       )
       return
     }
@@ -514,12 +517,13 @@ export default function TerminalSelectModal({
     const terminalMeta =
       getTerminalStatusMeta(
         selectedTerminal,
-        staffId
+        staffId,
+        t
       )
 
     if (!terminalMeta.selectable) {
       setError(
-        'This terminal is already assigned or unavailable. Please select another terminal.'
+        t('terminal.errorSelectAnother')
       )
       return
     }
@@ -590,7 +594,7 @@ export default function TerminalSelectModal({
 
       setError(
         assignmentError?.message ||
-          'Unable to assign this terminal. Please select another terminal.'
+          t('terminal.errorAssignFailed')
       )
     } finally {
       setSaving(false)
@@ -602,24 +606,23 @@ export default function TerminalSelectModal({
   // ===================================================
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 backdrop-blur-sm">
+    <div className={`staff-shell fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 backdrop-blur-sm${isDark ? ' staff-dark' : ''}`} style={{ '--staff-accent': accent }}>
       <div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">
 
         {/* HEADER */}
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-slate-800">
-              Select Active Terminal
+              {t('terminal.selectTitle')}
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              Choose the physical counter or window you are operating today
-              for {departmentName || 'your department'}.
+              {t('terminal.selectSubtitle', { department: departmentName || t('terminal.yourDepartment') })}
             </p>
           </div>
 
           <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
-            Start Station
+            {t('terminal.startStation')}
           </span>
         </div>
 
@@ -637,11 +640,11 @@ export default function TerminalSelectModal({
         {/* ASSIGNED TERMINAL / WINDOW LABEL */}
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
-            Assigned Terminal / Window
+            {t('terminal.assignedLabel')}
           </p>
 
           <p className="text-[10px] font-medium text-slate-400">
-            Station: {departmentName || 'General'} Queue Center
+            {t('terminal.stationLabel', { department: departmentName || t('terminal.generalDept') })}
           </p>
         </div>
 
@@ -652,16 +655,16 @@ export default function TerminalSelectModal({
               size={14}
               className="mr-2 animate-spin"
             />
-            Loading available terminals...
+            {t('terminal.loadingTerminals')}
           </div>
         ) : filteredTerminals.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
             <p className="text-sm font-semibold text-slate-700">
-              No terminals are available
+              {t('terminal.noneAvailableTitle')}
             </p>
 
             <p className="mt-1 text-xs text-slate-500">
-              Please contact your administrator.
+              {t('terminal.noneAvailableBody')}
             </p>
           </div>
         ) : (
@@ -687,7 +690,8 @@ export default function TerminalSelectModal({
                 const meta =
                   getTerminalStatusMeta(
                     terminal,
-                    staffId
+                    staffId,
+                    t
                   )
 
                 const isSelected =
@@ -751,8 +755,7 @@ export default function TerminalSelectModal({
           />
 
           <span>
-            Logging into this terminal routes new patient tickets directly to
-            your physical window and display board.
+            {t('terminal.infoNote')}
           </span>
         </div>
 
@@ -763,7 +766,7 @@ export default function TerminalSelectModal({
             onClick={handleLogout}
             className="rounded-md border px-3 py-2 text-xs font-semibold text-[#334155] transition hover:bg-slate-50"
           >
-            [→ Logout
+            {t('terminal.logout')}
           </button>
 
           <button
@@ -777,8 +780,8 @@ export default function TerminalSelectModal({
             className="inline-flex items-center gap-2 rounded-lg bg-[#c62828] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#a92121] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving
-              ? 'Assigning terminal...'
-              : 'Confirm & Open Terminal'}
+              ? t('terminal.assigning')
+              : t('terminal.confirmOpen')}
 
             {saving ? (
               <RefreshCw

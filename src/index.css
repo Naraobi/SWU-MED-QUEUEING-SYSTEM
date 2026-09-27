@@ -41,6 +41,171 @@ body,
   }
 }
 
+/* =====================================================
+   STAFF APPEARANCE (theme + accent)
+   =====================================================
+
+   Scoped under .staff-shell, the wrapper every Staff page renders
+   (DashboardPage, QueueHistoryPage, StaffSettingsPage each have their
+   own copy). Same [class~="..." i] remapping technique as Admin: it
+   targets the exact hardcoded Tailwind utilities already in the Staff
+   JSX instead of requiring those files to be rewritten. */
+
+.staff-shell {
+  --staff-accent: #9d0a0e;
+  --staff-accent-strong: color-mix(in srgb, var(--staff-accent) 82%, #000);
+  --staff-accent-soft: color-mix(in srgb, var(--staff-accent) 8%, #fff);
+  --staff-accent-text: var(--staff-accent);
+}
+
+/* -----------------------------------------------------
+   Accent — applies in both themes so the color picker is
+   meaningful in light mode too.
+   ----------------------------------------------------- */
+
+.staff-shell [class~="bg-[#9D0A0E]" i],
+.staff-shell [class~="bg-[#c62828]" i] {
+  background-color: var(--staff-accent);
+}
+
+.staff-shell [class~="hover:bg-[#9D0A0E]" i]:hover {
+  background-color: var(--staff-accent);
+}
+
+.staff-shell [class~="hover:bg-[#7d0809]" i]:hover,
+.staff-shell [class~="hover:bg-[#80080b]" i]:hover,
+.staff-shell [class~="hover:bg-[#b01010]" i]:hover,
+.staff-shell [class~="hover:bg-[#a92121]" i]:hover {
+  background-color: var(--staff-accent-strong);
+}
+
+.staff-shell [class~="text-[#9D0A0E]" i],
+.staff-shell [class~="text-[#c62828]" i] {
+  color: var(--staff-accent-text);
+}
+
+.staff-shell [class~="border-[#9D0A0E]" i],
+.staff-shell [class~="border-[#c62828]" i],
+.staff-shell [class~="hover:border-[#9D0A0E]" i]:hover {
+  border-color: var(--staff-accent);
+}
+
+.staff-shell [class~="ring-[#9D0A0E]" i] {
+  --tw-ring-color: var(--staff-accent);
+}
+
+.staff-shell [class~="bg-[#f3d0d0]" i],
+.staff-shell [class~="bg-[#fce8e8]" i] {
+  background-color: var(--staff-accent-soft);
+}
+
+.staff-shell [class~="border-[#f5c6c6]" i] {
+  border-color: var(--staff-accent-soft);
+}
+
+/* -----------------------------------------------------
+   Dark theme surface / text / border remapping
+   ----------------------------------------------------- */
+
+.staff-shell.staff-dark {
+  --staff-accent-soft: color-mix(in srgb, var(--staff-accent) 24%, #0b1220);
+  --staff-accent-text: color-mix(in srgb, var(--staff-accent) 45%, #ffffff);
+
+  --staff-page: #0b1220;
+  --staff-surface: #151b26;
+  --staff-surface-2: #1b2230;
+  --staff-surface-3: #222b3b;
+  --staff-border: #2a3446;
+  --staff-border-strong: #3b4761;
+  --staff-text: #e6ebf4;
+  --staff-text-muted: #b6c0d0;
+  --staff-text-subtle: #8b97aa;
+  --staff-danger-soft: #3a1a1f;
+  --staff-success-soft: #123326;
+
+  color-scheme: dark;
+  background-color: var(--staff-page);
+  color: var(--staff-text);
+}
+
+.staff-shell.staff-dark [class~="bg-white" i],
+.staff-shell.staff-dark [class~="bg-slate-50" i] {
+  background-color: var(--staff-surface);
+}
+
+.staff-shell.staff-dark [class~="bg-[#F8F9FA]" i],
+.staff-shell.staff-dark [class~="bg-[#F1F3F5]" i],
+.staff-shell.staff-dark [class~="bg-slate-100" i] {
+  background-color: var(--staff-surface-2);
+}
+
+.staff-shell.staff-dark [class~="bg-slate-200" i],
+.staff-shell.staff-dark [class~="bg-slate-900" i] {
+  background-color: var(--staff-surface-3);
+}
+
+.staff-shell.staff-dark [class~="hover:bg-slate-50" i]:hover,
+.staff-shell.staff-dark [class~="hover:bg-slate-100" i]:hover {
+  background-color: var(--staff-surface-3);
+}
+
+.staff-shell.staff-dark [class~="bg-red-50" i],
+.staff-shell.staff-dark [class~="bg-red-100" i] {
+  background-color: var(--staff-danger-soft);
+}
+
+.staff-shell.staff-dark [class~="bg-emerald-100" i] {
+  background-color: var(--staff-success-soft);
+}
+
+.staff-shell.staff-dark [class~="text-[#1F2937]" i],
+.staff-shell.staff-dark [class~="text-slate-900" i],
+.staff-shell.staff-dark [class~="text-slate-800" i],
+.staff-shell.staff-dark [class~="text-slate-700" i] {
+  color: var(--staff-text);
+}
+
+.staff-shell.staff-dark [class~="text-[#4B5563]" i],
+.staff-shell.staff-dark [class~="text-slate-600" i] {
+  color: var(--staff-text-muted);
+}
+
+.staff-shell.staff-dark [class~="text-slate-500" i],
+.staff-shell.staff-dark [class~="text-slate-400" i],
+.staff-shell.staff-dark [class~="text-slate-300" i] {
+  color: var(--staff-text-subtle);
+}
+
+.staff-shell.staff-dark [class~="border-[#E5E7EB]" i],
+.staff-shell.staff-dark [class~="border-slate-200" i],
+.staff-shell.staff-dark [class~="border-slate-100" i],
+.staff-shell.staff-dark [class~="divide-slate-100" i] > * + * {
+  border-color: var(--staff-border);
+}
+
+.staff-shell.staff-dark [class~="border-slate-300" i],
+.staff-shell.staff-dark [class~="border-slate-400" i] {
+  border-color: var(--staff-border-strong);
+}
+
+.staff-shell.staff-dark input,
+.staff-shell.staff-dark select,
+.staff-shell.staff-dark textarea {
+  background-color: var(--staff-surface-2);
+  border-color: var(--staff-border);
+  color: var(--staff-text);
+}
+
+.staff-shell.staff-dark input::placeholder,
+.staff-shell.staff-dark textarea::placeholder {
+  color: var(--staff-text-subtle);
+}
+
+.staff-shell.staff-dark option {
+  background-color: var(--staff-surface-2);
+  color: var(--staff-text);
+}
+
 body {
   margin: 0;
   overflow-x: hidden;
