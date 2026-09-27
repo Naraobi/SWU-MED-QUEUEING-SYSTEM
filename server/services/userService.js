@@ -1361,7 +1361,7 @@ if (mode === "firebase" || mode === "mysql") {
     try {
       await auth.deleteUser(firebaseUser.uid);
 
-      console.log(
+      console.log(  
         `Firebase Authentication rollback successful: ${firebaseUser.uid}`
       );
     } catch (rollbackError) {

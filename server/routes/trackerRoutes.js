@@ -2,29 +2,6 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../config/mysql");
 
-// ============================================================
-// GET TRACKER DATA
-// GET /api/tracker/:queueId
-// ============================================================
-//
-// Used by the patient QR tracker.
-//
-// Returns:
-// - queue number
-// - department
-// - assigned terminal
-// - now serving at that terminal
-// - people ahead
-// - estimated wait from AI prediction
-// - priority information
-// - queue progress
-//
-// Priority ordering MUST match staffQueueRoutes.js:
-//
-//   is_priority DESC
-//   queue_sequence ASC
-//
-// ============================================================
 
 router.get("/:queueId", async (req, res) => {
   const { queueId } = req.params;
@@ -37,21 +14,7 @@ router.get("/:queueId", async (req, res) => {
   }
 
   try {
-    // ============================================================
-    // 1. GET THE PATIENT'S QUEUE TICKET
-    // ============================================================
-    //
-    // IMPORTANT:
-    // We get the patient's own counter_id here.
-    //
-    // The staff Call Patient route sets:
-    //
-    //   counter_id = terminalId
-    //
-    // Therefore the tracker can tell the patient exactly
-    // which terminal they were called to.
-    //
-    // ============================================================
+
 
     const [ticketRows] = await pool.query(
       `
