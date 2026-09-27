@@ -954,14 +954,31 @@ export default function DashboardPage() {
                       <div className="mt-8 flex items-center justify-center gap-4">
                         <button
                           type="button"
-                          onClick={async () => {
-                            try {
-                              await recallCurrentPatient(staffPrefix, terminalId)
-                              await refresh(staffPrefix, undefined, { terminalId })
-                            } catch (err) {
-                              console.error('Recall error:', err)
-                            }
-                          }}
+                        onClick={async () => {
+  try {
+    const result =
+      await recallCurrentPatient(
+        staffPrefix,
+        terminalId
+      )
+
+    const recalledPatient =
+      result?.currentlyServing || activeServing
+
+    announceCalledPatient(
+      recalledPatient?.id,
+      terminalDisplayName
+    )
+
+    await refresh(
+      staffPrefix,
+      undefined,
+      { terminalId }
+    )
+  } catch (err) {
+    console.error('Recall error:', err)
+  }
+}}
                           className="rounded-xl border border-slate-200 bg-white px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition shadow-sm cursor-pointer"
                         >
                           {t('dashboard.recall')}
