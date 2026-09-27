@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 
+import { useLanguage } from '../../services/language';
+import { formatLongDate } from '../Admin/i18n';
+
 import { getDashboardAnalytics, getKiosks, getSecurityPinStatus } from "../../services/backendApi";
 import SecurityPinModal, { readPinIsSet } from "../../components/SecurityPinModal";
 import { auth } from "../../../firebase";
@@ -98,6 +101,8 @@ function getCalendarDays(monthDate) {
 }
 
 function CalendarPopup({ value, onChange, onClose }) {
+  const { t } = useLanguage();
+
   const today = startOfDay(new Date());
 
   const [visibleMonth, setVisibleMonth] = useState(
@@ -205,14 +210,20 @@ function CalendarPopup({ value, onChange, onClose }) {
 
         <div className="flex w-36 shrink-0 flex-col px-5 py-5">
           <div className="space-y-0.5">
-            {['Today', 'Yesterday', 'Last week', 'Last month', 'Last quarter'].map((preset) => (
+            {[
+              { id: 'Today', key: 'sa.date.today' },
+              { id: 'Yesterday', key: 'sa.date.yesterday' },
+              { id: 'Last week', key: 'sa.date.lastWeek' },
+              { id: 'Last month', key: 'sa.date.lastMonth' },
+              { id: 'Last quarter', key: 'sa.date.lastQuarter' },
+            ].map((preset) => (
               <button
-                key={preset}
+                key={preset.id}
                 type="button"
-                onClick={() => selectPreset(preset)}
+                onClick={() => selectPreset(preset.id)}
                 className="block w-full rounded-md px-1 py-1.5 text-left text-sm text-[#1F2937] transition hover:text-[#9D0A0E]"
               >
-                {preset}
+                {t(preset.key)}
               </button>
             ))}
           </div>
@@ -222,7 +233,7 @@ function CalendarPopup({ value, onChange, onClose }) {
             onClick={reset}
             className="mt-auto px-1 pt-4 text-left text-sm font-semibold text-[#9D0A0E] hover:underline"
           >
-            Reset
+            {t('sa.common.reset')}
           </button>
         </div>
 
@@ -235,7 +246,7 @@ function CalendarPopup({ value, onChange, onClose }) {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                aria-label="Previous month"
+                aria-label={t('sa.date.previousMonth')}
                 onClick={() => moveMonth(-1)}
                 className="rounded-full p-1 text-[#1F2937] transition hover:bg-[#F1F3F5]"
               >
@@ -243,7 +254,7 @@ function CalendarPopup({ value, onChange, onClose }) {
               </button>
               <button
                 type="button"
-                aria-label="Next month"
+                aria-label={t('sa.date.nextMonth')}
                 onClick={() => moveMonth(1)}
                 className="rounded-full p-1 text-[#1F2937] transition hover:bg-[#F1F3F5]"
               >
@@ -316,12 +327,14 @@ function CalendarPopup({ value, onChange, onClose }) {
 ========================================================= */
 
 function DepartmentVolumeChart({ data }) {
+  const { t } = useLanguage();
+
   const points = data.slice(0, 6);
 
   if (points.length === 0) {
     return (
       <p className="py-10 text-center text-sm text-[#9CA3AF]">
-        No queue volume recorded for the selected period.
+        {t('sa.dashboard.noVolume')}
       </p>
     );
   }
@@ -357,7 +370,7 @@ function DepartmentVolumeChart({ data }) {
       viewBox={`0 0 ${W} ${H}`}
       className="h-56 w-full"
       role="img"
-      aria-label="Queue volume per department"
+      aria-label={t('sa.dashboard.queueVolumeAria')}
     >
       <defs>
         <linearGradient id="swuVolumeFill" x1="0" y1="0" x2="0" y2="1">
@@ -456,6 +469,8 @@ function DepartmentVolumeChart({ data }) {
 }
 
 export default function Dashboard({ onNavigate }) {
+  const { t, languageCode } = useLanguage();
+
   const [departments, setDepartments] = useState([]);
   const [kiosks, setKiosks] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -611,12 +626,8 @@ useEffect(() => {
     return () => document.removeEventListener('click', handleOutsideClick);
   }, [calendarOpen]);
 
-  const today = new Date().toLocaleDateString(undefined, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  // Rendered through i18n so the weekday and month follow the chosen language.
+  const today = formatLongDate(new Date(), languageCode);
 
 
   const queueStats = analytics?.queue || {
@@ -644,50 +655,51 @@ useEffect(() => {
 
   // Tooltip text for the clickable statistic cards.
   const PAGE_LABELS = {
-    departments: 'Department Management',
-    queues: 'Queue Management',
-    kiosks: 'Kiosk Management',
+    departments: t('sa.nav.departments'),
+    queues: t('sa.nav.queues'),
+    kiosks: t('sa.nav.kiosks'),
   };
 
   const STATS = [
     {
-      label: 'Departments',
+      label: t('sa.dashboard.stat.departments'),
       value: `${visibleDepartmentCount}/${departments.length}`,
-      caption: 'Active departments',
+      caption: t('sa.dashboard.stat.activeDepartments'),
       icon: Building2,
       page: 'departments',
     },
     {
-      label: 'Total Waiting',
+      label: t('sa.dashboard.stat.totalWaiting'),
       value: String(queueStats.waiting),
-      caption: 'Across all departments',
+      caption: t('sa.dashboard.stat.acrossAllDepartments'),
       icon: Users,
       page: 'queues',
     },
     {
-      label: 'Average Wait',
+      label: t('sa.dashboard.stat.averageWait'),
       value: `${queueStats.averageWaitMinutes}m`,
-      caption: 'Average wait time',
+      caption: t('sa.dashboard.stat.averageWaitTime'),
       icon: Clock,
+      page: 'queues',
     },
     {
-      label: 'Skipped',
+      label: t('sa.dashboard.stat.skipped'),
       value: String(queueStats.skipped),
-      caption: 'Skipped queuing',
+      caption: t('sa.dashboard.stat.skippedQueuing'),
       icon: RotateCw,
       page: 'queues',
     },
     {
-      label: 'Completed',
+      label: t('sa.dashboard.stat.completed'),
       value: String(queueStats.completed),
-      caption: 'Completed queuing',
+      caption: t('sa.dashboard.stat.completedQueuing'),
       icon: TrendingUp,
       page: 'queues',
     },
     {
-      label: 'Terminals',
+      label: t('sa.dashboard.stat.terminals'),
       value: `${terminalStats.active}/${terminalStats.total}`,
-      caption: 'Active terminals',
+      caption: t('sa.dashboard.stat.activeTerminals'),
       icon: Monitor,
       page: 'kiosks',
     },
@@ -697,19 +709,19 @@ useEffect(() => {
 
   const queueDistribution = analytics?.queueDistribution || [
     {
-      label: 'Serving',
+      label: t('sa.dashboard.serving'),
       value: 0,
       pct: 0,
       color: '#1F2937',
     },
     {
-      label: 'Waiting',
+      label: t('sa.dashboard.waiting'),
       value: 0,
       pct: 0,
       color: '#4B5563',
     },
     {
-      label: 'Completed',
+      label: t('sa.dashboard.stat.completed'),
       value: 0,
       pct: 0,
       color: '#B34C4C',
@@ -740,10 +752,10 @@ return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 className="text-2xl font-semibold text-[#1F2937]">
-          System Overview
+          {t('sa.dashboard.title')}
         </h1>
         <p className="text-sm text-[#4B5563]">
-          Today &middot; {today}
+          {t('sa.dashboard.todayPrefix')} &middot; {today}
         </p>
       </div>
 
@@ -801,7 +813,7 @@ return (
           }}
           className="swu-press rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#7D080B] hover:shadow-md"
         >
-          Apply Filter
+          {t('sa.common.applyFilter')}
         </button>
 
         {/* Refresh */}
@@ -816,7 +828,7 @@ return (
           className="swu-press flex h-10 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-medium text-[#4B5563] shadow-sm transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
         >
           <RotateCw size={12} />
-          Refresh
+          {t('sa.common.refresh')}
         </button>
       </div>
     </div>
@@ -832,7 +844,13 @@ return (
         key={stat.label}
         role={clickable ? 'button' : undefined}
         tabIndex={clickable ? 0 : undefined}
-        title={clickable ? `Open ${PAGE_LABELS[stat.page] || stat.page}` : undefined}
+        title={
+          clickable
+            ? t('sa.dashboard.openPage', {
+                page: PAGE_LABELS[stat.page] || stat.page,
+              })
+            : undefined
+        }
         onClick={clickable ? () => onNavigate(stat.page) : undefined}
         onKeyDown={
           clickable
@@ -885,7 +903,7 @@ return (
           />
 
           <h2 className="text-sm font-bold text-[#1F2937]">
-            AI-Assisted Insights
+            {t('sa.dashboard.aiInsights')}
           </h2>
         </div>
 
@@ -894,7 +912,7 @@ return (
         <div className="space-y-4">
           {insights.length === 0 ? (
             <p className="text-sm text-[#9CA3AF]">
-              No insights available for the selected period.
+              {t('sa.dashboard.noInsights')}
             </p>
           ) : (
             insights.map((insight, i) => {
@@ -926,10 +944,10 @@ return (
       {/* Department Volume */}
       <div className="swu-card rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
         <h2 className="mb-1 text-sm font-bold text-[#1F2937]">
-          Department Volume
+          {t('sa.dashboard.departmentVolume')}
         </h2>
         <p className="mb-3 text-xs text-[#9CA3AF]">
-          Waiting patients per department
+          {t('sa.dashboard.waitingPerDepartment')}
         </p>
 
         <DepartmentVolumeChart data={departmentVolume} />
@@ -938,7 +956,7 @@ return (
       {/* Queue Status Distribution */}
       <div className="swu-card rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-sm font-bold text-[#1F2937]">
-          Queue Status Distribution
+          {t('sa.dashboard.queueDistribution')}
         </h2>
 
       <div className="flex items-center gap-6">
@@ -971,7 +989,7 @@ return (
     <div className="swu-enter overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
       <div className="flex items-center justify-between gap-4 border-b border-[#E5E7EB] px-5 py-4">
         <h2 className="shrink-0 text-sm font-semibold text-[#1F2937]">
-          Department Overview
+          {t('sa.dashboard.departmentOverview')}
         </h2>
 
         <div className="relative w-full max-w-xs">
@@ -981,8 +999,8 @@ return (
             onChange={(event) =>
               setDepartmentSearch(event.target.value)
             }
-            placeholder="Search department"
-            aria-label="Search department"
+            placeholder={t('sa.dashboard.searchDepartment')}
+            aria-label={t('sa.dashboard.searchDepartment')}
             className="w-full rounded-full border border-[#E5E7EB] bg-[#F8F9FA] py-2 pl-4 pr-10 text-xs text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
           />
 
@@ -1004,19 +1022,19 @@ return (
         <thead>
           <tr className="border-b border-[#E5E7EB] bg-[#FBF1F1] text-xs uppercase tracking-wide text-[#4B5563]">
             <th className="px-5 py-2.5 font-medium">
-              Department
+              {t('sa.common.department')}
             </th>
 
             <th className="px-5 py-2.5 font-medium">
-              Kiosk
+              {t('sa.common.kiosk')}
             </th>
 
             <th className="px-5 py-2.5 font-medium">
-              Prefix
+              {t('sa.common.prefix')}
             </th>
 
             <th className="px-5 py-2.5 font-medium">
-              Status
+              {t('sa.common.status')}
             </th>
           </tr>
         </thead>
@@ -1028,7 +1046,7 @@ return (
                 colSpan={4}
                 className="px-5 py-8 text-center text-sm text-[#9CA3AF]"
               >
-                Loading departments...
+                {t('sa.dashboard.loadingDepartments')}
               </td>
             </tr>
           )}
@@ -1041,7 +1059,7 @@ return (
                   colSpan={4}
                   className="px-5 py-8 text-center text-sm text-[#9CA3AF]"
                 >
-                  No departments yet.
+                  {t('sa.dashboard.noDepartments')}
                 </td>
               </tr>
             )}
@@ -1067,7 +1085,11 @@ return (
               .map((dept) => (
               <tr
                 key={dept.department_id}
-                title={onNavigate ? 'Open Department Management' : undefined}
+                title={
+                  onNavigate
+                    ? t('sa.dashboard.openPage', { page: t('sa.nav.departments') })
+                    : undefined
+                }
                 onClick={
                   onNavigate ? () => onNavigate('departments') : undefined
                 }
@@ -1108,8 +1130,8 @@ return (
                     />
 
                     {dept.status === "active"
-                      ? "Active"
-                      : "Inactive"}
+                      ? t('sa.common.active')
+                      : t('sa.common.inactive')}
                   </span>
                 </td>
               </tr>

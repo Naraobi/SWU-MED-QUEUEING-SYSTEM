@@ -212,39 +212,76 @@ function useKioskQueue(kioskId) {
 }
 
 /* ---------------------------------------------------------------
-   Spoken announcement when a new number is called
+   Spoken announcement when a number is called OR recalled
 --------------------------------------------------------------- */
+
+/*
+ * A recall is the SAME ticket being called again, so keying on the ticket
+ * alone would announce it once and never again - which is why pressing
+ * Recall in Queue Management used to do nothing on this screen.
+ *
+ * Instead each call gets a signature built from the ticket plus whatever
+ * the backend changes when it is recalled. When the signature changes, it
+ * is a fresh call and the TV announces it.
+ *
+ * calledAt alone is enough IF the backend bumps it on recall. recalledAt
+ * and recallCount are read too, so this works whichever the backend uses.
+ */
+function callSignature(serving, terminal) {
+  return [
+    serving.uniqueKey || serving.id,
+    serving.calledAt ?? '',
+    serving.recalledAt ?? '',
+    serving.recallCount ?? '',
+    terminal ?? '',
+  ].join('|');
+}
 
 function useAnnouncer(departments) {
   const [enabled, setEnabled] = useState(false);
   const [latest, setLatest] = useState(null);
   const seen = useRef(new Set());
+  const seenTickets = useRef(new Set());
   const primed = useRef(false);
 
   useEffect(() => {
     const calls = departments
       .filter((d) => d.serving)
       .map((d) => ({
-        key: d.serving.uniqueKey || d.serving.id,
+        key: callSignature(d.serving, d.servingTerminal),
+        ticket: d.serving.uniqueKey || d.serving.id,
         number: d.serving.id,
         terminal: d.servingTerminal,
       }));
 
     if (!primed.current) {
-      calls.forEach((c) => seen.current.add(c.key));
+      calls.forEach((c) => {
+        seen.current.add(c.key);
+        seenTickets.current.add(c.ticket);
+      });
       primed.current = true;
       return;
     }
 
     const fresh = calls.filter((c) => !seen.current.has(c.key));
-    fresh.forEach((c) => seen.current.add(c.key));
 
-    if (fresh.length === 0) return;
+    // A ticket already announced under a different signature is a RECALL.
+    const announcements = fresh.map((c) => ({
+      ...c,
+      recall: seenTickets.current.has(c.ticket),
+    }));
 
-    setLatest(fresh[fresh.length - 1]);
+    fresh.forEach((c) => {
+      seen.current.add(c.key);
+      seenTickets.current.add(c.ticket);
+    });
+
+    if (announcements.length === 0) return;
+
+    setLatest(announcements[announcements.length - 1]);
 
     // Each call is chimed, spoken twice, and queued so they never overlap.
-    fresh.forEach((call) =>
+    announcements.forEach((call) =>
       announceCall({ number: call.number, terminal: call.terminal })
     );
   }, [departments, enabled]);
@@ -296,8 +333,13 @@ function DepartmentCard({ department }) {
         )}
       </div>
 
-      {/* now serving */}
-      <div className="mt-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-3 text-center">
+      {/* now serving - keyed on the call so a recall re-animates */}
+      <div
+        key={serving ? callSignature(serving, servingTerminal) : 'idle'}
+        className={`mt-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-3 text-center ${
+          serving ? 'swu-pop' : ''
+        }`}
+      >
         <p className="text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
           Now Serving
         </p>
@@ -760,14 +802,20 @@ export default function TvDisplay() {
 
               {/* announcement */}
               {latest && (
-                <div className="swu-enter flex shrink-0 items-center gap-3 bg-[#9D0A0E] px-4 py-3 text-white">
+                <div
+                  key={latest.key}
+                  className="swu-enter flex shrink-0 items-center gap-3 bg-[#9D0A0E] px-4 py-3 text-white"
+                >
                   <Megaphone size={18} className="shrink-0" />
                   <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-wide text-white/80">
-                      Patient Announcement
+                      {latest.recall
+                        ? 'Repeat Call'
+                        : 'Patient Announcement'}
                     </p>
                     <p className="truncate text-sm">
-                      Paging <span className="font-bold">{latest.number}</span>
+                      {latest.recall ? 'Paging again' : 'Paging'}{' '}
+                      <span className="font-bold">{latest.number}</span>
                       {latest.terminal ? ` to Terminal ${latest.terminal}` : ''} &middot; Please
                       present your appointment slip or valid government ID.
                     </p>

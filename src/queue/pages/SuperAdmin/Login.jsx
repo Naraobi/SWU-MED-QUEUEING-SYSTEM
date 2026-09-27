@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '../../services/Authcontext';
@@ -10,8 +10,28 @@ import Logo from '../../../assets/logo.png';
 
 export default function Login() {
  const {
-  signIn, signInWithGoogle,} = useAuth();
+  signIn,
+  signInWithGoogle,
+  user,
+  loading: sessionLoading,
+} = useAuth();
   const navigate = useNavigate();
+
+  /*
+  |--------------------------------------------------------------------------
+  | ALREADY SIGNED IN
+  |--------------------------------------------------------------------------
+  |
+  | The Firebase session survives closing the browser, so someone who is
+  | still signed in should never be shown this form again - they go straight
+  | to their landing page.
+  |
+  | This must NOT fire while a sign-in is happening in this tab. Signing in
+  | sets the user too, and redirecting on that would skip past the forced
+  | password change that handleSubmit opens for a temporary password.
+  |
+  */
+  const signingInRef = useRef(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +51,30 @@ export default function Login() {
 
   const [loggedInUser, setLoggedInUser] =
     useState(null);
+
+  useEffect(() => {
+    // Wait for AuthContext to finish restoring the session.
+    if (sessionLoading) {
+      return;
+    }
+
+    // A sign-in is in flight in this tab - that flow does its own routing.
+    if (signingInRef.current) {
+      return;
+    }
+
+    // A forced password change is open; it must be completed first.
+    if (showChangePassword) {
+      return;
+    }
+
+    if (!user) {
+      return;
+    }
+
+    // replace: true so Back does not land them on the login form again.
+    navigate(getLandingPath(user), { replace: true });
+  }, [sessionLoading, user, showChangePassword, navigate]);
 
   /*
   |--------------------------------------------------------------------------
@@ -53,6 +97,7 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault();
 
+    signingInRef.current = true;
     setErrors({});
 
     const trimmedEmail = email.trim();
@@ -152,6 +197,7 @@ if (result.user?.must_change_password === true) {
   |
   */
  async function handleGoogleSignIn() {
+  signingInRef.current = true;
   setErrors({});
   setLoading(true);
 
@@ -410,7 +456,7 @@ async function handlePasswordChangeSuccess(
             {/* TERMS */}
 
             {!alreadyAgreed && (
-              <label className="-mx-2 flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-xs text-[#4B5563] transition-colors hover:bg-[#F8F9FA]">
+              <label className="flex cursor-pointer items-start gap-2 rounded-md py-1 text-xs leading-5 text-[#4B5563] transition-colors hover:bg-[#F8F9FA]">
                 <input
                   type="checkbox"
                   checked={agreedToTerms}
@@ -420,7 +466,7 @@ async function handlePasswordChangeSuccess(
                     )
                   }
                   disabled={loading}
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-[#9CA3AF] accent-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/30"
+                  className="mt-[3px] h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-[#9CA3AF] accent-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/30"
                 />
 
                 <span>
@@ -432,7 +478,7 @@ async function handlePasswordChangeSuccess(
                       event.stopPropagation();
                       setLegalDocument('terms');
                     }}
-                    className="font-semibold text-[#9D0A0E] underline decoration-[#9D0A0E]/40 underline-offset-2 transition hover:decoration-[#9D0A0E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
+                    className="inline align-baseline font-semibold text-[#9D0A0E] underline decoration-[#9D0A0E]/40 underline-offset-2 transition hover:decoration-[#9D0A0E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
                   >
                     Terms &amp; Conditions
                   </button>
@@ -444,7 +490,7 @@ async function handlePasswordChangeSuccess(
                       event.stopPropagation();
                       setLegalDocument('privacy');
                     }}
-                    className="font-semibold text-[#9D0A0E] underline decoration-[#9D0A0E]/40 underline-offset-2 transition hover:decoration-[#9D0A0E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
+                    className="inline align-baseline font-semibold text-[#9D0A0E] underline decoration-[#9D0A0E]/40 underline-offset-2 transition hover:decoration-[#9D0A0E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
                   >
                     Privacy Policy
                   </button>

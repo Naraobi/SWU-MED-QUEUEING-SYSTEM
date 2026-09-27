@@ -1,14 +1,9 @@
-<<<<<<< HEAD
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   EmailAuthProvider,
   linkWithCredential,
   updatePassword,
 } from "firebase/auth";
-=======
-import { useEffect, useMemo, useRef, useState } from "react";
-import { updatePassword } from "firebase/auth";
->>>>>>> origin/design-round-3
 
 import {
   ShieldCheck,
@@ -179,13 +174,6 @@ function PasswordField({
   disabled,
   autoFocus,
 }) {
-<<<<<<< HEAD
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-=======
   const [visible, setVisible] = useState(false);
 
   return (
@@ -203,6 +191,7 @@ function PasswordField({
           placeholder={placeholder}
           disabled={disabled}
           autoFocus={autoFocus}
+          autoComplete="new-password"
           className="w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] py-2.5 pl-3 pr-10 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20 disabled:opacity-50"
         />
 
@@ -220,7 +209,6 @@ function PasswordField({
     </div>
   );
 }
->>>>>>> origin/design-round-3
 
 /* Six single-character boxes with auto-advance, backspace and paste. */
 function CodeBoxes({ code, setCode, disabled }) {
@@ -490,29 +478,18 @@ export default function ChangePasswordModal({ onSuccess, onClose }) {
     event.preventDefault();
     setError("");
 
-    // --------------------------------------------------
-    // VALIDATE PASSWORD
-    // --------------------------------------------------
-
     if (!newPassword) {
       setError("Please create a new password.");
       return;
     }
 
-<<<<<<< HEAD
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters.");
-=======
     if (!allRulesPassed) {
       setError("Your new password does not meet all the requirements.");
->>>>>>> origin/design-round-3
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match.");
-<<<<<<< HEAD
-=======
       return;
     }
 
@@ -520,155 +497,84 @@ export default function ChangePasswordModal({ onSuccess, onClose }) {
 
     if (!firebaseUser) {
       setError("Your session has expired. Please log in again.");
->>>>>>> origin/design-round-3
       return;
     }
 
     setLoading(true);
 
     try {
-<<<<<<< HEAD
-      // --------------------------------------------------
-      // GET CURRENT FIREBASE USER
-      // --------------------------------------------------
-
-      const firebaseUser = auth.currentUser;
-
-      if (!firebaseUser) {
-        throw new Error(
-          "Your session has expired. Please log in again."
-        );
-      }
-
-      // --------------------------------------------------
-      // CHECK CURRENT FIREBASE AUTH PROVIDERS
-      // --------------------------------------------------
-
-      const beforeProviders =
-        firebaseUser.providerData.map(
-          (provider) => provider.providerId
-        );
-
-      console.log(
-        "BEFORE PASSWORD CHANGE PROVIDERS:",
-        beforeProviders
+      /*
+       * STEP 1:
+       * Set the password in Firebase Authentication.
+       *
+       * An account created through Google has no password provider yet, so
+       * updatePassword() would fail on it. Those accounts need the email
+       * credential LINKED instead. Check which case we are in first.
+       */
+      const beforeProviders = firebaseUser.providerData.map(
+        (provider) => provider.providerId
       );
 
-      // --------------------------------------------------
-      // CHECK IF PASSWORD PROVIDER ALREADY EXISTS
-      // --------------------------------------------------
+      const hasPasswordProvider = beforeProviders.includes("password");
 
-      const hasPasswordProvider =
-        beforeProviders.includes("password");
-if (hasPasswordProvider) {
-  console.log("PASSWORD CHANGE ACTION: updatePassword()");
-  
-  await updatePassword(
-    firebaseUser,
-    newPassword
-  );
-
-  console.log("PASSWORD CHANGE: updatePassword SUCCESS");
-} else {
-  console.log("PASSWORD CHANGE ACTION: linkWithCredential()");
-
-  const emailCredential =
-    EmailAuthProvider.credential(
-      firebaseUser.email,
-      newPassword
-    );
-
-  const linkedResult =
-    await linkWithCredential(
-      firebaseUser,
-      emailCredential
-    );
-
-  console.log(
-    "PASSWORD CHANGE: linkWithCredential SUCCESS",
-    linkedResult.user.providerData.map(
-      (provider) => provider.providerId
-    )
-  );
-}
-      // --------------------------------------------------
-      // VERIFY PASSWORD PROVIDER WAS ADDED
-      // --------------------------------------------------
-
-      // Refresh provider information from Firebase.
-      await firebaseUser.reload();
-console.log(
-  "PASSWORD CHANGE - FINAL PROVIDERS:",
-  firebaseUser.providerData.map(
-    (provider) => provider.providerId
-  )
-);
-      const finalProviders =
-        firebaseUser.providerData.map(
-          (provider) => provider.providerId
+      if (hasPasswordProvider) {
+        await updatePassword(firebaseUser, newPassword);
+      } else {
+        const emailCredential = EmailAuthProvider.credential(
+          firebaseUser.email,
+          newPassword
         );
 
-      console.log(
-        "FINAL FIREBASE PROVIDERS:",
-        finalProviders
+        await linkWithCredential(firebaseUser, emailCredential);
+      }
+
+      /*
+       * STEP 2:
+       * Confirm the password provider is actually on the account now.
+       */
+      await firebaseUser.reload();
+
+      const finalProviders = firebaseUser.providerData.map(
+        (provider) => provider.providerId
       );
 
       if (!finalProviders.includes("password")) {
         throw new Error(
-          "The password was not successfully added to your Firebase account."
+          "The password was not successfully added to your account."
         );
       }
 
-      console.log(
-        "FIREBASE PASSWORD OPERATION SUCCESSFUL"
-      );
+      /*
+       * STEP 3:
+       * Tell the Node.js backend that the password has been changed.
+       *
+       * This updates:
+       * - MySQL
+       * - Firestore
+       * - must_change_password = false
+       */
+      const status = await markPasswordChanged(firebaseUser);
 
-      // --------------------------------------------------
-      // UPDATE BACKEND PASSWORD STATUS
-      // --------------------------------------------------
-      //
-      // This does NOT store the actual password.
-      //
-      // It only updates your backend account information,
-      // such as:
-      //
-      // must_change_password = 0
-      // password_changed_at = current time
-      //
-      const passwordStatus =
-        await markPasswordChanged(firebaseUser);
+      /*
+       * STEP 4:
+       * Show the success card, then hand control back to the caller.
+       */
+      setPasswordStatus(status);
+      setChangedAt(new Date());
+      setStep("done");
+    } catch (changeError) {
+      console.error("PASSWORD CHANGE ERROR:", changeError);
 
-      console.log(
-        "markPasswordChanged SUCCESS:",
-        passwordStatus
-      );
-
-      // --------------------------------------------------
-      // TELL LOGIN PAGE PASSWORD SETUP IS COMPLETE
-      // --------------------------------------------------
-
-      await onSuccess(passwordStatus);
-
-    } catch (error) {
-      console.error(
-        "PASSWORD CHANGE ERROR:",
-        error
-      );
-
-      // --------------------------------------------------
-      // FIREBASE ERROR HANDLING
-      // --------------------------------------------------
-
-      switch (error?.code) {
+      switch (changeError?.code) {
         case "auth/email-already-in-use":
           setError(
-            "This email is already connected to another Firebase account."
+            "This email is already connected to another account."
           );
           break;
 
         case "auth/provider-already-linked":
           setError(
-            "Email and password authentication is already linked to this account."
+            "Email and password sign-in is already linked to this account."
           );
           break;
 
@@ -680,57 +586,23 @@ console.log(
 
         case "auth/weak-password":
           setError(
-            "The password is too weak. Please create a stronger password."
+            "That password is too weak. Please create a stronger one."
           );
           break;
 
         case "auth/network-request-failed":
           setError(
-            "Network error. Please check your internet connection and try again."
+            "Network error. Please check your connection and try again."
           );
           break;
 
         default:
           setError(
-            error?.message ||
+            changeError?.message ||
               "Unable to change password. Please try again."
           );
           break;
       }
-
-=======
-      /*
-       * STEP 1:
-       * Change the password in Firebase Authentication.
-       */
-      await updatePassword(firebaseUser, newPassword);
-
-      /*
-       * STEP 2:
-       * Tell the Node.js backend that the password has been changed.
-       *
-       * This updates:
-       * - MySQL
-       * - Firestore
-       * - must_change_password = false
-       */
-      const status = await markPasswordChanged(firebaseUser);
-
-      /*
-       * STEP 3:
-       * Show the success card, then hand control back to the caller.
-       */
-      setPasswordStatus(status);
-      setChangedAt(new Date());
-      setStep("done");
-    } catch (changeError) {
-      console.error("Password change error:", changeError);
-
-      setError(
-        changeError?.message ||
-          "Unable to change password. Please try again."
-      );
->>>>>>> origin/design-round-3
     } finally {
       setLoading(false);
     }
@@ -741,19 +613,8 @@ console.log(
     await onSuccess(passwordStatus);
   }
 
-<<<<<<< HEAD
-        {/* -------------------------------------------- */}
-        {/* HEADER */}
-        {/* -------------------------------------------- */}
-
-        <div className="mb-5">
-          <h2 className="text-xl font-bold text-slate-800">
-            Change Your Password
-          </h2>
-=======
   const shell =
     "swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4";
->>>>>>> origin/design-round-3
 
   /* =======================================================
      STEP 4 - SUCCESS
@@ -807,68 +668,6 @@ console.log(
     );
   }
 
-<<<<<<< HEAD
-        {/* -------------------------------------------- */}
-        {/* FORM */}
-        {/* -------------------------------------------- */}
-
-        <form
-          onSubmit={handleChangePassword}
-          className="space-y-4"
-        >
-
-          {/* ------------------------------------------ */}
-          {/* NEW PASSWORD */}
-          {/* ------------------------------------------ */}
-
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-600">
-              Create a Password
-            </label>
-
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) =>
-                setNewPassword(e.target.value)
-              }
-              placeholder="Enter new password"
-              disabled={loading}
-              autoComplete="new-password"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#00569c] focus:outline-none disabled:bg-slate-100"
-            />
-          </div>
-
-          {/* ------------------------------------------ */}
-          {/* CONFIRM PASSWORD */}
-          {/* ------------------------------------------ */}
-
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-600">
-              Confirm Password
-            </label>
-
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) =>
-                setConfirmPassword(e.target.value)
-              }
-              placeholder="Confirm new password"
-              disabled={loading}
-              autoComplete="new-password"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-[#00569c] focus:outline-none disabled:bg-slate-100"
-            />
-          </div>
-
-          {/* ------------------------------------------ */}
-          {/* ERROR */}
-          {/* ------------------------------------------ */}
-
-          {error && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-=======
   /* =======================================================
      STEP 3 - CREATE NEW PASSWORD
   ======================================================= */
@@ -883,25 +682,8 @@ console.log(
               </span>
 
               <StepBadge step={3} label="Security Protocol" />
->>>>>>> origin/design-round-3
             </div>
 
-<<<<<<< HEAD
-          {/* ------------------------------------------ */}
-          {/* SUBMIT */}
-          {/* ------------------------------------------ */}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-[#00569c] py-2.5 text-sm font-semibold text-white hover:bg-[#004278] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading
-              ? "Changing Password..."
-              : "Change Password"}
-          </button>
-
-=======
             <CloseButton onClose={onClose} disabled={loading} />
           </div>
 
@@ -1170,7 +952,6 @@ console.log(
               </SecondaryButton>
             )}
           </div>
->>>>>>> origin/design-round-3
         </form>
       </div>
     </div>

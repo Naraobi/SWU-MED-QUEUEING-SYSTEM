@@ -254,6 +254,28 @@ function mapQueueItem(
     row.calledAt ||
     null
 
+  /*
+   * RECALL SIGNAL
+   *
+   * The TV re-announces a number when one of these changes. A recall is the
+   * same ticket being called again, so without a field that moves there is
+   * no way for the TV to tell a recall from an ordinary poll.
+   *
+   * Read under several names so it works whichever the backend settles on,
+   * and stay null until one of them exists.
+   */
+  const recalledAt =
+    row.recalled_at ||
+    row.recalledAt ||
+    row.last_called_at ||
+    row.lastCalledAt ||
+    null
+
+  const recallCount =
+    row.recall_count ??
+    row.recallCount ??
+    null
+
   const rawCounterNumber =
     row.counter_number ??
     row.counterNumber ??
@@ -341,6 +363,16 @@ function mapQueueItem(
       calledAt,
 
     calledAt,
+
+    recalled_at:
+      recalledAt,
+
+    recalledAt,
+
+    recall_count:
+      recallCount,
+
+    recallCount,
 
     service_began_at:
       startedAt,
