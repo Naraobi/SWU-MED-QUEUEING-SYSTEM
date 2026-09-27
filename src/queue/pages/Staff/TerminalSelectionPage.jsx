@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Info, Monitor, RefreshCw, ShieldAlert } from 'lucide-react'
+import { ArrowRight, Info, Monitor, RefreshCw, ShieldAlert, X } from 'lucide-react'
 
 import { useAuth } from '../../services/Authcontext.jsx'
 import { useStaffPreferences } from './StaffPreferencesContext.jsx'
@@ -210,6 +210,8 @@ function getTerminalStatusMeta(terminal, staffId, t) {
 export default function TerminalSelectModal({
   departmentName,
   onConfirm,
+  onClose,
+  canClose,
 }) {
   const { user, signOut } = useAuth()
   const { t, isDark, accent } = useStaffPreferences()
@@ -621,9 +623,25 @@ export default function TerminalSelectModal({
             </p>
           </div>
 
-          <span className="shrink-0 rounded-md bg-slate-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
-            {t('terminal.startStation')}
-          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded-md bg-slate-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+              {t('terminal.startStation')}
+            </span>
+
+            {/* Only shown when the staff already has a terminal assigned
+                (canClose), so this can never be used to skip picking one
+                for the first time. */}
+            {canClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={t('common.close')}
+                className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ERROR */}

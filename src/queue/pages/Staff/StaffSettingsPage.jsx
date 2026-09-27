@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Check, Globe, Monitor, Moon, Palette, Save, Sun } from 'lucide-react';
+import { Check, Globe, Image, Monitor, Moon, Palette, Save, Sun, Upload } from 'lucide-react';
 import Sidebar from './Sidebar.jsx';
 import Topbar from './Topbar.jsx';
 import { useStaffPreferences } from './StaffPreferencesContext.jsx';
 import { LANGUAGES } from './staffI18n';
+import { extractDominantColor } from '../../theme/colors';
+import defaultLogo from '../../../assets/logo.png';
 
 const THEME_MODES = [
   {
@@ -49,6 +51,8 @@ export default function StaffSettingsPage() {
     setTheme,
     accent,
     setAccent,
+    logoUrl,
+    setLogo,
     isDark,
     language,
     setLanguage,
@@ -57,15 +61,20 @@ export default function StaffSettingsPage() {
     registerDiscard,
   } = useStaffPreferences();
 
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState('');
+
   // Baseline "last saved" values. Save moves this baseline forward;
   // leaving without saving reverts the live values back to it instead
   // of quietly keeping half-made edits. Mirrors Admin's SettingsExactPage.
   const [savedTheme, setSavedTheme] = useState(theme);
   const [savedAccent, setSavedAccent] = useState(accent);
   const [savedLanguage, setSavedLanguage] = useState(language);
+  const [savedLogoUrl, setSavedLogoUrl] = useState(logoUrl);
   const [justSaved, setJustSaved] = useState(false);
 
-  const isDirty = theme !== savedTheme || accent !== savedAccent || language !== savedLanguage;
+  const isDirty =
+    theme !== savedTheme || accent !== savedAccent || language !== savedLanguage || logoUrl !== savedLogoUrl;
 
   useEffect(() => {
     setIsDirty(isDirty);
@@ -76,8 +85,9 @@ export default function StaffSettingsPage() {
       setTheme(savedTheme);
       setAccent(savedAccent);
       setLanguage(savedLanguage);
+      setLogo(savedLogoUrl);
     });
-  }, [registerDiscard, savedTheme, savedAccent, savedLanguage, setTheme, setAccent, setLanguage]);
+  }, [registerDiscard, savedTheme, savedAccent, savedLanguage, savedLogoUrl, setTheme, setAccent, setLanguage, setLogo]);
 
   // Covers a closed tab / browser refresh the in-app nav guard can't see.
   useEffect(() => {
@@ -95,8 +105,48 @@ export default function StaffSettingsPage() {
     setSavedTheme(theme);
     setSavedAccent(accent);
     setSavedLanguage(language);
+    setSavedLogoUrl(logoUrl);
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 2000);
+  }
+
+  // Reads the uploaded photo, shows it as the new sidebar logo, and
+  // samples it for a dominant color to use as the new accent — both
+  // stay a live preview until Save Changes. Only affects this staff
+  // account's own view (see StaffPreferencesContext.jsx); nothing here
+  // reaches the Patient kiosk, TV display, or other staff terminals.
+  function handleLogoUpload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setLogoError('');
+    setLogoUploading(true);
+
+    const reader = new FileReader();
+
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      setLogo(dataUrl);
+
+      try {
+        const dominantColor = await extractDominantColor(dataUrl);
+        if (dominantColor) {
+          setAccent(dominantColor);
+        }
+      } catch (error) {
+        console.error('Failed to extract a color from the uploaded photo:', error);
+      } finally {
+        setLogoUploading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      setLogoError(t('settings.logo.error'));
+      setLogoUploading(false);
+    };
+
+    reader.readAsDataURL(file);
   }
 
   return (
@@ -170,6 +220,25 @@ export default function StaffSettingsPage() {
                 );
               })}
             </div>
+          </SettingsSection>
+
+          <SettingsSection icon={Image} title={t('settings.logo.title')} subtitle={t('settings.logo.subtitle')}>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] px-4 py-3">
+              <div className="flex items-center gap-4">
+                <img src={logoUrl || defaultLogo} alt={t('settings.logo.current')} className="h-7 w-auto object-contain" />
+                <p className="text-xs font-semibold text-[#1F2937]">{t('settings.logo.current')}</p>
+              </div>
+              <label
+                className={`flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] ${
+                  logoUploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                }`}
+              >
+                <Upload size={14} />
+                {logoUploading ? t('settings.logo.uploading') : t('settings.logo.upload')}
+                <input type="file" accept="image/*" className="hidden" disabled={logoUploading} onChange={handleLogoUpload} />
+              </label>
+            </div>
+            {logoError && <p className="mt-2 text-xs text-[#9D0A0E]">{logoError}</p>}
           </SettingsSection>
 
           <SettingsSection icon={Palette} title={t('settings.color.title')} subtitle={t('settings.color.subtitle')}>

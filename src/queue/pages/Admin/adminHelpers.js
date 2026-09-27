@@ -21,6 +21,7 @@ const THEME_STORAGE_KEY = 'swumed_admin_theme';
 const ACCENT_STORAGE_KEY = 'swumed_admin_accent';
 const LANGUAGE_STORAGE_KEY = 'swumed_admin_language';
 const AVATAR_STORAGE_KEY = 'swumed_admin_avatar';
+const LOGO_STORAGE_KEY = 'swumed_admin_logo';
 
 export const DEFAULT_ACCENT = '#9D0A0E';
 
@@ -85,6 +86,27 @@ export function saveStoredAvatar(dataUrl) {
     localStorage.setItem(AVATAR_STORAGE_KEY, dataUrl);
   } catch {
     // Ignore storage issues in private mode or restricted browsers.
+  }
+}
+
+export function loadStoredLogo() {
+  try {
+    return localStorage.getItem(LOGO_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function saveStoredLogo(dataUrl) {
+  try {
+    if (dataUrl) {
+      localStorage.setItem(LOGO_STORAGE_KEY, dataUrl);
+    } else {
+      localStorage.removeItem(LOGO_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage issues in private mode or restricted browsers
+    // (a large uploaded photo can also exceed the storage quota).
   }
 }
 

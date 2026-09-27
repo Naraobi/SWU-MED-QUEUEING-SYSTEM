@@ -51,7 +51,7 @@ export default function Sidebar() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, isDirty, discardChanges } = useStaffPreferences();
+  const { t, isDirty, discardChanges, logoUrl } = useStaffPreferences();
   const visibleLinks = LINKS.filter(({ key }) => canAccessStaffPage(user, key));
 
   // Keep restricted staff from remaining on Today's Queue if their permissions change.
@@ -79,7 +79,7 @@ export default function Sidebar() {
   return (
     <aside className="staff-sidebar sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white z-40" style={{ fontFamily: 'Inter, sans-serif' }}>
       <div className="flex h-[74px] shrink-0 flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
-        <img src={logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
+        <img src={logoUrl || logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
         <p className="text-xs text-slate-400">{t('nav.terminalLabel')}</p>
       </div>
 

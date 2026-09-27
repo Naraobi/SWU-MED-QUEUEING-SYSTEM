@@ -81,6 +81,7 @@ import { useLanguage } from './LanguageContext';
 import { useAppearance } from './AppearanceContext';
 import { useUnsavedChanges } from './UnsavedChangesContext';
 import { LEGAL_DOCUMENTS, LEGAL_ORGANIZATION } from './legalDocuments';
+import { extractDominantColor } from '../../theme/colors';
 import Logo from '../../../assets/logo.png';
 
 // =====================================================
@@ -3910,8 +3911,10 @@ function SettingsExactPage() {
   const {
     theme: themeMode,
     accent: accentColor,
+    logoUrl,
     setTheme: setThemeMode,
     setAccent: setAccentColor,
+    setLogo,
   } = useAppearance();
 
   const [systemName, setSystemName] = useState('SWUMed Queuing System');
@@ -3926,6 +3929,8 @@ function SettingsExactPage() {
   const [pendingVerificationCode, setPendingVerificationCode] = useState('');
   const [pinSaveLoading, setPinSaveLoading] = useState(false);
   const [pinError, setPinError] = useState('');
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState('');
 
   // Baseline "last saved" values. Save moves this baseline forward;
   // leaving without saving (sidebar nav or a closed tab) reverts the
@@ -3935,6 +3940,7 @@ function SettingsExactPage() {
   const [savedLanguage, setSavedLanguage] = useState(language);
   const [savedClockFormat, setSavedClockFormat] = useState(clockFormat);
   const [savedSystemName, setSavedSystemName] = useState(systemName);
+  const [savedLogoUrl, setSavedLogoUrl] = useState(logoUrl);
   const [justSaved, setJustSaved] = useState(false);
 
   const isDirty =
@@ -3942,7 +3948,8 @@ function SettingsExactPage() {
     themeMode !== savedTheme ||
     language !== savedLanguage ||
     clockFormat !== savedClockFormat ||
-    systemName !== savedSystemName;
+    systemName !== savedSystemName ||
+    logoUrl !== savedLogoUrl;
 
   useEffect(() => {
     setIsDirty(isDirty);
@@ -3955,8 +3962,9 @@ function SettingsExactPage() {
       setLanguage(savedLanguage);
       setClockFormat(savedClockFormat);
       setSystemName(savedSystemName);
+      setLogo(savedLogoUrl);
     });
-  }, [registerDiscard, savedAccent, savedTheme, savedLanguage, savedClockFormat, savedSystemName, setAccentColor, setThemeMode, setLanguage]);
+  }, [registerDiscard, savedAccent, savedTheme, savedLanguage, savedClockFormat, savedSystemName, savedLogoUrl, setAccentColor, setThemeMode, setLanguage, setLogo]);
 
   // Covers a closed tab / browser refresh the in-app nav guard can't see.
   useEffect(() => {
@@ -4004,12 +4012,52 @@ function SettingsExactPage() {
     setSavedLanguage(language);
     setSavedClockFormat(clockFormat);
     setSavedSystemName(systemName);
+    setSavedLogoUrl(logoUrl);
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 2000);
   }
 
   const applyThemeSelection = setThemeMode;
   const applyAccentSelection = setAccentColor;
+
+  // Reads the uploaded photo, shows it as the new sidebar logo, and
+  // samples it for a dominant color to use as the new accent — both
+  // stay a live preview until Save Changes, same as every other field
+  // on this page. Only affects this Admin's own view (see
+  // AppearanceContext.jsx); nothing here reaches Patient/TV/Staff screens.
+  function handleLogoUpload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setLogoError('');
+    setLogoUploading(true);
+
+    const reader = new FileReader();
+
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      setLogo(dataUrl);
+
+      try {
+        const dominantColor = await extractDominantColor(dataUrl);
+        if (dominantColor) {
+          applyAccentSelection(dominantColor);
+        }
+      } catch (error) {
+        console.error('Failed to extract a color from the uploaded logo:', error);
+      } finally {
+        setLogoUploading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      setLogoError('Could not read that image. Please try a different file.');
+      setLogoUploading(false);
+    };
+
+    reader.readAsDataURL(file);
+  }
 
   return (
     <div className="space-y-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -4057,16 +4105,18 @@ function SettingsExactPage() {
           <SettingsExactFieldLabel>{t('settingsPage.branding.systemLogo')}</SettingsExactFieldLabel>
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] px-4 py-3">
             <div className="flex items-center gap-4">
-              <img src={Logo} alt="Current brand logo" className="h-7 w-auto object-contain" />
+              <img src={logoUrl || Logo} alt="Current brand logo" className="h-7 w-auto object-contain" />
               <div>
                 <p className="flex items-center gap-2 text-xs font-semibold text-[#1F2937]">{t('settingsPage.branding.currentLogo')} <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-600/30">{t('settingsPage.branding.active')}</span></p>
-                <p className="mt-0.5 text-xs text-[#98A2B3]">{t('settingsPage.branding.logoHint')}</p>
+                <p className="mt-0.5 text-xs text-[#98A2B3]">{logoUrl ? 'Uploading a new photo also updates your accent color below.' : t('settingsPage.branding.logoHint')}</p>
               </div>
             </div>
-            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]">
-              <Upload size={14} />{t('settingsPage.branding.uploadLogo')}<input type="file" accept="image/png,image/svg+xml" className="hidden" />
+            <label className={`flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] ${logoUploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+              <Upload size={14} />{logoUploading ? 'Reading photo...' : t('settingsPage.branding.uploadLogo')}
+              <input type="file" accept="image/*" className="hidden" disabled={logoUploading} onChange={handleLogoUpload} />
             </label>
           </div>
+          {logoError && <SettingsExactHint><span className="text-[#9D0A0E]">{logoError}</span></SettingsExactHint>}
         </div>
 
         <div className="mt-6">

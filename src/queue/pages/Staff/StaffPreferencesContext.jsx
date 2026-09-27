@@ -15,6 +15,7 @@ const StaffPreferencesContext = createContext(null);
 const THEME_STORAGE_KEY = 'swumed_staff_theme';
 const ACCENT_STORAGE_KEY = 'swumed_staff_accent';
 const LANGUAGE_STORAGE_KEY = 'swumed_staff_language';
+const LOGO_STORAGE_KEY = 'swumed_staff_logo';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
 export const DEFAULT_STAFF_ACCENT = '#9D0A0E';
@@ -67,6 +68,27 @@ function saveStoredLanguage(value) {
   }
 }
 
+function loadStoredLogo() {
+  try {
+    return localStorage.getItem(LOGO_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function saveStoredLogo(dataUrl) {
+  try {
+    if (dataUrl) {
+      localStorage.setItem(LOGO_STORAGE_KEY, dataUrl);
+    } else {
+      localStorage.removeItem(LOGO_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage issues in private mode or restricted browsers
+    // (a large uploaded photo can also exceed the storage quota).
+  }
+}
+
 function getSystemTheme() {
   try {
     return window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
@@ -97,6 +119,7 @@ export function StaffPreferencesProvider({ children }) {
   const [theme, setThemeState] = useState(loadStoredTheme);
   const [accent, setAccentState] = useState(loadStoredAccent);
   const [language, setLanguageState] = useState(loadStoredLanguage);
+  const [logoUrl, setLogoUrlState] = useState(loadStoredLogo);
   const [systemTheme, setSystemTheme] = useState(getSystemTheme);
   const [isDirty, setIsDirty] = useState(false);
   const discardRef = useRef(() => {});
@@ -134,6 +157,11 @@ export function StaffPreferencesProvider({ children }) {
     saveStoredLanguage(name);
   }, []);
 
+  const setLogo = useCallback((dataUrl) => {
+    setLogoUrlState(dataUrl || '');
+    saveStoredLogo(dataUrl || '');
+  }, []);
+
   const registerDiscard = useCallback((fn) => {
     discardRef.current = typeof fn === 'function' ? fn : () => {};
   }, []);
@@ -157,6 +185,8 @@ export function StaffPreferencesProvider({ children }) {
       isDark: resolvedTheme === 'dark',
       language,
       setLanguage,
+      logoUrl,
+      setLogo,
       langCode,
       t,
       isDirty,
@@ -172,6 +202,8 @@ export function StaffPreferencesProvider({ children }) {
       resolvedTheme,
       language,
       setLanguage,
+      logoUrl,
+      setLogo,
       langCode,
       t,
       isDirty,

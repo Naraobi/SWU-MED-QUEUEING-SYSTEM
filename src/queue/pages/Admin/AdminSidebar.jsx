@@ -5,6 +5,7 @@ import { canAccessAdminPage } from '../../services/accessControl';
 import logo from '../../../assets/logo.png';
 import LogoutModal from '../../components/modals/LogoutModal';
 import { useLanguage } from './LanguageContext';
+import { useAppearance } from './AppearanceContext';
 
 const NAV_ITEMS = [
   { key: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
@@ -28,6 +29,7 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
   console.log("==========================");
 
   const { t } = useLanguage();
+  const { logoUrl } = useAppearance();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const visibleItems = NAV_ITEMS.filter(({ key }) => canAccessAdminPage(user, key));
 
@@ -40,7 +42,7 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
     <>
       <aside className="sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white" style={{ fontFamily: 'Inter, sans-serif' }}>
         <div className="flex h-[74px] shrink-0 flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
-          <img src={logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
+          <img src={logoUrl || logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
           <div className="text-[10px] font-medium tracking-wide text-slate-400">{t('nav.queuingSystem')}</div>
         </div>
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-6">
