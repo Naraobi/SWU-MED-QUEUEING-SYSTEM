@@ -210,11 +210,35 @@ router.post(
           staff_id
         );
 
+      /*
+      IMPORTANT:
+      A release that matched no row means the counter is not assigned to
+      this staff member any more: it was already free, or it now belongs
+      to somebody else. The request itself was handled correctly, so the
+      status stays 200, but `released` is what tells the client whether
+      the counter was actually freed.
+
+      Reporting success: true on its own would let a no-op release look
+      exactly like a successful one.
+      */
+
+      const released =
+        result?.released === true;
+
       return res.status(200).json({
         success: true,
-        message:
-          "Counter released successfully",
-        data: result,
+
+        released,
+
+        message: released
+          ? "Counter released successfully"
+          : "Counter was not assigned to this staff member",
+
+        data: {
+          ...result,
+
+          released,
+        },
       });
     } catch (error) {
       console.error(

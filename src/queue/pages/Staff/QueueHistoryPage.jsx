@@ -8,6 +8,8 @@ import QueueDetailsModal from '../../components/modals/QueueDetailsModal.jsx'
 import { useAuth } from '../../services/Authcontext.jsx'
 import * as api from '../../services/backendApi'
 import { getStatusColors } from '../../theme/colors'
+import { useStaffPreferences } from './StaffPreferencesContext.jsx'
+import { MONTHS_LONG, DAY_LABELS_SHORT } from './staffI18n'
 
 const PAGE_SIZE = 8
 
@@ -16,6 +18,7 @@ const PAGE_SIZE = 8
 // ============================================================
 
 function CalendarPopover({ anchorRef, onClose, onApply }) {
+  const { t, langCode } = useStaffPreferences()
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
@@ -62,11 +65,8 @@ function CalendarPopover({ anchorRef, onClose, onApply }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [onClose, anchorRef])
 
-  const MONTHS = [
-    'January','February','March','April','May','June',
-    'July','August','September','October','November','December',
-  ]
-  const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa']
+  const MONTHS = MONTHS_LONG[langCode] || MONTHS_LONG.en
+  const DAY_LABELS = DAY_LABELS_SHORT[langCode] || DAY_LABELS_SHORT.en
 
   const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate()
   const getFirstDay   = (y, m) => new Date(y, m, 1).getDay()
@@ -97,7 +97,7 @@ function CalendarPopover({ anchorRef, onClose, onApply }) {
   function handleApply() {
     if (startDate && endDate) {
       const diffDays = Math.round(Math.abs(endDate - startDate) / 86400000) + 1
-      onApply({ startDate, endDate, label: `${diffDays} days` })
+      onApply({ startDate, endDate, label: t('history.calendar.days', { count: diffDays }) })
     }
     onClose()
   }
@@ -128,17 +128,17 @@ function CalendarPopover({ anchorRef, onClose, onApply }) {
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
-        <p className="text-sm font-bold text-[#1F2937]">Custom Date Range</p>
+        <p className="text-sm font-bold text-[#1F2937]">{t('history.calendar.title')}</p>
         {diffDays && (
           <span className="rounded-full bg-[#9D0A0E] px-3 py-1 text-xs font-semibold text-white">
-            {diffDays} days
+            {t('history.calendar.days', { count: diffDays })}
           </span>
         )}
       </div>
 
       {/* FROM / TO */}
       <div className="flex gap-3 px-5 pt-4 pb-2">
-        {[{ label: 'FROM', val: startDate }, { label: 'TO', val: endDate }].map(({ label, val }) => (
+        {[{ label: t('history.calendar.from'), val: startDate }, { label: t('history.calendar.to'), val: endDate }].map(({ label, val }) => (
           <div key={label} className="flex flex-1 flex-col">
             <span className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-[#4B5563]">{label}</span>
             <div className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] px-3 py-2.5">
@@ -146,7 +146,7 @@ function CalendarPopover({ anchorRef, onClose, onApply }) {
                 <rect x="3" y="4" width="18" height="18" rx="2"/>
                 <path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round"/>
               </svg>
-              <span className="text-xs font-medium text-[#1F2937]">{val ? formatDisplay(val) : `Select date`}</span>
+              <span className="text-xs font-medium text-[#1F2937]">{val ? formatDisplay(val) : t('history.calendar.selectDate')}</span>
             </div>
           </div>
         ))}
@@ -202,14 +202,14 @@ function CalendarPopover({ anchorRef, onClose, onApply }) {
           onClick={onClose}
           className="rounded-lg px-5 py-2.5 text-xs font-semibold text-[#4B5563] hover:bg-[#F1F3F5] transition"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           onClick={handleApply}
           disabled={!startDate || !endDate}
           className="rounded-lg bg-[#9D0A0E] px-6 py-2.5 text-xs font-semibold text-white hover:bg-[#b01010] disabled:opacity-40 transition"
         >
-          Apply
+          {t('common.apply')}
         </button>
       </div>
     </div>,
@@ -222,6 +222,7 @@ function CalendarPopover({ anchorRef, onClose, onApply }) {
 // ============================================================
 
 export default function QueueHistoryPage() {
+  const { isDark, accent, t } = useStaffPreferences()
   const { user, loading: authLoading } = useAuth()
   const departmentId = user?.department_id
 
@@ -340,17 +341,17 @@ export default function QueueHistoryPage() {
   // ============================================================
 
   const STATUS_LABELS = {
-    completed: 'Completed',
-    cancelled: 'Skipped',
-    skipped: 'Skipped',
-    waiting: 'Waiting',
-    called: 'Called',
-    serving: 'Serving',
+    completed: t('history.status.completed'),
+    cancelled: t('history.status.skipped'),
+    skipped: t('history.status.skipped'),
+    waiting: t('history.status.waiting'),
+    called: t('history.status.called'),
+    serving: t('history.status.serving'),
   }
 
   const StatusBadge = ({ status }) => {
     const s = normalizeStatus(status)
-    const label = STATUS_LABELS[s] || status || 'Unknown'
+    const label = STATUS_LABELS[s] || status || t('history.status.unknown')
     const { bg, text, dot } = getStatusColors(s)
 
     return (
@@ -386,7 +387,7 @@ export default function QueueHistoryPage() {
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA] text-base text-[#4B5563]">
-        Loading department history...
+        {t('history.loading')}
       </div>
     )
   }
@@ -395,8 +396,8 @@ export default function QueueHistoryPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA] px-6">
         <div className="rounded-xl border border-[#E5E7EB] bg-white px-8 py-6 text-center shadow-sm">
-          <p className="text-base font-semibold text-[#1F2937]">Authentication required</p>
-          <p className="mt-2 text-sm text-[#4B5563]">Please log in to view queue history.</p>
+          <p className="text-base font-semibold text-[#1F2937]">{t('history.authRequiredTitle')}</p>
+          <p className="mt-2 text-sm text-[#4B5563]">{t('history.authRequiredBody')}</p>
         </div>
       </div>
     )
@@ -406,9 +407,9 @@ export default function QueueHistoryPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA] px-6">
         <div className="rounded-xl border border-[#E5E7EB] bg-white px-8 py-6 text-center shadow-sm">
-          <p className="text-base font-semibold text-[#1F2937]">Department not found</p>
-          <p className="mt-2 text-sm text-[#4B5563]">Your account does not have a valid department assignment.</p>
-          <p className="mt-3 text-xs text-[#4B5563]">Please contact an administrator if this is incorrect.</p>
+          <p className="text-base font-semibold text-[#1F2937]">{t('history.noDeptTitle')}</p>
+          <p className="mt-2 text-sm text-[#4B5563]">{t('history.noDeptBody')}</p>
+          <p className="mt-3 text-xs text-[#4B5563]">{t('history.noDeptHint')}</p>
         </div>
       </div>
     )
@@ -419,7 +420,7 @@ export default function QueueHistoryPage() {
   // ============================================================
 
   return (
-    <div className="staff-shell flex min-h-screen w-full bg-[#F8F9FA]" style={{ fontFamily: 'Inter, sans-serif' }}>
+    <div className={`staff-shell flex min-h-screen w-full bg-[#F8F9FA]${isDark ? ' staff-dark' : ''}`} style={{ fontFamily: 'Inter, sans-serif', '--staff-accent': accent }}>
 
       <Sidebar />
 
@@ -427,7 +428,7 @@ export default function QueueHistoryPage() {
 
         {/* TOPBAR */}
         <Topbar
-          title={`Staff · ${user?.department || 'Department'}`}
+          title={`${t('topbar.staffLabel')} · ${user?.department || 'Department'}`}
           subtitle={`Managing queue for department: ${user?.department || 'General'}`}
         />
 
@@ -435,28 +436,28 @@ export default function QueueHistoryPage() {
 
           {/* PAGE TITLE */}
           <div className="mb-8">
-            <h1 className="text-2xl font-extrabold leading-none text-[#1F2937]">Queue History</h1>
+            <h1 className="text-2xl font-extrabold leading-none text-[#1F2937]">{t('history.title')}</h1>
             <p className="mt-2 text-sm text-[#4B5563]">
-              Review queue transactions handled by your assigned department.
+              {t('history.subtitle')}
             </p>
           </div>
 
           {/* STAT CARDS */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <StaffStatCard
-              label="TODAY'S COMPLETED"
+              label={t('history.stat.completed')}
               value={completedCount}
               icon={CheckCircle2}
             />
 
             <StaffStatCard
-              label="TODAY'S SKIPPED"
+              label={t('history.stat.skipped')}
               value={skippedCount}
               icon={SkipForward}
             />
 
             <StaffStatCard
-              label="AVERAGE SERVICE TIME"
+              label={t('history.stat.avgServiceTime')}
               value={averageServiceTime}
               icon={Timer}
             />
@@ -477,7 +478,7 @@ export default function QueueHistoryPage() {
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search queue number..."
+                  placeholder={t('history.searchPlaceholder')}
                   className="w-full bg-transparent text-sm outline-none placeholder:text-[#4B5563]/50 text-[#1F2937]"
                 />
               </div>
@@ -492,11 +493,11 @@ export default function QueueHistoryPage() {
                     onChange={e => handleRangeChange(e.target.value)}
                     className="h-10 min-w-[140px] cursor-pointer rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#1F2937] outline-none"
                   >
-                    <option value="Today">Today</option>
-                    <option value="Yesterday">Yesterday</option>
-                    <option value="Last 7 Days">Last 7 Days</option>
-                    <option value="Last 30 Days">Last 30 Days</option>
-                    <option value="Custom Date Range">Custom Date Range</option>
+                    <option value="Today">{t('history.range.today')}</option>
+                    <option value="Yesterday">{t('history.range.yesterday')}</option>
+                    <option value="Last 7 Days">{t('history.range.last7')}</option>
+                    <option value="Last 30 Days">{t('history.range.last30')}</option>
+                    <option value="Custom Date Range">{t('history.range.custom')}</option>
                   </select>
                   {range === 'Custom Date Range' && customRange && (
                     <span className="absolute -right-2 -top-2 rounded-full bg-[#9D0A0E] px-2 py-1 text-[10px] font-bold text-white leading-none shadow-sm">
@@ -521,11 +522,11 @@ export default function QueueHistoryPage() {
                   onChange={e => setStatus(e.target.value)}
                   className="h-10 min-w-[120px] cursor-pointer rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#1F2937] outline-none"
                 >
-                  <option value="All Status">All Status</option>
-                  <option value="Waiting">Waiting</option>
-                  <option value="Serving">Serving</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Skipped">Skipped</option>
+                  <option value="All Status">{t('history.status.all')}</option>
+                  <option value="Waiting">{t('history.status.waiting')}</option>
+                  <option value="Serving">{t('history.status.serving')}</option>
+                  <option value="Completed">{t('history.status.completed')}</option>
+                  <option value="Skipped">{t('history.status.skipped')}</option>
                 </select>
 
               </div>
@@ -536,13 +537,13 @@ export default function QueueHistoryPage() {
               <table className="w-full min-w-[900px] table-fixed">
                 <thead>
                   <tr className="border-b border-[#E5E7EB]">
-                    <th className="w-[16%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">Queue Number</th>
-                    <th className="w-[15%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">Service</th>
-                    <th className="w-[14%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">Status</th>
-                    <th className="w-[13%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">Called At</th>
-                    <th className="w-[13%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">Started At</th>
-                    <th className="w-[14%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">Completed At</th>
-                    <th className="w-[10%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">Duration</th>
+                    <th className="w-[16%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">{t('history.col.queueNumber')}</th>
+                    <th className="w-[15%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">{t('history.col.service')}</th>
+                    <th className="w-[14%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">{t('history.col.status')}</th>
+                    <th className="w-[13%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">{t('history.col.calledAt')}</th>
+                    <th className="w-[13%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">{t('history.col.startedAt')}</th>
+                    <th className="w-[14%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">{t('history.col.completedAt')}</th>
+                    <th className="w-[10%] px-4 py-4 text-left text-xs font-bold uppercase text-[#4B5563]">{t('history.col.duration')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -550,7 +551,7 @@ export default function QueueHistoryPage() {
                   {historyLoading ? (
                     <tr>
                       <td colSpan={7} className="px-5 py-12 text-center">
-                        <p className="text-sm font-medium text-[#4B5563]">Loading queue history...</p>
+                        <p className="text-sm font-medium text-[#4B5563]">{t('history.loadingRows')}</p>
                       </td>
                     </tr>
                   ) : (
@@ -592,8 +593,8 @@ export default function QueueHistoryPage() {
                   {!historyLoading && paginatedRows.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-5 py-16 text-center">
-                        <p className="text-sm font-medium text-[#4B5563]">No matching transactions found.</p>
-                        <p className="mt-2 text-xs text-[#4B5563]/70">Check your browser console (F12) to verify what your backend API returned.</p>
+                        <p className="text-sm font-medium text-[#4B5563]">{t('history.noMatch')}</p>
+                        <p className="mt-2 text-xs text-[#4B5563]/70">{t('history.noMatchHint')}</p>
                       </td>
                     </tr>
                   )}
@@ -605,11 +606,11 @@ export default function QueueHistoryPage() {
             {/* PAGINATION */}
             <div className="flex h-14 items-center justify-between border-t border-[#E5E7EB] px-5">
               <p className="text-xs text-[#4B5563]">
-                Showing{' '}
-                {paginatedRows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}
-                {' '}to{' '}
-                {Math.min(safePage * PAGE_SIZE, rows.length)}
-                {' '}of{' '}{rows.length} entries
+                {t('history.showingEntries', {
+                  from: paginatedRows.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1,
+                  to: Math.min(safePage * PAGE_SIZE, rows.length),
+                  total: rows.length,
+                })}
               </p>
 
               <div className="flex items-center gap-1.5">
@@ -652,6 +653,7 @@ export default function QueueHistoryPage() {
         <QueueDetailsModal
           row={selectedRow}
           onClose={() => setSelectedRow(null)}
+          t={t}
         />
       )}
 

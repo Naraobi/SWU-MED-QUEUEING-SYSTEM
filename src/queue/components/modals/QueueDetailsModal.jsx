@@ -24,14 +24,15 @@ const formatDate = (value) => {
 // COMPONENT
 // ============================================================
 
-export default function QueueDetailsModal({ row, onClose }) {
+export default function QueueDetailsModal({ row, onClose, t = (key) => key }) {
   if (!row) return null
 
   const status      = normalizeStatus(row.status)
   const isSkipped   = status === 'skipped' || status === 'cancelled'
   const isCompleted = status === 'completed'
+  const typeLabel   = isSkipped ? t('queueDetails.typeSkipped') : isCompleted ? t('queueDetails.typeCompleted') : ''
 
-  const displayStatus = isSkipped ? 'SKIPPED' : isCompleted ? 'COMPLETED' : String(row.status || '').toUpperCase()
+  const displayStatus = isSkipped ? t('queueDetails.statusSkipped') : isCompleted ? t('queueDetails.statusCompleted') : String(row.status || '').toUpperCase()
 
   // Badge styling using project palette
   const badgeStyle = isSkipped
@@ -46,7 +47,7 @@ export default function QueueDetailsModal({ row, onClose }) {
   const terminal       = row.terminal        || '—'
   const calledAt       = formatTime(row.calledAt  || row.called_at)
   const timeToRespond  = row.waitingTime     || row.time_to_respond || '—'
-  const skipReason     = row.skipReason      || row.skip_reason     || 'No reason provided'
+  const skipReason     = row.skipReason      || row.skip_reason     || t('queueDetails.noReasonProvided')
   const transactionDate = formatDate(row.transactionDate || row.completedAt || row.completed_at || row.calledAt || row.called_at)
   const staff          = row.staff           || row.staff_id        || '—'
   const skippedAt      = formatTime(row.skippedAt || row.completedAt || row.completed_at || row.calledAt || row.called_at)
@@ -71,9 +72,9 @@ export default function QueueDetailsModal({ row, onClose }) {
               </svg>
             </div>
             <div>
-              <h2 className="text-[14px] font-bold leading-tight text-[#1F2937]">Queue Details</h2>
+              <h2 className="text-[14px] font-bold leading-tight text-[#1F2937]">{t('queueDetails.title')}</h2>
               <p className="mt-0.5 text-[9px] text-[#4B5563]">
-                Review the details of this {isSkipped ? 'skipped' : isCompleted ? 'completed' : ''} queue transaction.
+                {t('queueDetails.subtitle', { type: typeLabel })}
               </p>
             </div>
           </div>
@@ -96,12 +97,12 @@ export default function QueueDetailsModal({ row, onClose }) {
         ================================================== */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-5 pb-4">
           {[
-            { label: 'Queue Number',    value: queueNumber   },
-            { label: 'Service',         value: service       },
-            { label: 'Department',      value: department    },
-            { label: 'Terminal',        value: terminal      },
-            { label: 'Called At',       value: calledAt      },
-            { label: 'Time to Respond', value: timeToRespond },
+            { label: t('queueDetails.queueNumber'),    value: queueNumber   },
+            { label: t('queueDetails.service'),         value: service       },
+            { label: t('queueDetails.department'),      value: department    },
+            { label: t('queueDetails.terminal'),        value: terminal      },
+            { label: t('queueDetails.calledAt'),       value: calledAt      },
+            { label: t('queueDetails.timeToRespond'), value: timeToRespond },
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="text-[8px] text-[#4B5563]">{label}</p>
@@ -115,7 +116,7 @@ export default function QueueDetailsModal({ row, onClose }) {
         ================================================== */}
         {isSkipped && (
           <div className="px-5 pb-4">
-            <p className="mb-1.5 text-[10px] font-semibold text-[#1F2937]">Skip Reason</p>
+            <p className="mb-1.5 text-[10px] font-semibold text-[#1F2937]">{t('queueDetails.skipReason')}</p>
             <div className="flex items-center gap-2 rounded-[6px] border border-[#f5c6c6] bg-[#fce8e8] px-3 py-2.5">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9D0A0E" strokeWidth="2" className="flex-shrink-0">
                 <circle cx="12" cy="12" r="10"/>
@@ -130,18 +131,18 @@ export default function QueueDetailsModal({ row, onClose }) {
             TRANSACTION INFORMATION
         ================================================== */}
         <div className="border-t border-[#E5E7EB] px-5 pt-3 pb-4">
-          <p className="mb-2 text-[10px] font-semibold text-[#1F2937]">Transaction Information</p>
+          <p className="mb-2 text-[10px] font-semibold text-[#1F2937]">{t('queueDetails.transactionInfo')}</p>
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <p className="text-[8px] text-[#4B5563]">Transaction Date</p>
+              <p className="text-[8px] text-[#4B5563]">{t('queueDetails.transactionDate')}</p>
               <p className="mt-0.5 text-[9px] font-medium text-[#1F2937]">{transactionDate}</p>
             </div>
             <div>
-              <p className="text-[8px] text-[#4B5563]">Staff</p>
+              <p className="text-[8px] text-[#4B5563]">{t('queueDetails.staff')}</p>
               <p className="mt-0.5 text-[9px] font-medium text-[#1F2937]">{staff}</p>
             </div>
             <div>
-              <p className="text-[8px] text-[#4B5563]">{isSkipped ? 'Skipped at' : 'Completed at'}</p>
+              <p className="text-[8px] text-[#4B5563]">{isSkipped ? t('queueDetails.skippedAt') : t('queueDetails.completedAt')}</p>
               <p className="mt-0.5 text-[9px] font-medium text-[#1F2937]">{skippedAt}</p>
             </div>
           </div>
@@ -157,14 +158,14 @@ export default function QueueDetailsModal({ row, onClose }) {
               <path d="M12 8v4M12 16h.01" strokeLinecap="round"/>
             </svg>
             <p className="text-[8px] text-[#4B5563]">
-              This {isSkipped ? 'skipped' : isCompleted ? 'completed' : ''} transaction has been recorded in Queue History.
+              {t('queueDetails.footerNote', { type: typeLabel })}
             </p>
           </div>
           <button
             onClick={onClose}
             className="rounded-[6px] border border-[#E5E7EB] px-4 py-1.5 text-[9px] font-semibold text-[#1F2937] hover:bg-[#F1F3F5] transition"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
 

@@ -22,6 +22,7 @@ import StaffStatCard from './StaffStatCard.jsx'
 import TerminalSelectionPage from './TerminalSelectionPage.jsx'
 import { useQueue } from '../../context/QueueContext.jsx'
 import { useAuth } from '../../services/Authcontext.jsx'
+import { useStaffPreferences } from './StaffPreferencesContext.jsx'
 import {
   getDepartments,
   getDepartmentById,
@@ -109,6 +110,22 @@ function saveSelectedTerminal(terminal, staffId) {
   )
 }
 
+// The saved terminal is only a cache of what the server last confirmed.
+// Once the server stops reporting an assignment for this staff member the
+// cache is stale and must not be restored, otherwise the dashboard reattaches
+// to a terminal it no longer owns and the selector is skipped entirely.
+function clearSavedTerminal(staffId) {
+  if (typeof window === 'undefined' || !staffId) return
+
+  try {
+    window.localStorage.removeItem(
+      getStaffTerminalStorageKey(staffId)
+    )
+  } catch {
+    // Storage is best-effort only.
+  }
+}
+
 function formatSeconds(totalSeconds) {
   const seconds = Number(totalSeconds) || 0
   const m = Math.floor(seconds / 60)
@@ -146,7 +163,7 @@ function matchesStaffDepartment(patientId, staffPrefix) {
 // FULL QUEUE MODAL
 // =====================================================
 
-function FullQueueModal({ waitingQueue, departmentName, onClose }) {
+function FullQueueModal({ waitingQueue, departmentName, onClose, t }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState('All')
 
@@ -177,13 +194,13 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
         <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5 bg-white">
           <div>
             <div className="flex items-center gap-2.5">
-              <h2 className="text-xl font-extrabold text-slate-900">Waiting Queue</h2>
+              <h2 className="text-xl font-extrabold text-slate-900">{t('dashboard.fullQueue.title')}</h2>
               <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-bold text-[#9D0A0E] border border-red-100">
-                {waitingQueue.length} Patients
+                {t('dashboard.fullQueue.patientsCount', { count: waitingQueue.length })}
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Real-time list of all patients currently waiting for {departmentName}.
+              {t('dashboard.fullQueue.subtitle', { department: departmentName })}
             </p>
           </div>
           <button
@@ -201,7 +218,7 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search queue number..."
+              placeholder={t('dashboard.fullQueue.searchPlaceholder')}
               className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-xs font-medium text-slate-800 outline-none focus:border-slate-400 transition"
             />
           </div>
@@ -215,7 +232,7 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
                   : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
               }`}
             >
-              All ({waitingQueue.length})
+              {t('dashboard.fullQueue.tabAll', { count: waitingQueue.length })}
             </button>
             <button
               onClick={() => setActiveTab('Priority')}
@@ -225,7 +242,7 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
                   : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
               }`}
             >
-              Priority {priorityCount > 0 && <span className="ml-1 opacity-80">({priorityCount})</span>}
+              {t('dashboard.fullQueue.tabPriority')} {priorityCount > 0 && <span className="ml-1 opacity-80">({priorityCount})</span>}
             </button>
             <button
               onClick={() => setActiveTab('Regular')}
@@ -235,7 +252,7 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
                   : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
               }`}
             >
-              Regular {regularCount > 0 && <span className="ml-1 opacity-80">({regularCount})</span>}
+              {t('dashboard.fullQueue.tabRegular')} {regularCount > 0 && <span className="ml-1 opacity-80">({regularCount})</span>}
             </button>
           </div>
         </div>
@@ -244,11 +261,11 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                <th className="py-3 px-6">Position</th>
-                <th className="py-3 px-6">Queue Number</th>
-                <th className="py-3 px-6">Type</th>
-                <th className="py-3 px-6">Est. Wait</th>
-                <th className="py-3 px-6 text-right">Issued At</th>
+                <th className="py-3 px-6">{t('dashboard.fullQueue.colPosition')}</th>
+                <th className="py-3 px-6">{t('dashboard.fullQueue.colQueueNumber')}</th>
+                <th className="py-3 px-6">{t('dashboard.fullQueue.colType')}</th>
+                <th className="py-3 px-6">{t('dashboard.fullQueue.colEstWait')}</th>
+                <th className="py-3 px-6 text-right">{t('dashboard.fullQueue.colIssuedAt')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
@@ -275,16 +292,17 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
                       <td className="py-3.5 px-6">
                         {isPriority ? (
                           <span className="rounded bg-[#9D0A0E] px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-white shadow-xs">
-                            PRIORITY
+                            {t('dashboard.fullQueue.priorityBadge')}
                           </span>
                         ) : (
                           <span className="rounded bg-slate-200/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-700">
-                            Regular
+                            {t('dashboard.fullQueue.regularBadge')}
                           </span>
                         )}
                       </td>
                       <td className="py-3.5 px-6 font-medium text-slate-600">
-                        ~{patient.etaMinutes || (displayIndex + 1) * 4} min {originalIndex === 0 ? '(Next in line)' : `(${displayIndex} ahead)`}
+                        {t('dashboard.fullQueue.etaMin', { minutes: patient.etaMinutes || (displayIndex + 1) * 4 })}{' '}
+                        {originalIndex === 0 ? t('dashboard.fullQueue.nextInLine') : t('dashboard.fullQueue.ahead', { count: displayIndex })}
                       </td>
                       <td className="py-3.5 px-6 text-right font-medium text-slate-500">
                         {issuedTime}
@@ -295,7 +313,7 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
               ) : (
                 <tr>
                   <td colSpan={5} className="py-16 text-center text-slate-400">
-                    No matching patients found in the waiting queue.
+                    {t('dashboard.fullQueue.noMatch')}
                   </td>
                 </tr>
               )}
@@ -305,13 +323,13 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
 
         <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-4">
           <p className="text-[11px] text-slate-500">
-            Showing {filteredList.length} waiting patients in automated FIFO sequence.
+            {t('dashboard.fullQueue.showing', { count: filteredList.length })}
           </p>
           <button
             onClick={onClose}
             className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition cursor-pointer"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
 
@@ -324,8 +342,9 @@ function FullQueueModal({ waitingQueue, departmentName, onClose }) {
 // SKIP QUEUE MODAL
 // =====================================================
 
-function SkipQueueModal({ patient, department, terminal, currentSeconds, onCancel, onConfirm }) {
-  const [reason, setReason] = useState('Patient did not arrive')
+function SkipQueueModal({ patient, department, terminal, currentSeconds, onCancel, onConfirm, t }) {
+  const REASON_KEYS = ['dashboard.skip.reason1', 'dashboard.skip.reason2', 'dashboard.skip.reason3', 'dashboard.skip.reasonOther']
+  const [reason, setReason] = useState(t('dashboard.skip.reason1'))
   const [customReason, setCustomReason] = useState('')
 
   const formattedWaitTime = useMemo(() => {
@@ -335,54 +354,53 @@ function SkipQueueModal({ patient, department, terminal, currentSeconds, onCance
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }, [currentSeconds])
 
+  const otherLabel = t('dashboard.skip.reasonOther')
+
   const handleConfirm = () => {
-    const finalReason = reason === 'Other' ? (customReason.trim() || 'Other') : reason
+    const finalReason = reason === otherLabel ? (customReason.trim() || otherLabel) : reason
     onConfirm(finalReason)
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[3px]">
       <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-bold text-slate-950">Skip Queue?</h3>
+        <h3 className="text-lg font-bold text-slate-950">{t('dashboard.skip.title')}</h3>
         <p className="mt-1 text-xs text-slate-500">
-          Are you sure you want to skip this queue? The transaction will be recorded as skipped.
+          {t('dashboard.skip.confirmText')}
         </p>
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Queue Number</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('dashboard.skip.queueNumber')}</span>
               <p className="mt-0.5 font-extrabold text-slate-900 text-sm">{patient?.id || '—'}</p>
             </div>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Service</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('dashboard.skip.service')}</span>
               <p className="mt-0.5 font-semibold text-slate-800">{patient?.service || department}</p>
             </div>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Department</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('dashboard.skip.department')}</span>
               <p className="mt-0.5 font-semibold text-slate-800">{department}</p>
             </div>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Terminal</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('dashboard.skip.terminal')}</span>
               <p className="mt-0.5 font-semibold text-slate-800">{terminal}</p>
             </div>
           </div>
           <div className="border-t border-slate-200/60 pt-2.5 flex items-center justify-between text-xs">
-            <span className="font-bold text-slate-600">Waiting Time</span>
+            <span className="font-bold text-slate-600">{t('dashboard.skip.waitingTime')}</span>
             <span className="font-extrabold text-[#9D0A0E]">{formattedWaitTime}</span>
           </div>
         </div>
 
         <div className="mt-5">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Reason for skipping</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">{t('dashboard.skip.reasonLabel')}</p>
           <div className="space-y-2 text-xs">
-            {[
-              'Patient did not arrive',
-              'Patient requested cancellation',
-              'Patient was called but unavailable',
-              'Other',
-            ].map((item) => (
-              <div key={item} className="flex flex-col gap-1.5">
+            {REASON_KEYS.map((key) => {
+              const item = t(key)
+              return (
+              <div key={key} className="flex flex-col gap-1.5">
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input
                     type="radio"
@@ -394,17 +412,18 @@ function SkipQueueModal({ patient, department, terminal, currentSeconds, onCance
                   />
                   <span className="font-medium text-slate-700">{item}</span>
                 </label>
-                {item === 'Other' && reason === 'Other' && (
+                {item === otherLabel && reason === otherLabel && (
                   <input
                     type="text"
                     value={customReason}
                     onChange={(e) => setCustomReason(e.target.value)}
-                    placeholder="Please specify reason..."
+                    placeholder={t('dashboard.skip.specifyPlaceholder')}
                     className="ml-6 w-[calc(100%-1.5rem)] rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 outline-none focus:border-slate-500 transition"
                   />
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -414,14 +433,14 @@ function SkipQueueModal({ patient, department, terminal, currentSeconds, onCance
             onClick={onCancel}
             className="rounded-lg border border-slate-300 bg-white px-5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
             onClick={handleConfirm}
             className="rounded-lg bg-[#9D0A0E] px-6 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#80080b] transition cursor-pointer"
           >
-            Confirm Skip
+            {t('dashboard.skip.confirmSkip')}
           </button>
         </div>
       </div>
@@ -434,6 +453,7 @@ function SkipQueueModal({ patient, department, terminal, currentSeconds, onCance
 // =====================================================
 
 export default function DashboardPage() {
+  const { isDark, accent, t } = useStaffPreferences()
   const {
     waitingQueue,
     currentlyServing,
@@ -448,7 +468,7 @@ export default function DashboardPage() {
     skipCurrentPatient,
   } = useQueue()
 
-  const { user, loading: authLoading, logout } = useAuth()
+  const { user, loading: authLoading, signOut } = useAuth()
 
   const staffId = user?.staff_id ?? user?.user_id ?? user?.id ?? null
 
@@ -480,6 +500,89 @@ export default function DashboardPage() {
     )
 
     setShowTerminalModal((current) => (current ? false : current))
+  }, [staffId])
+
+  // The saved terminal above is only a local cache, so confirm it against
+  // the server once the staff ID is known. A terminal that was released on
+  // logout is no longer assigned to this staff member, so restoring it would
+  // put them on a counter they do not own and hide the selector. When the
+  // server still reports the same assignment, which is the normal reload
+  // case, nothing changes.
+  useEffect(() => {
+    if (!staffId) return
+
+    let cancelled = false
+
+    async function revalidateSavedTerminal() {
+      const saved = readSavedTerminal(staffId)
+      if (!saved || !getTerminalId(saved)) return
+
+      try {
+        const assignedTerminal =
+          await getStaffTerminal(staffId)
+
+        if (cancelled) return
+
+        const assignedId = getTerminalId(
+          assignedTerminal
+        )
+
+        if (
+          !assignedTerminal ||
+          !assignedId
+        ) {
+          // Released, or never assigned. Drop the stale cache and ask for a
+          // terminal again rather than acting on a counter this staff
+          // member no longer holds.
+          clearSavedTerminal(staffId)
+
+          setSelectedTerminal((current) =>
+            getTerminalId(current) ===
+            getTerminalId(saved)
+              ? null
+              : current
+          )
+
+          setShowTerminalModal(true)
+
+          return
+        }
+
+        // The server is the source of truth. Keep the local copy in step so
+        // the two never disagree about which terminal this is.
+        if (
+          String(assignedId) !==
+          String(getTerminalId(saved))
+        ) {
+          saveSelectedTerminal(
+            {
+              ...saved,
+              ...assignedTerminal,
+            },
+            staffId
+          )
+
+          setSelectedTerminal((current) =>
+            getTerminalId(current)
+              ? current
+              : assignedTerminal
+          )
+        }
+      } catch (revalidationError) {
+        // Offline or the backend is briefly unavailable. The saved terminal
+        // stays as it is, so a normal reload is never interrupted.
+        console.warn(
+          'Could not revalidate the saved terminal:',
+          revalidationError
+        )
+      }
+    }
+
+    revalidateSavedTerminal()
+
+    return () => {
+      cancelled = true
+    }
   }, [staffId])
 
   // Resolved once, used everywhere a queue action or refresh needs to
@@ -712,7 +815,7 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f4f6f8] text-sm font-medium text-slate-500">
         <RefreshCw size={24} className="mr-3 animate-spin text-[#9D0A0E]" />
-        Loading staff profile & department...
+        {t('dashboard.loading')}
       </div>
     )
   }
@@ -721,11 +824,10 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#f4f6f8] p-4 text-center">
         <p className="text-xl font-bold text-slate-800">
-          Department Prefix Not Found
+          {t('dashboard.prefixNotFoundTitle')}
         </p>
         <p className="mt-2 text-base text-slate-500">
-          No queue prefix was found for &quot;{user.department}&quot;. Please
-          contact an administrator.
+          {t('dashboard.prefixNotFoundBody', { department: user.department })}
         </p>
       </div>
     )
@@ -736,12 +838,12 @@ export default function DashboardPage() {
   const serviceDisplayName = activeServing?.service || 'Billing / Payment'
 
   return (
-    <div className="staff-shell flex min-h-screen w-full bg-[#f4f6f8] antialiased text-slate-800" style={{ fontFamily: 'Inter, sans-serif' }}>
+    <div className={`staff-shell flex min-h-screen w-full bg-[#f4f6f8] antialiased text-slate-800${isDark ? ' staff-dark' : ''}`} style={{ fontFamily: 'Inter, sans-serif', '--staff-accent': accent }}>
       <Sidebar />
 
       <main className="min-h-screen min-w-0 flex-1 flex flex-col">
         <Topbar
-          title={`Staff · ${departmentLabel}`}
+          title={`${t('topbar.staffLabel')} · ${departmentLabel}`}
           subtitle={`Managing queue for department: ${departmentLabel} (${staffPrefix})`}
           currentTerminal={selectedTerminal}
           onOpenTerminalModal={() => setShowTerminalModal(true)}
@@ -750,29 +852,29 @@ export default function DashboardPage() {
         <div className="p-8 flex-1 flex flex-col max-w-[1600px] w-full mx-auto">
           <div className="mb-6">
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              Today's Queue
+              {t('dashboard.title')}
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Manage and monitor the queue assigned to your department.
+              {t('dashboard.subtitle')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <StaffStatCard
-              label="TODAY'S COMPLETED"
+              label={t('dashboard.stat.completed')}
               value={stats.completed || 0}
               icon={CheckCircle2}
             />
 
             <StaffStatCard
-              label="TODAY'S SKIPPED"
+              label={t('dashboard.stat.skipped')}
               value={stats.skipped || 0}
               icon={SkipForward}
             />
 
             <StaffStatCard
-              label="AVERAGE SERVICE MINUTES"
-              value={`${Number(stats.averageServiceMinutes || 0).toFixed(1)} min`}
+              label={t('dashboard.stat.avgService')}
+              value={`${Number(stats.averageServiceMinutes || 0).toFixed(1)} ${t('dashboard.stat.minUnit')}`}
               icon={Clock}
             />
           </div>
@@ -781,7 +883,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div className="select-none rounded-2xl border border-slate-200/90 bg-white p-10 text-center shadow-sm" style={{ caretColor: 'transparent' }}>
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                  CURRENTLY SERVING
+                  {t('dashboard.currentlyServing')}
                 </p>
 
                 {activeServing ? (
@@ -792,13 +894,15 @@ export default function DashboardPage() {
                       </p>
 
                       <p className="mt-4 text-base font-medium text-slate-500">
-                        Service: {serviceDisplayName} &nbsp;|&nbsp; Terminal:{' '}
-                        {activeServing.terminal || terminalDisplayName}
+                        {t('dashboard.serviceTerminalLine', {
+                          service: serviceDisplayName,
+                          terminal: activeServing.terminal || terminalDisplayName,
+                        })}
                       </p>
 
                       <div className="mt-6">
                         <p className="text-sm font-bold uppercase tracking-wider text-slate-800">
-                          SERVING PATIENT
+                          {t('dashboard.servingPatient')}
                         </p>
                         <div className="mx-auto mt-3 flex w-fit items-center justify-center gap-2 rounded-full bg-slate-100 px-6 py-2.5 text-base font-bold text-slate-800">
                           <Clock size={18} className="text-slate-700" />
@@ -821,7 +925,7 @@ export default function DashboardPage() {
                           }}
                           className="rounded-xl bg-[#9D0A0E] px-14 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#7d0809] transition cursor-pointer"
                         >
-                          COMPLETE
+                          {t('dashboard.complete')}
                         </button>
                       </div>
                     </div>
@@ -832,16 +936,18 @@ export default function DashboardPage() {
                       </p>
 
                       <p className="mt-4 text-base font-medium text-slate-500">
-                        Service: {serviceDisplayName} &nbsp;|&nbsp; Terminal:{' '}
-                        {activeServing.terminal || terminalDisplayName}
+                        {t('dashboard.serviceTerminalLine', {
+                          service: serviceDisplayName,
+                          terminal: activeServing.terminal || terminalDisplayName,
+                        })}
                       </p>
 
                       <div className="mt-6">
                         <p className="text-sm font-bold uppercase tracking-wider text-slate-800">
-                          PATIENT READY
+                          {t('dashboard.patientReady')}
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
-                          Waiting to start service
+                          {t('dashboard.waitingToStart')}
                         </p>
                       </div>
 
@@ -858,7 +964,7 @@ export default function DashboardPage() {
                           }}
                           className="rounded-xl border border-slate-200 bg-white px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition shadow-sm cursor-pointer"
                         >
-                          RECALL
+                          {t('dashboard.recall')}
                         </button>
 
                         <button
@@ -867,7 +973,7 @@ export default function DashboardPage() {
                           disabled={startingService}
                           className="rounded-xl bg-[#9D0A0E] px-12 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#7d0809] transition cursor-pointer disabled:opacity-50"
                         >
-                          {startingService ? 'STARTING...' : 'START SERVING'}
+                          {startingService ? t('dashboard.starting') : t('dashboard.startServing')}
                         </button>
 
                         <button
@@ -875,7 +981,7 @@ export default function DashboardPage() {
                           onClick={() => setShowSkip(true)}
                           className="rounded-xl border border-red-200 bg-red-50/50 px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-red-600 hover:bg-red-100/50 transition shadow-sm cursor-pointer"
                         >
-                          SKIP
+                          {t('dashboard.skipButton')}
                         </button>
                       </div>
                     </div>
@@ -883,15 +989,16 @@ export default function DashboardPage() {
                 ) : servedByOtherTerminal ? (
                   <div className="mt-6">
                     <p className="text-sm font-medium text-slate-500">
-                      Service: — &nbsp;|&nbsp; Terminal: {terminalDisplayName}
+                      {t('dashboard.serviceTerminalLine', { service: '—', terminal: terminalDisplayName })}
                     </p>
 
                     <p className="mt-8 text-sm font-bold uppercase tracking-wider text-slate-700">
-                      ANOTHER TERMINAL IS SERVING
+                      {t('dashboard.anotherTerminalServing')}
                     </p>
                     <p className="mt-1 text-xs text-slate-400">
-                      {currentlyServing?.terminal || 'Another terminal'} in this department is
-                      currently serving a patient. Please wait for them to finish.
+                      {t('dashboard.anotherTerminalBody', {
+                        terminal: currentlyServing?.terminal || t('dashboard.anotherTerminalFallback'),
+                      })}
                     </p>
 
                     <button
@@ -900,19 +1007,19 @@ export default function DashboardPage() {
                       className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-slate-200 px-12 py-4 text-sm font-bold uppercase tracking-wider text-slate-400 cursor-not-allowed"
                     >
                       <Play size={18} className="fill-current" />
-                      <span>CALL PATIENT</span>
+                      <span>{t('dashboard.callPatient')}</span>
                     </button>
                   </div>
                 ) : (
                   <div className="mt-6">
                     <p className="text-sm font-medium text-slate-500">
-                      Service: — &nbsp;|&nbsp; Terminal: {terminalDisplayName}
+                      {t('dashboard.serviceTerminalLine', { service: '—', terminal: terminalDisplayName })}
                     </p>
 
                     <p className="mt-8 text-sm font-bold uppercase tracking-wider text-slate-700">
                       {stats.completed > 0
-                        ? 'READY FOR NEXT PATIENT'
-                        : 'WAITING TO CALL PATIENT'}
+                        ? t('dashboard.readyForNext')
+                        : t('dashboard.waitingToCall')}
                     </p>
 
                     <button
@@ -940,8 +1047,8 @@ export default function DashboardPage() {
                       <Play size={18} className="fill-current" />
                       <span>
                         {stats.completed > 0
-                          ? 'CALL NEXT PATIENT'
-                          : 'CALL PATIENT'}
+                          ? t('dashboard.callNextPatient')
+                          : t('dashboard.callPatient')}
                       </span>
                     </button>
                   </div>
@@ -950,7 +1057,7 @@ export default function DashboardPage() {
 
               <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                  NEXT PATIENT
+                  {t('dashboard.nextPatient')}
                 </p>
                 <p className="mt-2 text-3xl font-extrabold text-slate-900">
                   {nextPatient ? nextPatient.id : '—'}
@@ -961,10 +1068,10 @@ export default function DashboardPage() {
             <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm flex flex-col overflow-hidden">
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
                 <p className="text-lg font-bold text-slate-800">
-                  Waiting Queue
+                  {t('dashboard.fullQueue.title')}
                 </p>
                 <span className="rounded-full bg-red-50 px-3.5 py-1 text-xs font-bold text-[#9D0A0E] border border-red-100">
-                  {filteredWaitingQueue.length} Patients
+                  {t('dashboard.fullQueue.patientsCount', { count: filteredWaitingQueue.length })}
                 </span>
               </div>
 
@@ -974,7 +1081,7 @@ export default function DashboardPage() {
                     {upcomingPriority.length > 0 && (
                       <div>
                         <p className="bg-red-50/60 px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-[#9D0A0E]">
-                          Priority Queue ({upcomingPriority.length})
+                          {t('dashboard.priorityQueueCount', { count: upcomingPriority.length })}
                         </p>
                         {upcomingPriority.map((patient, index) => (
                           <div
@@ -990,8 +1097,8 @@ export default function DashboardPage() {
                               </span>
                             </span>
                             <p className="text-sm font-medium text-slate-400">
-                              ~{patient.etaMinutes || (index + 1) * 4} min ({index + 1}{' '}
-                              ahead)
+                              {t('dashboard.fullQueue.etaMin', { minutes: patient.etaMinutes || (index + 1) * 4 })}{' '}
+                              {t('dashboard.fullQueue.ahead', { count: index + 1 })}
                             </p>
                           </div>
                         ))}
@@ -1001,7 +1108,7 @@ export default function DashboardPage() {
                     {upcomingRegular.length > 0 && (
                       <div>
                         <p className="bg-slate-50 px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                          Regular Queue ({upcomingRegular.length})
+                          {t('dashboard.regularQueueCount', { count: upcomingRegular.length })}
                         </p>
                         {upcomingRegular.map((patient, index) => (
                           <div
@@ -1017,8 +1124,8 @@ export default function DashboardPage() {
                               </span>
                             </span>
                             <p className="text-sm font-medium text-slate-400">
-                              ~{patient.etaMinutes || (index + 1) * 4} min ({index + 1}{' '}
-                              ahead)
+                              {t('dashboard.fullQueue.etaMin', { minutes: patient.etaMinutes || (index + 1) * 4 })}{' '}
+                              {t('dashboard.fullQueue.ahead', { count: index + 1 })}
                             </p>
                           </div>
                         ))}
@@ -1027,7 +1134,7 @@ export default function DashboardPage() {
                   </>
                 ) : (
                   <div className="py-16 text-center text-sm text-slate-400">
-                    No patients currently waiting.
+                    {t('dashboard.noPatientsWaiting')}
                   </div>
                 )}
               </div>
@@ -1038,7 +1145,7 @@ export default function DashboardPage() {
                   onClick={() => setShowFullQueueModal(true)}
                   className="text-sm font-semibold text-[#9D0A0E] hover:underline cursor-pointer"
                 >
-                  View Full Queue
+                  {t('dashboard.viewFullQueue')}
                 </button>
               </div>
             </div>
@@ -1084,6 +1191,7 @@ export default function DashboardPage() {
           currentSeconds={localSeconds}
           onCancel={() => setShowSkip(false)}
           onConfirm={handleConfirmSkip}
+          t={t}
         />
       )}
 
@@ -1092,6 +1200,7 @@ export default function DashboardPage() {
           waitingQueue={filteredWaitingQueue}
           departmentName={departmentLabel}
           onClose={() => setShowFullQueueModal(false)}
+          t={t}
         />
       )}
     </div>

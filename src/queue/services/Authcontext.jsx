@@ -18,6 +18,8 @@ import {
 
 import {
   getCurrentUserProfile,
+  getStaffTerminal,
+  releaseTerminal,
 } from "./backendApi";
 
 import { auth } from "../../firebase";
@@ -33,11 +35,316 @@ const AuthContext = createContext(null);
 
 const STORAGE_KEY = "swumed_user";
 
+/*
+|--------------------------------------------------------------------------
+| STAFF TERMINAL STORAGE
+|--------------------------------------------------------------------------
+|
+| TerminalSelectionPage.jsx and DashboardPage.jsx save the selected
+| terminal under a per-staff key so two staff accounts on the same
+| browser never share one terminal's saved state:
+|
+| swumed_staff_terminal_<staffId>
+|
+| The unsuffixed key is the legacy single-account key. It is still read
+| as a fallback by Topbar.jsx, so it is kept in sync here too.
+|
+*/
+
+const STAFF_TERMINAL_KEY_PREFIX =
+  "swumed_staff_terminal";
+
+/*
+|--------------------------------------------------------------------------
+| RELEASE DEDUPE WINDOW
+|--------------------------------------------------------------------------
+|
+| Calling firebaseSignOut() makes onAuthStateChanged() fire again with
+| no Firebase user, which is the same session end the explicit signOut()
+| is already releasing. A short window keeps that second, redundant
+| pass from releasing twice, while still allowing a genuine later
+| logout by the same staff member to release normally.
+|
+*/
+
+const RELEASE_DEDUPE_WINDOW_MS = 15000;
+
+let lastReleasedStaff = null;
+
 const ALLOWED_ROLES = new Set([
   "superadmin",
   "admin",
   "staff",
 ]);
+
+/*
+|--------------------------------------------------------------------------
+| STAFF TERMINAL STORAGE HELPERS
+|--------------------------------------------------------------------------
+*/
+
+function getStaffTerminalStorageKey(
+  staffId
+) {
+  return staffId
+    ? `${STAFF_TERMINAL_KEY_PREFIX}_${String(
+        staffId
+      )}`
+    : STAFF_TERMINAL_KEY_PREFIX;
+}
+
+function readSavedStaffTerminalId(
+  staffId
+) {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return null;
+  }
+
+  const keys = [
+    getStaffTerminalStorageKey(staffId),
+    STAFF_TERMINAL_KEY_PREFIX,
+  ];
+
+  for (const key of keys) {
+    try {
+      const raw =
+        window.localStorage.getItem(
+          key
+        );
+
+      if (!raw) continue;
+
+      const parsed =
+        JSON.parse(raw);
+
+      const terminalId =
+        parsed?.terminal_id ??
+        parsed?.counter_id ??
+        parsed?.id ??
+        null;
+
+      if (terminalId) {
+        return terminalId;
+      }
+    } catch {
+      // A corrupt entry must never block logout.
+    }
+  }
+
+  return null;
+}
+
+function clearStaffTerminalStorage(
+  staffId
+) {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(
+      getStaffTerminalStorageKey(
+        staffId
+      )
+    );
+
+    window.localStorage.removeItem(
+      STAFF_TERMINAL_KEY_PREFIX
+    );
+  } catch {
+    // Storage is best-effort only.
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| STAFF ID
+|--------------------------------------------------------------------------
+|
+| Keep the same fallbacks the staff pages already use, so the release
+| always scopes to the identical ID the assign request used.
+|
+*/
+
+function resolveStaffId(userLike) {
+  return (
+    userLike?.staff_id ??
+    userLike?.user_id ??
+    userLike?.id ??
+    null
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| RELEASE THE STAFF TERMINAL
+|--------------------------------------------------------------------------
+|
+| The single place a staff terminal is freed.
+|
+| A counter is available when assigned_staff_id IS NULL, so releasing
+| means clearing that column and nothing else. The counter's own status
+| column is deliberately left untouched.
+|
+| The release is always scoped to one staff member, and the backend
+| UPDATE is guarded by assigned_staff_id = ?, so a terminal held by
+| somebody else can never be released here.
+|
+*/
+
+async function releaseStaffTerminal(
+  userLike,
+  options = {}
+) {
+  const {
+    skipIfRecentlyReleased = true,
+  } = options;
+
+  const staffId =
+    resolveStaffId(userLike);
+
+  if (!staffId) {
+    // Never call the release endpoint without a real staff ID.
+    return {
+      released: false,
+      reason: "no-staff-id",
+    };
+  }
+
+  if (normalizeRole(userLike?.role) !== "staff") {
+    return {
+      released: false,
+      reason: "not-staff",
+    };
+  }
+
+  /*
+  | The same logout can arrive twice: once from the explicit signOut()
+  | call and once from the onAuthStateChanged() callback that
+  | firebaseSignOut() triggers. Only that redundant pass is skipped, so an
+  | explicit logout always releases even if the same staff member signs out
+  | again moments after signing back in.
+  */
+
+  if (
+    skipIfRecentlyReleased &&
+    lastReleasedStaff &&
+    String(
+      lastReleasedStaff.staffId
+    ) === String(staffId) &&
+    Date.now() -
+      lastReleasedStaff.at <
+      RELEASE_DEDUPE_WINDOW_MS
+  ) {
+    return {
+      released: true,
+      reason: "already-released",
+    };
+  }
+
+  /*
+  | Capture the saved terminal ID before any local state is cleared.
+  | It is only a fallback: the server lookup below is the source of
+  | truth for what this staff member actually holds.
+  */
+
+  const savedTerminalId =
+    readSavedStaffTerminalId(staffId);
+
+  let terminalId = savedTerminalId;
+
+  try {
+    const assignedTerminal =
+      await getStaffTerminal(staffId);
+
+    terminalId =
+      assignedTerminal?.counter_id ??
+      assignedTerminal?.terminal_id ??
+      assignedTerminal?.id ??
+      savedTerminalId;
+  } catch (lookupError) {
+    console.error(
+      "Could not read the assigned staff terminal:",
+      lookupError
+    );
+  }
+
+  if (!terminalId) {
+    /*
+    | Nothing is assigned to this staff member, so there is nothing to
+    | release. This is a normal state, not a failure.
+    */
+
+    lastReleasedStaff = {
+      staffId,
+      at: Date.now(),
+    };
+
+    return {
+      released: false,
+      reason: "no-assignment",
+    };
+  }
+
+  try {
+    const result =
+      await releaseTerminal(
+        terminalId,
+        staffId
+      );
+
+    /*
+    | The endpoint reports whether the counter row was actually
+    | cleared. released === false means the counter was already free
+    | or now belongs to somebody else. Either way this session must not
+    | keep claiming it.
+    */
+
+    lastReleasedStaff = {
+      staffId,
+      at: Date.now(),
+    };
+
+    if (result?.released === false) {
+      console.warn(
+        `Terminal ${terminalId} was not assigned to staff ${staffId}, so nothing was released.`
+      );
+
+      return {
+        released: false,
+        reason: "no-match",
+        terminalId,
+      };
+    }
+
+    console.log(
+      `Terminal ${terminalId} released for staff ${staffId}.`
+    );
+
+    return {
+      released: true,
+      terminalId,
+    };
+  } catch (releaseError) {
+    console.error(
+      "Failed to release staff terminal:",
+      releaseError
+    );
+
+    return {
+      released: false,
+      reason: "error",
+      terminalId,
+      error: releaseError,
+    };
+  }
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -553,14 +860,66 @@ const saveUserLocally = async (userData) => {
 |--------------------------------------------------------------------------
 */
 
-function clearLocalUser() {
+function clearLocalUser(staffId = null) {
   localStorage.removeItem(
     STORAGE_KEY
   );
 
-  localStorage.removeItem(
-    "swumed_staff_terminal"
+  /*
+  | The selected terminal is saved per staff account, so clearing only
+  | the unsuffixed key leaves swumed_staff_terminal_<staffId> behind and
+  | the next login restores a terminal this session no longer owns.
+  |
+  | Callers pass the staff ID whenever they know it, which is always the
+  | case on logout. Without one the legacy key is removed exactly as
+  | before.
+  */
+
+  clearStaffTerminalStorage(
+    staffId
   );
+}
+
+/*
+|--------------------------------------------------------------------------
+| READ THE STORED SESSION USER
+|--------------------------------------------------------------------------
+|
+| A synchronous read of the session the app itself persisted on login.
+|
+| onAuthStateChanged() registers its callback with an empty dependency
+| list, so that closure always sees the first render's user, which is
+| null. Reading the stored session is therefore the only way to know
+| who the ending session belonged to.
+|
+*/
+
+function readStoredSessionUser() {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return null;
+  }
+
+  try {
+    const raw =
+      window.localStorage.getItem(
+        STORAGE_KEY
+      );
+
+    if (!raw) return null;
+
+    const parsed =
+      JSON.parse(raw);
+
+    return parsed &&
+      typeof parsed === "object"
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /*
@@ -700,8 +1059,40 @@ export function AuthProvider({
           */
 
           if (!firebaseUser) {
+            /*
+            |--------------------------------------------------------------
+            | NO FIREBASE USER
+            |--------------------------------------------------------------
+            |
+            | The session ended without going through signOut(): a revoked
+            | or expired token, "sign out on all devices", or the app being
+            | reopened after the Firebase session had already died. The
+            | staff terminal has to be freed here too, otherwise the counter
+            | stays assigned to a staff member who is no longer signed in.
+            |
+            | Identity comes from the session this app persisted, never from
+            | a bare storage key, and the release is scoped to that staff ID,
+            | so no other staff member's terminal can be touched.
+            |
+            |--------------------------------------------------------------
+            */
+
+            const sessionUser =
+              readStoredSessionUser();
+
+            const sessionStaffId =
+              resolveStaffId(sessionUser);
+
+            await releaseStaffTerminal(
+              sessionUser
+            );
+
             setUser(null);
-            clearLocalUser();
+
+            clearLocalUser(
+              sessionStaffId
+            );
+
             setLoading(false);
 
             return;
@@ -741,11 +1132,29 @@ export function AuthProvider({
                 "Firebase user authenticated, but application profile was not found."
               );
 
+              /*
+              | The session is being ended, so any terminal this staff member
+              | still holds must be freed. Identity comes from the stored
+              | session, since the profile lookup returned nothing.
+              */
+
+              const storedSession =
+                readStoredSessionUser();
+
+              await releaseStaffTerminal(
+                storedSession
+              );
+
               await firebaseSignOut(
                 auth
               );
 
-              clearLocalUser();
+              clearLocalUser(
+                resolveStaffId(
+                  storedSession
+                )
+              );
+
               setUser(null);
               setLoading(false);
 
@@ -764,11 +1173,27 @@ export function AuthProvider({
               ).toLowerCase() ===
               "inactive"
             ) {
+              /*
+              | A deactivated staff member must not keep holding a terminal,
+              | so this forced sign-out releases it too. The release is
+              | scoped to this staff member and only ever clears their own
+              | assignment.
+              */
+
+              await releaseStaffTerminal(
+                userData
+              );
+
               await firebaseSignOut(
                 auth
               );
 
-              clearLocalUser();
+              clearLocalUser(
+                resolveStaffId(
+                  userData
+                )
+              );
+
               setUser(null);
               setLoading(false);
 
@@ -794,11 +1219,20 @@ export function AuthProvider({
                 accessValidation.message
               );
 
+              await releaseStaffTerminal(
+                userData
+              );
+
               await firebaseSignOut(
                 auth
               );
 
-              clearLocalUser();
+              clearLocalUser(
+                resolveStaffId(
+                  userData
+                )
+              );
+
               setUser(null);
               setLoading(false);
 
@@ -1766,6 +2200,55 @@ console.log(
   */
 
   async function signOut() {
+    /*
+    |--------------------------------------------------------------------------
+    | RELEASE THE STAFF TERMINAL
+    |--------------------------------------------------------------------------
+    |
+    | A staff member's assigned terminal must be freed the moment they log
+    | out, so another staff member can pick it (or be assigned to it) right
+    | away. Without this, the counter row keeps assigned_staff_id set after
+    | the session ends, and the terminal stays stuck as "occupied" even
+    | though nobody is signed in on it.
+    |
+    | Best-effort: a failed release must never block logout itself, but it
+    | is reported rather than swallowed.
+    |
+    |----------------------------------------------------------------------
+    |
+    | releaseStaffTerminal() is the only implementation. It reads the staff
+    | ID and the terminal ID before anything is cleared, so the release never
+    | depends on data that is about to disappear. It also marks this staff
+    | member as already released, so the onAuthStateChanged() callback that
+    | firebaseSignOut() triggers cannot release a second time.
+    |
+    |----------------------------------------------------------------------
+    */
+
+    const staffId =
+      resolveStaffId(user);
+
+    const releaseResult =
+      await releaseStaffTerminal(
+        user,
+
+        // An explicit logout must never be skipped, even if this same staff
+        // member released a terminal moments ago.
+        { skipIfRecentlyReleased: false }
+      );
+
+    if (
+      releaseResult.released ===
+        false &&
+      releaseResult.reason ===
+        "error"
+    ) {
+      console.error(
+        "Staff terminal was not released before logout. It may stay marked as assigned until the next assignment check.",
+        releaseResult.error
+      );
+    }
+
     try {
       await firebaseSignOut(
         auth
@@ -1773,7 +2256,13 @@ console.log(
 
       setUser(null);
 
-      clearLocalUser();
+      /*
+      | Only now, after the release has been attempted, is the local
+      | terminal state dropped. The per-staff key goes with it so the next
+      | login cannot restore a terminal this session no longer owns.
+      */
+
+      clearLocalUser(staffId);
     } catch (error) {
       console.error(
         "Sign-out error:",
@@ -1789,7 +2278,7 @@ console.log(
 
       setUser(null);
 
-      clearLocalUser();
+      clearLocalUser(staffId);
     }
   }
 

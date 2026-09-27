@@ -689,7 +689,23 @@ export async function releaseTerminal(terminalId, staffId) {
     );
   }
 
-  return result.data;
+  const data = result.data ?? {};
+
+  /*
+  The release is scoped to one staff member, so the endpoint can also
+  answer "that terminal was not assigned to this staff member". That is
+  a handled request rather than a transport failure, so it arrives with
+  a 200 and success: true.
+
+  Normalise the outcome onto the returned object so a no-op release can
+  never be read as a successful one by a caller that forgets to look.
+  */
+  return {
+    ...data,
+
+    released:
+      data.released === true,
+  };
 }
 
 export async function getStaffTerminal(staffId) {

@@ -10,6 +10,7 @@ import TvDisplay from './queue/pages/TV/TvDisplay';
 import TrackerPage from './queue/pages/WebTracker/TrackerPage';
 import StaffApp from './queue/pages/Staff/StaffApp';
 import TerminalSelectionPage from './queue/pages/Staff/TerminalSelectionPage';
+import { StaffPreferencesProvider } from './queue/pages/Staff/StaffPreferencesContext';
 import { QueueProvider } from './queue/context/QueueContext';
 import OfflineIndicator from './queue/components/OfflineIndicator';
 
@@ -99,7 +100,9 @@ function App() {
               path="/staff/select-terminal"
               element={
                 <ProtectedRoute allowedRole="staff">
-                  <TerminalSelectionPage />
+                  <StaffPreferencesProvider>
+                    <TerminalSelectionPage />
+                  </StaffPreferencesProvider>
                 </ProtectedRoute>
               }
             />
