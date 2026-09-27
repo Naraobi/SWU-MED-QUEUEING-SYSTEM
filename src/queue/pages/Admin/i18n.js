@@ -166,7 +166,6 @@ const en = {
 
   // ---- dashboard ----
   'dashboard.title': 'System Overview',
-  'dashboard.cardGoTo': 'Go to {page}',
   'dashboard.stat.averageWaitTime': 'Average wait time',
   'dashboard.stat.staffOnDuty': 'Staff on duty',
   'dashboard.servingLabel': 'Serving',
@@ -281,15 +280,6 @@ const en = {
   'queue.skipModalNote': 'Please add a reason before continuing.',
   'queue.skipPlaceholder': 'Enter reason for skipping this patient',
   'queue.confirmSkip': 'Confirm Skip',
-  'queue.resetQueue': 'Reset Queue',
-  'queue.resetConfirmTitle': 'Are you sure?',
-  'queue.resetConfirmBody': 'Are you sure you want to reset the queue for your assigned department? This action will reset the current queue.',
-  'queue.resetConfirmNote': 'All waiting and currently serving patients will be cleared from today\u2019s queue. Queue history is kept.',
-  'queue.resetConfirm': 'Reset Queue',
-  'queue.resetting': 'Resetting…',
-  'queue.resetSuccess': 'Queue reset successfully.',
-  'queue.resetError': 'Failed to reset queue.',
-  'queue.resetNothing': 'There is nothing to reset — the queue is already empty.',
 
   // ---- terminal management ----
   'terminal.title': 'Terminal Management',
@@ -492,7 +482,6 @@ const fil = {
   'dateRange.preset.Last quarter': 'Nakaraang Quarter',
 
   'dashboard.title': 'Pangkalahatang-ideya ng Sistema',
-  'dashboard.cardGoTo': 'Pumunta sa {page}',
   'dashboard.stat.averageWaitTime': 'Karaniwang oras ng paghintay',
   'dashboard.stat.staffOnDuty': 'Kawaning naka-duty',
   'dashboard.servingLabel': 'Nililingkuran',
@@ -604,15 +593,6 @@ const fil = {
   'queue.skipModalNote': 'Mangyaring magdagdag ng dahilan bago magpatuloy.',
   'queue.skipPlaceholder': 'Ilagay ang dahilan sa paglaktaw sa pasyenteng ito',
   'queue.confirmSkip': 'Kumpirmahin ang Paglaktaw',
-  'queue.resetQueue': 'I-reset ang Pila',
-  'queue.resetConfirmTitle': 'Sigurado ka ba?',
-  'queue.resetConfirmBody': 'Sigurado ka bang i-reset ang pila para sa iyong itinalagang departamento? Mga aksyon na ito ay mag-reset ng kasalukuyang pila.',
-  'queue.resetConfirmNote': 'Maling lahat ng naghihintay at kasalukuyang naglilingkuran na pasyente ay maaaring maging bakante sa pila ngayong araw. Nananatili ang kasaysayan ng pila.',
-  'queue.resetConfirm': 'I-reset ang Pila',
-  'queue.resetting': 'I-reset…',
-  'queue.resetSuccess': 'Matagumpay na na-reset ang pila.',
-  'queue.resetError': 'Nabigong i-reset ang pila.',
-  'queue.resetNothing': 'Walang maaaring i-reset — bakante na ang pila.',
 
   'terminal.title': 'Pamamahala ng Terminal',
   'terminal.subtitle': 'Pamahalaan ang mga terminal na itinalaga sa iyong departamento.',
@@ -804,7 +784,6 @@ const ceb = {
   'dateRange.preset.Last quarter': 'Miaging Quarter',
 
   'dashboard.title': 'Kinatibuk-ang Sistema',
-  'dashboard.cardGoTo': 'Adto sa {page}',
   'dashboard.stat.averageWaitTime': 'Kasagarang oras sa paghulat',
   'dashboard.stat.staffOnDuty': 'Kawani nga naa sa duty',
   'dashboard.servingLabel': 'Ginaserbisyohan',
@@ -916,15 +895,6 @@ const ceb = {
   'queue.skipModalNote': 'Palihug pagdugang og hinungdan sa dili pa magpadayon.',
   'queue.skipPlaceholder': 'Isulat ang hinungdan sa paglaktaw niini nga pasyente',
   'queue.confirmSkip': 'Kumpirmaha ang Paglaktaw',
-  'queue.resetQueue': 'I-reset ang Linya',
-  'queue.resetConfirmTitle': 'Sigurado ka ba?',
-  'queue.resetConfirmBody': 'Sigurado ka ba nga imong i-reset ang linya alang sa imong gi-assign nga departamento? kini nga aksyon mag-reset sa kasamtangang linya.',
-  'queue.resetConfirmNote': 'Tanang nga nagpaabot ug kasamtangang ginaserbisyohan nga pasyente mah-clear gikan sa linya karong adlawa. Mahitungod ang kasaysayan sa linya.',
-  'queue.resetConfirm': 'I-reset ang Linya',
-  'queue.resetting': 'Gina-reset…',
-  'queue.resetSuccess': 'Ma-successfully nga na-reset ang linya.',
-  'queue.resetError': 'Dili na-successfully i-reset ang linya.',
-  'queue.resetNothing': 'Walay i-reset — empty na ang linya.',
 
   'terminal.title': 'Pagdumala sa Terminal',
   'terminal.subtitle': 'Dumalahi ang mga terminal nga gi-assign sa imong departamento.',
