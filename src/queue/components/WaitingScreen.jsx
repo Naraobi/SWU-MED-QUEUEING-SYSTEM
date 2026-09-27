@@ -23,12 +23,25 @@ if (ticket.status === 'called' || ticket.status === 'serving') {
     Math.round((servedSoFar / total) * 100)
   )
 }
+const isPriority = String(ticket.queueNumber || '')
+  .toUpperCase()
+  .startsWith('P-')
 
-  // Priority tickets carry a "P-" prefix; they render in brand red.
-  const isPriority = String(ticket.queueNumber || '')
-    .toUpperCase()
-    .startsWith('P-')
-const numberColor = isPriority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'
+const numberColor = isPriority
+  ? 'text-[#9D0A0E]'
+  : 'text-[#1F2937]'
+
+console.log('WAITING SCREEN TICKET:', ticket)
+
+console.log(
+  'WAITING SCREEN ESTIMATED WAIT:',
+  ticket.estimatedWaitMinutes
+)
+
+console.log(
+  'WAITING SCREEN AI PREDICTION:',
+  ticket.aiPrediction?.predictedWaitingTime
+)
 
 const estimatedWaitText =
   formatWaitTime(ticket.estimatedWaitMinutes)
