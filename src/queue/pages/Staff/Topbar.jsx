@@ -20,6 +20,17 @@ import {
 const STAFF_TERMINAL_KEY = 'swumed_staff_terminal';
 const LAST_MILESTONE_KEY = 'swumed_last_celebrated_milestone';
 
+// TerminalSelectionPage.jsx and DashboardPage.jsx save the selected
+// terminal per staff account so two staff on the same browser never share
+// one terminal's saved state. Read the same per-staff key first and keep
+// the unsuffixed key as a fallback, so the header can never display a
+// terminal saved by a different account.
+function getStaffTerminalStorageKey(staffId) {
+  return staffId
+    ? `${STAFF_TERMINAL_KEY}_${String(staffId)}`
+    : STAFF_TERMINAL_KEY;
+}
+
 export default function Topbar({
   title,
   subtitle,
@@ -47,6 +58,9 @@ export default function Topbar({
   } = useQueue();
 
   const { user } = useAuth();
+
+  const staffId =
+    user?.staff_id ?? user?.user_id ?? user?.id ?? null;
 
   /*
    * Individual Staff profile picture.
@@ -270,10 +284,18 @@ export default function Topbar({
       return;
     }
 
+    // Prefer this staff account's own key. The unsuffixed key is only a
+    // fallback for sessions saved before the key became per-staff, and a
+    // logout clears both, so a terminal released on logout is never shown
+    // here.
+    const key = getStaffTerminalStorageKey(staffId);
+
     try {
-      const raw = window.localStorage.getItem(
-        STAFF_TERMINAL_KEY
-      );
+      const raw =
+        window.localStorage.getItem(key) ??
+        (key === STAFF_TERMINAL_KEY
+          ? null
+          : window.localStorage.getItem(STAFF_TERMINAL_KEY));
 
       if (!raw) {
         setSelectedTerminal(null);
@@ -286,7 +308,7 @@ export default function Topbar({
     } catch {
       setSelectedTerminal(null);
     }
-  }, [currentTerminal]);
+  }, [currentTerminal, staffId]);
 
   const staffName = `${user?.first_name || 'Ruth'} ${
     user?.last_name || 'Abella'

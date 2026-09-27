@@ -110,6 +110,22 @@ function saveSelectedTerminal(terminal, staffId) {
   )
 }
 
+// The saved terminal is only a cache of what the server last confirmed.
+// Once the server stops reporting an assignment for this staff member the
+// cache is stale and must not be restored, otherwise the dashboard reattaches
+// to a terminal it no longer owns and the selector is skipped entirely.
+function clearSavedTerminal(staffId) {
+  if (typeof window === 'undefined' || !staffId) return
+
+  try {
+    window.localStorage.removeItem(
+      getStaffTerminalStorageKey(staffId)
+    )
+  } catch {
+    // Storage is best-effort only.
+  }
+}
+
 function formatSeconds(totalSeconds) {
   const seconds = Number(totalSeconds) || 0
   const m = Math.floor(seconds / 60)
@@ -452,7 +468,7 @@ export default function DashboardPage() {
     skipCurrentPatient,
   } = useQueue()
 
-  const { user, loading: authLoading, logout } = useAuth()
+  const { user, loading: authLoading, signOut } = useAuth()
 
   const staffId = user?.staff_id ?? user?.user_id ?? user?.id ?? null
 
@@ -484,6 +500,89 @@ export default function DashboardPage() {
     )
 
     setShowTerminalModal((current) => (current ? false : current))
+  }, [staffId])
+
+  // The saved terminal above is only a local cache, so confirm it against
+  // the server once the staff ID is known. A terminal that was released on
+  // logout is no longer assigned to this staff member, so restoring it would
+  // put them on a counter they do not own and hide the selector. When the
+  // server still reports the same assignment, which is the normal reload
+  // case, nothing changes.
+  useEffect(() => {
+    if (!staffId) return
+
+    let cancelled = false
+
+    async function revalidateSavedTerminal() {
+      const saved = readSavedTerminal(staffId)
+      if (!saved || !getTerminalId(saved)) return
+
+      try {
+        const assignedTerminal =
+          await getStaffTerminal(staffId)
+
+        if (cancelled) return
+
+        const assignedId = getTerminalId(
+          assignedTerminal
+        )
+
+        if (
+          !assignedTerminal ||
+          !assignedId
+        ) {
+          // Released, or never assigned. Drop the stale cache and ask for a
+          // terminal again rather than acting on a counter this staff
+          // member no longer holds.
+          clearSavedTerminal(staffId)
+
+          setSelectedTerminal((current) =>
+            getTerminalId(current) ===
+            getTerminalId(saved)
+              ? null
+              : current
+          )
+
+          setShowTerminalModal(true)
+
+          return
+        }
+
+        // The server is the source of truth. Keep the local copy in step so
+        // the two never disagree about which terminal this is.
+        if (
+          String(assignedId) !==
+          String(getTerminalId(saved))
+        ) {
+          saveSelectedTerminal(
+            {
+              ...saved,
+              ...assignedTerminal,
+            },
+            staffId
+          )
+
+          setSelectedTerminal((current) =>
+            getTerminalId(current)
+              ? current
+              : assignedTerminal
+          )
+        }
+      } catch (revalidationError) {
+        // Offline or the backend is briefly unavailable. The saved terminal
+        // stays as it is, so a normal reload is never interrupted.
+        console.warn(
+          'Could not revalidate the saved terminal:',
+          revalidationError
+        )
+      }
+    }
+
+    revalidateSavedTerminal()
+
+    return () => {
+      cancelled = true
+    }
   }, [staffId])
 
   // Resolved once, used everywhere a queue action or refresh needs to

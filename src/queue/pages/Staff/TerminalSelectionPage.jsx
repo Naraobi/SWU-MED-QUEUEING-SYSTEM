@@ -54,6 +54,19 @@ function readSavedTerminal(staffId) {
   }
 }
 
+// The saved terminal only records what the server last confirmed. Once the
+// server reports no assignment for this staff member, the saved copy is stale
+// and must be dropped instead of restored.
+function clearSavedTerminal(staffId) {
+  if (typeof window === 'undefined' || !staffId) return
+
+  try {
+    window.localStorage.removeItem(getStorageKey(staffId))
+  } catch {
+    // Storage is best-effort only.
+  }
+}
+
 // A counter's ID is a generated key, so it must never end up in a label.
 // Without a counter number there is nothing meaningful to number it by,
 // so the label stays generic rather than exposing the ID.
@@ -334,6 +347,15 @@ export default function TerminalSelectModal({
                   staffId
                 )
               }
+            } else if (mounted) {
+              // The server reports no assignment for this staff member, so
+              // anything saved locally is left over from an earlier session
+              // whose terminal was already released. Drop it, otherwise the
+              // block below would re-select a terminal this staff member no
+              // longer holds just because it is free again.
+              clearSavedTerminal(staffId)
+
+              setSelectedId('')
             }
           } catch (assignmentError) {
             console.warn(
