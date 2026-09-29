@@ -156,7 +156,8 @@ const [liveData] = await pool.query(
     (
       SELECT aqp.predicted_waiting_time
       FROM ai_queue_prediction aqp
-      WHERE aqp.department_id = d.department_id
+      WHERE aqp.department_id COLLATE utf8mb4_general_ci =
+      d.department_id COLLATE utf8mb4_general_ci
         AND aqp.prediction_date = CURDATE()
       ORDER BY aqp.updated_at DESC
       LIMIT 1
