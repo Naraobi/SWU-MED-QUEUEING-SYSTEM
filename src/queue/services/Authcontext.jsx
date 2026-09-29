@@ -1431,8 +1431,7 @@ export function AuthProvider({
         };
       }
 
-<<<<<<< HEAD
- console.log("EMAIL LOGIN DEBUG:", {
+console.log("EMAIL LOGIN DEBUG:", {
   email: normalizedEmail,
   passwordProvided: !!password,
   passwordLength: password?.length,
@@ -1440,25 +1439,16 @@ export function AuthProvider({
   authDomain: auth.app.options.authDomain,
 });
 
-const credential = await signInWithEmailAndPassword(
-  auth,
-  normalizedEmail,
-  password
-);
-=======
 await setPersistence(
   auth,
   browserLocalPersistence
 );
 
-const credential =
-  await signInWithEmailAndPassword(
-    auth,
-    normalizedEmail,
-    password
-  );
->>>>>>> feature/firebase-realtime-session-websocket
-
+const credential = await signInWithEmailAndPassword(
+  auth,
+  normalizedEmail,
+  password
+);
       const firebaseUser =
         credential.user;
 
