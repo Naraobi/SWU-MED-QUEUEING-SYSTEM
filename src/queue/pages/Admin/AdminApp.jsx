@@ -88,9 +88,7 @@ function AdminShell() {
         <AdminHeaderBar />
 
         <main className="min-w-0 flex-1 bg-[#f1f3f6] px-4 py-5">
-          {activeItem === 'dashboard' && (
-            <AdminDashboard onNavigate={handleSelect} />
-          )}
+          {activeItem === 'dashboard' && <AdminDashboard />}
           {activeItem === 'staff' && <StaffManagementPage />}
           {activeItem === 'terminal' && <TerminalManagementPage />}
           {activeItem === 'queues' && <QueueManagementPage />}

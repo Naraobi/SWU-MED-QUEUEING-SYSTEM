@@ -1,8 +1,33 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Megaphone, Users, Clock, BellRing, RefreshCw } from 'lucide-react'
 import TrackerShell from './TrackerShell.jsx'
 
 export default function WaitingScreen({ ticket }) {
+const [remainingSeconds, setRemainingSeconds] = useState(0)
+useEffect(() => {
+  const minutes = Number(ticket.estimatedWaitMinutes) || 0
+
+  const seconds = Math.max(
+    0,
+    Math.round(minutes * 60)
+  )
+
+  setRemainingSeconds(seconds)
+}, [ticket.estimatedWaitMinutes])
+
+useEffect(() => {
+  const timer = setInterval(() => {
+    setRemainingSeconds((previous) => {
+      if (previous <= 0) {
+        return 0
+      }
+
+      return previous - 1
+    })
+  }, 1000)
+
+  return () => clearInterval(timer)
+}, [])
 const total = Math.max(
   Number(ticket.totalAheadAtIssue) || 0,
   Number(ticket.peopleAhead) || 0
@@ -44,12 +69,12 @@ console.log(
 )
 
 const estimatedWaitText =
-  formatWaitTime(ticket.estimatedWaitMinutes)
+  formatWaitTime(remainingSeconds)
 
-function formatWaitTime(minutes) {
-  const totalSeconds = Math.max(
+function formatWaitTime(totalSeconds) {
+  totalSeconds = Math.max(
     0,
-    Math.round(Number(minutes || 0) * 60)
+    Math.round(Number(totalSeconds) || 0)
   )
 
   const hours = Math.floor(

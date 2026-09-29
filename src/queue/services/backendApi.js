@@ -1035,63 +1035,6 @@ export async function skipCurrentPatient(departmentPrefix) {
   return result.data;
 }
 
-// =====================================================
-// RESET DEPARTMENT QUEUE
-// =====================================================
-
-/*
-| Clears every patient still in TODAY's queue for one department - the
-| waiting list plus anything already called or being served. History is
-| kept; affected tickets are marked 'reset' so they stop counting as
-| waiting, serving, completed or skipped.
-|
-| Takes a Firebase user because the endpoint is auth-gated
-| (admin / superadmin), unlike the other staff-queue calls.
-*/
-export async function resetQueue(
-  firebaseUser,
-  departmentPrefix
-) {
-  if (!firebaseUser) {
-    throw new Error(
-      "Firebase user is required"
-    );
-  }
-
-  if (!departmentPrefix) {
-    throw new Error(
-      "Department prefix is required"
-    );
-  }
-
-  const token =
-    await firebaseUser.getIdToken();
-
-  const response = await fetch(
-    `${API_URL}/staff-queue/reset/${encodeURIComponent(
-      departmentPrefix
-    )}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message ||
-        "Failed to reset queue"
-    );
-  }
-
-  return result.data;
-}
-
 export async function fetchQueueHistory(
   departmentId,
   options = {}
