@@ -686,6 +686,7 @@ const averagePredictedWait =
   value: `${averagePredictedWait}m`,
   caption: 'Average wait time',
   icon: Clock,
+  page: 'queues',
 },
     {
       label: 'Skipped',

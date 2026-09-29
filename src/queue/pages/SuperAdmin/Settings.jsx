@@ -35,7 +35,13 @@ import {
   getThemeMode,
   setAccentColor as persistAccentColor,
   setThemeMode as persistThemeMode,
+  getLogo,
+  clearLogo,
+  applyBrandingFromFile,
 } from '../../services/appearance';
+
+import { useLanguage, LANGUAGES } from '../../services/language';
+
 import Logo from '../../../assets/logo.png';
 
 const ACCENT_PRESETS = [
@@ -47,18 +53,31 @@ const ACCENT_PRESETS = [
 ];
 
 const CLOCK_FORMATS = [
-  '12-Hour (1:30 PM)',
-  '24-Hour (13:30)',
+  { key: '12h', labelKey: 'sa.settings.clock12' },
+  { key: '24h', labelKey: 'sa.settings.clock24' },
 ];
 
 // Each swatch is a 4-quadrant preview circle.
 const THEME_MODES = [
-  { key: 'light', label: 'Light Mode', caption: 'Default hospital theme', icon: Sun },
-  { key: 'dark', label: 'Dark Mode', caption: 'Dimmed high-contrast', icon: Moon },
-  { key: 'system', label: 'System Default', caption: 'Follows OS preference', icon: Monitor },
+  {
+    key: 'light',
+    labelKey: 'sa.settings.themeLight',
+    captionKey: 'sa.settings.themeLightCaption',
+    icon: Sun,
+  },
+  {
+    key: 'dark',
+    labelKey: 'sa.settings.themeDark',
+    captionKey: 'sa.settings.themeDarkCaption',
+    icon: Moon,
+  },
+  {
+    key: 'system',
+    labelKey: 'sa.settings.themeSystem',
+    captionKey: 'sa.settings.themeSystemCaption',
+    icon: Monitor,
+  },
 ];
-
-const LANGUAGES = ['English', 'Filipino', 'Cebuano'];
 
 const THEME_SWATCHES = [
   { key: 'blue', colors: ['#9D0A0E', '#D4B0B1', '#7D080B', '#F0DADA'] },
@@ -204,6 +223,7 @@ function FieldLabel({ children }) {
 }
 
 function ThemeModal({ onClose, onOpenColorPicker }) {
+  const { t } = useLanguage();
   const [mode, setMode] = useState('system');
   const [selectedSwatch, setSelectedSwatch] = useState('blue');
 
@@ -230,7 +250,7 @@ function ThemeModal({ onClose, onOpenColorPicker }) {
         <div className="px-5 py-5">
           {/* Mode selector */}
           <div className="flex items-center gap-1.5">
-            {THEME_MODES.map(({ key, label, icon: Icon }) => {
+            {THEME_MODES.map(({ key, labelKey, icon: Icon }) => {
               const isActive = mode === key;
 
               return (
@@ -245,7 +265,7 @@ function ThemeModal({ onClose, onOpenColorPicker }) {
                   }`}
                 >
                   <Icon size={12} />
-                  {label}
+                  {t(labelKey)}
                 </button>
               );
             })}
@@ -328,6 +348,8 @@ function Hint({ children }) {
 /* ---------------- Create PIN Modal ---------------- */
 
 function CreatePinModal({ onClose, onContinue }) {
+  const { t } = useLanguage();
+
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState('');
@@ -340,12 +362,12 @@ function CreatePinModal({ onClose, onContinue }) {
     setError('');
 
     if (!/^\d{6}$/.test(pin)) {
-      setError('PIN must be exactly 6 digits.');
+      setError(t('sa.pin.mustBeSix'));
       return;
     }
 
     if (pin !== confirmPin) {
-      setError('PINs do not match.');
+      setError(t('sa.pin.noMatch'));
       return;
     }
 
@@ -365,10 +387,10 @@ function CreatePinModal({ onClose, onContinue }) {
         <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3.5">
           <div>
             <h2 className="text-sm font-bold text-[#1F2937]">
-              Create Security PIN
+              {t('sa.pin.createTitle')}
             </h2>
             <p className="mt-0.5 text-xs text-[#4B5563]">
-              Protect sensitive system operations
+              {t('sa.pin.createSub')}
             </p>
           </div>
 
@@ -390,8 +412,7 @@ function CreatePinModal({ onClose, onContinue }) {
             </div>
 
             <p className="text-xs leading-4 text-[#4B5563]">
-              Create a 6-digit security PIN. This PIN will be required for
-              protected kiosk and department operations.
+              {t('sa.pin.intro')}
             </p>
           </div>
 
@@ -401,7 +422,7 @@ function CreatePinModal({ onClose, onContinue }) {
               htmlFor="security-pin"
               className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
             >
-              New PIN
+              {t('sa.pin.newPin')}
             </label>
 
             <div className="relative">
@@ -413,7 +434,7 @@ function CreatePinModal({ onClose, onContinue }) {
                 maxLength={6}
                 value={pin}
                 onChange={(e) => handlePinChange(e.target.value, setPin)}
-                placeholder="Enter 6-digit PIN"
+                placeholder={t('sa.pin.newPinPlaceholder')}
                 className="w-full rounded-lg border border-[#E5E7EB] pl-3 pr-10 py-2.5 text-sm tracking-[0.35em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
               />
               <button
@@ -432,7 +453,7 @@ function CreatePinModal({ onClose, onContinue }) {
               htmlFor="confirm-security-pin"
               className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
             >
-              Confirm PIN
+              {t('sa.pin.confirmPin')}
             </label>
 
             <div className="relative">
@@ -444,7 +465,7 @@ function CreatePinModal({ onClose, onContinue }) {
                 maxLength={6}
                 value={confirmPin}
                 onChange={(e) => handlePinChange(e.target.value, setConfirmPin)}
-                placeholder="Re-enter 6-digit PIN"
+                placeholder={t('sa.pin.confirmPinPlaceholder')}
                 className="w-full rounded-lg border border-[#E5E7EB] pl-3 pr-10 py-2.5 text-sm tracking-[0.35em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
               />
               <button
@@ -471,7 +492,7 @@ function CreatePinModal({ onClose, onContinue }) {
             onClick={onClose}
             className="swu-press rounded-md border border-[#E5E7EB] bg-white px-4 py-1.5 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
           >
-            Cancel
+            {t('sa.common.cancel')}
           </button>
 
           <button
@@ -479,7 +500,7 @@ function CreatePinModal({ onClose, onContinue }) {
             onClick={handleContinue}
             className="swu-press rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
           >
-            Continue
+            {t('sa.common.continue')}
           </button>
         </div>
       </div>
@@ -496,6 +517,8 @@ function PinVerificationModal({
   firebaseUser,
   pendingPin,
 }) {
+  const { t } = useLanguage();
+
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -514,17 +537,17 @@ function PinVerificationModal({
     setMessage('');
 
     if (!/^\d{6}$/.test(code)) {
-      setError('Verification code must be exactly 6 digits.');
+      setError(t('sa.pin.codeMustBeSix'));
       return;
     }
 
     if (!/^\d{6}$/.test(pendingPin)) {
-      setError('Your PIN is missing. Please go back and enter it again.');
+      setError(t('sa.pin.pinMissing'));
       return;
     }
 
     if (!firebaseUser) {
-      setError('Your authentication session is unavailable. Please log in again.');
+      setError(t('sa.pin.noSession'));
       return;
     }
 
@@ -539,10 +562,7 @@ function PinVerificationModal({
 
       onSuccess();
     } catch (err) {
-      setError(
-        err?.message ||
-          'Failed to verify the code. Please try again.'
-      );
+      setError(err?.message || t('sa.pin.verifyFailed'));
     } finally {
       setIsVerifying(false);
     }
@@ -553,7 +573,7 @@ function PinVerificationModal({
     setMessage('');
 
     if (!firebaseUser) {
-      setError('Your authentication session is unavailable. Please log in again.');
+      setError(t('sa.pin.noSession'));
       return;
     }
 
@@ -565,14 +585,9 @@ function PinVerificationModal({
       );
 
       setCode('');
-      setMessage(
-        'A new verification code has been sent to your registered email.'
-      );
+      setMessage(t('sa.pin.resent'));
     } catch (err) {
-      setError(
-        err?.message ||
-          'Failed to resend the verification code.'
-      );
+      setError(err?.message || t('sa.pin.resendFailed'));
     } finally {
       setIsResending(false);
     }
@@ -585,10 +600,10 @@ function PinVerificationModal({
         <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3.5">
           <div>
             <h2 className="text-sm font-bold text-[#1F2937]">
-              Verify Your Email
+              {t('sa.pin.verifyTitle')}
             </h2>
             <p className="mt-0.5 text-xs text-[#4B5563]">
-              Confirm your identity to create the PIN
+              {t('sa.pin.verifySub')}
             </p>
           </div>
 
@@ -610,8 +625,7 @@ function PinVerificationModal({
             </div>
 
             <p className="text-xs leading-4 text-[#4B5563]">
-              We've sent a 6-digit verification code to your registered
-              email address.
+              {t('sa.pin.verifyIntro')}
             </p>
           </div>
 
@@ -620,7 +634,7 @@ function PinVerificationModal({
               htmlFor="pin-verification-code"
               className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
             >
-              Verification Code
+              {t('sa.pin.code')}
             </label>
 
             <input
@@ -631,7 +645,7 @@ function PinVerificationModal({
               maxLength={6}
               value={code}
               onChange={(e) => handleCodeChange(e.target.value)}
-              placeholder="Enter 6-digit code"
+              placeholder={t('sa.pin.codePlaceholder')}
               className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-center text-sm font-semibold tracking-[0.4em] text-[#1F2937] outline-none transition placeholder:tracking-normal placeholder:font-normal placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
             />
           </div>
@@ -655,7 +669,7 @@ function PinVerificationModal({
               disabled={isResending}
               className="text-xs font-semibold text-[#9D0A0E] transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isResending ? 'Sending...' : 'Resend Code'}
+              {isResending ? t('sa.pin.sending') : t('sa.pin.resend')}
             </button>
           </div>
         </div>
@@ -668,7 +682,7 @@ function PinVerificationModal({
             disabled={isVerifying}
             className="swu-press rounded-md border border-[#E5E7EB] bg-white px-4 py-1.5 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Back
+            {t('sa.common.back')}
           </button>
 
           <button
@@ -677,7 +691,7 @@ function PinVerificationModal({
             disabled={isVerifying}
             className="swu-press rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
           >
-            {isVerifying ? 'Verifying...' : 'Verify'}
+            {isVerifying ? t('sa.pin.verifying') : t('sa.pin.verify')}
           </button>
         </div>
       </div>
@@ -688,6 +702,8 @@ function PinVerificationModal({
 /* ---------------- PIN Success Modal ---------------- */
 
 function PinSuccessModal({ onClose, isChanging }) {
+  const { t } = useLanguage();
+
   return (
     <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl">
@@ -697,13 +713,11 @@ function PinSuccessModal({ onClose, isChanging }) {
           </div>
 
           <h2 className="mt-4 text-base font-bold text-[#1F2937]">
-            {isChanging ? 'PIN Changed' : 'PIN Created'}
+            {isChanging ? t('sa.pin.changed') : t('sa.pin.created')}
           </h2>
 
           <p className="mt-2 max-w-xs text-xs leading-5 text-[#4B5563]">
-            {isChanging
-              ? 'Your security PIN has been successfully changed. You can now use it for protected kiosk and department operations.'
-              : 'Your security PIN has been successfully created. You can now use it for protected kiosk and department operations.'}
+            {isChanging ? t('sa.pin.changedBody') : t('sa.pin.createdBody')}
           </p>
 
           <button
@@ -711,7 +725,7 @@ function PinSuccessModal({ onClose, isChanging }) {
             onClick={onClose}
             className="swu-press mt-6 rounded-md bg-[#9D0A0E] px-6 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
           >
-            Done
+            {t('sa.common.done')}
           </button>
         </div>
       </div>
@@ -722,6 +736,13 @@ function PinSuccessModal({ onClose, isChanging }) {
 /* ---------------- Settings Page ---------------- */
 
 export default function Settings() {
+  /*
+   * `language` is the saved interface language rather than local state, so
+   * picking one here re-labels the whole app straight away and survives a
+   * refresh. `t` reads from the same choice.
+   */
+  const { language, setLanguage, t } = useLanguage();
+
   const [systemName, setSystemName] = useState(
     'SWUMed Queuing System'
   );
@@ -755,7 +776,6 @@ export default function Settings() {
     setThemeModeState(mode);
     persistThemeMode(mode);
   }
-  const [language, setLanguage] = useState('English');
   const [activeModal, setActiveModal] = useState(null);
   const [pinConfigured, setPinConfigured] = useState(false);
   const [pinStatusLoading, setPinStatusLoading] = useState(true);
@@ -774,9 +794,7 @@ export default function Settings() {
       const firebaseUser = auth.currentUser;
 
       if (!firebaseUser) {
-        throw new Error(
-          'Your authentication session is unavailable.'
-        );
+        throw new Error(t('sa.pin.noSession'));
       }
 
       const result =
@@ -794,10 +812,7 @@ export default function Settings() {
       );
 
       if (isMounted) {
-        setPinError(
-          error?.message ||
-            'Failed to load Security PIN status.'
-        );
+        setPinError(error?.message || t('sa.pin.statusFailed'));
       }
     } finally {
       if (isMounted) {
@@ -813,8 +828,65 @@ export default function Settings() {
   };
 }, []);
   const [clockFormat, setClockFormat] = useState(
-    CLOCK_FORMATS[0]
+    CLOCK_FORMATS[0].key
   );
+
+  /*
+  |--------------------------------------------------------------------------
+  | SYSTEM LOGO
+  |--------------------------------------------------------------------------
+  |
+  | Uploading a logo also re-colours the app: the dominant colour of the image
+  | becomes the accent, so the interface follows whatever branding the hospital
+  | uploads without anyone picking a hex by hand. A logo with no real colour in
+  | it (a plain black wordmark) leaves the accent alone rather than turning the
+  | whole system grey.
+  |
+  */
+  const [logo, setLogoState] = useState(() => getLogo());
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState('');
+  const [logoNoColour, setLogoNoColour] = useState(false);
+  const [derivedAccent, setDerivedAccent] = useState(null);
+
+  async function handleLogoUpload(event) {
+    const file = event.target.files?.[0];
+
+    // Cleared so choosing the same file twice still fires a change.
+    event.target.value = '';
+
+    if (!file) return;
+
+    setLogoError('');
+    setLogoNoColour(false);
+    setDerivedAccent(null);
+    setLogoBusy(true);
+
+    try {
+      const result = await applyBrandingFromFile(file);
+
+      setLogoState(result.logo);
+
+      if (result.accent) {
+        setAccentColorState(result.accent);
+        setDerivedAccent(result.accent);
+      } else {
+        setLogoNoColour(true);
+      }
+    } catch (error) {
+      setLogoError(error?.message || 'Could not use that image.');
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  function handleLogoRestore() {
+    clearLogo();
+    setLogoState(null);
+    setDerivedAccent(null);
+    setLogoNoColour(false);
+    setLogoError('');
+  }
 
   const [showChangePassword, setShowChangePassword] =
     useState(false);
@@ -840,11 +912,11 @@ export default function Settings() {
 
       <div>
         <h1 className="text-2xl font-bold text-[#1F2937]">
-          Settings
+          {t('sa.settings.title')}
         </h1>
 
         <p className="mt-0.5 text-xs text-[#4B5563]">
-          Manage system preferences, security, appearance, and localization.
+          {t('sa.settings.subtitle')}
         </p>
       </div>
 
@@ -854,15 +926,15 @@ export default function Settings() {
 
       <SettingsSection
         icon={Palette}
-        title="Branding &amp; Identity"
-        subtitle="Customize your brand presence across patient kiosks, queue trackers, and staff monitors."
-        badge="White label"
+        title={t('sa.settings.branding')}
+        subtitle={t('sa.settings.brandingSub')}
+        badge={t('sa.settings.whiteLabel')}
       >
 
         {/* SYSTEM NAME */}
 
         <div>
-          <FieldLabel>System Name</FieldLabel>
+          <FieldLabel>{t('sa.settings.systemName')}</FieldLabel>
 
           <div className="relative">
             <input
@@ -879,8 +951,8 @@ export default function Settings() {
               type="button"
               onClick={handleCopyName}
               className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
-              aria-label="Copy system name"
-              title={copied ? 'Copied' : 'Copy'}
+              aria-label={t('sa.settings.copyName')}
+              title={copied ? t('sa.settings.copied') : t('sa.settings.copy')}
             >
               {copied ? (
                 <Check size={16} className="text-emerald-600" />
@@ -890,59 +962,104 @@ export default function Settings() {
             </button>
           </div>
 
-          <Hint>
-            Displayed on browser titles, kiosk welcome screens, and physical
-            thermal ticket headers.
-          </Hint>
+          <Hint>{t('sa.settings.systemNameHint')}</Hint>
         </div>
 
         {/* SYSTEM LOGO */}
 
         <div className="mt-6">
-          <FieldLabel>System Logo</FieldLabel>
+          <FieldLabel>{t('sa.settings.systemLogo')}</FieldLabel>
 
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] px-4 py-3">
 
             <div className="flex items-center gap-4">
               <img
-                src={Logo}
-                alt="Current brand logo"
+                src={logo || Logo}
+                alt={
+                  logo
+                    ? t('sa.settings.uploadedLogo')
+                    : t('sa.settings.currentLogo')
+                }
                 className="h-7 w-auto object-contain"
               />
 
               <div>
                 <p className="flex items-center gap-2 text-xs font-semibold text-[#1F2937]">
-                  Current Brand Logo
+                  {t('sa.settings.currentLogo')}
 
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-600/30">
-                    Active
+                    {t('sa.common.active')}
                   </span>
                 </p>
 
                 <p className="mt-0.5 text-xs text-[#9CA3AF]">
-                  PNG or SVG, max 2MB
+                  {t('sa.settings.logoFormats')}
                 </p>
               </div>
             </div>
 
-            <label className="swu-press flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]">
-              <Upload size={14} />
-              Upload New Logo
+            <div className="flex items-center gap-2">
+              {logo && (
+                <button
+                  type="button"
+                  onClick={handleLogoRestore}
+                  disabled={logoBusy}
+                  className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-50"
+                >
+                  {t('sa.settings.restoreLogo')}
+                </button>
+              )}
 
-              <input
-                type="file"
-                accept="image/png,image/svg+xml"
-                className="hidden"
-              />
-            </label>
+              <label
+                className={`swu-press flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] ${
+                  logoBusy
+                    ? 'pointer-events-none opacity-60'
+                    : 'cursor-pointer'
+                }`}
+              >
+                <Upload size={14} />
+                {logoBusy
+                  ? t('sa.settings.readingLogo')
+                  : t('sa.settings.uploadLogo')}
+
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  onChange={handleLogoUpload}
+                  disabled={logoBusy}
+                  className="hidden"
+                />
+              </label>
+            </div>
 
           </div>
+
+          {derivedAccent && (
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-[#4B5563]">
+              <span
+                aria-hidden="true"
+                className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10"
+                style={{ backgroundColor: derivedAccent }}
+              />
+              {t('sa.settings.logoAccent')}
+            </p>
+          )}
+
+          {logoNoColour && (
+            <p className="mt-2 text-xs text-[#9CA3AF]">
+              {t('sa.settings.logoNoColour')}
+            </p>
+          )}
+
+          {logoError && (
+            <p className="mt-2 text-xs text-[#9D0A0E]">{logoError}</p>
+          )}
         </div>
 
         {/* PRIMARY ACCENT COLOR */}
 
         <div className="mt-6">
-          <FieldLabel>Primary Accent Color</FieldLabel>
+          <FieldLabel>{t('sa.settings.accent')}</FieldLabel>
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] px-3 py-2">
@@ -952,12 +1069,14 @@ export default function Settings() {
                 style={{ backgroundColor: accentColor }}
               />
               <span className="text-xs font-semibold uppercase text-[#1F2937]">
-                Hex {accentColor}
+                {t('sa.settings.hex')} {accentColor}
               </span>
             </div>
 
             <div className="flex items-center gap-2 border-l border-[#E5E7EB] pl-4">
-              <span className="text-xs text-[#4B5563]">Presets:</span>
+              <span className="text-xs text-[#4B5563]">
+                {t('sa.settings.presets')}
+              </span>
 
               {ACCENT_PRESETS.map((preset) => {
                 const isSelected = accentColor === preset;
@@ -983,10 +1102,7 @@ export default function Settings() {
             </div>
           </div>
 
-          <Hint>
-            Applies to primary action buttons, active navigation markers, ticket
-            highlighted badges, and key queue alerts.
-          </Hint>
+          <Hint>{t('sa.settings.accentHint')}</Hint>
         </div>
     </SettingsSection>
 
@@ -996,8 +1112,8 @@ export default function Settings() {
 
       <SettingsSection
         icon={ShieldCheck}
-        title="Password &amp; Security"
-        subtitle="Manage your account password and Admin PIN."
+        title={t('sa.settings.security')}
+        subtitle={t('sa.settings.securitySub')}
       >
         <div className="divide-y divide-[#E5E7EB]">
 
@@ -1005,9 +1121,11 @@ export default function Settings() {
 
           <div className="flex flex-wrap items-center justify-between gap-4 pb-5">
             <div>
-              <p className="text-sm font-bold text-[#1F2937]">Password</p>
+              <p className="text-sm font-bold text-[#1F2937]">
+                {t('sa.settings.password')}
+              </p>
               <p className="mt-0.5 text-xs text-[#4B5563]">
-                Keep your account secure by regularly updating your password.
+                {t('sa.settings.passwordSub')}
               </p>
             </div>
 
@@ -1017,7 +1135,7 @@ export default function Settings() {
               className="swu-press flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
             >
               <KeyRound size={14} />
-              Change Password
+              {t('sa.settings.changePassword')}
             </button>
           </div>
 
@@ -1026,18 +1144,18 @@ export default function Settings() {
           <div className="flex flex-wrap items-center justify-between gap-4 pt-5">
             <div>
               <p className="flex items-center gap-2 text-sm font-bold text-[#1F2937]">
-                Security PIN
+                {t('sa.settings.securityPin')}
 
                 {pinConfigured && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-600/30">
                     <Check size={10} strokeWidth={3} />
-                    PIN is set
+                    {t('sa.settings.pinIsSet')}
                   </span>
                 )}
               </p>
 
               <p className="mt-0.5 text-xs text-[#4B5563]">
-                Used to authorize protected system actions such as resetting records.
+                {t('sa.settings.pinSub')}
               </p>
 
               {pinError && (
@@ -1056,10 +1174,10 @@ export default function Settings() {
             >
               <LockKeyhole size={14} />
               {pinStatusLoading
-                ? 'Loading...'
+                ? t('sa.common.loading')
                 : pinConfigured
-                  ? 'Change PIN'
-                  : 'Set PIN'}
+                  ? t('sa.settings.changePin')
+                  : t('sa.settings.setPin')}
             </button>
           </div>
 
@@ -1072,13 +1190,13 @@ export default function Settings() {
 
       <SettingsSection
         icon={Monitor}
-        title="Appearance"
-        subtitle="Choose default theme settings for admin and kiosk interfaces."
+        title={t('sa.settings.appearance')}
+        subtitle={t('sa.settings.appearanceSub')}
       >
-        <FieldLabel>Theme Mode</FieldLabel>
+        <FieldLabel>{t('sa.settings.themeMode')}</FieldLabel>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {THEME_MODES.map(({ key, label, caption, icon: Icon }) => {
+          {THEME_MODES.map(({ key, labelKey, captionKey, icon: Icon }) => {
             const isSelected = themeMode === key;
 
             return (
@@ -1097,8 +1215,12 @@ export default function Settings() {
                   <div className="flex items-start gap-2">
                     <Icon size={14} className="mt-0.5 shrink-0 text-[#9D0A0E]" />
                     <div>
-                      <p className="text-xs font-bold text-[#1F2937]">{label}</p>
-                      <p className="mt-0.5 text-xs text-[#9CA3AF]">{caption}</p>
+                      <p className="text-xs font-bold text-[#1F2937]">
+                        {t(labelKey)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[#9CA3AF]">
+                        {t(captionKey)}
+                      </p>
                     </div>
                   </div>
 
@@ -1140,11 +1262,11 @@ export default function Settings() {
 
       <SettingsSection
         icon={Globe}
-        title="Language &amp; Regional Settings"
-        subtitle="Configure default language and regional time displays across touchpoints."
+        title={t('sa.settings.language')}
+        subtitle={t('sa.settings.languageSub')}
       >
         <div>
-          <FieldLabel>Primary Language</FieldLabel>
+          <FieldLabel>{t('sa.settings.primaryLanguage')}</FieldLabel>
 
           <div className="flex flex-wrap items-center gap-2">
             {LANGUAGES.map((lang) => {
@@ -1169,28 +1291,26 @@ export default function Settings() {
             })}
           </div>
 
-          <Hint>
-            Sets the initial default locale for patient kiosk prompts and printed slips.
-          </Hint>
+          <Hint>{t('sa.settings.languageHint')}</Hint>
         </div>
 
         <div className="mt-5 border-t border-[#E5E7EB] pt-5">
-          <FieldLabel>Clock Format</FieldLabel>
+          <FieldLabel>{t('sa.settings.clockFormat')}</FieldLabel>
 
           <select
             value={clockFormat}
             onChange={(e) => setClockFormat(e.target.value)}
-            aria-label="Clock format"
+            aria-label={t('sa.settings.clockFormat')}
             className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
           >
             {CLOCK_FORMATS.map((format) => (
-              <option key={format} value={format}>{format}</option>
+              <option key={format.key} value={format.key}>
+                {t(format.labelKey)}
+              </option>
             ))}
           </select>
 
-          <Hint>
-            Applied to TV Queue displays, timestamp audits, and ticket issuance times.
-          </Hint>
+          <Hint>{t('sa.settings.clockHint')}</Hint>
         </div>
       </SettingsSection>
 
@@ -1200,24 +1320,22 @@ export default function Settings() {
 
       <SettingsSection
         icon={FileText}
-        title="Terms &amp; Conditions"
-        subtitle="Review the agreements that govern the use of this system."
-        badge={`Updated ${LAST_UPDATED}`}
+        title={t('sa.settings.legal')}
+        subtitle={t('sa.settings.legalSub')}
+        badge={t('sa.settings.updated', { date: LAST_UPDATED })}
       >
         <div className="divide-y divide-[#E5E7EB]">
 
           {[
             {
               key: 'terms',
-              title: 'Terms & Conditions',
-              caption:
-                'System purpose, authorized access, proper use, and administrative controls.',
+              titleKey: 'sa.settings.terms',
+              captionKey: 'sa.settings.termsCaption',
             },
             {
               key: 'privacy',
-              title: 'Privacy Policy',
-              caption:
-                'What information is collected, how it is used, and the rights of users.',
+              titleKey: 'sa.settings.privacy',
+              captionKey: 'sa.settings.privacyCaption',
             },
           ].map((item, index) => (
             <div
@@ -1227,8 +1345,12 @@ export default function Settings() {
               }`}
             >
               <div>
-                <p className="text-sm font-bold text-[#1F2937]">{item.title}</p>
-                <p className="mt-0.5 text-xs text-[#4B5563]">{item.caption}</p>
+                <p className="text-sm font-bold text-[#1F2937]">
+                  {t(item.titleKey)}
+                </p>
+                <p className="mt-0.5 text-xs text-[#4B5563]">
+                  {t(item.captionKey)}
+                </p>
               </div>
 
               <button
@@ -1237,7 +1359,7 @@ export default function Settings() {
                 className="swu-press flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
               >
                 <ExternalLink size={14} />
-                View
+                {t('sa.settings.view')}
               </button>
             </div>
           ))}
@@ -1284,9 +1406,7 @@ export default function Settings() {
       const firebaseUser = auth.currentUser;
 
       if (!firebaseUser) {
-        throw new Error(
-          'Your authentication session is unavailable. Please log in again.'
-        );
+        throw new Error(t('sa.pin.noSession'));
       }
 
       setPendingPin(pin);
@@ -1302,10 +1422,7 @@ export default function Settings() {
         error
       );
 
-      setPinError(
-        error?.message ||
-          'Failed to send the verification code.'
-      );
+      setPinError(error?.message || t('sa.pin.sendFailed'));
     }
   }}
 />
