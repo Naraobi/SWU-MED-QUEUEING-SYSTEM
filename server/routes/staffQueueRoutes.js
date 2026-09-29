@@ -3,9 +3,19 @@ const router = express.Router();
 const pool = require("../config/mysql");
 
 const {
+<<<<<<< HEAD
   syncQueueTicketToFirebase,
   triggerQueuePrediction,
 } = require("../services/queueTicketService");
+=======
+  emitQueueUpdated,
+} = require("../services/socketService");
+
+const {
+  updateDepartmentQueue,
+} = require("../services/realtimeDatabaseService");
+
+>>>>>>> feature/firebase-realtime-session-websocket
 // ============================================================
 // HELPER: SYNC QUEUE TICKET TO FIREBASE
 // ============================================================
@@ -607,6 +617,27 @@ void triggerQueuePrediction(
         );
       }
 
+      await updateDepartmentQueue(
+        departmentPrefix,
+        {
+          action: "CALL_NEXT",
+          queueId: nextPatient.queue_id,
+          queueNumber: nextPatient.queue_number,
+          status: "called",
+        }
+      );
+
+      // Notify all connected clients in this department
+      // that the queue has changed.
+      emitQueueUpdated(
+        departmentPrefix,
+        {
+          action: "CALL_NEXT",
+          queueId: nextPatient.queue_id,
+          queueNumber: nextPatient.queue_number,
+        }
+      );
+
       return res.json({
         success: true,
 
@@ -809,7 +840,7 @@ router.post(
       let firebaseSynced = true;
       let firebaseError = null;
 
-      try {
+            try {
         await syncQueueTicketToFirebase(
           patient.queue_id
         );
@@ -823,6 +854,27 @@ router.post(
           syncError
         );
       }
+
+      await updateDepartmentQueue(
+      departmentPrefix,
+      {
+        action: "START_SERVICE",
+        queueId: updatedPatient.queue_id,
+        queueNumber: updatedPatient.queue_number,
+        status: "serving",
+      }
+      );
+      
+      // Notify all connected clients in this department
+      // that the patient has started service.
+      emitQueueUpdated(
+        departmentPrefix,
+        {
+          action: "START_SERVICE",
+          queueId: updatedPatient.queue_id,
+          queueNumber: updatedPatient.queue_number,
+        }
+      );
 
       return res.json({
         success: true,
@@ -1157,6 +1209,31 @@ router.post(
         );
       }
 
+await updateDepartmentQueue(
+  departmentPrefix,
+  {
+    action: "COMPLETE",
+    queueId,
+    queueNumber: rows[0].queue_number,
+    status: "completed",
+  }
+);
+
+console.log("EMITTING COMPLETE WEBSOCKET EVENT:", {
+  departmentPrefix,
+  queueId,
+  queueNumber: rows[0].queue_number,
+});
+
+emitQueueUpdated(
+  departmentPrefix,
+  {
+    action: "COMPLETE",
+    queueId,
+    queueNumber: rows[0].queue_number,
+  }
+);      
+
       const [statsRows] =
         await pool.query(
           `
@@ -1357,6 +1434,27 @@ router.post(
           syncError
         );
       }
+
+      await updateDepartmentQueue(
+  departmentPrefix,
+  {
+    action: "CANCEL",
+    queueId,
+    queueNumber: rows[0].queue_number,
+    status: "cancelled",
+  }
+);
+
+// Notify all connected clients in this department
+// that the patient has been cancelled/skipped.
+emitQueueUpdated(
+  departmentPrefix,
+  {
+    action: "CANCEL",
+    queueId,
+    queueNumber: rows[0].queue_number,
+  }
+);
 
       const [statsRows] =
         await pool.query(
