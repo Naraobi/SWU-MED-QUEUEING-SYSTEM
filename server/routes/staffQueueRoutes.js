@@ -3,11 +3,11 @@ const router = express.Router();
 const pool = require("../config/mysql");
 
 const {
-<<<<<<< HEAD
   syncQueueTicketToFirebase,
   triggerQueuePrediction,
 } = require("../services/queueTicketService");
-=======
+
+const {
   emitQueueUpdated,
 } = require("../services/socketService");
 
@@ -15,10 +15,6 @@ const {
   updateDepartmentQueue,
 } = require("../services/realtimeDatabaseService");
 
->>>>>>> feature/firebase-realtime-session-websocket
-// ============================================================
-// HELPER: SYNC QUEUE TICKET TO FIREBASE
-// ============================================================
 async function getQueueState(
   departmentPrefix,
   { start, end, terminalId } = {}
