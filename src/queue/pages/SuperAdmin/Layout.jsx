@@ -134,7 +134,7 @@ export default function Layout({ activePage, onNavigate, children }) {
               <img
                 src={brandLogo || logo}
                 alt="SWUMed"
-                className="h-8 w-auto object-contain object-left"
+                className="h-4 w-auto object-contain object-left"
               />
             </button>
 

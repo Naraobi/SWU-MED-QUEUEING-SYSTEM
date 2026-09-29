@@ -292,9 +292,12 @@ export default function RoleManagement() {
   const [selectedRole, setSelectedRole] = useState(null);
 
   // Add Role
+  const [showPermissionDropdown, setShowPermissionDropdown] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
   // Edit Role
+  const [showEditPermissionDropdown, setShowEditPermissionDropdown] =
+  useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState(null);
 
