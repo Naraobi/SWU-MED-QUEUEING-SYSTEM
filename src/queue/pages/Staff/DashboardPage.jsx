@@ -923,7 +923,7 @@ export default function DashboardPage() {
                               console.error('Complete error:', err)
                             }
                           }}
-                          className="rounded-xl bg-[#9D0A0E] px-14 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#7d0809] transition cursor-pointer"
+                          className="rounded-xl bg-[#9D0A0E] px-14 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#7d0809] transition-all duration-150 cursor-pointer active:scale-90 active:bg-[#7d0809] active:shadow-inner"
                         >
                           {t('dashboard.complete')}
                         </button>
@@ -954,32 +954,20 @@ export default function DashboardPage() {
                       <div className="mt-8 flex items-center justify-center gap-4">
                         <button
                           type="button"
-                        onClick={async () => {
-  try {
-    const result =
-      await recallCurrentPatient(
-        staffPrefix,
-        terminalId
-      )
+                          onClick={async () => {
+                            try {
+                              const result = await recallCurrentPatient(staffPrefix, terminalId)
 
-    const recalledPatient =
-      result?.currentlyServing || activeServing
+                              const recalledPatient = result?.currentlyServing || activeServing
 
-    announceCalledPatient(
-      recalledPatient?.id,
-      terminalDisplayName
-    )
+                              announceCalledPatient(recalledPatient?.id, terminalDisplayName)
 
-    await refresh(
-      staffPrefix,
-      undefined,
-      { terminalId }
-    )
-  } catch (err) {
-    console.error('Recall error:', err)
-  }
-}}
-                          className="rounded-xl border border-slate-200 bg-white px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition shadow-sm cursor-pointer"
+                              await refresh(staffPrefix, undefined, { terminalId })
+                            } catch (err) {
+                              console.error('Recall error:', err)
+                            }
+                          }}
+                          className="rounded-xl border border-slate-200 bg-white px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition-all duration-150 shadow-sm cursor-pointer active:scale-90 active:bg-slate-100 active:shadow-inner"
                         >
                           {t('dashboard.recall')}
                         </button>
@@ -988,7 +976,7 @@ export default function DashboardPage() {
                           type="button"
                           onClick={handleStartService}
                           disabled={startingService}
-                          className="rounded-xl bg-[#9D0A0E] px-12 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#7d0809] transition cursor-pointer disabled:opacity-50"
+                          className="rounded-xl bg-[#9D0A0E] px-12 py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#7d0809] transition-all duration-150 cursor-pointer disabled:opacity-50 active:scale-90 active:bg-[#7d0809] active:shadow-inner"
                         >
                           {startingService ? t('dashboard.starting') : t('dashboard.startServing')}
                         </button>
@@ -996,7 +984,7 @@ export default function DashboardPage() {
                         <button
                           type="button"
                           onClick={() => setShowSkip(true)}
-                          className="rounded-xl border border-red-200 bg-red-50/50 px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-red-600 hover:bg-red-100/50 transition shadow-sm cursor-pointer"
+                          className="rounded-xl border border-red-200 bg-red-50/50 px-10 py-3.5 text-sm font-bold uppercase tracking-wider text-red-600 hover:bg-red-100/50 transition-all duration-150 shadow-sm cursor-pointer active:scale-90 active:bg-red-100 active:shadow-inner"
                         >
                           {t('dashboard.skipButton')}
                         </button>
@@ -1059,7 +1047,7 @@ export default function DashboardPage() {
                         }
                       }}
                       disabled={!nextPatient || !staffPrefix || !terminalId}
-                      className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-[#9D0A0E] px-12 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#7d0809] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-[#9D0A0E] px-12 py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-[#7d0809] transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-90 active:bg-[#7d0809] active:shadow-inner"
                     >
                       <Play size={18} className="fill-current" />
                       <span>
