@@ -1410,7 +1410,7 @@ router.post(
         [queueId]
       );
       void triggerQueuePrediction(
-  "queue_cancelled",
+  "queue_skipped",
     queueId
   );
       let firebaseSynced = true;
