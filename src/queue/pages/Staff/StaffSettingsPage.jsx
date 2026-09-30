@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Check, Globe, Image, Monitor, Moon, Palette, Save, Sun, Upload } from 'lucide-react';
+import { Check, Globe, Image, KeyRound, Monitor, Moon, Palette, Save, ShieldCheck, Sun, Upload } from 'lucide-react';
 import Sidebar from './Sidebar.jsx';
 import Topbar from './Topbar.jsx';
 import { useStaffPreferences } from './StaffPreferencesContext.jsx';
 import { LANGUAGES } from './staffI18n';
 import { extractDominantColor } from '../../theme/colors';
+import ChangePasswordModal from '../../components/modals/ChangePasswordModal.jsx';
 import defaultLogo from '../../../assets/logo.png';
 
 const THEME_MODES = [
@@ -63,6 +64,7 @@ export default function StaffSettingsPage() {
 
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   // Baseline "last saved" values. Save moves this baseline forward;
   // leaving without saving reverts the live values back to it instead
@@ -222,6 +224,23 @@ export default function StaffSettingsPage() {
             </div>
           </SettingsSection>
 
+          <SettingsSection icon={ShieldCheck} title={t('settings.security.title')} subtitle={t('settings.security.subtitle')}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-[#1F2937]">{t('settings.security.password')}</p>
+                <p className="mt-0.5 text-xs text-[#667085]">{t('settings.security.passwordHint')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChangePassword(true)}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
+              >
+                <KeyRound size={14} />
+                {t('settings.security.changePassword')}
+              </button>
+            </div>
+          </SettingsSection>
+
           <SettingsSection icon={Image} title={t('settings.logo.title')} subtitle={t('settings.logo.subtitle')}>
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] px-4 py-3">
               <div className="flex items-center gap-4">
@@ -292,6 +311,13 @@ export default function StaffSettingsPage() {
           </SettingsSection>
         </div>
       </main>
+
+      {showChangePassword && (
+        <ChangePasswordModal
+          onSuccess={() => setShowChangePassword(false)}
+          onClose={() => setShowChangePassword(false)}
+        />
+      )}
     </div>
   );
 }

@@ -782,7 +782,7 @@ function WelcomeScreen({ onStart }) {
     <Screen stepKey="welcome">
       <div className="flex flex-col items-center px-2 py-10 text-center">
         <div className="kiosk-stagger-1">
-          <Wordmark size="h-20" />
+          <Wordmark size="h-9" />
         </div>
 
         <div className="kiosk-stagger-2">
@@ -1079,7 +1079,7 @@ async function handleSubmit() {
   return (
     <Screen stepKey="kioskPin">
       <div className="mb-6 flex justify-center kiosk-stagger-1">
-        <Wordmark size="h-16" />
+        <Wordmark size="h-10" />
       </div>
 
       <div className="mb-6 text-center kiosk-stagger-2">
@@ -1401,9 +1401,7 @@ function SelectDepartmentScreen({
         )}
       </div>
 
-      <p className="mb-4 mt-2 text-center text-xs text-slate-400">
-        <span className="kiosk-hint-bob">&darr;</span> Swipe up for more
-      </p>
+    
 
       <div className="kiosk-stagger-4">
         <NavButtons

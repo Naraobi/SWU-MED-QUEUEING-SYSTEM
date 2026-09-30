@@ -14,6 +14,8 @@ import {
   linkWithCredential,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  setPersistence,
+  browserLocalPersistence,
 } from "firebase/auth";
 
 import {
@@ -23,6 +25,7 @@ import {
 } from "./backendApi";
 
 import { auth } from "../../firebase";
+import "./socketService";
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -1428,7 +1431,7 @@ export function AuthProvider({
         };
       }
 
- console.log("EMAIL LOGIN DEBUG:", {
+console.log("EMAIL LOGIN DEBUG:", {
   email: normalizedEmail,
   passwordProvided: !!password,
   passwordLength: password?.length,
@@ -1436,12 +1439,16 @@ export function AuthProvider({
   authDomain: auth.app.options.authDomain,
 });
 
+await setPersistence(
+  auth,
+  browserLocalPersistence
+);
+
 const credential = await signInWithEmailAndPassword(
   auth,
   normalizedEmail,
   password
 );
-
       const firebaseUser =
         credential.user;
 
@@ -1750,13 +1757,18 @@ return {
 
     let googleResult;
 
-    try {
-      googleResult =
-        await signInWithPopup(
-          auth,
-          googleProvider
-        );
-    } catch (googleError) {
+try {
+  await setPersistence(
+    auth,
+    browserLocalPersistence
+  );
+
+  googleResult =
+    await signInWithPopup(
+      auth,
+      googleProvider
+    );
+} catch (googleError) {
 
       /*
       |--------------------------------------------------------------------------
@@ -1840,12 +1852,17 @@ return {
         |--------------------------------------------------------------------------
         */
 
-        const existingCredential =
-          await signInWithEmailAndPassword(
-            auth,
-            googleEmail,
-            password
-          );
+await setPersistence(
+  auth,
+  browserLocalPersistence
+);
+
+const existingCredential =
+  await signInWithEmailAndPassword(
+    auth,
+    googleEmail,
+    password
+  );
 
         const existingFirebaseUser =
           existingCredential.user;

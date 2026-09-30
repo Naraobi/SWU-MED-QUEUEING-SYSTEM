@@ -128,6 +128,16 @@ async function triggerQueuePrediction(eventType, queueId) {
   }, 5000);
 
   try {
+    console.log(
+      `[AI TRIGGER] Sending prediction request`,
+      {
+        event: eventType,
+        queue_id: queueId,
+        webhook: N8N_QUEUE_PREDICTION_WEBHOOK,
+        timestamp: new Date().toISOString(),
+      }
+    );
+
     const response = await fetch(
       N8N_QUEUE_PREDICTION_WEBHOOK,
       {
@@ -143,6 +153,17 @@ async function triggerQueuePrediction(eventType, queueId) {
         }),
 
         signal: controller.signal,
+      }
+    );
+
+    // Show exactly what n8n returned
+    console.log(
+      `[AI TRIGGER] n8n responded`,
+      {
+        event: eventType,
+        queue_id: queueId,
+        status: response.status,
+        ok: response.ok,
       }
     );
 
@@ -162,7 +183,11 @@ async function triggerQueuePrediction(eventType, queueId) {
     }
 
     console.log(
-      `Queue prediction triggered successfully: ${eventType} - ${queueId}`
+      `[AI TRIGGER] SUCCESS`,
+      {
+        event: eventType,
+        queue_id: queueId,
+      }
     );
 
     return {
@@ -171,27 +196,35 @@ async function triggerQueuePrediction(eventType, queueId) {
       queue_id: queueId,
       result,
     };
+
   } catch (error) {
+
     if (error.name === "AbortError") {
       console.error(
-        `Queue prediction webhook timed out: ${eventType} - ${queueId}`
+        `[AI TRIGGER] TIMEOUT`,
+        {
+          event: eventType,
+          queue_id: queueId,
+        }
       );
     } else {
       console.error(
-        `Queue prediction webhook failed: ${eventType} - ${queueId}`,
-        error.message
+        `[AI TRIGGER] FAILED`,
+        {
+          event: eventType,
+          queue_id: queueId,
+          error: error.message,
+        }
       );
     }
 
-    // IMPORTANT:
-    // AI prediction failure must never break the actual
-    // hospital queue operation.
     return {
       success: false,
       event: eventType,
       queue_id: queueId,
       error: error.message,
     };
+
   } finally {
     clearTimeout(timeout);
   }

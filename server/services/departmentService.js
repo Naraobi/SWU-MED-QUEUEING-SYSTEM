@@ -107,7 +107,6 @@ async function getDepartments() {
   | GET LIVE QUEUE + TERMINAL INFORMATION
   |--------------------------------------------------------------------------
   */
-
 const [liveData] = await pool.query(
   `
   SELECT
@@ -148,7 +147,21 @@ const [liveData] = await pool.query(
       FROM counter c
       WHERE c.department_id = d.department_id
         AND LOWER(c.status) = 'active'
-    ) AS active_terminals
+    ) AS active_terminals,
+
+    /* =====================================================
+       AI PREDICTED WAITING TIME
+       Get the latest prediction for this department
+       ===================================================== */
+    (
+      SELECT aqp.predicted_waiting_time
+      FROM ai_queue_prediction aqp
+      WHERE aqp.department_id COLLATE utf8mb4_general_ci =
+      d.department_id COLLATE utf8mb4_general_ci
+        AND aqp.prediction_date = CURDATE()
+      ORDER BY aqp.updated_at DESC
+      LIMIT 1
+    ) AS predicted_waiting_time
 
   FROM department d
   `
@@ -171,6 +184,12 @@ const liveDataMap = new Map(
 
       active_terminals:
         Number(row.active_terminals) || 0,
+
+      predicted_waiting_time:
+        row.predicted_waiting_time !== null &&
+        row.predicted_waiting_time !== undefined
+          ? Number(row.predicted_waiting_time)
+          : null,
     },
   ])
 );
@@ -201,10 +220,13 @@ const enrichedDepartments =
 
       active_terminals:
         live?.active_terminals || 0,
+
+      predicted_waiting_time:
+        live?.predicted_waiting_time ?? null,
     };
   });
 
-  return enrichedDepartments;
+return enrichedDepartments;
 }
 
 /*

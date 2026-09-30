@@ -1458,15 +1458,9 @@ export function TerminalManagementPage() {
               <label className="block text-xs font-semibold text-slate-600">
                 {t('terminal.location')}
 
-                <select
-                  value="current"
-                  disabled
-                  className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none"
-                >
-                  <option value="current">
-                    {adminKiosk?.name || t('common.unassigned')}
-                  </option>
-                </select>
+                <div className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  {t('terminal.kiosk')}
+                </div>
               </label>
 
               {/* TERMINAL NUMBER */}
