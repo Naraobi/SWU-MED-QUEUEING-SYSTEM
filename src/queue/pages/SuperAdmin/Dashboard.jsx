@@ -525,7 +525,7 @@ async function fetchDashboardData(
     const token = await user.getIdToken();
 
     const departmentResponse = await fetch(
-      `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/departments`,
+      `${import.meta.env.VITE_API_URL || "https://lightsteelblue-mandrill-330485.hostingersite.com"}/api/departments`,
       {
         method: "GET",
         headers: {
@@ -625,7 +625,24 @@ useEffect(() => {
     skipped: 0,
     completed: 0,
   };
+const predictedWaitDepartments =
+  departments.filter(
+    (department) =>
+      department.predicted_waiting_time !== null &&
+      department.predicted_waiting_time !== undefined
+  );
 
+const averagePredictedWait =
+  predictedWaitDepartments.length > 0
+    ? Math.round(
+        predictedWaitDepartments.reduce(
+          (total, department) =>
+            total +
+            Number(department.predicted_waiting_time),
+          0
+        ) / predictedWaitDepartments.length
+      )
+    : 0;
   const terminalStats = analytics?.terminals || {
     active: 0,
     total: 0,
@@ -664,12 +681,13 @@ useEffect(() => {
       icon: Users,
       page: 'queues',
     },
-    {
-      label: 'Average Wait',
-      value: `${queueStats.averageWaitMinutes}m`,
-      caption: 'Average wait time',
-      icon: Clock,
-    },
+{
+  label: 'Average Wait',
+  value: `${averagePredictedWait}m`,
+  caption: 'Average wait time',
+  icon: Clock,
+  page: 'queues',
+},
     {
       label: 'Skipped',
       value: String(queueStats.skipped),

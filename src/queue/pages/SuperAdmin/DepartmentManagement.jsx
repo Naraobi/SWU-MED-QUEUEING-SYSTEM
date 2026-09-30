@@ -1561,11 +1561,11 @@ const formattedDepartment = {
   active_terminal_count:
     activeTerminalCount,
 
-  avg_wait:
-    department.est_time !== undefined &&
-    department.est_time !== null
-      ? `${department.est_time}m`
-      : '15m',
+avg_wait:
+  department.predicted_waiting_time !== null &&
+  department.predicted_waiting_time !== undefined
+    ? `${Number(department.predicted_waiting_time)}m`
+    : '—',
 
   est_time:
     Number(
@@ -2328,26 +2328,23 @@ const activeDepts = departments.filter(
 ).length;
 
   const totalDepts = departments.length;
+const departmentsWithPrediction = departments.filter(
+  (department) =>
+    department.predicted_waiting_time !== null &&
+    department.predicted_waiting_time !== undefined
+);
 
-  const averageWait =
-    departments.length > 0
-      ? Math.round(
-          departments.reduce(
-            (
-              total,
-              department
-            ) =>
-              total +
-              (
-                Number(
-                  department.est_time
-                ) || 0
-              ),
-            0
-          ) /
-            departments.length
-        )
-      : 0;
+const averageWait =
+  departmentsWithPrediction.length > 0
+    ? Math.round(
+        departmentsWithPrediction.reduce(
+          (total, department) =>
+            total +
+            Number(department.predicted_waiting_time),
+          0
+        ) / departmentsWithPrediction.length
+      )
+    : 0;
 const totalActiveTerminals =
   departments.reduce(
     (total, department) =>

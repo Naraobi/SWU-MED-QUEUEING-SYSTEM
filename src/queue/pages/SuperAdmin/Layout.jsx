@@ -17,21 +17,28 @@ import {
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../services/Authcontext';
-import logo from '../../../assets/logo.png';
+import logo from '../../../assets/logo-transparent.png';
 import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';
+import { useLanguage } from '../../services/language';
+import { getLogo, subscribeAppearance } from '../../services/appearance';
 
 
+/*
+ * The sidebar stores a translation key rather than English text, so switching
+ * language re-labels the nav without touching routing: `key` still drives
+ * navigation and permissions, `labelKey` is only what the user reads.
+ */
 const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
-  { key: 'users', label: 'User Management', icon: Users },
-  { key: 'departments', label: 'Department Management', icon: Building2 },
-  { key: 'kiosks', label: 'Kiosk Management', icon: Monitor },
-  { key: 'roles', label: 'Role Management', icon: ShieldCheck },
-  { key: 'positions', label: 'Position Management', icon: BriefcaseBusiness },
-  { key: 'queues', label: 'Queue Management', icon: ClipboardList },
-  { key: 'reports', label: 'Reports & Analytics', icon: BarChart3 },
-  { key: 'settings', label: 'Settings', icon: SettingsIcon },
+  { key: 'dashboard', labelKey: 'sa.nav.dashboard', icon: LayoutGrid },
+  { key: 'users', labelKey: 'sa.nav.users', icon: Users },
+  { key: 'departments', labelKey: 'sa.nav.departments', icon: Building2 },
+  { key: 'kiosks', labelKey: 'sa.nav.kiosks', icon: Monitor },
+  { key: 'roles', labelKey: 'sa.nav.roles', icon: ShieldCheck },
+  { key: 'positions', labelKey: 'sa.nav.positions', icon: BriefcaseBusiness },
+  { key: 'queues', labelKey: 'sa.nav.queues', icon: ClipboardList },
+  { key: 'reports', labelKey: 'sa.nav.reports', icon: BarChart3 },
+  { key: 'settings', labelKey: 'sa.nav.settings', icon: SettingsIcon },
 ];
 
 function toInitials(value, fallback = '?') {
@@ -50,9 +57,18 @@ function toInitials(value, fallback = '?') {
 export default function Layout({ activePage, onNavigate, children }) {
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // A logo uploaded in Settings replaces the bundled mark everywhere.
+  const [brandLogo, setBrandLogo] = useState(() => getLogo());
+
+  useEffect(
+    () => subscribeAppearance((appearance) => setBrandLogo(appearance.logo)),
+    []
+  );
 
   // Only show pages this user is allowed to access
   const visibleNavItems = NAV_ITEMS.filter(({ key }) =>
@@ -70,9 +86,13 @@ export default function Layout({ activePage, onNavigate, children }) {
   const initials = toInitials(displayName);
 
   // Figma header: circular scope avatar + "Role / Current page"
-  const scopeRole = roleLabel || 'Super Admin';
-  const pageLabel =
-    NAV_ITEMS.find((item) => item.key === activePage)?.label ?? 'Dashboard';
+  const scopeRole = roleLabel || t('sa.nav.superAdmin');
+
+  const pageLabel = t(
+    NAV_ITEMS.find((item) => item.key === activePage)?.labelKey ??
+      'sa.nav.dashboard'
+  );
+
   const scopeInitials = toInitials(scopeRole, 'SA');
 
   // Prevent navigation to unauthorized pages
@@ -108,24 +128,24 @@ export default function Layout({ activePage, onNavigate, children }) {
               type="button"
               onClick={() => handleNavigate('dashboard')}
               className="block cursor-pointer select-none text-left focus:outline-none"
-              aria-label="Go to Dashboard"
-              title="Go to Dashboard"
+              aria-label={t('sa.nav.goToDashboard')}
+              title={t('sa.nav.goToDashboard')}
             >
               <img
-                src={logo}
-                alt="SWUMed Logo"
-                className="h-8 w-auto object-contain object-left"
+                src={brandLogo || logo}
+                alt="SWUMed"
+                className="h-4 w-auto object-contain object-left"
               />
             </button>
 
             <p className="mt-1 text-xs text-[#4B5563]">
-              Queuing System
+              {t('sa.nav.queuingSystem')}
             </p>
           </div>
 
           {/* Navigation */}
           <nav className="swu-stagger flex-1 space-y-0.5 px-3 py-4">
-            {visibleNavItems.map(({ key, label, icon: Icon }) => {
+            {visibleNavItems.map(({ key, labelKey, icon: Icon }) => {
               const isActive = activePage === key;
 
               return (
@@ -143,7 +163,7 @@ export default function Layout({ activePage, onNavigate, children }) {
                     size={18}
                     className="shrink-0 transition-transform duration-200 group-hover:scale-110"
                   />
-                  {label}
+                  {t(labelKey)}
                 </button>
               );
             })}
@@ -157,7 +177,7 @@ export default function Layout({ activePage, onNavigate, children }) {
               className="swu-press group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#9D0A0E] transition-all duration-200 hover:translate-x-1 hover:bg-[#FBF1F1]"
             >
               <LogOut size={18} />
-              Log out
+              {t('sa.nav.logout')}
             </button>
           </div>
         </aside>
@@ -193,12 +213,12 @@ export default function Layout({ activePage, onNavigate, children }) {
                 type="button"
                 onClick={() => setShowProfileModal(true)}
                 className="swu-press group flex items-center gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-[#FBF1F1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/30"
-                aria-label="Profile"
-                title="Profile"
+                aria-label={t('sa.nav.profile')}
+                title={t('sa.nav.profile')}
               >
                 <span className="hidden text-right sm:block">
                   <span className="block text-[13px] font-semibold leading-tight text-[#1F2937]">
-                    {roleLabel || 'Super Admin'}
+                    {roleLabel || t('sa.nav.superAdmin')}
                   </span>
 
                   <span className="block text-[11px] leading-tight text-[#6B7280]">
@@ -268,6 +288,8 @@ function useModalBehavior(onClose) {
 function LogoutModal({ onCancel, onConfirm }) {
   useModalBehavior(onCancel);
 
+  const { t } = useLanguage();
+
   return (
     <div
       className="swu-enter-fade fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 px-4"
@@ -285,15 +307,14 @@ function LogoutModal({ onCancel, onConfirm }) {
           id="logout-title"
           className="text-[28px] font-bold leading-tight text-[#1F2937]"
         >
-          Log Out?
+          {t('sa.nav.logoutConfirmTitle')}
         </h2>
 
         <p
           id="logout-description"
           className="mx-auto mt-4 max-w-[400px] text-[15px] leading-relaxed text-[#6B7280]"
         >
-          Are you sure you want to log out? You will need to sign in again to
-          access your assigned terminal.
+          {t('sa.nav.logoutConfirmBody')}
         </p>
 
         <div className="mt-8 flex gap-4">
@@ -302,7 +323,7 @@ function LogoutModal({ onCancel, onConfirm }) {
             onClick={onCancel}
             className="h-12 flex-1 rounded-lg border-2 border-[#9EC5FE] bg-white text-[17px] font-semibold text-[#1F2937] transition-colors hover:bg-[#F4F8FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9EC5FE]"
           >
-            Cancel
+            {t('sa.common.cancel')}
           </button>
 
           <button
@@ -311,7 +332,7 @@ function LogoutModal({ onCancel, onConfirm }) {
             autoFocus
             className="h-12 flex-1 rounded-lg bg-[#8B0000] text-[17px] font-semibold text-white transition-colors hover:bg-[#6F0000] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8B0000]/50"
           >
-            Log Out
+            {t('sa.nav.logout')}
           </button>
         </div>
       </div>
@@ -322,6 +343,7 @@ function LogoutModal({ onCancel, onConfirm }) {
 // Internal Profile Modal Component
 function ProfileModal({ onClose }) {
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   const fullName = user?.full_name || user?.name || '\u2014';
 
@@ -343,25 +365,36 @@ function ProfileModal({ onClose }) {
   const isActive =
     String(user?.status ?? 'active').toLowerCase() === 'active';
 
+  // Labels are keys so the card re-labels with the rest of the interface.
   const details = [
-    { key: 'name', label: 'Full Name', value: fullName, icon: UserIcon },
-    { key: 'email', label: 'Email Address', value: user?.email || '\u2014', icon: Mail },
-    { key: 'role', label: 'System Role', value: roleLabel, icon: ShieldCheck },
+    { key: 'name', labelKey: 'sa.profile.fullName', value: fullName, icon: UserIcon },
+    {
+      key: 'email',
+      labelKey: 'sa.profile.emailAddress',
+      value: user?.email || '\u2014',
+      icon: Mail,
+    },
+    {
+      key: 'role',
+      labelKey: 'sa.profile.systemRole',
+      value: roleLabel,
+      icon: ShieldCheck,
+    },
     {
       key: 'position',
-      label: 'Position Title',
+      labelKey: 'sa.profile.positionTitle',
       value: user?.position || user?.position_name || '\u2014',
       icon: BriefcaseBusiness,
     },
     {
       key: 'department',
-      label: 'Department',
+      labelKey: 'sa.common.department',
       value: user?.department || user?.department_name || '\u2014',
       icon: Building2,
     },
     {
       key: 'kiosk',
-      label: 'Assigned Kiosk',
+      labelKey: 'sa.profile.assignedKiosk',
       value: user?.kiosk || user?.kiosk_name || '\u2014',
       icon: Monitor,
     },
@@ -412,25 +445,26 @@ function ProfileModal({ onClose }) {
                 isActive ? 'bg-emerald-500' : 'bg-[#9CA3AF]'
               }`}
             />
-            Status: {isActive ? 'Active' : 'Inactive'}
+            {t('sa.profile.status')}:{' '}
+            {isActive ? t('sa.common.active') : t('sa.common.inactive')}
           </span>
 
           <h2 id="profile-title" className="sr-only">
-            My Profile
+            {t('sa.profile.title')}
           </h2>
         </div>
 
         {/* DETAILS */}
 
         <div className="grid gap-3 px-6 py-5 sm:grid-cols-2">
-          {details.map(({ key, label, value, icon: Icon }) => (
+          {details.map(({ key, labelKey, value, icon: Icon }) => (
             <div
               key={key}
               className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5"
             >
               <p className="flex items-center gap-1.5 text-xs text-[#9CA3AF]">
                 <Icon size={12} />
-                {label}
+                {t(labelKey)}
               </p>
 
               <p className="mt-0.5 truncate text-sm font-bold text-[#1F2937]" title={value}>
@@ -448,7 +482,7 @@ function ProfileModal({ onClose }) {
             onClick={onClose}
             className="swu-press rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
           >
-            Close
+            {t('sa.common.close')}
           </button>
         </div>
 

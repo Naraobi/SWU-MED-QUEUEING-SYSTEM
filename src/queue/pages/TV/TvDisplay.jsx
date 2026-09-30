@@ -20,6 +20,9 @@ import {
   getTerminals,
 } from '../../services/backendApi';
 import { fetchQueueState } from '../../services/api';
+import { getLogo, subscribeAppearance } from '../../services/appearance';
+
+import brandMark from '../../../assets/logo-transparent.png';
 
 import {
   announceCall,
@@ -43,7 +46,7 @@ import {
 
 const POLL_MS = 5000;
 const MAX_DEPARTMENTS = 4;
-const WAITING_ROWS = 3;
+const WAITING_ROWS = 2;
 const SETTINGS_KEY = 'swumed_tv_video_settings';
 
 /* ---------------------------------------------------------------
@@ -215,36 +218,75 @@ function useKioskQueue(kioskId) {
    Spoken announcement when a new number is called
 --------------------------------------------------------------- */
 
+/*
+ * callSignature()
+ *
+ * Identifies a CALL, not a ticket. A recall re-announces the SAME ticket, so
+ * keying on the ticket id alone makes the second call look like one already
+ * seen - which is exactly why pressing Recall on the staff terminal did
+ * nothing on the TV. Folding the call timestamps and the recall counter into
+ * the key gives a recall a new signature for the same ticket.
+ *
+ * FOR THE BACKEND TEAM: this needs POST /staff-queue/recall/:prefix to move at
+ * least one of called_at, recalled_at or recall_count. If the recall endpoint
+ * changes nothing on the row, the TV has no way to know a recall happened.
+ */
+function callSignature(serving, terminal) {
+  return [
+    serving.uniqueKey || serving.id,
+    serving.calledAt ?? '',
+    serving.recalledAt ?? '',
+    serving.recallCount ?? '',
+    terminal ?? '',
+  ].join('|');
+}
+
 function useAnnouncer(departments) {
   const [enabled, setEnabled] = useState(false);
   const [latest, setLatest] = useState(null);
+
+  // Signatures already announced, plus the tickets behind them. A ticket seen
+  // before that arrives under a NEW signature is a recall rather than a call.
   const seen = useRef(new Set());
+  const seenTickets = useRef(new Set());
   const primed = useRef(false);
 
   useEffect(() => {
     const calls = departments
       .filter((d) => d.serving)
       .map((d) => ({
-        key: d.serving.uniqueKey || d.serving.id,
+        key: callSignature(d.serving, d.servingTerminal),
+        ticket: d.serving.uniqueKey || d.serving.id,
         number: d.serving.id,
         terminal: d.servingTerminal,
       }));
 
     if (!primed.current) {
-      calls.forEach((c) => seen.current.add(c.key));
+      calls.forEach((c) => {
+        seen.current.add(c.key);
+        seenTickets.current.add(c.ticket);
+      });
       primed.current = true;
       return;
     }
 
-    const fresh = calls.filter((c) => !seen.current.has(c.key));
-    fresh.forEach((c) => seen.current.add(c.key));
+    const announcements = calls
+      .filter((c) => !seen.current.has(c.key))
+      .map((c) => {
+        const recall = seenTickets.current.has(c.ticket);
 
-    if (fresh.length === 0) return;
+        seen.current.add(c.key);
+        seenTickets.current.add(c.ticket);
 
-    setLatest(fresh[fresh.length - 1]);
+        return { ...c, recall };
+      });
+
+    if (announcements.length === 0) return;
+
+    setLatest(announcements[announcements.length - 1]);
 
     // Each call is chimed, spoken twice, and queued so they never overlap.
-    fresh.forEach((call) =>
+    announcements.forEach((call) =>
       announceCall({ number: call.number, terminal: call.terminal })
     );
   }, [departments, enabled]);
@@ -269,7 +311,7 @@ function useAnnouncer(departments) {
 function QueueChip({ ticket, priority }) {
   return (
     <div
-      className={`rounded-md px-3 py-1.5 text-center text-sm font-bold ${
+      className={`shrink-0 rounded-md px-3 py-1 text-center text-sm font-bold ${
         priority
           ? 'bg-[#FBF1F1] text-[#9D0A0E]'
           : 'bg-[#EFF4FA] text-[#1F2937]'
@@ -280,12 +322,68 @@ function QueueChip({ ticket, priority }) {
   );
 }
 
+/*
+ * One waiting lane (Priority or Regular).
+ *
+ * The header is fixed height; only the chip list grows, and it clips rather
+ * than spilling, so a busy department can never push a ticket outside the
+ * card. Whatever does not fit is counted instead of being silently dropped.
+ */
+function QueueLane({ label, tickets, priority }) {
+  const next = tickets[0]?.id || '\u2014';
+  const rows = tickets.slice(1, WAITING_ROWS + 1);
+  const hidden = Math.max(0, tickets.length - WAITING_ROWS - 1);
+
+  return (
+    <div className="flex min-h-0 flex-col gap-1.5">
+      <div
+        className={`shrink-0 rounded-md border px-2 py-1.5 text-center ${
+          priority
+            ? 'border-[#F0DADA] bg-[#FBF1F1]'
+            : 'border-[#E5E7EB] bg-[#EFF4FA]'
+        }`}
+      >
+        <span
+          className={`inline-block rounded px-1.5 py-0.5 text-xs font-bold uppercase text-white ${
+            priority ? 'bg-[#9D0A0E]' : 'bg-[#1F2937]'
+          }`}
+        >
+          {label}
+        </span>
+
+        <p className="mt-1 truncate text-xs text-[#4B5563]">
+          Next:{' '}
+          <span className={`font-bold ${priority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'}`}>
+            {next}
+          </span>
+        </p>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+        {rows.map((ticket) => (
+          <QueueChip
+            key={ticket.uniqueKey || ticket.id}
+            ticket={ticket}
+            priority={priority}
+          />
+        ))}
+
+        {hidden > 0 && (
+          <p className="shrink-0 text-center text-[10px] font-medium text-[#9CA3AF]">
+            +{hidden} more waiting
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DepartmentCard({ department }) {
   const { name, code, serving, servingTerminal, priority, regular } = department;
 
   return (
-    <div className="flex min-h-0 flex-col rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
+    <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+      <div className="flex shrink-0 items-center justify-between gap-2">
         <p className="truncate text-xs font-bold uppercase tracking-wide text-[#1F2937]">
           {name}
         </p>
@@ -296,8 +394,13 @@ function DepartmentCard({ department }) {
         )}
       </div>
 
-      {/* now serving */}
-      <div className="mt-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-3 text-center">
+      {/* now serving - keyed on the call so a recall re-animates the number */}
+      <div
+        key={serving ? callSignature(serving, servingTerminal) : 'idle'}
+        className={`mt-2 shrink-0 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-center ${
+          serving ? 'swu-pop' : ''
+        }`}
+      >
         <p className="text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
           Now Serving
         </p>
@@ -315,47 +418,19 @@ function DepartmentCard({ department }) {
         </p>
       </div>
 
-      <p className="mt-3 text-center text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+      <p className="mt-2.5 shrink-0 text-center text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
         Waiting Queue
       </p>
 
       {/* next up, split by lane */}
-      <div className="mt-2 grid min-h-0 grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <div className="rounded-md border border-[#F0DADA] bg-[#FBF1F1] px-2 py-1.5 text-center">
-            <span className="inline-block rounded bg-[#9D0A0E] px-1.5 py-0.5 text-xs font-bold uppercase text-white">
-              Priority
-            </span>
-            <p className="mt-1 truncate text-xs text-[#4B5563]">
-              Next:{' '}
-              <span className="font-bold text-[#9D0A0E]">
-                {priority[0]?.id || '\u2014'}
-              </span>
-            </p>
-          </div>
-
-          {priority.slice(1, WAITING_ROWS + 1).map((ticket) => (
-            <QueueChip key={ticket.uniqueKey || ticket.id} ticket={ticket} priority />
-          ))}
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="rounded-md border border-[#E5E7EB] bg-[#EFF4FA] px-2 py-1.5 text-center">
-            <span className="inline-block rounded bg-[#1F2937] px-1.5 py-0.5 text-xs font-bold uppercase text-white">
-              Regular
-            </span>
-            <p className="mt-1 truncate text-xs text-[#4B5563]">
-              Next:{' '}
-              <span className="font-bold text-[#1F2937]">
-                {regular[0]?.id || '\u2014'}
-              </span>
-            </p>
-          </div>
-
-          {regular.slice(1, WAITING_ROWS + 1).map((ticket) => (
-            <QueueChip key={ticket.uniqueKey || ticket.id} ticket={ticket} priority={false} />
-          ))}
-        </div>
+      {/*
+        The two lanes take whatever height is left and clip inside the card.
+        Without min-h-0 + overflow-hidden the chips are drawn PAST the card's
+        rounded border and the grid slices them in half - that was the bug.
+      */}
+      <div className="mt-2 grid min-h-0 flex-1 grid-cols-2 gap-2">
+        <QueueLane label="Priority" tickets={priority} priority />
+        <QueueLane label="Regular" tickets={regular} priority={false} />
       </div>
     </div>
   );
@@ -610,6 +685,14 @@ export default function TvDisplay() {
   const { loading, error, departments } = useKioskQueue(kioskId);
   const { enabled: soundOn, enable: enableSound, latest } = useAnnouncer(departments);
 
+  // A logo uploaded in Settings replaces the bundled mark on the TV too.
+  const [brandLogo, setBrandLogo] = useState(() => getLogo());
+
+  useEffect(
+    () => subscribeAppearance((appearance) => setBrandLogo(appearance.logo)),
+    []
+  );
+
   const [videoUrl, setVideoUrl] = useState(null);
   const [videoName, setVideoName] = useState(null);
   const [settings, setSettings] = useState(() => readSettings());
@@ -684,10 +767,11 @@ export default function TvDisplay() {
       {/* HEADER */}
 
       <header className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-6 py-3">
-        <p className="rounded-md border border-[#E5E7EB] bg-white px-4 py-1.5 text-3xl font-bold shadow-sm">
-          <span className="text-[#9D0A0E]">SWU</span>
-          <span className="text-[#4B5563]">Med</span>
-        </p>
+        <img
+          src={brandLogo || brandMark}
+          alt="SWUMed"
+          className="h-14 w-auto object-contain object-left"
+        />
 
         <div className="text-right">
           <p className="text-3xl font-bold text-[#1F2937]">{time}</p>
@@ -760,14 +844,18 @@ export default function TvDisplay() {
 
               {/* announcement */}
               {latest && (
-                <div className="swu-enter flex shrink-0 items-center gap-3 bg-[#9D0A0E] px-4 py-3 text-white">
+                <div
+                  key={latest.key}
+                  className="swu-enter flex shrink-0 items-center gap-3 bg-[#9D0A0E] px-4 py-3 text-white"
+                >
                   <Megaphone size={18} className="shrink-0" />
                   <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-wide text-white/80">
-                      Patient Announcement
+                      {latest.recall ? 'Repeat Call' : 'Patient Announcement'}
                     </p>
                     <p className="truncate text-sm">
-                      Paging <span className="font-bold">{latest.number}</span>
+                      {latest.recall ? 'Paging again' : 'Paging'}{' '}
+                      <span className="font-bold">{latest.number}</span>
                       {latest.terminal ? ` to Terminal ${latest.terminal}` : ''} &middot; Please
                       present your appointment slip or valid government ID.
                     </p>

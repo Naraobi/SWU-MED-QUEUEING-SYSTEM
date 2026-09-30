@@ -297,24 +297,16 @@ export default function TrackerPage() {
    * Keeping the behavior in one function
    * prevents duplicated notification logic.
    */
-  const triggerTurnNotification =
-    () => {
+const triggerTurnNotification = () => {
+  setTurnNotification(true);
 
-      /*
-       * Show the notification.
-       */
-      setTurnNotification(true)
+  // 🔊 Sound
+  playTurnNotificationSound();
 
-      /*
-       * Play the notification sound.
-       */
-      playTurnNotificationSound()
-
-      /*
-       * Clear the previous timeout if
-       * another notification happened
-       * before the previous one disappeared.
-       */
+  // 📳 Vibration
+  if ("vibrate" in navigator) {
+    navigator.vibrate([300, 150, 300, 150, 500]);
+  }
       if (
         notificationTimeoutRef.current
       ) {

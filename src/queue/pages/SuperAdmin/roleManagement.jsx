@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  BarChart3,
   BriefcaseBusiness,
-  ShieldCheck,
+  Building2,
+  Check,
+  ChevronRight,
+  ClipboardList,
+  LayoutDashboard,
+  Monitor,
+  PencilLine,
   Plus,
   Search,
-  PencilLine,
+  Settings,
+  ShieldCheck,
   Trash2,
   Users,
-  ChevronDown,
-  Check,
   X,
   AlertTriangle,
 } from 'lucide-react';
@@ -24,6 +30,8 @@ import {
 
 import { db } from '../../../firebase';
 
+import { getUsers } from '../../services/backendApi';
+
 // =========================================================
 // NODE.JS API
 // =========================================================
@@ -35,47 +43,225 @@ const API_BASE_URL =
 // AVAILABLE PERMISSIONS
 // =========================================================
 
-const AVAILABLE_PERMISSIONS = [
-  'Manage users',
-  'Manage departments',
-  'Manage kiosks',
-  'Manage queues',
-  'Assign staff',
-  'Assign terminals',
-  'Call next patient',
-  'Update queue status',
-  'View reports',
-  'Modify settings',
+// =========================================================
+// SYSTEM FEATURES
+//
+// A role is a set of system features it may open. The keys below are what
+// gets stored in the role's `permissions` column, so the list doubles as the
+// vocabulary for that column - no schema change, only different values in it.
+// =========================================================
+
+const FEATURES = [
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    caption: 'Overview & metrics',
+    icon: LayoutDashboard,
+  },
+  {
+    key: 'staff',
+    label: 'Staff Management',
+    caption: 'See and manage Staff',
+    icon: Users,
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    caption: 'Global Configuration',
+    icon: Settings,
+  },
+  {
+    key: 'terminals',
+    label: 'Terminal Management',
+    caption: 'Touch terminals & printers',
+    icon: Monitor,
+  },
+  {
+    key: 'roles',
+    label: 'Role Management',
+    caption: 'Restricted to Superadmin',
+    icon: ShieldCheck,
+    locked: true,
+  },
+  {
+    key: 'positions',
+    label: 'Position Management',
+    caption: 'Designation assignment',
+    icon: BriefcaseBusiness,
+    locked: true,
+  },
+  {
+    key: 'queues',
+    label: 'Queue Management',
+    caption: 'Live ticket & window monitor',
+    icon: ClipboardList,
+  },
+  {
+    key: 'reports',
+    label: 'Reports & Analytics',
+    caption: 'Queue trends & wait times',
+    icon: BarChart3,
+  },
+  {
+    key: 'departments',
+    label: 'Department Management',
+    caption: 'Manage departments & services',
+    icon: Building2,
+  },
 ];
 
-// The same permissions, grouped for display only.
-const PERMISSION_GROUPS = [
-  {
-    title: 'Staff',
-    permissions: [
-      'Assign staff',
-      'Manage users',
-      'Assign terminals',
-    ],
-  },
-  {
-    title: 'Queue',
-    permissions: [
-      'Manage queues',
-      'Update queue status',
-      'Call next patient',
-    ],
-  },
-  {
-    title: 'System',
-    permissions: [
-      'Modify settings',
-      'View reports',
-      'Manage departments',
-      'Manage kiosks',
-    ],
-  },
-];
+const FEATURE_KEYS = FEATURES.map((feature) => feature.key);
+
+// Locked features belong to Superadmin only, so they are never toggled from
+// this screen - they read as enabled for Superadmin and disabled elsewhere.
+const LOCKED_KEYS = FEATURES.filter((f) => f.locked).map((f) => f.key);
+
+// What Select All can actually reach.
+const AVAILABLE_PERMISSIONS = FEATURE_KEYS.filter(
+  (key) => !LOCKED_KEYS.includes(key)
+);
+
+/*
+ * Rows saved before this screen used feature keys hold sentences like
+ * "Manage queues". Mapping them forward means an existing role still lights
+ * up correctly instead of reading as "0 of 9 features enabled" until someone
+ * opens and re-saves it.
+ */
+const LEGACY_PERMISSION_MAP = {
+  'manage users': 'staff',
+  'assign staff': 'staff',
+  'manage departments': 'departments',
+  'manage kiosks': 'terminals',
+  'assign terminals': 'terminals',
+  'manage queues': 'queues',
+  'call next patient': 'queues',
+  'update queue status': 'queues',
+  'view reports': 'reports',
+  'modify settings': 'settings',
+};
+
+/*
+ * Accepts whatever is in the permissions column - feature keys, legacy
+ * sentences, or a mix - and returns clean feature keys with no duplicates.
+ */
+function toFeatureKeys(value) {
+  const list = Array.isArray(value) ? value : [];
+  const keys = new Set();
+
+  list.forEach((entry) => {
+    const raw = String(entry || '').trim();
+    if (!raw) return;
+
+    const lower = raw.toLowerCase();
+
+    if (FEATURE_KEYS.includes(lower)) {
+      keys.add(lower);
+      return;
+    }
+
+    const mapped = LEGACY_PERMISSION_MAP[lower];
+    if (mapped) keys.add(mapped);
+  });
+
+  return FEATURE_KEYS.filter((key) => keys.has(key));
+}
+
+/*
+ * The two locked features follow the role name rather than the stored
+ * permissions, so "Restricted to Superadmin" is true rather than decorative.
+ */
+function isSuperadminRole(name) {
+  return String(name || '').trim().toLowerCase() === 'superadmin';
+}
+
+function effectivePermissions(roleName, permissions) {
+  const granted = new Set(toFeatureKeys(permissions));
+
+  LOCKED_KEYS.forEach((key) => {
+    if (isSuperadminRole(roleName)) {
+      granted.add(key);
+    } else {
+      granted.delete(key);
+    }
+  });
+
+  return FEATURE_KEYS.filter((key) => granted.has(key));
+}
+
+function initialsOf(value) {
+  const parts = String(value || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]);
+
+  return parts.join('').toUpperCase() || '?';
+}
+
+function formatRoleDate(value) {
+  if (!value) return '--';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+/*
+ * Users come from GET /api/users. There is no roles/:id/users endpoint, so
+ * membership is matched on role_id where the row has one and on the role name
+ * otherwise. FOR THE BACKEND TEAM: a users-by-role endpoint would make this
+ * exact rather than best-effort.
+ */
+function normalizeRoleUser(row) {
+  const first = row.first_name ?? '';
+  const last = row.last_name ?? '';
+  const full = row.full_name ?? `${first} ${last}`.trim();
+
+  const roleName =
+    typeof row.role === 'object' ? row.role?.role ?? '' : row.role ?? '';
+
+  const departmentName =
+    typeof row.department === 'object'
+      ? row.department?.name ?? ''
+      : row.department ?? '';
+
+  const positionName =
+    typeof row.position === 'object'
+      ? row.position?.name ?? ''
+      : row.position ?? '';
+
+  return {
+    id: row.user_id ?? row.id ?? row.email ?? full,
+    name: full,
+    email: row.email ?? '',
+    roleId: row.role_id ?? null,
+    role: roleName,
+    position: positionName,
+    department: departmentName,
+    status:
+      String(row.status ?? 'active').toLowerCase() === 'inactive'
+        ? 'Inactive'
+        : 'Active',
+  };
+}
+
+function usersForRole(users, role) {
+  if (!role) return [];
+
+  const name = String(role.name || '').trim().toLowerCase();
+
+  return users.filter((user) => {
+    if (user.roleId && role.id) return String(user.roleId) === String(role.id);
+    return String(user.role || '').trim().toLowerCase() === name;
+  });
+}
+
 
 // =========================================================
 // DEFAULT ROLE DESCRIPTIONS
@@ -106,22 +292,18 @@ export default function RoleManagement() {
   const [selectedRole, setSelectedRole] = useState(null);
 
   // Add Role
+  const [showPermissionDropdown, setShowPermissionDropdown] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
   // Edit Role
+  const [showEditPermissionDropdown, setShowEditPermissionDropdown] =
+  useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState(null);
 
   // Delete confirmation
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingRole, setDeletingRole] = useState(null);
-
-  // Permission dropdowns
-  const [showPermissionDropdown, setShowPermissionDropdown] =
-    useState(false);
-
-  const [showEditPermissionDropdown, setShowEditPermissionDropdown] =
-    useState(false);
 
   // Add Role form
   const [draft, setDraft] = useState({
@@ -147,6 +329,16 @@ export default function RoleManagement() {
   // Messages
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  /*
+   * Users for this screen. The role rows carry their own count, but the
+   * Summary panel and the assigned-users list need the people themselves,
+   * so they are loaded once here and filtered per role.
+   */
+  const [apiUsers, setApiUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [showUsersModal, setShowUsersModal] = useState(false);
+  const [userQuery, setUserQuery] = useState('');
 
   // =========================================================
   // NODE.JS API HELPERS
@@ -309,6 +501,10 @@ export default function RoleManagement() {
           permissions = [];
         }
 
+        // Legacy rows hold sentences like "Manage queues"; map them onto
+        // feature keys so an existing role is not shown as having none.
+        permissions = toFeatureKeys(permissions);
+
         return {
           id: roleData.role_id,
 
@@ -324,6 +520,9 @@ export default function RoleManagement() {
           permissions,
 
           users: userCounts[roleData.role_id] || 0,
+
+          updatedAt:
+            roleData.updated_at ?? roleData.updatedAt ?? null,
         };
       });
 
@@ -365,8 +564,25 @@ export default function RoleManagement() {
   // INITIAL LOAD
   // =========================================================
 
+  async function fetchRoleUsers() {
+    try {
+      setUsersLoading(true);
+
+      const rows = await getUsers();
+      setApiUsers((Array.isArray(rows) ? rows : []).map(normalizeRoleUser));
+    } catch (userError) {
+      // Not fatal: the page still works, the counts just fall back to the
+      // number the role row reported.
+      console.warn('Could not load users for roles:', userError);
+      setApiUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  }
+
   useEffect(() => {
     fetchRoles();
+    fetchRoleUsers();
   }, []);
 
   // =========================================================
@@ -1094,1016 +1310,990 @@ export default function RoleManagement() {
   };
 
   // =========================================================
-  // CURRENT PERMISSIONS
+  // DERIVED VALUES FOR THE DETAIL PANE
   // =========================================================
 
-  const currentPermissions =
-    selectedRole?.permissions || [];
+  const grantedFeatures = effectivePermissions(
+    selectedRole?.name,
+    selectedRole?.permissions
+  );
+
+  const assignedUsers = usersForRole(apiUsers, selectedRole);
 
   // =========================================================
   // UI
   // =========================================================
 
   return (
-    <div className="space-y-6">
-
+    <div className="space-y-5">
       {/* =================================================
           HEADER
       ================================================= */}
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex items-end justify-between gap-5">
         <div>
-          <h1 className="text-2xl font-bold text-[#1F2937]">
-            Role Management
-          </h1>
-
-          <p className="mt-1 text-sm text-[#4B5563]">
-            Configure access levels and user
-            permissions across the queueing system.
+          <h1 className="text-2xl font-bold text-[#1F2937]">Role Management</h1>
+          <p className="mt-0.5 text-xs text-[#4B5563]">
+            Configure access levels and user permissions across the queuing
+            system.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setShowForm(
-                (value) => !value
-              );
-
-              setError('');
-              setSuccess('');
-
-              if (!showForm) {
-                resetDraft();
-              }
-            }}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#7D080B]"
-          >
-            <Plus size={16} />
-            Add Role
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            resetDraft();
+            setShowForm(true);
+          }}
+          className="swu-press flex items-center gap-1.5 rounded-md bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
+        >
+          <Plus size={14} /> Add Role
+        </button>
       </div>
 
       {/* =================================================
-          ERROR
+          MESSAGES
       ================================================= */}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+        <div className="flex items-start gap-2 rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-4 py-3 text-xs text-[#9D0A0E]">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <div>
+            {error}
+            <button
+              type="button"
+              onClick={fetchRoles}
+              className="ml-2 font-semibold underline"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       )}
 
-      {/* =================================================
-          SUCCESS
-      ================================================= */}
-
       {success && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="flex items-start gap-2 rounded-lg border border-[#86EFAC] bg-[#E8F8F0] px-4 py-3 text-xs text-[#0D8A4E]">
+          <Check size={14} className="mt-0.5 shrink-0" />
           {success}
         </div>
       )}
 
       {/* =================================================
-          EDIT ROLE MODAL
+          LIST + DETAIL
       ================================================= */}
 
-      {showEditModal && (
-        <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="swu-pop max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-2xl">
-
-            {/* MODAL HEADER */}
-
-            <div className="mb-5 flex items-start justify-between">
-              <div>
-                <h3 className="text-xl font-bold text-[#1F2937]">
-                  Edit Role
-                </h3>
-
-                <p className="mt-1 text-sm text-[#4B5563]">
-                  Update access details and permissions.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeEditRole}
-                disabled={saving}
-                className="rounded-lg p-2 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#4B5563] disabled:opacity-50"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* ROLE NAME + STATUS */}
-
-            <div className="grid gap-4 md:grid-cols-2">
-
-              <label className="block text-sm text-[#4B5563]">
-                Role name
-
-                <input
-                  type="text"
-                  value={editDraft.name}
-                  onChange={(event) =>
-                    setEditDraft(
-                      (current) => ({
-                        ...current,
-                        name:
-                          event.target.value,
-                      })
-                    )
-                  }
-                  className="mt-1 w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
-                />
-              </label>
-
-              <label className="block text-sm text-[#4B5563]">
-                Status
-
-                <select
-                  value={editDraft.status}
-                  onChange={(event) =>
-                    setEditDraft(
-                      (current) => ({
-                        ...current,
-                        status:
-                          event.target.value,
-                      })
-                    )
-                  }
-                  className="mt-1 w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
-                >
-                  <option value="Active">
-                    Active
-                  </option>
-
-                  <option value="Inactive">
-                    Inactive
-                  </option>
-                </select>
-              </label>
-            </div>
-
-            {/* DESCRIPTION */}
-
-            <label className="mt-4 block text-sm text-[#4B5563]">
-              Description
-
-              <textarea
-                value={editDraft.description}
-                onChange={(event) =>
-                  setEditDraft(
-                    (current) => ({
-                      ...current,
-                      description:
-                        event.target.value,
-                    })
-                  )
-                }
-                rows={3}
-                className="mt-1 w-full rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
-              />
-            </label>
-
-            {/* PERMISSIONS */}
-
-            <div className="relative mt-4">
-
-              <label className="block text-sm text-[#4B5563]">
-                Permissions
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowEditPermissionDropdown(
-                      (value) => !value
-                    )
-                  }
-                  className="mt-1 flex w-full items-center justify-between rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-left text-sm outline-none transition hover:bg-[#F1F3F5] focus:border-[#9D0A0E]"
-                >
-                  <span
-                    className={
-                      editDraft.permissions
-                        .length === 0
-                        ? 'text-[#9CA3AF]'
-                        : 'text-[#1F2937]'
-                    }
-                  >
-                    {editDraft.permissions
-                      .length === 0
-                      ? 'Select permissions'
-                      : `${editDraft.permissions.length} permission${
-                          editDraft.permissions.length ===
-                          1
-                            ? ''
-                            : 's'
-                        } selected`}
-                  </span>
-
-                  <ChevronDown
-                    size={17}
-                    className={`text-[#9CA3AF] transition-transform ${
-                      showEditPermissionDropdown
-                        ? 'rotate-180'
-                        : ''
-                    }`}
-                  />
-                </button>
-              </label>
-
-              {/* PERMISSION DROPDOWN */}
-
-              {showEditPermissionDropdown && (
-                <div className="absolute z-30 mt-2 w-full rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-xl">
-
-                  {/* SELECT / CLEAR */}
-
-                  <div className="flex items-center justify-between border-b border-[#E5E7EB] px-2 py-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
-                      Available permissions
-                    </span>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={
-                          selectAllEditPermissions
-                        }
-                        className="text-xs font-semibold text-[#9D0A0E] hover:underline"
-                      >
-                        Select all
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={
-                          clearAllEditPermissions
-                        }
-                        className="text-xs font-semibold text-[#4B5563] hover:text-[#1F2937] hover:underline"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* PERMISSION OPTIONS */}
-
-                  <div className="max-h-64 overflow-y-auto py-1">
-                    {AVAILABLE_PERMISSIONS.map(
-                      (permission) => {
-                        const checked =
-                          editDraft.permissions.includes(
-                            permission
-                          );
-
-                        return (
-                          <button
-                            key={permission}
-                            type="button"
-                            onClick={() =>
-                              toggleEditPermission(
-                                permission
-                              )
-                            }
-                            className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm text-[#1F2937] transition-all duration-200 hover:translate-x-1 hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
-                          >
-                            <span
-                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${
-                                checked
-                                  ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
-                                  : 'border-[#E5E7EB] bg-white'
-                              }`}
-                            >
-                              {checked && (
-                                <Check
-                                  size={13}
-                                  strokeWidth={3}
-                                />
-                              )}
-                            </span>
-
-                            {permission}
-                          </button>
-                        );
-                      }
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* SELECTED PERMISSIONS */}
-
-            {editDraft.permissions.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {editDraft.permissions.map(
-                  (permission) => (
-                    <span
-                      key={permission}
-                      className="rounded-full bg-[#FBF1F1] px-3 py-1.5 text-xs font-medium text-[#9D0A0E]"
-                    >
-                      {permission}
-                    </span>
-                  )
-                )}
-              </div>
-            )}
-
-            {/* BUTTONS */}
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={closeEditRole}
-                disabled={saving}
-                className="swu-press rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleUpdateRole}
-                disabled={saving}
-                className="swu-press rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
-              >
-                {saving
-                  ? 'Saving...'
-                  : 'Update Role'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =================================================
-          DELETE CONFIRMATION MODAL
-      ================================================= */}
-
-      {showDeleteModal && deletingRole && (
-        <div className="swu-enter-fade fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="swu-pop w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl">
-
-            {/* ICON */}
-
-            <div className="flex justify-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600">
-                <AlertTriangle size={28} />
-              </div>
-            </div>
-
-            {/* TEXT */}
-
-            <div className="mt-4 text-center">
-              <h3 className="text-lg font-bold text-[#1F2937]">
-                Delete Role?
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-[#4B5563]">
-                Are you sure you want to delete the
-                <span className="font-semibold text-[#1F2937]">
-                  {' '}
-                  "{deletingRole.name}"
-                </span>
-                {' '}role?
-              </p>
-
-              <p className="mt-2 text-xs text-red-500">
-                This action cannot be undone.
-              </p>
-            </div>
-
-            {/* BUTTONS */}
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={
-                  closeDeleteConfirmation
-                }
-                disabled={deleting}
-                className="swu-press flex-1 rounded-lg border border-[#E5E7EB] px-4 py-2.5 text-sm font-medium text-[#4B5563] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {deleting
-                  ? 'Deleting...'
-                  : 'Yes, Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =================================================
-          ADD ROLE FORM
-      ================================================= */}
-
-      {showForm && (
-        <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8">
-
-          <div className="swu-pop flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-
-            {/* HEADER */}
-
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E5E7EB] px-6 py-4">
-
-              <div>
-                <h2 className="text-lg font-bold text-[#1F2937]">
-                  Add Role
-                </h2>
-
-                <p className="mt-1 text-xs text-[#4B5563]">
-                  Create a role and choose what it can access.
-                </p>
-
-                <p className="mt-0.5 text-xs text-[#4B5563]">
-                  Fields marked{' '}
-                  <span className="text-[#9D0A0E]">*</span>
-                  {' '}are required.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  resetDraft();
-                }}
-                className="rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
-                aria-label="Close"
-              >
-                <X size={18} />
-              </button>
-
-            </div>
-
-            {/* BODY */}
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-              {/* ROLE NAME + STATUS */}
-
-              <div className="flex items-start gap-4">
-
-                <div className="flex-1">
-                  <label
-                    htmlFor="role-name"
-                    className="mb-1.5 block text-sm font-semibold text-[#1F2937]"
-                  >
-                    Role Name
-                    <span className="ml-0.5 text-[#9D0A0E]">*</span>
-                  </label>
-
-                  <input
-                    id="role-name"
-                    type="text"
-                    value={draft.name}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }))
-                    }
-                    placeholder="e.g. Billing Officer"
-                    className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/20"
-                  />
-                </div>
-
-                <div className="shrink-0">
-                  <span className="mb-1.5 block text-sm font-semibold text-[#1F2937]">
-                    Status
-                  </span>
-
-                  <div className="inline-flex rounded-lg border border-[#E5E7EB] p-1">
-                    {['Active', 'Inactive'].map(
-                      (option) => {
-                        const isSelected =
-                          draft.status === option;
-
-                        return (
-                          <button
-                            key={option}
-                            type="button"
-                            onClick={() =>
-                              setDraft((current) => ({
-                                ...current,
-                                status: option,
-                              }))
-                            }
-                            aria-pressed={isSelected}
-                            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-                              isSelected
-                                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/30'
-                                : 'text-[#4B5563] hover:bg-[#F1F3F5]'
-                            }`}
-                          >
-                            {isSelected && (
-                              <Check size={14} />
-                            )}
-
-                            {option}
-                          </button>
-                        );
-                      }
-                    )}
-                  </div>
-                </div>
-
-              </div>
-
-
-              {/* DESCRIPTION */}
-
-              <div className="mt-5">
-                <label
-                  htmlFor="role-description"
-                  className="mb-1.5 block text-sm font-semibold text-[#1F2937]"
-                >
-                  Description
-                </label>
-
-                <textarea
-                  id="role-description"
-                  rows={3}
-                  value={draft.description}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                  placeholder="Describe the purpose of this role"
-                  className="w-full resize-none rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/20"
-                />
-              </div>
-
-
-              {/* PERMISSIONS */}
-
-              <div className="mt-5">
-
-                <div className="mb-2 flex items-baseline justify-between gap-3">
-
-                  <span className="text-sm font-semibold text-[#1F2937]">
-                    Permissions
-                    <span className="ml-0.5 text-[#9D0A0E]">*</span>
-                  </span>
-
-                  <span className="flex items-baseline gap-2 text-xs text-[#4B5563]">
-                    {draft.permissions.length} selected
-
-                    <span aria-hidden="true">&middot;</span>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDraft((current) => ({
-                          ...current,
-                          permissions:
-                            current.permissions.length ===
-                            AVAILABLE_PERMISSIONS.length
-                              ? []
-                              : [...AVAILABLE_PERMISSIONS],
-                        }))
-                      }
-                      className="font-semibold text-[#9D0A0E] transition hover:underline"
-                    >
-                      {draft.permissions.length ===
-                      AVAILABLE_PERMISSIONS.length
-                        ? 'Clear all'
-                        : 'Select all'}
-                    </button>
-                  </span>
-
-                </div>
-
-                <div className="space-y-3">
-                  {PERMISSION_GROUPS.map((group) => (
-                    <div
-                      key={group.title}
-                      className="rounded-lg bg-[#F1F3F5] p-4"
-                    >
-
-                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
-                        {group.title}
-                      </p>
-
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-                        {group.permissions.map(
-                          (permission) => {
-                            const isChecked =
-                              draft.permissions.includes(
-                                permission
-                              );
-
-                            return (
-                              <label
-                                key={permission}
-                                className="flex cursor-pointer items-center gap-2.5 text-sm text-[#1F2937]"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() =>
-                                    setDraft((current) => ({
-                                      ...current,
-                                      permissions:
-                                        current.permissions.includes(
-                                          permission
-                                        )
-                                          ? current.permissions.filter(
-                                              (item) =>
-                                                item !==
-                                                permission
-                                            )
-                                          : [
-                                              ...current.permissions,
-                                              permission,
-                                            ],
-                                    }))
-                                  }
-                                  className="h-4 w-4 shrink-0 cursor-pointer rounded border-[#9CA3AF] accent-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/30"
-                                />
-
-                                {permission}
-                              </label>
-                            );
-                          }
-                        )}
-                      </div>
-
-                    </div>
-                  ))}
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* FOOTER */}
-
-            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  resetDraft();
-                }}
-                className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={saving}
-                className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving
-                  ? 'Saving...'
-                  : 'Save Role'}
-              </button>
-
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* =================================================
-          ROLE CONTENT
-      ================================================= */}
-
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-
-        {/* =================================================
-            ROLE LIST
-        ================================================= */}
-
-        <section className="swu-card rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
-
-          {/* SEARCH */}
-
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2">
+      <div className="grid min-h-[620px] grid-cols-[minmax(300px,26%)_minmax(0,1fr)] gap-5">
+        {/* ---------------- LIST ---------------- */}
+
+        <section className="swu-enter flex flex-col gap-3">
+          <div className="relative">
             <Search
-              size={16}
-              className="text-[#9CA3AF]"
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]"
             />
-
             <input
-              type="text"
               value={queryText}
-              onChange={(event) =>
-                setQueryText(
-                  event.target.value
-                )
-              }
+              onChange={(event) => setQueryText(event.target.value)}
               placeholder="Search roles"
-              className="w-full border-0 bg-transparent text-sm text-[#1F2937] outline-none placeholder:text-[#9CA3AF]"
+              aria-label="Search roles"
+              className="h-9 w-full rounded-lg border border-[#E5E7EB] bg-white pl-9 pr-3 text-xs text-[#1F2937] outline-none placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
             />
           </div>
 
-          {/* LOADING */}
-
-          {loading ? (
-            <div className="py-10 text-center text-sm text-[#4B5563]">
+          {loading && (
+            <div className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-10 text-center text-xs text-[#9CA3AF]">
               Loading roles...
             </div>
-          ) : filteredRoles.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8F9FA] p-6 text-center text-sm text-[#4B5563]">
-              No roles found.
+          )}
+
+          {!loading && filteredRoles.length === 0 && (
+            <div className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-10 text-center text-xs text-[#9CA3AF]">
+              {roles.length === 0 ? 'No roles yet.' : 'No roles found.'}
             </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredRoles.map((role) => {
-                const active =
-                  selectedRole?.id ===
-                  role.id;
+          )}
+
+          <div className="swu-stagger space-y-2.5">
+            {!loading &&
+              filteredRoles.map((role) => {
+                const active = selectedRole?.id === role.id;
+                const count = usersLoading
+                  ? role.users
+                  : usersForRole(apiUsers, role).length;
 
                 return (
                   <button
                     key={role.id}
                     type="button"
-                    onClick={() =>
-                      openRole(role)
-                    }
-                    className={`w-full rounded-xl border p-3 text-left transition ${
+                    onClick={() => openRole(role)}
+                    className={`swu-card flex w-full items-start justify-between gap-3 rounded-xl border p-3.5 text-left transition-all duration-200 ${
                       active
-                        ? 'border-[#9D0A0E] bg-[#FBF1F1]'
-                        : 'border-[#E5E7EB] bg-white hover:border-[#E5E7EB] hover:bg-[#F8F9FA]'
+                        ? 'border-[#9D0A0E] bg-[#FBF1F1] shadow-sm'
+                        : 'border-[#E5E7EB] bg-white hover:border-[#F0DADA] hover:shadow-sm'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-
-                      <div>
-                        <p className="text-sm font-semibold text-[#1F2937]">
-                          {role.name}
-                        </p>
-
-                        <p className="mt-1 text-xs text-[#4B5563]">
-                          {role.description}
-                        </p>
-                      </div>
-
+                    <span className="min-w-0">
                       <span
-                        className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                          role.status ===
-                          'Active'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-[#E5E7EB] text-[#4B5563]'
+                        className={`block truncate text-xs font-bold ${
+                          active ? 'text-[#9D0A0E]' : 'text-[#1F2937]'
                         }`}
                       >
-                        {role.status}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between text-xs text-[#4B5563]">
-
-                      <span className="inline-flex items-center gap-1.5">
-                        <Users size={12} />
-
-                        {role.users}{' '}
-
-                        {role.users === 1
-                          ? 'user'
-                          : 'users'}
+                        {role.name}
                       </span>
 
-                      <span
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openEditRole(role);
-                        }}
-                        className="inline-flex cursor-pointer items-center gap-1.5 text-[#9D0A0E]"
-                      >
-                        <PencilLine
-                          size={12}
-                        />
-
-                        Edit
+                      <span className="mt-0.5 block truncate text-xs text-[#4B5563]">
+                        {role.description}
                       </span>
-                    </div>
+
+                      <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-[#9CA3AF]">
+                        <Users size={11} />
+                        {count ?? '--'} user{count === 1 ? '' : 's'}
+                      </span>
+                    </span>
+
+                    <span
+                      className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
+                        role.status === 'Active'
+                          ? 'bg-[#E8F8F0] text-[#0D8A4E]'
+                          : 'bg-[#F1F3F5] text-[#6B7280]'
+                      }`}
+                    >
+                      {role.status}
+                    </span>
                   </button>
                 );
               })}
-            </div>
-          )}
+          </div>
         </section>
 
-        {/* =================================================
-            ROLE DETAILS
-        ================================================= */}
+        {/* ---------------- DETAIL ---------------- */}
 
-        <section className="swu-card rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-
+        <section className="swu-enter overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
           {selectedRole ? (
             <>
-              {/* ROLE HEADER */}
-
-              <div className="flex flex-col gap-3 border-b border-[#E5E7EB] pb-5 md:flex-row md:items-center md:justify-between">
-
-                <div className="flex items-center gap-3">
-
-                  <div className="rounded-xl bg-[#FBF1F1] p-3 text-[#9D0A0E]">
-                    <ShieldCheck
-                      size={22}
-                    />
-                  </div>
-
-                  <div>
-                    <h2 className="text-xl font-bold text-[#1F2937]">
-                      {selectedRole.name}
-                    </h2>
-
-                    <p className="text-sm text-[#4B5563]">
-                      {selectedRole.status}{' '}
-                      role
-                    </p>
-                  </div>
+              <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-5 py-4">
+                <div className="min-w-0">
+                  <h2 className="truncate text-base font-semibold text-[#1F2937]">
+                    {selectedRole.name}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-[#9CA3AF]">
+                    {selectedRole.status} role
+                  </p>
                 </div>
 
-                {/* ACTIONS */}
-
-                <div className="flex gap-2">
-
+                <div className="flex shrink-0 items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() =>
-                      openEditRole(
-                        selectedRole
-                      )
-                    }
-                    className="swu-press inline-flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
+                    onClick={() => openEditRole(selectedRole)}
+                    className="swu-press inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#E5E7EB] px-3 text-xs font-medium text-[#4B5563] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
                   >
-                    <PencilLine
-                      size={15}
-                    />
-
+                    <PencilLine size={12} />
                     Edit
                   </button>
 
                   <button
                     type="button"
-                    onClick={() =>
-                      openDeleteConfirmation(
-                        selectedRole
-                      )
-                    }
-                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100"
+                    onClick={() => openDeleteConfirmation(selectedRole)}
+                    aria-label="Delete role"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] text-[#9D0A0E] transition hover:border-[#F0DADA] hover:bg-[#FBF1F1]"
                   >
-                    <Trash2 size={15} />
-
-                    Delete
+                    <Trash2 size={12} />
                   </button>
                 </div>
               </div>
 
-              {/* ROLE INFORMATION */}
-
-              <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-
-                {/* LEFT */}
-
-                <div>
-
-                  {/* DESCRIPTION */}
-
-                  <div className="rounded-xl bg-[#F8F9FA] p-4">
-
-                    <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">
-                      Description
-                    </p>
-
-                    <p className="mt-2 text-sm leading-6 text-[#4B5563]">
-                      {selectedRole.description}
-                    </p>
-                  </div>
-
-                  {/* PERMISSIONS */}
-
-                  <div className="mt-5">
-
-                    <p className="mb-3 text-sm font-semibold text-[#1F2937]">
-                      Permissions
-                    </p>
-
-                    {currentPermissions.length >
-                    0 ? (
-                      <div className="space-y-2">
-
-                        {currentPermissions.map(
-                          (permission) => (
-                            <div
-                              key={
-                                permission
-                              }
-                              className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#4B5563]"
-                            >
-                              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#9D0A0E]" />
-
-                              {permission}
-                            </div>
-                          )
-                        )}
-
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-[#E5E7EB] bg-[#F8F9FA] px-3 py-4 text-sm text-[#4B5563]">
-                        No permissions assigned.
-                      </div>
-                    )}
-                  </div>
+              <div className="p-5">
+                {/* description */}
+                <div className="rounded-lg bg-[#F8F9FA] px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+                    Description
+                  </p>
+                  <p className="mt-1 text-xs text-[#1F2937]">
+                    {selectedRole.description || '--'}
+                  </p>
                 </div>
 
-                {/* SUMMARY */}
+                <div className="mt-5 grid grid-cols-[minmax(0,1fr)_220px] gap-5">
+                  <div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-[#1F2937]">
+                          Feature Access
+                        </h3>
+                        <p className="mt-0.5 text-xs text-[#9CA3AF]">
+                          Select which system features this role can access.
+                        </p>
+                      </div>
 
-                <div className="rounded-xl border border-[#E5E7EB] bg-[#F8F9FA] p-4">
-
-                  <p className="text-xs font-bold uppercase tracking-wide text-[#4B5563]">
-                    Summary
-                  </p>
-
-                  <div className="mt-4 space-y-4">
-
-                    {/* USERS */}
-
-                    <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
-
-                      <span className="text-sm text-[#4B5563]">
-                        Assigned users
-                      </span>
-
-                      <span className="text-lg font-bold text-[#1F2937]">
-                        {selectedRole.users}
+                      <span className="shrink-0 rounded-md bg-[#FBF1F1] px-2 py-0.5 text-xs font-medium text-[#9D0A0E]">
+                        {grantedFeatures.length} of {FEATURES.length} features
+                        enabled
                       </span>
                     </div>
 
-                    {/* ACCESS */}
-
-                    <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
-
-                      <span className="text-sm text-[#4B5563]">
-                        Access level
-                      </span>
-
-                      <span className="text-sm font-semibold text-[#1F2937]">
-                        {selectedRole.name}
-                      </span>
-                    </div>
-
-                    {/* PERMISSIONS */}
-
-                    <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
-
-                      <span className="text-sm text-[#4B5563]">
-                        Permissions
-                      </span>
-
-                      <span className="text-sm font-semibold text-[#1F2937]">
-                        {currentPermissions.length}
-                      </span>
-                    </div>
-
-                    {/* MODULE */}
-
-                    <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
-
-                      <span className="text-sm text-[#4B5563]">
-                        Module
-                      </span>
-
-                      <span className="inline-flex items-center gap-2 text-sm font-semibold text-[#1F2937]">
-
-                        <BriefcaseBusiness
-                          size={14}
-                          className="text-[#9D0A0E]"
+                    <div className="mt-3 grid grid-cols-2 gap-2.5">
+                      {FEATURES.map((feature) => (
+                        <FeatureCard
+                          key={feature.key}
+                          feature={feature}
+                          enabled={grantedFeatures.includes(feature.key)}
                         />
-
-                        Queue System
-                      </span>
+                      ))}
                     </div>
                   </div>
+
+                  {/* summary */}
+                  <aside className="h-fit rounded-lg border border-[#E5E7EB] bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+                      Summary
+                    </p>
+
+                    <div className="mt-3 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-[#4B5563]">
+                          Assigned users
+                        </span>
+
+                        <span className="flex items-center gap-1.5">
+                          <AvatarStack users={assignedUsers} />
+                          <span className="text-xs font-semibold text-[#1F2937]">
+                            {usersLoading ? '--' : assignedUsers.length}
+                          </span>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-[#4B5563]">
+                          Features enabled
+                        </span>
+                        <span className="text-xs font-semibold text-[#1F2937]">
+                          {grantedFeatures.length} of {FEATURES.length}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-[#4B5563]">Module</span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[#FBF1F1] px-2 py-0.5 text-xs font-medium text-[#9D0A0E]">
+                          <ClipboardList size={10} />
+                          Queue System
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-[#4B5563]">
+                          Last updated
+                        </span>
+                        <span className="text-xs font-semibold text-[#1F2937]">
+                          {formatRoleDate(selectedRole.updatedAt)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserQuery('');
+                        setShowUsersModal(true);
+                      }}
+                      className="mt-4 flex w-full items-center justify-between gap-2 border-t border-[#E5E7EB] pt-3 text-xs font-medium text-[#9D0A0E] transition hover:text-[#7D080B]"
+                    >
+                      View assigned users
+                      <ChevronRight size={12} />
+                    </button>
+                  </aside>
                 </div>
               </div>
             </>
           ) : (
-            <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8F9FA] text-[#4B5563]">
-              No role selected.
+            <div className="flex h-full min-h-[620px] flex-col items-center justify-center gap-2 px-6 text-center">
+              <ShieldCheck size={22} className="text-[#D1D5DB]" />
+              <p className="text-xs text-[#9CA3AF]">
+                {loading
+                  ? 'Loading roles...'
+                  : roles.length === 0
+                    ? 'No roles yet. Use Add Role to create one.'
+                    : 'Select a role to view its access.'}
+              </p>
             </div>
           )}
         </section>
+      </div>
+
+      {/* =================================================
+          ADD ROLE
+      ================================================= */}
+
+      {showForm && (
+        <RoleModal
+          mode="add"
+          draft={draft}
+          setDraft={setDraft}
+          onToggle={togglePermission}
+          onSelectAll={selectAllPermissions}
+          onClearAll={clearAllPermissions}
+          onClose={() => {
+            if (saving) return;
+            setShowForm(false);
+            resetDraft();
+          }}
+          onSave={handleCreate}
+          saving={saving}
+        />
+      )}
+
+      {/* =================================================
+          EDIT ROLE
+      ================================================= */}
+
+      {showEditModal && (
+        <RoleModal
+          mode="edit"
+          draft={editDraft}
+          setDraft={setEditDraft}
+          onToggle={toggleEditPermission}
+          onSelectAll={selectAllEditPermissions}
+          onClearAll={clearAllEditPermissions}
+          onClose={closeEditRole}
+          onSave={handleUpdateRole}
+          saving={saving}
+        />
+      )}
+
+      {/* =================================================
+          DELETE ROLE
+      ================================================= */}
+
+      {showDeleteModal && deletingRole && (
+        <DeleteRoleModal
+          role={deletingRole}
+          assignedCount={
+            usersLoading
+              ? deletingRole.users || 0
+              : usersForRole(apiUsers, deletingRole).length
+          }
+          onCancel={closeDeleteConfirmation}
+          onConfirm={handleDelete}
+          deleting={deleting}
+        />
+      )}
+
+      {/* =================================================
+          ASSIGNED USERS
+      ================================================= */}
+
+      {showUsersModal && selectedRole && (
+        <AssignedUsersModal
+          role={selectedRole}
+          users={assignedUsers}
+          loading={usersLoading}
+          query={userQuery}
+          setQuery={setUserQuery}
+          onClose={() => setShowUsersModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   FEATURE CARD - read-only, used on the detail pane
+========================================================= */
+
+function FeatureCard({ feature, enabled }) {
+  const Icon = feature.icon;
+
+  return (
+    <div
+      className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 transition-all duration-200 ${
+        enabled
+          ? 'border-[#E5E7EB] bg-white hover:-translate-y-0.5 hover:shadow-sm'
+          : 'border-transparent bg-[#F8F9FA]'
+      }`}
+    >
+      <span
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${
+          enabled ? 'bg-[#FBF1F1] text-[#9D0A0E]' : 'bg-[#F1F3F5] text-[#9CA3AF]'
+        }`}
+      >
+        <Icon size={13} />
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span
+          className={`block truncate text-xs font-semibold ${
+            enabled ? 'text-[#1F2937]' : 'text-[#9CA3AF]'
+          }`}
+        >
+          {feature.label}
+        </span>
+        <span className="block truncate text-xs text-[#9CA3AF]">
+          {feature.caption}
+        </span>
+      </span>
+
+      <span
+        aria-hidden="true"
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
+          enabled ? 'bg-[#9D0A0E] text-white' : 'bg-[#E5E7EB] text-[#9CA3AF]'
+        }`}
+      >
+        {enabled ? (
+          <Check size={9} strokeWidth={3} />
+        ) : (
+          <X size={9} strokeWidth={3} />
+        )}
+      </span>
+
+      <span className="sr-only">{enabled ? 'Enabled' : 'Disabled'}</span>
+    </div>
+  );
+}
+
+/* =========================================================
+   AVATAR STACK
+========================================================= */
+
+function AvatarStack({ users }) {
+  const shown = users.slice(0, 4);
+  if (shown.length === 0) return null;
+
+  return (
+    <span className="flex -space-x-1.5" aria-hidden="true">
+      {shown.map((user) => (
+        <span
+          key={user.id}
+          className="flex h-5 w-5 items-center justify-center rounded-full border border-white bg-[#E4EAF4] text-[9px] font-semibold text-[#3E4A61]"
+        >
+          {initialsOf(user.name)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/* =========================================================
+   ADD / EDIT ROLE MODAL
+========================================================= */
+
+function RoleModal({
+  mode,
+  draft,
+  setDraft,
+  onToggle,
+  onSelectAll,
+  onClearAll,
+  onClose,
+  onSave,
+  saving,
+}) {
+  const edit = mode === 'edit';
+
+  // Locked features follow the role name, so they are shown but not editable.
+  const granted = effectivePermissions(draft.name, draft.permissions);
+  const allSelected = AVAILABLE_PERMISSIONS.every((key) =>
+    draft.permissions.includes(key)
+  );
+
+  return (
+    <div
+      className="swu-enter-fade fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 px-4 py-6"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="role-modal-title"
+        onClick={(event) => event.stopPropagation()}
+        className="swu-pop flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E5E7EB] px-5 py-4">
+          <div className="min-w-0">
+            <h2 id="role-modal-title" className="text-base font-bold text-[#1F2937]">
+              {edit ? 'Edit Role' : 'Add Role'}
+            </h2>
+            <p className="mt-0.5 text-xs text-[#4B5563]">
+              {edit
+                ? 'Update role details and system feature access.'
+                : 'Create a role and choose what it can access.'}
+            </p>
+            <p className="mt-0.5 text-xs text-[#9CA3AF]">
+              Fields marked * are required.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="Close"
+            className="shrink-0 rounded-md p-1 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#1F2937] disabled:opacity-50"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid grid-cols-[minmax(0,1fr)_200px] gap-4">
+            <div>
+              <label
+                htmlFor="role-name"
+                className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
+              >
+                Role Name <span className="text-[#9D0A0E]">*</span>
+              </label>
+
+              <input
+                id="role-name"
+                value={draft.name}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="e.g. Billing Officer"
+                className="h-10 w-full rounded-lg border border-[#E5E7EB] px-3 text-sm text-[#1F2937] outline-none placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+              />
+            </div>
+
+            <div>
+              <span className="mb-1.5 block text-xs font-semibold text-[#1F2937]">
+                Status
+              </span>
+
+              <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#F1F3F5] p-1">
+                {['Active', 'Inactive'].map((value) => {
+                  const on = draft.status === value;
+
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() =>
+                        setDraft((current) => ({ ...current, status: value }))
+                      }
+                      aria-pressed={on}
+                      className={`flex h-8 items-center justify-center gap-1 rounded-md text-xs font-medium transition ${
+                        on
+                          ? value === 'Active'
+                            ? 'border border-[#86EFAC] bg-[#E8F8F0] text-[#0D8A4E] shadow-sm'
+                            : 'border border-[#E5E7EB] bg-white text-[#1F2937] shadow-sm'
+                          : 'text-[#4B5563] hover:text-[#1F2937]'
+                      }`}
+                    >
+                      {on && value === 'Active' && <Check size={12} />}
+                      {value}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label
+              htmlFor="role-description"
+              className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
+            >
+              Description
+            </label>
+
+            <textarea
+              id="role-description"
+              rows={3}
+              value={draft.description}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              placeholder="Describe the purpose of this role"
+              className="w-full resize-none rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] outline-none placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+            />
+          </div>
+
+          <div className="mt-4">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <span className="block text-xs font-semibold uppercase tracking-wide text-[#1F2937]">
+                  Feature Access <span className="text-[#9D0A0E]">*</span>
+                </span>
+                <span className="mt-0.5 block text-xs text-[#9CA3AF]">
+                  Choose which system features this role can access.
+                </span>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="text-xs text-[#9CA3AF]">
+                  {granted.length} of {FEATURES.length} features enabled
+                </span>
+
+                <button
+                  type="button"
+                  onClick={allSelected ? onClearAll : onSelectAll}
+                  className="text-xs font-semibold text-[#9D0A0E] transition hover:text-[#7D080B]"
+                >
+                  {allSelected ? 'Clear all' : 'Select all'}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              {FEATURES.map((feature) => {
+                const Icon = feature.icon;
+                const locked = Boolean(feature.locked);
+                const checked = granted.includes(feature.key);
+
+                return (
+                  <button
+                    key={feature.key}
+                    type="button"
+                    disabled={locked}
+                    onClick={() => !locked && onToggle(feature.key)}
+                    aria-pressed={checked}
+                    title={
+                      locked
+                        ? 'This feature is reserved for the Superadmin role.'
+                        : undefined
+                    }
+                    className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition ${
+                      locked
+                        ? 'cursor-not-allowed border-transparent bg-[#F8F9FA]'
+                        : checked
+                          ? 'border-[#9D0A0E] bg-white'
+                          : 'border-[#E5E7EB] bg-white hover:border-[#9CA3AF]'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${
+                        checked
+                          ? 'bg-[#FBF1F1] text-[#9D0A0E]'
+                          : 'bg-[#F1F3F5] text-[#9CA3AF]'
+                      }`}
+                    >
+                      <Icon size={13} />
+                    </span>
+
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={`block truncate text-xs font-semibold ${
+                          locked ? 'text-[#9CA3AF]' : 'text-[#1F2937]'
+                        }`}
+                      >
+                        {feature.label}
+                      </span>
+                      <span className="block truncate text-xs text-[#9CA3AF]">
+                        {feature.caption}
+                      </span>
+                    </span>
+
+                    <span
+                      aria-hidden="true"
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        checked
+                          ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+                          : 'border-[#D1D5DB] bg-white text-transparent'
+                      }`}
+                    >
+                      <Check size={9} strokeWidth={3} />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 justify-end gap-2 border-t border-[#E5E7EB] bg-[#F8F9FA] px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-4 text-xs font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || !draft.name.trim() || draft.permissions.length === 0}
+            className="swu-press h-9 rounded-lg bg-[#9D0A0E] px-4 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
+          >
+            {saving ? 'Saving...' : edit ? 'Update Role' : 'Save Role'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   DELETE ROLE
+========================================================= */
+
+function DeleteRoleModal({
+  role,
+  assignedCount,
+  onCancel,
+  onConfirm,
+  deleting,
+}) {
+  const blocked = assignedCount > 0;
+
+  return (
+    <div
+      className="swu-enter-fade fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 px-4"
+      onClick={onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-role-title"
+        onClick={(event) => event.stopPropagation()}
+        className="swu-pop w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="relative px-7 pb-5 pt-7 text-center">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={deleting}
+            aria-label="Close"
+            className="absolute right-4 top-4 rounded-md p-1 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#1F2937] disabled:opacity-50"
+          >
+            <X size={16} />
+          </button>
+
+          <h2 id="delete-role-title" className="text-lg font-bold text-[#1F2937]">
+            Delete Role?
+          </h2>
+
+          <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#4B5563]">
+            Are you sure you want to delete the{' '}
+            <span className="font-semibold text-[#1F2937]">{role.name}</span>{' '}
+            role? This action cannot be undone.
+          </p>
+
+          {blocked && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2.5 text-left text-xs leading-5 text-[#4B5563]">
+              <AlertTriangle
+                size={13}
+                className="mt-0.5 shrink-0 text-[#9D0A0E]"
+              />
+              <span>
+                <span className="font-semibold text-[#1F2937]">
+                  {assignedCount} user{assignedCount === 1 ? ' is' : 's are'}
+                </span>{' '}
+                currently assigned to this role. Please reassign
+                {assignedCount === 1 ? ' this user' : ' these users'} before
+                deleting the role.
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-7 py-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={deleting}
+            className="rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-xs font-medium text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting || blocked}
+            title={blocked ? 'Reassign the users on this role first.' : undefined}
+            className="swu-press rounded-lg bg-[#9D0A0E] px-5 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
+          >
+            {deleting ? 'Deleting...' : 'Delete Role'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   ASSIGNED USERS
+========================================================= */
+
+function AssignedUsersModal({ role, users, loading, query, setQuery, onClose }) {
+  const search = query.trim().toLowerCase();
+
+  const shown = search
+    ? users.filter((user) =>
+        [user.name, user.email, user.position, user.department].some((value) =>
+          String(value || '').toLowerCase().includes(search)
+        )
+      )
+    : users;
+
+  return (
+    <div
+      className="swu-enter-fade fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 px-4 py-6"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="assigned-users-title"
+        onClick={(event) => event.stopPropagation()}
+        className="swu-pop flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E5E7EB] px-5 py-4">
+          <div className="flex min-w-0 items-start gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#FBF1F1] text-[#9D0A0E]">
+              <ShieldCheck size={15} />
+            </span>
+
+            <div className="min-w-0">
+              <h2
+                id="assigned-users-title"
+                className="text-base font-bold text-[#1F2937]"
+              >
+                Assigned Users
+              </h2>
+              <p className="mt-0.5 text-xs text-[#4B5563]">
+                {loading
+                  ? 'Loading users...'
+                  : `${users.length} user${users.length === 1 ? '' : 's'} ${
+                      users.length === 1 ? 'has' : 'have'
+                    } the ${role.name} role.`}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 rounded-md p-1 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#1F2937]"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="shrink-0 px-5 pt-4">
+          <div className="relative">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]"
+            />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search users..."
+              aria-label="Search users"
+              className="h-9 w-full rounded-lg border border-[#E5E7EB] pl-9 pr-3 text-xs text-[#1F2937] outline-none placeholder:text-[#9CA3AF] focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+            />
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {shown.length === 0 ? (
+            <div className="px-3 py-10 text-center text-xs text-[#9CA3AF]">
+              {loading
+                ? 'Loading users...'
+                : users.length === 0
+                  ? 'No users have this role yet.'
+                  : 'No users match that search.'}
+            </div>
+          ) : (
+            <table className="w-full min-w-[520px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-[#E5E7EB]">
+                  <th className="px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+                    User
+                  </th>
+                  <th className="px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+                    Position
+                  </th>
+                  <th className="px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+                    Department
+                  </th>
+                  <th className="px-2 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {shown.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="border-b border-[#F1F3F5] last:border-b-0 hover:bg-[#F8F9FA]"
+                  >
+                    <td className="px-2 py-2.5">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span
+                          aria-hidden="true"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E4EAF4] text-[11px] font-semibold text-[#3E4A61]"
+                        >
+                          {initialsOf(user.name)}
+                        </span>
+
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-semibold text-[#1F2937]">
+                            {user.name || '--'}
+                          </span>
+                          <span className="block truncate text-xs text-[#9CA3AF]">
+                            {user.email || '--'}
+                          </span>
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-2 py-2.5 text-xs text-[#4B5563]">
+                      {user.position || '--'}
+                    </td>
+
+                    <td className="px-2 py-2.5 text-xs text-[#4B5563]">
+                      {user.department || '--'}
+                    </td>
+
+                    <td className="px-2 py-2.5">
+                      <span
+                        className={`inline-flex items-center gap-1 text-xs font-medium ${
+                          user.status === 'Active'
+                            ? 'text-[#0D8A4E]'
+                            : 'text-[#9CA3AF]'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            user.status === 'Active'
+                              ? 'bg-[#0D8A4E]'
+                              : 'bg-[#9CA3AF]'
+                          }`}
+                        />
+                        {user.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3.5">
+          <span className="text-xs text-[#9CA3AF]">
+            Showing {shown.length} of {users.length} users
+          </span>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-5 text-xs font-medium text-[#4B5563] transition hover:bg-[#F1F3F5]"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import {
   Monitor,
   MoreVertical,
   Plus,
+  User,
   X,
 } from 'lucide-react';
 
@@ -1242,37 +1243,44 @@ async function handleSaveKiosk() {
                 </p>
               </div>
 
-              {/* ASSIGNED STAFF (EDIT MODE) */}
+              {/* ASSIGNED STAFF (EDIT MODE - DISPLAY ONLY) */}
               {terminalModal.mode === 'edit' && (
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-[#374151]">
                     Assigned Staff
                   </label>
 
-                  <select
-                    value={terminalForm.assignedStaffId}
-                    onChange={(event) =>
-                      setTerminalForm((current) => ({
-                        ...current,
-                        assignedStaffId: event.target.value,
-                      }))
-                    }
-                    className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
-                  >
-                    <option value="">Unassigned</option>
+                  {/*
+                    Display only. Who works a terminal is set in User
+                    Management, so offering a second control here would give
+                    two places that write the same field. The value still
+                    travels with the form, so saving leaves it untouched.
+                  */}
+                  <div className="flex items-center gap-2.5 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5">
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                        terminalForm.assignedStaffId
+                          ? 'bg-[#FBF1F1] text-[#9D0A0E]'
+                          : 'bg-[#F1F3F5] text-[#9CA3AF]'
+                      }`}
+                    >
+                      <User size={14} />
+                    </span>
 
-                    {staffOptions.map((person) => (
-                      <option key={person.user_id} value={person.user_id}>
-                        {person.first_name} {person.last_name}
-                      </option>
-                    ))}
-                  </select>
+                    <span
+                      className={`truncate text-sm ${
+                        terminalForm.assignedStaffId
+                          ? 'font-medium text-[#1F2937]'
+                          : 'text-[#9CA3AF]'
+                      }`}
+                    >
+                      {getStaffName(terminalForm.assignedStaffId)}
+                    </span>
+                  </div>
 
-                  {staffOptions.length === 0 && (
-                    <p className="mt-1.5 text-xs text-[#9CA3AF]">
-                      No Staff users are assigned to this department.
-                    </p>
-                  )}
+                  <p className="mt-1 text-xs text-[#6B7280]">
+                    Staff assignment is managed in User Management.
+                  </p>
                 </div>
               )}
               {/* STATUS SEGMENTED CONTROL */}
