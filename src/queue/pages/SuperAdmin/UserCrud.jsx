@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-
 import {
   Search,
   User,
@@ -13,19 +12,29 @@ import {
   EyeOff,
   AlertTriangle,
   CheckCircle2,
+  BarChart3,
+  BriefcaseBusiness,
+  Building2,
+  ClipboardList,
+  LayoutDashboard,
+  Monitor,
+  Settings,
+  ShieldCheck,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
 
 import AddKioskModal from '../../components/modals/AddKioskModal';
 import AddDepartmentModal from '../../components/modals/AddDepartmentModal';
-
+import AddPositionModal from '../../components/modals/AddPositionModal';
 import {
   getUsers,
   createUser,
   updateUser,
   deleteUser,
   getRoles,
+  createRole,
+  createPosition,
   getKiosks,
   getTerminals,
   getDepartments,
@@ -38,7 +47,7 @@ import {
 import SecurityPinModal, {
   readPinIsSet,
 } from '../../components/SecurityPinModal';
-
+import AddRoleModal from '../../components/modals/AddRoleModal';
 
 /* =========================================================
    HELPERS
@@ -1118,6 +1127,110 @@ function FieldLabel({
     </label>
   );
 }
+
+const FEATURES = [
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    caption: 'Overview & metrics',
+    icon: LayoutDashboard,
+  },
+  {
+    key: 'staff',
+    label: 'Staff Management',
+    caption: 'See and manage Staff',
+    icon: Users,
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    caption: 'Global Configuration',
+    icon: Settings,
+  },
+  {
+    key: 'terminals',
+    label: 'Terminal Management',
+    caption: 'Touch terminals & printers',
+    icon: Monitor,
+  },
+  {
+    key: 'roles',
+    label: 'Role Management',
+    caption: 'Restricted to Superadmin',
+    icon: ShieldCheck,
+    locked: true,
+  },
+  {
+    key: 'positions',
+    label: 'Position Management',
+    caption: 'Designation assignment',
+    icon: BriefcaseBusiness,
+    locked: true,
+  },
+  {
+    key: 'queues',
+    label: 'Queue Management',
+    caption: 'Live ticket & window monitor',
+    icon: ClipboardList,
+  },
+  {
+    key: 'reports',
+    label: 'Reports & Analytics',
+    caption: 'Queue trends & wait times',
+    icon: BarChart3,
+  },
+  {
+    key: 'departments',
+    label: 'Department Management',
+    caption: 'Manage departments & services',
+    icon: Building2,
+  },
+];
+
+const FEATURE_KEYS = FEATURES.map(
+  (feature) => feature.key
+);
+
+const LOCKED_KEYS = FEATURES
+  .filter((feature) => feature.locked)
+  .map((feature) => feature.key);
+
+const AVAILABLE_PERMISSIONS =
+  FEATURE_KEYS.filter(
+    (key) => !LOCKED_KEYS.includes(key)
+  );
+
+function isSuperadminRole(name) {
+  return (
+    String(name || '')
+      .trim()
+      .toLowerCase() === 'superadmin'
+  );
+}
+
+function effectivePermissions(
+  roleName,
+  permissions
+) {
+  const granted = new Set(
+    Array.isArray(permissions)
+      ? permissions
+      : []
+  );
+
+  LOCKED_KEYS.forEach((key) => {
+    if (isSuperadminRole(roleName)) {
+      granted.add(key);
+    } else {
+      granted.delete(key);
+    }
+  });
+
+  return FEATURE_KEYS.filter((key) =>
+    granted.has(key)
+  );
+}
+
 /* =========================================================
   MAIN USER CRUD
 ========================================================= */
@@ -1159,7 +1272,24 @@ export default function DepartmentCrud({
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showResetDone, setShowResetDone] = useState(false);
   const [resetDoneCount, setResetDoneCount] = useState(0);
+const [showAddRoleModal, setShowAddRoleModal] = useState(false);
 
+const [roleDraft, setRoleDraft] = useState({
+  name: '',
+  description: '',
+  status: 'Active',
+  permissions: [],
+});
+const [showAddPositionModal, setShowAddPositionModal] =
+  useState(false);
+
+const [positionDraft, setPositionDraft] = useState({
+  name: '',
+  status: 'Active',
+});
+
+const [savingPosition, setSavingPosition] = useState(false);
+const [positionError, setPositionError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -1172,6 +1302,74 @@ export default function DepartmentCrud({
     setError(null);
     setShowAddKioskModal(true);
   }
+  function handleAddPosition() {
+  setPositionDraft({
+    name: '',
+    status: 'Active',
+  });
+
+  setPositionError(null);
+  setShowAddPositionModal(true);
+}
+async function handleSavePosition() {
+  const name = positionDraft.name.trim();
+
+  if (!name) {
+    setPositionError('Position name is required.');
+    return;
+  }
+
+  setSavingPosition(true);
+  setPositionError(null);
+
+  try {
+    const created = await createPosition({
+      name,
+      status: positionDraft.status,
+      tabs: [],
+    });
+
+    /*
+     * Refresh the position dropdown from the backend.
+     * fetchPositions() already filters inactive positions
+     * and sorts them alphabetically.
+     */
+    const refreshedPositions = await fetchPositions();
+
+    setPositions(refreshedPositions);
+
+    /*
+     * Automatically select the newly created position
+     * in the Add User form.
+     */
+    const createdName =
+      created?.name ??
+      created?.position_name ??
+      name;
+
+    const matchingPosition = refreshedPositions.find(
+      (position) =>
+        String(position.name).trim().toLowerCase() ===
+        String(createdName).trim().toLowerCase()
+    );
+
+    setForm((current) => ({
+      ...current,
+      position: matchingPosition?.name ?? createdName,
+    }));
+
+    setShowAddPositionModal(false);
+    setPositionError(null);
+  } catch (error) {
+    console.error('Failed to create position:', error);
+
+    setPositionError(
+      error?.message || 'Failed to create the position.'
+    );
+  } finally {
+    setSavingPosition(false);
+  }
+}
 
   function handleAddDepartment() {
     if (!form.kiosk_id) {
@@ -1188,7 +1386,114 @@ export default function DepartmentCrud({
     });
     setShowAddDepartmentModal(true);
   }
+async function handleSaveRole() {
+  const roleName =
+    roleDraft.name.trim();
 
+  if (!roleName) {
+    setError('Role name is required.');
+    return;
+  }
+
+  const permissions =
+    effectivePermissions(
+      roleName,
+      roleDraft.permissions
+    );
+
+  if (permissions.length === 0) {
+    setError(
+      'Please select at least one feature.'
+    );
+    return;
+  }
+
+  setSaving(true);
+  setError(null);
+  setSuccess(null);
+
+  try {
+    const createdRoleResponse =
+      await createRole({
+        role_id: crypto.randomUUID(),
+        role: roleName,
+        description:
+          roleDraft.description?.trim() || null,
+        status:
+          roleDraft.status || 'Active',
+        permissions,
+      });
+
+    const createdRole =
+      createdRoleResponse?.data ??
+      createdRoleResponse;
+
+    const formattedRole = {
+      id:
+        createdRole?.role_id ??
+        createdRole?.id,
+      name:
+        createdRole?.role ??
+        createdRole?.name ??
+        roleName,
+    };
+
+    if (!formattedRole.id) {
+      throw new Error(
+        'Role was created but no role ID was returned.'
+      );
+    }
+
+    setRoles((current) => {
+      const exists = current.some(
+        (role) =>
+          String(role.id) ===
+          String(formattedRole.id)
+      );
+
+      return exists
+        ? current
+        : [...current, formattedRole];
+    });
+
+    // Automatically select the newly created role
+    // in the still-open Add User modal.
+    setForm((current) => ({
+      ...current,
+      role: formattedRole.name,
+      role_id: formattedRole.id,
+      kiosk: 'Select Kiosk',
+      kiosk_id: null,
+      department: 'Select Department',
+      department_id: null,
+    }));
+
+    setRoleDraft({
+      name: '',
+      description: '',
+      status: 'Active',
+      permissions: [],
+    });
+
+    setShowAddRoleModal(false);
+
+    setSuccess(
+      'Role added successfully.'
+    );
+  } catch (err) {
+    console.error(
+      'CREATE ROLE ERROR:',
+      err
+    );
+
+    setError(
+      err?.message ||
+        'Unable to create role.'
+    );
+  } finally {
+    setSaving(false);
+  }
+}
   async function handleSaveDepartment() {
     const departmentName = departmentForm.department_name.trim();
     const selectedKioskId = String(departmentForm.kiosk_id ?? '').trim();
@@ -1344,6 +1649,7 @@ export default function DepartmentCrud({
       )
       .sort((a, b) => a.name.localeCompare(b.name));
   }
+  
 
   function formatUsers(rows, roleData) {
     return (Array.isArray(rows) ? rows : []).map((data) => {
@@ -1557,6 +1863,45 @@ export default function DepartmentCrud({
       setSaving(false);
     }
   }
+  function toggleRolePermission(key) {
+  setRoleDraft((current) => {
+    const permissions =
+      current.permissions.includes(key)
+        ? current.permissions.filter(
+            (permission) =>
+              permission !== key
+          )
+        : [
+            ...current.permissions,
+            key,
+          ];
+
+    return {
+      ...current,
+      permissions,
+    };
+  });
+}
+
+function selectAllRolePermissions() {
+  setRoleDraft((current) => ({
+    ...current,
+    permissions: [
+      ...current.permissions,
+      ...AVAILABLE_PERMISSIONS.filter(
+        (key) =>
+          !current.permissions.includes(key)
+      ),
+    ],
+  }));
+}
+
+function clearAllRolePermissions() {
+  setRoleDraft((current) => ({
+    ...current,
+    permissions: [],
+  }));
+}
 
   async function handleSave() {
     if (
@@ -2131,15 +2476,18 @@ async function handleReset() {
           onClose={closeModal}
           isEditing={isEditing}
           saving={saving}
-          onAddRole={() => {
-            closeModal();
-            onNavigate?.('roles');
-          }}
+         onAddRole={() => {
+  setRoleDraft({
+    name: '',
+    description: '',
+    status: 'Active',
+    permissions: [],
+  });
+
+  setShowAddRoleModal(true);
+}}
           onAddKiosk={handleAddKiosk}
-          onAddPosition={() => {
-            closeModal();
-            onNavigate?.('positions');
-          }}
+         onAddPosition={handleAddPosition}
           onAddDepartment={handleAddDepartment}
           kioskOptions={kiosks}
           departmentOptions={availableDepartments}
@@ -2181,19 +2529,60 @@ async function handleReset() {
           setShowAddKioskModal(false);
         }}
       />
+<AddDepartmentModal
+  open={showAddDepartmentModal}
+  onClose={() => setShowAddDepartmentModal(false)}
+  form={departmentForm}
+  setForm={setDepartmentForm}
+  onSave={handleSaveDepartment}
+  isEditing={false}
+  saving={savingDepartment}
+  kiosks={kiosks}
+  onAddKiosk={handleAddKiosk}
+/>
 
-      <AddDepartmentModal
-        open={showAddDepartmentModal}
-        onClose={() => setShowAddDepartmentModal(false)}
-        form={departmentForm}
-        setForm={setDepartmentForm}
-        onSave={handleSaveDepartment}
-        isEditing={false}
-        saving={savingDepartment}
-        kiosks={kiosks}
-        onAddKiosk={handleAddKiosk}
-      />
+{showAddPositionModal && (
+  <AddPositionModal
+    draft={positionDraft}
+    setDraft={setPositionDraft}
+    onClose={() => {
+      if (savingPosition) return;
 
+      setShowAddPositionModal(false);
+      setPositionError(null);
+    }}
+    onSave={handleSavePosition}
+    saving={savingPosition}
+    error={positionError}
+  />
+)}
+<AddRoleModal
+  open={showAddRoleModal}
+  draft={roleDraft}
+  setDraft={setRoleDraft}
+  onToggle={toggleRolePermission}
+  onSelectAll={selectAllRolePermissions}
+  onClearAll={clearAllRolePermissions}
+  onClose={() => {
+    if (saving) {
+      return;
+    }
+
+    setShowAddRoleModal(false);
+
+    setRoleDraft({
+      name: '',
+      description: '',
+      status: 'Active',
+      permissions: [],
+    });
+  }}
+  onSave={handleSaveRole}
+  saving={saving}
+  features={FEATURES}
+  availablePermissions={AVAILABLE_PERMISSIONS}
+  effectivePermissions={effectivePermissions}
+/>
       <ResetUserSelectionModal
         open={showResetSelection}
         onClose={() => {

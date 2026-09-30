@@ -31,6 +31,7 @@ import {
 import { db } from '../../../firebase';
 
 import { getUsers } from '../../services/backendApi';
+import AddRoleModal from '../../components/modals/AddRoleModal';
 
 // =========================================================
 // NODE.JS API
@@ -1621,25 +1622,26 @@ export default function RoleManagement() {
       {/* =================================================
           ADD ROLE
       ================================================= */}
-
-      {showForm && (
-        <RoleModal
-          mode="add"
-          draft={draft}
-          setDraft={setDraft}
-          onToggle={togglePermission}
-          onSelectAll={selectAllPermissions}
-          onClearAll={clearAllPermissions}
-          onClose={() => {
-            if (saving) return;
-            setShowForm(false);
-            resetDraft();
-          }}
-          onSave={handleCreate}
-          saving={saving}
-        />
-      )}
-
+{showForm && (
+  <AddRoleModal
+    open={showForm}
+    draft={draft}
+    setDraft={setDraft}
+    onToggle={togglePermission}
+    onSelectAll={selectAllPermissions}
+    onClearAll={clearAllPermissions}
+    onClose={() => {
+      if (saving) return;
+      setShowForm(false);
+      resetDraft();
+    }}
+    onSave={handleCreate}
+    saving={saving}
+    features={FEATURES}
+    availablePermissions={AVAILABLE_PERMISSIONS}
+    effectivePermissions={effectivePermissions}
+  />
+)}
       {/* =================================================
           EDIT ROLE
       ================================================= */}
