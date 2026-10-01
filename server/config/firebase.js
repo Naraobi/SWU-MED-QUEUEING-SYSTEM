@@ -19,7 +19,9 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && proc
 
 const firebaseApp = initializeApp({
   credential: cert(serviceAccount),
-  databaseURL: process.env.FIREBASE_DATABASE_URL,
+  databaseURL:
+    process.env.FIREBASE_DATABASE_URL ||
+    `https://${serviceAccount.projectId || serviceAccount.project_id}-default-rtdb.firebaseio.com`,
 });
 
 const db = getFirestore(firebaseApp);

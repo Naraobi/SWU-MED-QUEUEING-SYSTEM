@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   X,
   Sun,
@@ -17,11 +19,13 @@ import {
   Globe,
   FileText,
   ExternalLink,
+  Video,
+  Trash2,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
 import {
-
+  getKiosks,
   getSecurityPinStatus,
   requestSecurityPinVerification,
   verifySecurityPinCode,
@@ -342,6 +346,347 @@ function Hint({ children }) {
     <p className="mt-2 text-xs leading-5 text-[#9CA3AF]">
       {children}
     </p>
+  );
+}
+
+/* ---------------- Lobby TV video ----------------
+ *
+ * Each kiosk can hold several videos (up to TV_MAX_VIDEOS). The files live in
+ * Firebase Storage (tv-videos/<kioskId>/<videoId>) and the list lives in
+ * Firestore at kiosks/<kioskId>/settings/tvVideo as:
+ *   { videos: [{ id, name, size, url, uploaded_at }], mode, activeId, loop, muted }
+ *
+ *   mode 'single'   -> the TV plays only the video chosen as activeId
+ *   mode 'playlist' -> the TV plays every video in order, one after another
+ *   loop            -> repeat the video (single) or restart the list (playlist)
+ *
+ * TV displays subscribe to that document, so changes appear without a refresh.
+ */
+
+const TV_MAX_BYTES = 500 * 1024 * 1024;
+const TV_MAX_VIDEOS = 10;
+
+const tvInfoDoc = (kioskId) =>
+  doc(getFirestore(auth.app), 'kiosks', String(kioskId), 'settings', 'tvVideo');
+
+// 'legacy' is the single video saved by the first version of this feature.
+const tvFileRef = (kioskId, videoId) =>
+  storageRef(
+    getStorage(auth.app),
+    videoId === 'legacy' ? `tv-videos/${kioskId}` : `tv-videos/${kioskId}/${videoId}`
+  );
+
+function normalizeTvVideos(data) {
+  if (Array.isArray(data?.videos)) return data.videos.filter((video) => video?.url);
+  if (data?.url) {
+    return [{ id: 'legacy', name: data.name, size: data.size, url: data.url, uploaded_at: data.updated_at }];
+  }
+  return [];
+}
+
+// Reads the latest saved list, applies a change, and saves it back.
+async function updateTvVideos(kioskId, change) {
+  const snap = await getDoc(tvInfoDoc(kioskId));
+  const data = snap.exists() ? snap.data() : {};
+
+  const next = change({
+    videos: normalizeTvVideos(data),
+    activeId: data.activeId ?? null,
+    mode: data.mode === 'playlist' ? 'playlist' : 'single',
+  });
+
+  await setDoc(
+    tvInfoDoc(kioskId),
+    {
+      videos: next.videos,
+      activeId: next.activeId,
+      mode: next.mode,
+      url: null,
+      name: null,
+      size: null,
+      updated_at: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+}
+
+function formatVideoSize(bytes) {
+  if (!bytes) return '';
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`;
+}
+
+function TvVideoSettings({ accentColor }) {
+  // Follows the accent colour chosen in Settings.
+
+  const [kiosks, setKiosks] = useState([]);
+  const [kioskId, setKioskId] = useState('');
+  const [info, setInfo] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [uploadLabel, setUploadLabel] = useState('');
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    getKiosks()
+      .then((rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        setKiosks(list);
+        if (list[0]) setKioskId(String(list[0].kiosk_id));
+      })
+      .catch((e) => setError(e?.message || 'Unable to load kiosks.'));
+  }, []);
+
+  // Live view of this kiosk's videos and playback settings.
+  useEffect(() => {
+    if (!kioskId) return undefined;
+    setMessage('');
+    setInfo(null);
+
+    return onSnapshot(
+      tvInfoDoc(kioskId),
+      (snap) => setInfo(snap.exists() ? snap.data() : null),
+      () => setInfo(null)
+    );
+  }, [kioskId]);
+
+  const videos = useMemo(() => normalizeTvVideos(info), [info]);
+  const mode = info?.mode === 'playlist' ? 'playlist' : 'single';
+  const activeId =
+    info?.activeId && videos.some((video) => video.id === info.activeId)
+      ? info.activeId
+      : videos[0]?.id ?? null;
+  const tvSettings = { loop: info?.loop ?? true, muted: info?.muted ?? true };
+
+  async function saveChange(change, doneMessage) {
+    setError('');
+    setMessage('');
+    try {
+      await updateTvVideos(kioskId, change);
+      if (doneMessage) setMessage(doneMessage);
+    } catch (err) {
+      console.error('Lobby TV update failed:', err);
+      setError('Could not save the change. Please try again.');
+    }
+  }
+
+  async function updateTvSettings(next) {
+    setError('');
+    try {
+      await setDoc(tvInfoDoc(kioskId), { loop: next.loop, muted: next.muted }, { merge: true });
+    } catch {
+      setError('Could not save the playback settings.');
+    }
+  }
+
+  async function handleUpload(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length || !kioskId) return;
+
+    setError('');
+    setMessage('');
+
+    const room = TV_MAX_VIDEOS - videos.length;
+    if (room <= 0) {
+      setError(`This kiosk already has ${TV_MAX_VIDEOS} videos. Remove one first.`);
+      return;
+    }
+
+    const accepted = [];
+    const problems = [];
+
+    files.forEach((file) => {
+      if (!/^video\/(mp4|webm)$/.test(file.type)) {
+        problems.push(`${file.name}: not an MP4 or WebM video.`);
+      } else if (file.size > TV_MAX_BYTES) {
+        problems.push(`${file.name}: larger than 500MB.`);
+      } else {
+        accepted.push(file);
+      }
+    });
+
+    if (accepted.length > room) {
+      accepted.splice(room);
+      problems.push(`Only ${room} more video(s) fit on this kiosk, so the rest were skipped.`);
+    }
+
+    let added = 0;
+
+    try {
+      setBusy(true);
+
+      for (let i = 0; i < accepted.length; i += 1) {
+        const file = accepted[i];
+        const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        const label = (percent) => `Uploading ${i + 1}/${accepted.length}... ${percent}%`;
+
+        setUploadLabel(label(0));
+
+        const task = uploadBytesResumable(tvFileRef(kioskId, id), file, { contentType: file.type });
+        await new Promise((resolve, reject) => {
+          task.on(
+            'state_changed',
+            (s) => setUploadLabel(label(Math.round((s.bytesTransferred / s.totalBytes) * 100))),
+            reject,
+            resolve
+          );
+        });
+
+        const url = await getDownloadURL(task.snapshot.ref);
+
+        await updateTvVideos(kioskId, (current) => ({
+          ...current,
+          videos: [
+            ...current.videos,
+            { id, name: file.name, size: file.size, url, uploaded_at: new Date().toISOString() },
+          ],
+          activeId: current.activeId ?? id,
+        }));
+
+        added += 1;
+      }
+
+      if (added) {
+        setMessage(`${added} video${added > 1 ? 's' : ''} added. TV displays will update automatically.`);
+      }
+      if (problems.length) setError(problems.join(' '));
+    } catch (err) {
+      console.error('Lobby TV upload failed:', err);
+      setError(
+        err?.code === 'storage/unauthorized'
+          ? 'You are not allowed to upload. Please sign in again.'
+          : 'Could not upload the video. Please try again.'
+      );
+    } finally {
+      setBusy(false);
+      setUploadLabel('');
+    }
+  }
+
+  async function handleRemove(video) {
+    setError('');
+    setMessage('');
+    try {
+      await deleteObject(tvFileRef(kioskId, video.id)).catch(() => {}); // already gone is fine
+      await updateTvVideos(kioskId, (current) => {
+        const remaining = current.videos.filter((item) => item.id !== video.id);
+        return {
+          ...current,
+          videos: remaining,
+          activeId: current.activeId === video.id ? remaining[0]?.id ?? null : current.activeId,
+        };
+      });
+      setMessage('Video removed.');
+    } catch {
+      setError('Could not remove the video.');
+    }
+  }
+
+  return (
+    <SettingsSection icon={Video} title="Lobby TV Video" subtitle="Upload the information videos shown beside the queue on the TV display.">
+      <FieldLabel>Kiosk / TV</FieldLabel>
+      <select value={kioskId} onChange={(event) => setKioskId(event.target.value)} aria-label="Kiosk" className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20">
+        {kiosks.length === 0 && <option value="">No kiosks found</option>}
+        {kiosks.map((k) => (
+          <option key={k.kiosk_id} value={k.kiosk_id}>{k.name}</option>
+        ))}
+      </select>
+
+      <div className="mt-5">
+        <FieldLabel>What to play</FieldLabel>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {[
+            { key: 'single', title: 'Play one video', caption: 'Choose which video the TV plays' },
+            { key: 'playlist', title: 'Play all videos', caption: 'Plays every video one after another' },
+          ].map(({ key, title, caption }) => (
+            <button
+              key={key}
+              type="button"
+              disabled={!kioskId || videos.length === 0}
+              aria-pressed={mode === key}
+              onClick={() => saveChange((current) => ({ ...current, mode: key }))}
+              className="rounded-md border bg-white p-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                borderColor: mode === key ? accentColor : '#E5E7EB',
+                boxShadow: mode === key ? `0 0 0 1px ${accentColor}` : 'none',
+              }}
+            >
+              <span className="block text-xs font-semibold text-[#1F2937]">{title}</span>
+              <span className="block text-xs text-[#98A2B3]">{caption}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {videos.length === 0 && (
+          <div className="rounded-lg border border-[#E5E7EB] px-4 py-3">
+            <p className="text-xs font-semibold text-[#1F2937]">No video uploaded</p>
+            <p className="mt-0.5 text-xs text-[#98A2B3]">MP4 or WebM, up to 500MB each</p>
+          </div>
+        )}
+
+        {videos.map((video, index) => {
+          const isActive = mode === 'single' && video.id === activeId;
+
+          return (
+            <div key={video.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-[#1F2937]">{video.name}</p>
+                <p className="mt-0.5 flex items-center gap-2 text-xs text-[#98A2B3]">
+                  {formatVideoSize(video.size)}
+                  {isActive && (
+                    <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white" style={{ backgroundColor: accentColor }}>Now playing</span>
+                  )}
+                  {mode === 'playlist' && (
+                    <span className="rounded bg-[#F1F3F5] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#4B5563]">#{index + 1} in order</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {mode === 'single' && !isActive && (
+                  <button type="button" onClick={() => saveChange((current) => ({ ...current, activeId: video.id, mode: 'single' }), 'Playing this video on the TV.')} className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]">
+                    Play this one
+                  </button>
+                )}
+                <button type="button" onClick={() => handleRemove(video)} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#667085] transition hover:border-[#F0DADA] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60">
+                  <Trash2 size={14} />Remove
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="text-xs text-[#98A2B3]">{videos.length} of {TV_MAX_VIDEOS} videos</p>
+        <label className={`flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] ${busy || !kioskId || videos.length >= TV_MAX_VIDEOS ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+          <Upload size={14} />{busy ? uploadLabel || 'Uploading...' : 'Add videos'}
+          <input type="file" multiple accept="video/mp4,video/webm" className="hidden" disabled={busy || !kioskId || videos.length >= TV_MAX_VIDEOS} onChange={handleUpload} />
+        </label>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {[
+          { key: 'loop', title: 'Loop playback', caption: 'Repeat the video, or restart the list after the last one' },
+          { key: 'muted', title: 'Mute video audio', caption: 'Recommended for the waiting lobby' },
+        ].map(({ key, title, caption }) => (
+          <label key={key} className="flex cursor-pointer items-start gap-2 rounded-md border border-[#E5E7EB] bg-white p-2.5">
+            <input type="checkbox" checked={tvSettings[key]} disabled={!kioskId} onChange={(event) => updateTvSettings({ ...tvSettings, [key]: event.target.checked })} style={{ accentColor }} className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              <span className="block text-xs font-semibold text-[#1F2937]">{title}</span>
+              <span className="block text-xs text-[#98A2B3]">{caption}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {message && <p className="mt-3 text-xs font-medium text-emerald-700">{message}</p>}
+      {error && <p className="mt-3 text-xs text-[#9D0A0E]">{error}</p>}
+      <Hint>Videos are stored online, so they play on every TV display for this kiosk, on any device. Up to {TV_MAX_VIDEOS} videos, 500MB each.</Hint>
+    </SettingsSection>
   );
 }
 
@@ -1313,6 +1658,8 @@ export default function Settings() {
           <Hint>{t('sa.settings.clockHint')}</Hint>
         </div>
       </SettingsSection>
+
+      <TvVideoSettings accentColor={accentColor} />
 
       {/* =====================================================
           TERMS & CONDITIONS
