@@ -148,6 +148,14 @@ const en = {
 
   // ---- settings ----
   'sa.settings.title': 'Settings',
+  'sa.settings.unsaved': 'Unsaved changes',
+  'sa.settings.saveChanges': 'Save Changes',
+  'sa.settings.saved': 'Saved',
+  'sa.settings.discardChanges': 'Discard',
+  'sa.settings.leaveTitle': 'Leave without saving?',
+  'sa.settings.leaveBody': 'You have unsaved changes in Settings. Leaving will discard them.',
+  'sa.settings.leaveStay': 'Stay',
+  'sa.settings.leaveDiscard': 'Discard & leave',
   'sa.settings.subtitle': 'Manage system preferences, security, appearance, and localization.',
   'sa.settings.branding': 'Branding & Identity',
   'sa.settings.brandingSub': 'Customize your brand presence across patient kiosks, queue trackers, and staff monitors.',

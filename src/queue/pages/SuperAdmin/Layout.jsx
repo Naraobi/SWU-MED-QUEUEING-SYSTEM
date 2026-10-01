@@ -18,6 +18,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../services/Authcontext';
 import logo from '../../../assets/logo-transparent.png';
+import AppFooter from '../../components/AppFooter';
+import { useSuperAdminAppearance, DEFAULT_SYSTEM_NAME } from './SuperAdminAppearanceContext';
 import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';
 import { useLanguage } from '../../services/language';
@@ -62,6 +64,17 @@ export default function Layout({ activePage, onNavigate, children }) {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  // This Super Admin's own appearance (accent, logo, system name). Edits on
+  // the Settings page are a draft until saved, so leaving it asks first.
+  const {
+    accent: saAccent,
+    logoUrl: saLogo,
+    systemName: saSystemName,
+    isDirty: saDirty,
+    discard: saDiscard,
+  } = useSuperAdminAppearance();
+  const [pendingPage, setPendingPage] = useState(null);
+
   // A logo uploaded in Settings replaces the bundled mark everywhere.
   const [brandLogo, setBrandLogo] = useState(() => getLogo());
 
@@ -102,6 +115,11 @@ export default function Layout({ activePage, onNavigate, children }) {
       return;
     }
 
+    if (activePage === 'settings' && key !== 'settings' && saDirty) {
+      setPendingPage(key);
+      return;
+    }
+
     onNavigate(key);
   }
 
@@ -132,14 +150,16 @@ export default function Layout({ activePage, onNavigate, children }) {
               title={t('sa.nav.goToDashboard')}
             >
               <img
-                src={brandLogo || logo}
+                src={saLogo || brandLogo || logo}
                 alt="SWUMed"
                 className="h-4 w-auto object-contain object-left"
               />
             </button>
 
             <p className="mt-1 text-xs text-[#4B5563]">
-              {t('sa.nav.queuingSystem')}
+              {saSystemName && saSystemName !== DEFAULT_SYSTEM_NAME
+                ? saSystemName
+                : t('sa.nav.queuingSystem')}
             </p>
           </div>
 
@@ -170,7 +190,7 @@ export default function Layout({ activePage, onNavigate, children }) {
           </nav>
 
           {/* Logout Button at the bottom of the sidebar */}
-          <div className="mt-auto shrink-0 border-t border-[#E5E7EB] p-3">
+          <div className="mt-auto flex h-[var(--bottom-bar-height)] shrink-0 items-center border-t border-[#E5E7EB] px-3">
             <button
               type="button"
               onClick={() => setShowLogoutModal(true)}
@@ -245,8 +265,43 @@ export default function Layout({ activePage, onNavigate, children }) {
           <main className="flex-1 px-8 py-6">
             {children}
           </main>
+
+          <AppFooter accent={saAccent} />
         </div>
       </div>
+
+      {/* Unsaved Settings prompt */}
+      {pendingPage && (
+        <div className="swu-enter-fade fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 px-4">
+          <div className="swu-pop w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-xl">
+            <h2 className="text-lg font-bold text-[#1F2937]">{t('sa.settings.leaveTitle')}</h2>
+            <p className="mt-1 text-sm text-[#4B5563]">{t('sa.settings.leaveBody')}</p>
+
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPendingPage(null)}
+                className="flex-1 rounded-lg border border-[#E5E7EB] py-2.5 text-sm font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
+              >
+                {t('sa.settings.leaveStay')}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const target = pendingPage;
+                  saDiscard();
+                  setPendingPage(null);
+                  onNavigate(target);
+                }}
+                className="flex-1 rounded-lg bg-[#9D0A0E] py-2.5 text-sm font-semibold text-white hover:bg-[#7d0809]"
+              >
+                {t('sa.settings.leaveDiscard')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Profile Modal Popup */}
       {showProfileModal && (

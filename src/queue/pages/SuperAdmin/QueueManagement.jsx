@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import { getDepartments, getTerminals } from '../../services/backendApi';
+import { useSuperAdminAppearance } from './SuperAdminAppearanceContext';
 
 // The api.js versions match the real /staff-queue endpoints (no {success,data}
 // envelope). The backendApi.js fetchQueueState throws on that response.
@@ -46,10 +47,18 @@ function minutesSince(value, now) {
   return Math.max(0, Math.floor((now - time) / 60000));
 }
 
-function formatTime(value) {
+function formatTime(value, clockFormat) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
+  // The Super Admin's saved clock format (Settings) wins when given.
+  if (clockFormat === '12h' || clockFormat === '24h') {
+    return date.toLocaleTimeString([], {
+      hour: clockFormat === '24h' ? '2-digit' : 'numeric',
+      minute: '2-digit',
+      hour12: clockFormat === '12h',
+    });
+  }
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
@@ -258,6 +267,7 @@ function RemoveConfirmModal({ count, onCancel, onConfirm }) {
 }
 
 function QueueHistoryModal({ department, onClose, onRemove }) {
+  const { clockFormat } = useSuperAdminAppearance();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -305,13 +315,13 @@ function QueueHistoryModal({ department, onClose, onRemove }) {
         number,
         service: row.department || row.department_name || department.name,
         status: row.status,
-        calledAt: formatTime(row.called_at || row.calledAt),
-        startedAt: formatTime(started),
-        completedAt: formatTime(completed),
+        calledAt: formatTime(row.called_at || row.calledAt, clockFormat),
+        startedAt: formatTime(started, clockFormat),
+        completedAt: formatTime(completed, clockFormat),
         duration,
       };
     }),
-    [rows, department.name]
+    [rows, department.name, clockFormat]
   );
 
   const totalPages = Math.max(1, Math.ceil(normalized.length / HISTORY_PAGE_SIZE));

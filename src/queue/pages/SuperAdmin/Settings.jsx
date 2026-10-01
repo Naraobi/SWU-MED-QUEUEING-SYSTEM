@@ -17,6 +17,7 @@ import {
   Globe,
   FileText,
   ExternalLink,
+  Save,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
@@ -38,7 +39,9 @@ import {
   getLogo,
   clearLogo,
   applyBrandingFromFile,
+  readLogoFile,
 } from '../../services/appearance';
+import { useSuperAdminAppearance } from './SuperAdminAppearanceContext';
 
 import { useLanguage, LANGUAGES } from '../../services/language';
 
@@ -743,9 +746,49 @@ export default function Settings() {
    */
   const { language, setLanguage, t } = useLanguage();
 
-  const [systemName, setSystemName] = useState(
-    'SWUMed Queuing System'
-  );
+  /*
+   * This Super Admin's own appearance (SuperAdminAppearanceContext, stored
+   * under swumed_superadmin_*). Edits are a live preview until Save; Discard
+   * puts them back to the last saved values. Nothing here reaches the Admin,
+   * Staff, TV or kiosk screens.
+   */
+  const {
+    accent: accentColor,
+    setAccent: setAccentColor,
+    theme: themeMode,
+    setTheme: setThemeMode,
+    logoUrl: logo,
+    setLogo: setLogoDraft,
+    systemName,
+    setSystemName,
+    clockFormat,
+    setClockFormat,
+    isDirty,
+    save: saveSettings,
+    discard: discardSettings,
+  } = useSuperAdminAppearance();
+
+  const [justSaved, setJustSaved] = useState(false);
+
+  function handleSaveSettings() {
+    if (!isDirty) return;
+    saveSettings();
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
+  }
+
+  // Covers a closed tab / browser refresh the in-app nav guard can't see.
+  useEffect(() => {
+    function handleBeforeUnload(event) {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   /*
   |--------------------------------------------------------------------------
@@ -756,26 +799,9 @@ export default function Settings() {
   | remembered on this browser, so they survive a refresh.
   |
   */
-  const [accentColor, setAccentColorState] = useState(
-    () => getAccentColor()
-  );
-
-  function setAccentColor(color) {
-    setAccentColorState(color);
-    persistAccentColor(color);
-  }
-
   // Which legal document is open, if any.
   const [legalDocument, setLegalDocument] = useState(null);
 
-  const [themeMode, setThemeModeState] = useState(
-    () => getThemeMode()
-  );
-
-  function setThemeMode(mode) {
-    setThemeModeState(mode);
-    persistThemeMode(mode);
-  }
   const [activeModal, setActiveModal] = useState(null);
   const [pinConfigured, setPinConfigured] = useState(false);
   const [pinStatusLoading, setPinStatusLoading] = useState(true);
@@ -827,10 +853,6 @@ export default function Settings() {
     isMounted = false;
   };
 }, []);
-  const [clockFormat, setClockFormat] = useState(
-    CLOCK_FORMATS[0].key
-  );
-
   /*
   |--------------------------------------------------------------------------
   | SYSTEM LOGO
@@ -843,7 +865,6 @@ export default function Settings() {
   | whole system grey.
   |
   */
-  const [logo, setLogoState] = useState(() => getLogo());
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState('');
   const [logoNoColour, setLogoNoColour] = useState(false);
@@ -863,12 +884,14 @@ export default function Settings() {
     setLogoBusy(true);
 
     try {
-      const result = await applyBrandingFromFile(file);
+      // Read only: the logo and the colour taken from it become a draft here
+      // and are stored (for this Super Admin) when Save is pressed.
+      const result = await readLogoFile(file);
 
-      setLogoState(result.logo);
+      setLogoDraft(result.dataUrl);
 
       if (result.accent) {
-        setAccentColorState(result.accent);
+        setAccentColor(result.accent);
         setDerivedAccent(result.accent);
       } else {
         setLogoNoColour(true);
@@ -881,8 +904,7 @@ export default function Settings() {
   }
 
   function handleLogoRestore() {
-    clearLogo();
-    setLogoState(null);
+    setLogoDraft('');
     setDerivedAccent(null);
     setLogoNoColour(false);
     setLogoError('');
@@ -910,14 +932,52 @@ export default function Settings() {
           PAGE TITLE
       ===================================================== */}
 
-      <div>
-        <h1 className="text-2xl font-bold text-[#1F2937]">
-          {t('sa.settings.title')}
-        </h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[#1F2937]">
+            {t('sa.settings.title')}
+          </h1>
 
-        <p className="mt-0.5 text-xs text-[#4B5563]">
-          {t('sa.settings.subtitle')}
-        </p>
+          <p className="mt-0.5 text-xs text-[#4B5563]">
+            {t('sa.settings.subtitle')}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {isDirty && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-[#9D0A0E]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#9D0A0E]" />
+              {t('sa.settings.unsaved')}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={discardSettings}
+            disabled={!isDirty}
+            className={`rounded-lg border px-4 py-2 text-xs font-semibold transition-colors ${
+              isDirty
+                ? 'border-[#E5E7EB] bg-white text-[#1F2937] hover:bg-[#F1F3F5]'
+                : 'cursor-not-allowed border-[#E5E7EB] bg-[#F1F3F5] text-[#9CA3AF]'
+            }`}
+          >
+            {t('sa.settings.discardChanges')}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveSettings}
+            disabled={!isDirty}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-sm transition-colors ${
+              isDirty
+                ? 'bg-[#9D0A0E] text-white hover:bg-[#7d0809]'
+                : 'cursor-not-allowed bg-[#F1F3F5] text-[#9CA3AF]'
+            }`}
+          >
+            {justSaved ? <Check size={14} /> : <Save size={14} />}
+            {justSaved ? t('sa.settings.saved') : t('sa.settings.saveChanges')}
+          </button>
+        </div>
       </div>
 
       {/* =====================================================
