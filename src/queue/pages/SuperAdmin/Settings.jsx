@@ -1340,7 +1340,7 @@ export default function Settings() {
                   aria-pressed={isSelected}
                   className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
                     isSelected
-                      ? 'bg-[#B34C4C] text-white'
+                      ? 'bg-[#9D0A0E] text-white'
                       : 'border border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#F1F3F5]'
                   }`}
                 >
