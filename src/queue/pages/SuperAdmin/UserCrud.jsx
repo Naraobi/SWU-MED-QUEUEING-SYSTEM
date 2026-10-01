@@ -2020,20 +2020,37 @@ function clearAllRolePermissions() {
     }
   }
 
-  // Step 1 -> Step 2. Selecting users only opens the confirmation message;
-  // nothing is reset and no PIN is requested until the user confirms.
-  function handleResetSelectionContinue() {
-    if (selectedResetIds.length === 0) {
-      return;
-    }
+function handleResetSelectionContinue() {
+  const currentEmail = normalizeEmail(
+    auth.currentUser?.email
+  );
 
-    setResettingIds([...selectedResetIds]);
-    setPinInput('');
-    setShowResetSelection(false);
-    setError(null);
-    setSuccess(null);
-    setShowResetConfirm(true);
+  const eligibleIds = selectedResetIds.filter(
+    (id) => {
+      const user = users.find(
+        (item) =>
+          String(item.user_id ?? item.id) ===
+          String(id)
+      );
+
+      return (
+        user &&
+        normalizeEmail(user.email) !== currentEmail
+      );
+    }
+  );
+
+  if (eligibleIds.length === 0) {
+    return;
   }
+
+  setResettingIds(eligibleIds);
+  setPinInput('');
+  setShowResetSelection(false);
+  setError(null);
+  setSuccess(null);
+  setShowResetConfirm(true);
+}
 
   // Step 2 -> Step 3. Confirmed, so now ask for the Security PIN.
   async function handleResetConfirmProceed() {
@@ -2583,18 +2600,18 @@ async function handleReset() {
   availablePermissions={AVAILABLE_PERMISSIONS}
   effectivePermissions={effectivePermissions}
 />
-      <ResetUserSelectionModal
-        open={showResetSelection}
-        onClose={() => {
-          setShowResetSelection(false);
-          setSelectedResetIds([]);
-        }}
-        users={visibleUsers}
-        selectedResetIds={selectedResetIds}
-        setSelectedResetIds={setSelectedResetIds}
-        onContinue={handleResetSelectionContinue}
-      />
-
+    <ResetUserSelectionModal
+  open={showResetSelection}
+  onClose={() => {
+    setShowResetSelection(false);
+    setSelectedResetIds([]);
+  }}
+  users={visibleUsers}
+  selectedResetIds={selectedResetIds}
+  setSelectedResetIds={setSelectedResetIds}
+  onContinue={handleResetSelectionContinue}
+  currentUserEmail={auth.currentUser?.email}
+/>
       <ResetConfirmModal
         open={showResetConfirm}
         count={resettingIds.length}
@@ -2764,37 +2781,73 @@ function ResetUserSelectionModal({
   selectedResetIds,
   setSelectedResetIds,
   onContinue,
+  currentUserEmail,
 }) {
   if (!open) {
     return null;
   }
 
-  const allSelected =
-    users.length > 0 && selectedResetIds.length === users.length;
+  const currentEmail = normalizeEmail(currentUserEmail);
 
-  function toggleUser(userId) {
-    setSelectedResetIds((currentIds) => {
-      const exists = currentIds.some(
-        (id) => String(id) === String(userId)
-      );
+const isCurrentUser = (user) =>
+  normalizeEmail(user.email) === currentEmail;
 
-      return exists
-        ? currentIds.filter((id) => String(id) !== String(userId))
-        : [...currentIds, userId];
-    });
+const eligibleUsers = users.filter(
+  (user) => !isCurrentUser(user)
+);
+
+const allSelected =
+  eligibleUsers.length > 0 &&
+  eligibleUsers.every((user) =>
+    selectedResetIds.some(
+      (id) =>
+        String(id) ===
+        String(user.user_id ?? user.id)
+    )
+  );
+  const eligibleSelectedIds = selectedResetIds.filter((id) =>
+  eligibleUsers.some(
+    (user) =>
+      String(user.user_id ?? user.id) === String(id)
+  )
+);
+
+function toggleUser(userId) {
+  const selectedUser = users.find(
+    (user) =>
+      String(user.user_id ?? user.id) ===
+      String(userId)
+  );
+
+  if (!selectedUser || isCurrentUser(selectedUser)) {
+    return;
   }
 
-  function toggleAll() {
-    if (allSelected) {
-      setSelectedResetIds([]);
-      return;
-    }
-
-    setSelectedResetIds(
-      users.map((user) => user.user_id ?? user.id)
+  setSelectedResetIds((currentIds) => {
+    const exists = currentIds.some(
+      (id) => String(id) === String(userId)
     );
+
+    return exists
+      ? currentIds.filter(
+          (id) => String(id) !== String(userId)
+        )
+      : [...currentIds, userId];
+  });
+}
+
+function toggleAll() {
+  if (allSelected) {
+    setSelectedResetIds([]);
+    return;
   }
 
+  setSelectedResetIds(
+    eligibleUsers.map(
+      (user) => user.user_id ?? user.id
+    )
+  );
+}
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -2827,15 +2880,17 @@ function ResetUserSelectionModal({
               <span className="text-sm font-semibold text-[#1F2937]">
                 {allSelected ? 'Unselect All' : 'Select All'}
               </span>
-              <span
-                className={`flex h-5 w-5 items-center justify-center rounded border ${
-                  allSelected
-                    ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
-                    : 'border-[#D1D5DB] bg-white'
-                }`}
-              >
-                {allSelected && <Check size={13} />}
-              </span>
+        <span
+className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+  isCurrentUser
+    ? 'border-gray-300 bg-gray-200'
+    : isSelected
+      ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+      : 'border-[#D1D5DB] bg-white'
+}`}
+>
+  {!isCurrentUser && isSelected && <Check size={13} />}
+</span>
             </button>
           )}
 
@@ -2846,30 +2901,42 @@ function ResetUserSelectionModal({
           ) : (
             <div className="space-y-2">
               {users.map((user) => {
-                const userId = user.user_id ?? user.id;
-                const isSelected = selectedResetIds.some(
-                  (id) => String(id) === String(userId)
-                );
+        const userId = user.user_id ?? user.id;
+          const isLoggedInUser = isCurrentUser(user);
+          const isSelected = selectedResetIds.some(
+            (id) => String(id) === String(userId)
+          );
+  return (
+  <button
+    key={userId}
+    type="button"
+    onClick={() => toggleUser(userId)}
+    disabled={isLoggedInUser}
+    className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
+      isLoggedInUser
+        ? 'cursor-not-allowed border-gray-200 bg-gray-100 opacity-70'
+        : isSelected
+          ? 'border-[#9D0A0E] bg-[#FBF1F1]'
+          : 'border-[#E5E7EB] bg-white hover:bg-[#F8F9FA]'
+    }`}
+  >
+              <div>
+  <div className="flex flex-wrap items-center gap-2">
+    <p className="text-sm font-semibold text-[#1F2937]">
+      {user.first_name} {user.last_name}
+    </p>
 
-                return (
-                  <button
-                    key={userId}
-                    type="button"
-                    onClick={() => toggleUser(userId)}
-                    className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
-                      isSelected
-                        ? 'border-[#9D0A0E] bg-[#FBF1F1]'
-                        : 'border-[#E5E7EB] bg-white hover:bg-[#F8F9FA]'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-[#1F2937]">
-                        {user.first_name} {user.last_name}
-                      </p>
-                      <p className="mt-0.5 text-xs text-[#4B5563]">
-                        {user.email}
-                      </p>
-                    </div>
+    {isLoggedInUser && (
+      <span className="rounded-md bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+      </span>
+    )}
+  </div>
+
+  <p className="mt-0.5 text-xs text-[#4B5563]">
+    {user.email}
+  </p>
+</div>
+                    
                     <span
                       className={`flex h-5 w-5 items-center justify-center rounded border ${
                         isSelected
@@ -2877,6 +2944,11 @@ function ResetUserSelectionModal({
                           : 'border-[#D1D5DB] bg-white'
                       }`}
                     >
+
+  {isLoggedInUser && (
+    <span className="rounded-md bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+    </span>
+  )}
                       {isSelected && <Check size={13} />}
                     </span>
                   </button>
@@ -2885,13 +2957,13 @@ function ResetUserSelectionModal({
             </div>
           )}
         </div>
+<div className="flex items-center justify-between border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+  <span className="text-xs text-[#4B5563]">
+  {eligibleSelectedIds.length} user
+{eligibleSelectedIds.length === 1 ? '' : 's'} selected
+  </span>
 
-        <div className="flex items-center justify-between border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
-          <span className="text-xs text-[#4B5563]">
-            {selectedResetIds.length} user
-            {selectedResetIds.length === 1 ? '' : 's'} selected
-          </span>
-          <div className="flex items-center gap-3">
+  <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -2902,7 +2974,7 @@ function ResetUserSelectionModal({
             <button
               type="button"
               onClick={onContinue}
-              disabled={selectedResetIds.length === 0}
+           disabled={eligibleSelectedIds.length === 0}
               className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Continue
