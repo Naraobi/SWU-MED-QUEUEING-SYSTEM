@@ -93,11 +93,11 @@ import { getFirestore, doc as fsDoc, getDoc, setDoc, onSnapshot } from 'firebase
 // SHARED HELPERS
 // =====================================================
 
-function normalizeRole(role) {
+export function normalizeRole(role) {
   return String(role || '').trim().toLowerCase();
 }
 
-function getRoleName(user) {
+export function getRoleName(user) {
   if (user?.role?.role) return user.role.role;
   if (user?.role_name) return user.role_name;
   if (typeof user?.role === 'string') return user.role;
@@ -106,7 +106,7 @@ function getRoleName(user) {
   return '';
 }
 
-function findDepartmentForUser(departments, user) {
+export function findDepartmentForUser(departments, user) {
   if (!Array.isArray(departments)) {
     return null;
   }

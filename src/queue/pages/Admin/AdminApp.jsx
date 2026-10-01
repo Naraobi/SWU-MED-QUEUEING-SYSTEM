@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import AdminSidebar, { AdminHeaderBar } from './AdminSidebar';
 import AdminDashboard from './AdminDashboard';
+import ReportsPage from './ReportsPage';
 import StaffManagementPage from './StaffManagementPage';
 import {
   QueueManagementPage,
-  ReportsPage,
   SettingsPage,
   TerminalManagementPage,
 } from './AdminScreens';
