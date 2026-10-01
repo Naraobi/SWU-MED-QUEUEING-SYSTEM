@@ -22,6 +22,9 @@ import {
 import { fetchQueueState } from '../../services/api';
 import { getLogo, subscribeAppearance } from '../../services/appearance';
 
+import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import { auth } from '../../../firebase';
+
 import brandMark from '../../../assets/logo-transparent.png';
 
 import {
@@ -96,6 +99,79 @@ async function removeVideo(kioskId) {
     tx.objectStore(STORE).delete(kioskId);
     tx.oncomplete = () => resolve();
   });
+}
+
+/* ---------------------------------------------------------------
+   Shared lobby video (Firebase) - set from Admin Settings, plays on every
+   TV on any device. When present it takes priority over the video saved in
+   this browser.
+--------------------------------------------------------------- */
+
+function normalizeTvVideos(data) {
+  if (Array.isArray(data?.videos)) return data.videos.filter((video) => video?.url);
+  if (data?.url) {
+    return [{ id: 'legacy', name: data.name, url: data.url, uploaded_at: data.updated_at }];
+  }
+  return [];
+}
+
+/*
+ * mode 'single'   -> play only the video chosen in Admin Settings
+ * mode 'playlist' -> play every video in order, one after another
+ * loop            -> repeat the video, or restart the list after the last one
+ */
+function useSharedLobbyVideo(kioskId) {
+  const [data, setData] = useState(null);
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (!kioskId) return undefined;
+    setData(null);
+
+    return onSnapshot(
+      doc(getFirestore(auth.app), 'kiosks', String(kioskId), 'settings', 'tvVideo'),
+      (snap) => setData(snap.exists() ? snap.data() : null),
+      () => setData(null)
+    );
+  }, [kioskId]);
+
+  const loop = data?.loop ?? true;
+  const muted = data?.muted ?? true;
+
+  const queue = useMemo(() => {
+    const videos = normalizeTvVideos(data);
+    if (data?.mode === 'playlist') return videos;
+    const one = videos.find((video) => video.id === data?.activeId) || videos[0];
+    return one ? [one] : [];
+  }, [data]);
+
+  // Start from the first video whenever the list or the choice changes.
+  const queueKey = queue.map((video) => video.id).join(',');
+  useEffect(() => setIndex(0), [queueKey]);
+
+  const current = queue.length ? queue[Math.min(index, queue.length - 1)] : null;
+
+  // The version suffix makes the TV fetch a replaced video instead of
+  // replaying a cached copy of an old one at the same address.
+  const url = useMemo(() => {
+    if (!current?.url) return null;
+    return `${current.url}${current.url.includes('?') ? '&' : '?'}v=${encodeURIComponent(current.uploaded_at || '')}`;
+  }, [current]);
+
+  // Playlist: move to the next video; after the last one restart if looping.
+  const onEnded = useCallback(() => {
+    if (queue.length <= 1) return;
+    setIndex((i) => (i + 1 < queue.length ? i + 1 : loop ? 0 : i));
+  }, [queue.length, loop]);
+
+  return {
+    url,
+    name: current?.name || null,
+    settings: { loop, muted },
+    // One video repeats by itself; a playlist advances through onEnded instead.
+    nativeLoop: queue.length <= 1 ? loop : false,
+    onEnded,
+  };
 }
 
 /* ---------------------------------------------------------------
@@ -698,6 +774,12 @@ export default function TvDisplay() {
   const [settings, setSettings] = useState(() => readSettings());
   const [videoError, setVideoError] = useState(null);
 
+  // Shared video wins; otherwise fall back to the video saved in this browser.
+  const shared = useSharedLobbyVideo(kioskId);
+  const activeUrl = shared.url || videoUrl;
+  const activeName = shared.url ? shared.name : videoName;
+  const activeSettings = shared.url ? shared.settings : settings;
+
   /* load any video already saved for this kiosk */
   useEffect(() => {
     if (!kioskId) return undefined;
@@ -810,28 +892,30 @@ export default function TvDisplay() {
         {/* RIGHT — video */}
 
         <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
-          {videoUrl ? (
+          {activeUrl ? (
             <>
               <div className="relative min-h-0 flex-1 bg-black">
                 <video
                   ref={attachVideo}
-                  key={videoUrl}
-                  src={videoUrl}
+                  key={activeUrl}
+                  src={activeUrl}
                   autoPlay
                   controls
-                  loop={settings.loop}
-                  muted={settings.muted}
+                  loop={shared.url ? shared.nativeLoop : settings.loop}
+                  onEnded={shared.url ? shared.onEnded : undefined}
+                  muted={activeSettings.muted}
                   playsInline
                   className="absolute inset-0 h-full w-full object-cover"
                 />
               </div>
 
               <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[#E5E7EB] px-3 py-2 text-xs text-[#4B5563]">
-                <span className="truncate">{videoName}</span>
+                <span className="truncate">{activeName}</span>
                 <div className="flex shrink-0 items-center gap-2">
-                  {settings.muted && (
+                  {activeSettings.muted && (
                     <span className="rounded bg-[#F1F3F5] px-2 py-0.5">Muted for Lobby</span>
                   )}
+                  {!shared.url && (
                   <button
                     type="button"
                     onClick={clearVideo}
@@ -839,6 +923,7 @@ export default function TvDisplay() {
                   >
                     Replace video
                   </button>
+                  )}
                 </div>
               </div>
 
