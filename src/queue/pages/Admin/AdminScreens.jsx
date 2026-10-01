@@ -2751,8 +2751,8 @@ function SettingsPinBoxes({ value, onChange, ariaLabel, autoFocus = false, showT
   const inputType = showToggle && show ? 'text' : 'password';
 
   return (
-    <div className={boxed ? 'relative w-full rounded-md border border-[#667085] bg-white p-2.5' : 'w-full'}>
-      <div className={`grid w-full grid-cols-6 gap-2 ${boxed ? 'pr-10' : ''}`}>
+    <div className={boxed ? 'relative w-full rounded-md border border-[#667085] bg-white p-2.5' : `w-full${showToggle ? ' relative' : ''}`}>
+      <div className={`grid w-full grid-cols-6 gap-2 ${boxed || showToggle ? 'pr-10' : ''}`}>
         {Array.from({ length: 6 }, (_, index) => (
           <input
             key={index}
