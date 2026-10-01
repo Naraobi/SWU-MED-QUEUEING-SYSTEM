@@ -17,6 +17,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import LoginBG1 from '../../../assets/LoginBG1.jpg';
+import Footer from '../../components/Footer';
 
 /*
  * Password recovery uses Firebase Authentication's built-in reset:
@@ -115,10 +116,14 @@ function SecondaryButton({ children, onClick, disabled }) {
 
 function ProtocolFooter() {
   return (
-    <p className="mt-5 flex items-center justify-center gap-1.5 border-t border-[#E5E7EB] pt-4 text-xs uppercase tracking-wide text-[#9CA3AF]">
-      <Lock size={10} />
-      256-bit encrypted hospital administration protocol
-    </p>
+    <div className="mt-5 border-t border-[#E5E7EB] pt-4">
+      <p className="flex items-center justify-center gap-1.5 text-xs uppercase tracking-wide text-[#9CA3AF]">
+        <Lock size={10} />
+        256-bit encrypted hospital administration protocol
+      </p>
+
+      <Footer variant="compact" className="mt-2.5" />
+    </div>
   );
 }
 

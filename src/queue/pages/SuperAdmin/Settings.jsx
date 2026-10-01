@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   X,
   Sun,
   Moon,
   Monitor,
   Check,
-  Pipette,
   ShieldCheck,
   LockKeyhole,
   Palette,
@@ -17,6 +16,8 @@ import {
   Globe,
   FileText,
   ExternalLink,
+  Save,
+  PencilLine,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
@@ -33,14 +34,23 @@ import LegalModal, { LAST_UPDATED } from '../../components/LegalModal';
 import {
   getAccentColor,
   getThemeMode,
-  setAccentColor as persistAccentColor,
-  setThemeMode as persistThemeMode,
   getLogo,
-  clearLogo,
-  applyBrandingFromFile,
+  getSystemName,
+  getClockFormat,
+  setAccentColor,
+  setThemeMode,
+  setLogo,
+  setSystemName,
+  setClockFormat,
+  applyAccentColor,
+  applyThemeMode,
+  readLogoFile,
 } from '../../services/appearance';
 
 import { useLanguage, LANGUAGES } from '../../services/language';
+
+import TvVideoManagement from '../../components/settings/TvVideoManagement';
+import EstimatedTransactionTime from '../../components/settings/EstimatedTransactionTime';
 
 import Logo from '../../../assets/logo.png';
 
@@ -78,99 +88,6 @@ const THEME_MODES = [
     icon: Monitor,
   },
 ];
-
-const THEME_SWATCHES = [
-  { key: 'blue', colors: ['#9D0A0E', '#D4B0B1', '#7D080B', '#F0DADA'] },
-  { key: 'slate', colors: ['#6B7280', '#9CA3AF', '#4B5563', '#D1D5DB'] },
-  { key: 'ocean', colors: ['#1E5FA8', '#5B8FC9', '#123C73', '#A8C4E0'] },
-  { key: 'steel', colors: ['#64748B', '#94A3B8', '#334155', '#CBD5E1'] },
-
-  { key: 'graphite', colors: ['#455A64', '#78909C', '#37474F', '#B0BEC5'] },
-  { key: 'teal', colors: ['#14B8A6', '#5EEAD4', '#0F766E', '#99F6E4'] },
-  { key: 'green', colors: ['#22C55E', '#86EFAC', '#15803D', '#BBF7D0'] },
-  { key: 'moss', colors: ['#5F7A5F', '#8FA98F', '#3F5A3F', '#B8CBB8'] },
-
-  { key: 'olive', colors: ['#A3A32B', '#C7C755', '#7A7A1F', '#DEDE8A'] },
-  { key: 'orange', colors: ['#F97316', '#FDBA74', '#C2410C', '#FED7AA'] },
-  { key: 'brown', colors: ['#6B4F3F', '#A98A76', '#4A362A', '#D6C0B1'] },
-  { key: 'rose', colors: ['#E11D6B', '#F9A8C4', '#9F1239', '#FBCFE0'] },
-
-  { key: 'mauve', colors: ['#8B6B6B', '#B08F8F', '#6A4F4F', '#D4BDBD'] },
-  { key: 'pink', colors: ['#E879C6', '#F5B4E0', '#C0439C', '#FBDCF1'] },
-  { key: 'purple', colors: ['#8B5CF6', '#C4B5FD', '#6D28D9', '#DDD6FE'] },
-];
-
-function quadrantGradient(colors) {
-  const [a, b, c, d] = colors;
-  return `conic-gradient(from 0deg, ${a} 0deg 90deg, ${b} 90deg 180deg, ${c} 180deg 270deg, ${d} 270deg 360deg)`;
-}
-
-/* ---------------- Department Customization Modal ---------------- */
-
-function DepartmentCustomizationModal({ onClose }) {
-  const [departmentName, setDepartmentName] = useState('Billing Department');
-
-  return (
-    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#E5E7EB] px-5 py-4">
-          <div>
-            <h2 className="text-sm font-bold text-[#1F2937]">
-              Department Customization
-            </h2>
-            <p className="mt-0.5 text-xs text-[#4B5563]">
-              Customize department settings.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="swu-press rounded-md p-1.5 text-[#4B5563] transition-colors hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="space-y-4 px-5 py-5">
-          <div>
-            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-[#4B5563]">
-              Department Name
-            </label>
-
-            <input
-              type="text"
-              value={departmentName}
-              onChange={(e) => setDepartmentName(e.target.value)}
-              className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm outline-none focus:border-[#9D0A0E] focus:ring-1 focus:ring-[#9D0A0E]"
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="swu-press rounded-md border border-[#E5E7EB] bg-white px-4 py-1.5 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="swu-press rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function SettingsSection({
   icon: Icon,
@@ -219,121 +136,6 @@ function FieldLabel({ children }) {
     <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#4B5563]">
       {children}
     </p>
-  );
-}
-
-function ThemeModal({ onClose, onOpenColorPicker }) {
-  const { t } = useLanguage();
-  const [mode, setMode] = useState('system');
-  const [selectedSwatch, setSelectedSwatch] = useState('blue');
-
-  return (
-    <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-xs overflow-hidden rounded-xl bg-white shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3.5">
-          <h2 className="text-sm font-bold text-[#1F2937]">
-            Theme
-          </h2>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-[#9CA3AF] hover:text-[#1F2937]"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-5">
-          {/* Mode selector */}
-          <div className="flex items-center gap-1.5">
-            {THEME_MODES.map(({ key, labelKey, icon: Icon }) => {
-              const isActive = mode === key;
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setMode(key)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition ${
-                    isActive
-                      ? 'border border-[#E5E7EB] bg-white text-[#1F2937] shadow-sm'
-                      : 'border border-transparent bg-[#F1F3F5] text-[#4B5563] hover:bg-[#E5E7EB]'
-                  }`}
-                >
-                  <Icon size={12} />
-                  {t(labelKey)}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Swatch grid */}
-          <div className="mt-4 grid grid-cols-4 gap-2">
-            {THEME_SWATCHES.map(({ key, colors }) => {
-              const isSelected = selectedSwatch === key;
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setSelectedSwatch(key)}
-                  aria-label={`${key} theme`}
-                  className="swu-press relative flex aspect-square items-center justify-center rounded-lg bg-[#F8F9FA] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#F1F3F5] hover:shadow-sm"
-                >
-                  <span
-                    className="block h-8 w-8 rounded-full"
-                    style={{
-                      background: quadrantGradient(colors),
-                    }}
-                  />
-
-                  {isSelected && (
-                    <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#9D0A0E] text-white">
-                      <Check size={10} strokeWidth={3} />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-
-            {/* Custom color launcher */}
-            <button
-              type="button"
-              onClick={onOpenColorPicker}
-              aria-label="Pick a custom color"
-              className="swu-press relative flex aspect-square items-center justify-center rounded-lg bg-[#F8F9FA] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#F1F3F5] hover:shadow-sm"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2603C] text-white">
-                <Pipette size={14} />
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-[#E5E7EB] bg-[#F8F9FA] px-5 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="swu-press rounded-md border border-[#E5E7EB] bg-white px-4 py-1.5 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="swu-press rounded-md bg-[#9D0A0E] px-5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -737,45 +539,122 @@ function PinSuccessModal({ onClose, isChanging }) {
 
 export default function Settings() {
   /*
-   * `language` is the saved interface language rather than local state, so
-   * picking one here re-labels the whole app straight away and survives a
-   * refresh. `t` reads from the same choice.
-   */
-  const { language, setLanguage, t } = useLanguage();
-
-  const [systemName, setSystemName] = useState(
-    'SWUMed Queuing System'
-  );
-
-  /*
   |--------------------------------------------------------------------------
-  | APPEARANCE
+  | DRAFT AND SAVED
   |--------------------------------------------------------------------------
   |
-  | Accent colour and theme mode apply across the whole app and are
-  | remembered on this browser, so they survive a refresh.
+  | Branding, appearance, language and clock format are edited as a draft and
+  | committed together by "Save All Changes". Nothing is written to storage
+  | until then, so a half-finished change never leaks into the rest of the app.
+  |
+  | Accent and theme are the exception in one direction only: they are PREVIEWED
+  | live on the document, because a colour you cannot see is impossible to pick.
+  | applyAccentColor / applyThemeMode touch the DOM without persisting, while
+  | setAccentColor / setThemeMode are what Save calls. Leaving the page with
+  | unsaved changes puts the preview back.
+  |
+  | The two sections below with their own Save buttons - TV videos and
+  | transaction times - act on their own and are not part of this draft.
   |
   */
-  const [accentColor, setAccentColorState] = useState(
-    () => getAccentColor()
+  const { language, setLanguage, t } = useLanguage();
+
+  const readSaved = () => ({
+    systemName: getSystemName(),
+    accentColor: getAccentColor(),
+    themeMode: getThemeMode(),
+    logo: getLogo(),
+    language,
+    clockFormat: getClockFormat(),
+  });
+
+  const [saved, setSaved] = useState(readSaved);
+  const [draft, setDraft] = useState(readSaved);
+
+  const dirty = useMemo(
+    () =>
+      draft.systemName !== saved.systemName ||
+      draft.accentColor !== saved.accentColor ||
+      draft.themeMode !== saved.themeMode ||
+      draft.logo !== saved.logo ||
+      draft.language !== saved.language ||
+      draft.clockFormat !== saved.clockFormat,
+    [draft, saved]
   );
 
-  function setAccentColor(color) {
-    setAccentColorState(color);
-    persistAccentColor(color);
+  const [justSaved, setJustSaved] = useState(false);
+
+  function update(patch) {
+    setDraft((current) => ({ ...current, ...patch }));
+    setJustSaved(false);
+  }
+
+  // Live preview of the two visual choices.
+  useEffect(() => {
+    applyAccentColor(draft.accentColor);
+  }, [draft.accentColor]);
+
+  useEffect(() => {
+    applyThemeMode(draft.themeMode);
+  }, [draft.themeMode]);
+
+  // Leaving with the preview still showing unsaved colours puts it back.
+  useEffect(
+    () => () => {
+      applyAccentColor(getAccentColor());
+      applyThemeMode(getThemeMode());
+    },
+    []
+  );
+
+  // A reload would silently drop the draft, so say so first.
+  useEffect(() => {
+    if (!dirty) return undefined;
+
+    const warn = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
+  function handleSaveAll() {
+    setSystemName(draft.systemName);
+    setAccentColor(draft.accentColor);
+    setThemeMode(draft.themeMode);
+    setClockFormat(draft.clockFormat);
+
+    if (draft.logo !== saved.logo) {
+      setLogo(draft.logo);
+    }
+
+    if (draft.language !== saved.language) {
+      setLanguage(draft.language);
+    }
+
+    setSaved(draft);
+    setJustSaved(true);
+    setLogoNoColour(false);
+    setDerivedAccent(null);
+  }
+
+  function handleDiscardAll() {
+    setDraft(saved);
+    setJustSaved(false);
+    setLogoError('');
+    setLogoNoColour(false);
+    setDerivedAccent(null);
+
+    applyAccentColor(saved.accentColor);
+    applyThemeMode(saved.themeMode);
   }
 
   // Which legal document is open, if any.
   const [legalDocument, setLegalDocument] = useState(null);
+  const [legalMode, setLegalMode] = useState('view');
 
-  const [themeMode, setThemeModeState] = useState(
-    () => getThemeMode()
-  );
-
-  function setThemeMode(mode) {
-    setThemeModeState(mode);
-    persistThemeMode(mode);
-  }
   const [activeModal, setActiveModal] = useState(null);
   const [pinConfigured, setPinConfigured] = useState(false);
   const [pinStatusLoading, setPinStatusLoading] = useState(true);
@@ -784,66 +663,55 @@ export default function Settings() {
   const [isChangingPin, setIsChangingPin] = useState(false);
 
   useEffect(() => {
-  let isMounted = true;
+    let isMounted = true;
 
-  const loadSecurityPinStatus = async () => {
-    try {
-      setPinStatusLoading(true);
-      setPinError('');
+    const loadSecurityPinStatus = async () => {
+      try {
+        setPinStatusLoading(true);
+        setPinError('');
 
-      const firebaseUser = auth.currentUser;
+        const firebaseUser = auth.currentUser;
 
-      if (!firebaseUser) {
-        throw new Error(t('sa.pin.noSession'));
+        if (!firebaseUser) {
+          throw new Error(t('sa.pin.noSession'));
+        }
+
+        const result = await getSecurityPinStatus(firebaseUser);
+
+        if (isMounted) {
+          setPinConfigured(Boolean(result.configured));
+        }
+      } catch (error) {
+        console.error('Failed to load Security PIN status:', error);
+
+        if (isMounted) {
+          setPinError(error?.message || t('sa.pin.statusFailed'));
+        }
+      } finally {
+        if (isMounted) {
+          setPinStatusLoading(false);
+        }
       }
+    };
 
-      const result =
-        await getSecurityPinStatus(firebaseUser);
+    loadSecurityPinStatus();
 
-      if (isMounted) {
-        setPinConfigured(
-          Boolean(result.configured)
-        );
-      }
-    } catch (error) {
-      console.error(
-        'Failed to load Security PIN status:',
-        error
-      );
-
-      if (isMounted) {
-        setPinError(error?.message || t('sa.pin.statusFailed'));
-      }
-    } finally {
-      if (isMounted) {
-        setPinStatusLoading(false);
-      }
-    }
-  };
-
-  loadSecurityPinStatus();
-
-  return () => {
-    isMounted = false;
-  };
-}, []);
-  const [clockFormat, setClockFormat] = useState(
-    CLOCK_FORMATS[0].key
-  );
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   /*
   |--------------------------------------------------------------------------
   | SYSTEM LOGO
   |--------------------------------------------------------------------------
   |
-  | Uploading a logo also re-colours the app: the dominant colour of the image
-  | becomes the accent, so the interface follows whatever branding the hospital
-  | uploads without anyone picking a hex by hand. A logo with no real colour in
-  | it (a plain black wordmark) leaves the accent alone rather than turning the
-  | whole system grey.
+  | The file is read and its dominant colour worked out immediately so the
+  | preview is honest, but neither the logo nor the derived accent is stored
+  | until Save. A logo with no real colour in it (a plain black wordmark)
+  | leaves the accent alone rather than turning the whole system grey.
   |
   */
-  const [logo, setLogoState] = useState(() => getLogo());
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState('');
   const [logoNoColour, setLogoNoColour] = useState(false);
@@ -863,39 +731,35 @@ export default function Settings() {
     setLogoBusy(true);
 
     try {
-      const result = await applyBrandingFromFile(file);
+      const { dataUrl, accent } = await readLogoFile(file);
 
-      setLogoState(result.logo);
-
-      if (result.accent) {
-        setAccentColorState(result.accent);
-        setDerivedAccent(result.accent);
+      if (accent) {
+        update({ logo: dataUrl, accentColor: accent });
+        setDerivedAccent(accent);
       } else {
+        update({ logo: dataUrl });
         setLogoNoColour(true);
       }
     } catch (error) {
-      setLogoError(error?.message || 'Could not use that image.');
+      setLogoError(error?.message || t('sa.settings.logoFailed'));
     } finally {
       setLogoBusy(false);
     }
   }
 
   function handleLogoRestore() {
-    clearLogo();
-    setLogoState(null);
+    update({ logo: null });
     setDerivedAccent(null);
     setLogoNoColour(false);
     setLogoError('');
   }
 
-  const [showChangePassword, setShowChangePassword] =
-    useState(false);
-
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [copied, setCopied] = useState(false);
 
   function handleCopyName() {
     navigator.clipboard
-      ?.writeText(systemName)
+      ?.writeText(draft.systemName)
       .then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
@@ -907,18 +771,55 @@ export default function Settings() {
     <div className="space-y-5">
 
       {/* =====================================================
-          PAGE TITLE
+          PAGE TITLE + SAVE ALL
       ===================================================== */}
 
-      <div>
-        <h1 className="text-2xl font-bold text-[#1F2937]">
-          {t('sa.settings.title')}
-        </h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[#1F2937]">
+            {t('sa.settings.title')}
+          </h1>
 
-        <p className="mt-0.5 text-xs text-[#4B5563]">
-          {t('sa.settings.subtitle')}
-        </p>
+          <p className="mt-0.5 text-xs text-[#4B5563]">
+            {t('sa.settings.subtitle')}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {dirty && (
+            <button
+              type="button"
+              onClick={handleDiscardAll}
+              className="rounded-lg px-3 py-2 text-xs font-semibold text-[#4B5563] transition hover:text-[#9D0A0E]"
+            >
+              {t('sa.settings.discard')}
+            </button>
+          )}
+
+          {justSaved && !dirty && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0D8A4E]">
+              <Check size={12} strokeWidth={3} />
+              {t('sa.settings.allSaved')}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSaveAll}
+            disabled={!dirty}
+            className="swu-press inline-flex items-center gap-1.5 rounded-lg bg-[#9D0A0E] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
+          >
+            <Save size={13} />
+            {t('sa.settings.saveAll')}
+          </button>
+        </div>
       </div>
+
+      {dirty && (
+        <p className="rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-4 py-2.5 text-xs text-[#9D0A0E]">
+          {t('sa.settings.unsavedNote')}
+        </p>
+      )}
 
       {/* =====================================================
           BRANDING & IDENTITY
@@ -940,10 +841,8 @@ export default function Settings() {
             <input
               id="system-name"
               type="text"
-              value={systemName}
-              onChange={(e) =>
-                setSystemName(e.target.value)
-              }
+              value={draft.systemName}
+              onChange={(e) => update({ systemName: e.target.value })}
               className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 pr-10 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
             />
 
@@ -974,9 +873,9 @@ export default function Settings() {
 
             <div className="flex items-center gap-4">
               <img
-                src={logo || Logo}
+                src={draft.logo || Logo}
                 alt={
-                  logo
+                  draft.logo
                     ? t('sa.settings.uploadedLogo')
                     : t('sa.settings.currentLogo')
                 }
@@ -999,7 +898,7 @@ export default function Settings() {
             </div>
 
             <div className="flex items-center gap-2">
-              {logo && (
+              {draft.logo && (
                 <button
                   type="button"
                   onClick={handleLogoRestore}
@@ -1012,9 +911,7 @@ export default function Settings() {
 
               <label
                 className={`swu-press flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] ${
-                  logoBusy
-                    ? 'pointer-events-none opacity-60'
-                    : 'cursor-pointer'
+                  logoBusy ? 'pointer-events-none opacity-60' : 'cursor-pointer'
                 }`}
               >
                 <Upload size={14} />
@@ -1066,10 +963,10 @@ export default function Settings() {
               <span
                 aria-hidden="true"
                 className="h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10"
-                style={{ backgroundColor: accentColor }}
+                style={{ backgroundColor: draft.accentColor }}
               />
               <span className="text-xs font-semibold uppercase text-[#1F2937]">
-                {t('sa.settings.hex')} {accentColor}
+                {t('sa.settings.hex')} {draft.accentColor}
               </span>
             </div>
 
@@ -1079,13 +976,13 @@ export default function Settings() {
               </span>
 
               {ACCENT_PRESETS.map((preset) => {
-                const isSelected = accentColor === preset;
+                const isSelected = draft.accentColor === preset;
 
                 return (
                   <button
                     key={preset}
                     type="button"
-                    onClick={() => setAccentColor(preset)}
+                    onClick={() => update({ accentColor: preset })}
                     aria-label={`Accent ${preset}`}
                     aria-pressed={isSelected}
                     className={`flex h-6 w-6 items-center justify-center rounded-full transition ${
@@ -1095,7 +992,9 @@ export default function Settings() {
                     }`}
                     style={{ backgroundColor: preset }}
                   >
-                    {isSelected && <Check size={12} strokeWidth={3} className="text-white" />}
+                    {isSelected && (
+                      <Check size={12} strokeWidth={3} className="text-white" />
+                    )}
                   </button>
                 );
               })}
@@ -1159,7 +1058,9 @@ export default function Settings() {
               </p>
 
               {pinError && (
-                <p className="mt-1.5 text-xs font-medium text-[#9D0A0E]">{pinError}</p>
+                <p className="mt-1.5 text-xs font-medium text-[#9D0A0E]">
+                  {pinError}
+                </p>
               )}
             </div>
 
@@ -1167,9 +1068,9 @@ export default function Settings() {
               type="button"
               disabled={pinStatusLoading}
               onClick={() => {
-              setIsChangingPin(pinConfigured);
-              setActiveModal('createPin');
-            }}
+                setIsChangingPin(pinConfigured);
+                setActiveModal('createPin');
+              }}
               className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <LockKeyhole size={14} />
@@ -1197,13 +1098,13 @@ export default function Settings() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {THEME_MODES.map(({ key, labelKey, captionKey, icon: Icon }) => {
-            const isSelected = themeMode === key;
+            const isSelected = draft.themeMode === key;
 
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => setThemeMode(key)}
+                onClick={() => update({ themeMode: key })}
                 aria-pressed={isSelected}
                 className={`rounded-xl border p-4 text-left transition ${
                   isSelected
@@ -1230,7 +1131,9 @@ export default function Settings() {
                       isSelected ? 'border-[#9D0A0E]' : 'border-[#D1D5DB]'
                     }`}
                   >
-                    {isSelected && <span className="h-2 w-2 rounded-full bg-[#9D0A0E]" />}
+                    {isSelected && (
+                      <span className="h-2 w-2 rounded-full bg-[#9D0A0E]" />
+                    )}
                   </span>
                 </div>
 
@@ -1244,10 +1147,21 @@ export default function Settings() {
                         : 'bg-white'
                   }`}
                 >
-                  <span className={`block h-2 w-16 rounded-sm ${key === 'dark' ? 'bg-white/70' : 'bg-[#4B5563]'}`} />
+                  <span
+                    className={`block h-2 w-16 rounded-sm ${
+                      key === 'dark' ? 'bg-white/70' : 'bg-[#4B5563]'
+                    }`}
+                  />
                   <div className="mt-2 flex items-center gap-2">
-                    <span className="h-3 w-8 rounded-sm" style={{ backgroundColor: accentColor }} />
-                    <span className={`h-3 flex-1 rounded-sm ${key === 'dark' ? 'bg-white/20' : 'bg-[#E5E7EB]'}`} />
+                    <span
+                      className="h-3 w-8 rounded-sm"
+                      style={{ backgroundColor: draft.accentColor }}
+                    />
+                    <span
+                      className={`h-3 flex-1 rounded-sm ${
+                        key === 'dark' ? 'bg-white/20' : 'bg-[#E5E7EB]'
+                      }`}
+                    />
                   </div>
                 </div>
               </button>
@@ -1255,6 +1169,21 @@ export default function Settings() {
           })}
         </div>
       </SettingsSection>
+
+      {/* =====================================================
+          TV VIDEO MANAGEMENT
+          Its own component, with its own Upload action - not part
+          of the Save All draft above.
+      ===================================================== */}
+
+      <TvVideoManagement />
+
+      {/* =====================================================
+          ESTIMATED TRANSACTION TIME
+          Also self-contained, with its own Save Changes button.
+      ===================================================== */}
+
+      <EstimatedTransactionTime />
 
       {/* =====================================================
           LANGUAGE & REGIONAL SETTINGS
@@ -1270,13 +1199,13 @@ export default function Settings() {
 
           <div className="flex flex-wrap items-center gap-2">
             {LANGUAGES.map((lang) => {
-              const isSelected = language === lang;
+              const isSelected = draft.language === lang;
 
               return (
                 <button
                   key={lang}
                   type="button"
-                  onClick={() => setLanguage(lang)}
+                  onClick={() => update({ language: lang })}
                   aria-pressed={isSelected}
                   className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
                     isSelected
@@ -1298,8 +1227,8 @@ export default function Settings() {
           <FieldLabel>{t('sa.settings.clockFormat')}</FieldLabel>
 
           <select
-            value={clockFormat}
-            onChange={(e) => setClockFormat(e.target.value)}
+            value={draft.clockFormat}
+            onChange={(e) => update({ clockFormat: e.target.value })}
             aria-label={t('sa.settings.clockFormat')}
             className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
           >
@@ -1353,14 +1282,31 @@ export default function Settings() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setLegalDocument(item.key)}
-                className="swu-press flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
-              >
-                <ExternalLink size={14} />
-                {t('sa.settings.view')}
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLegalMode('view');
+                    setLegalDocument(item.key);
+                  }}
+                  className="swu-press flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
+                >
+                  <ExternalLink size={14} />
+                  {t('sa.settings.view')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLegalMode('edit');
+                    setLegalDocument(item.key);
+                  }}
+                  className="swu-press flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E]"
+                >
+                  <PencilLine size={14} />
+                  {t('sa.common.edit')}
+                </button>
+              </div>
             </div>
           ))}
 
@@ -1371,6 +1317,7 @@ export default function Settings() {
       {legalDocument && (
         <LegalModal
           document={legalDocument}
+          mode={legalMode}
           onClose={() => setLegalDocument(null)}
         />
       )}
@@ -1382,67 +1329,54 @@ export default function Settings() {
         />
       )}
 
-      {activeModal === 'department' && (
-        <DepartmentCustomizationModal onClose={() => setActiveModal(null)} />
-      )}
+      {activeModal === 'createPin' && (
+        <CreatePinModal
+          onClose={() => {
+            setPendingPin('');
+            setActiveModal(null);
+          }}
+          onContinue={async (pin) => {
+            try {
+              setPinError('');
 
-      {activeModal === 'theme' && (
-        <ThemeModal
-          onClose={() => setActiveModal(null)}
-          onOpenColorPicker={() => setActiveModal('colorPicker')}
+              const firebaseUser = auth.currentUser;
+
+              if (!firebaseUser) {
+                throw new Error(t('sa.pin.noSession'));
+              }
+
+              setPendingPin(pin);
+
+              await requestSecurityPinVerification(firebaseUser);
+
+              setActiveModal('verifyPin');
+            } catch (error) {
+              console.error(
+                'Failed to request Security PIN verification:',
+                error
+              );
+
+              setPinError(error?.message || t('sa.pin.sendFailed'));
+            }
+          }}
         />
       )}
 
-          {activeModal === 'createPin' && (
-<CreatePinModal
-  onClose={() => {
-    setPendingPin('');
-    setActiveModal(null);
-  }}
-  onContinue={async (pin) => {
-    try {
-      setPinError('');
-
-      const firebaseUser = auth.currentUser;
-
-      if (!firebaseUser) {
-        throw new Error(t('sa.pin.noSession'));
-      }
-
-      setPendingPin(pin);
-
-      await requestSecurityPinVerification(
-        firebaseUser
-      );
-
-      setActiveModal('verifyPin');
-    } catch (error) {
-      console.error(
-        'Failed to request Security PIN verification:',
-        error
-      );
-
-      setPinError(error?.message || t('sa.pin.sendFailed'));
-    }
-  }}
-/>
-      )}
-
       {activeModal === 'verifyPin' && (
-<PinVerificationModal
-  firebaseUser={auth.currentUser}
-  pendingPin={pendingPin}
-  onClose={() => {
-    setPendingPin('');
-    setActiveModal(null);
-  }}
-  onBack={() => setActiveModal('createPin')}
-  onSuccess={() => {
-    setPendingPin('');
-    setPinConfigured(true);
-    setActiveModal('pinSuccess');
-  }}
-/>
+        <PinVerificationModal
+          firebaseUser={auth.currentUser}
+          pendingPin={pendingPin}
+          onClose={() => {
+            setPendingPin('');
+            setActiveModal(null);
+          }}
+          onBack={() => setActiveModal('createPin')}
+          onSuccess={() => {
+            setPendingPin('');
+            setPinConfigured(true);
+            setActiveModal('pinSuccess');
+          }}
+        />
       )}
 
       {activeModal === 'pinSuccess' && (
