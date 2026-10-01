@@ -115,14 +115,46 @@ function normalizeTvVideos(data) {
   return [];
 }
 
+// Deterministic shuffle, so one pass plays every video once in a random order.
+function seededShuffle(list, seed, avoidFirstId) {
+  const items = [...list];
+  let state = seed >>> 0;
+
+  const random = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+
+  // Do not repeat the video that just played at the start of a new pass.
+  if (items.length > 1 && avoidFirstId && items[0].id === avoidFirstId) {
+    [items[0], items[1]] = [items[1], items[0]];
+  }
+
+  return items;
+}
+
 /*
- * mode 'single'   -> play only the video chosen in Admin Settings
- * mode 'playlist' -> play every video in order, one after another
+ * The DEFAULT video is the first one uploaded. It plays whenever nothing else
+ * is chosen.
+ * mode 'single'   -> play the video chosen in Admin Settings (default if none)
+ * mode 'playlist' -> play the ticked videos (selectedIds; all when never set),
+ *                    in order or random (shuffle); default if none are ticked
  * loop            -> repeat the video, or restart the list after the last one
  */
 function useSharedLobbyVideo(kioskId) {
   const [data, setData] = useState(null);
   const [index, setIndex] = useState(0);
+  // Random order for shuffle. It only changes at the end of a pass, so other
+  // settings changes never reorder or restart the video that is playing.
+  const [order, setOrder] = useState(() => ({ seed: Math.floor(Math.random() * 1e9), avoid: null }));
 
   useEffect(() => {
     if (!kioskId) return undefined;
@@ -137,15 +169,62 @@ function useSharedLobbyVideo(kioskId) {
 
   const loop = data?.loop ?? true;
   const muted = data?.muted ?? true;
+  const shuffle = data?.shuffle ?? false;
+
+  // This screen's own choice (never written to Firestore). It overrides the
+  // admin's choice here only, until "Follow admin choice" clears it.
+  const overrideKey = `swu-tv-video-override-${kioskId}`;
+  const [overrideId, setOverrideId] = useState(null);
+
+  useEffect(() => {
+    try {
+      setOverrideId(localStorage.getItem(overrideKey) || null);
+    } catch {
+      setOverrideId(null);
+    }
+  }, [overrideKey]);
+
+  const chooseVideo = useCallback(
+    (videoId) => {
+      setOverrideId(videoId || null);
+      try {
+        if (videoId) localStorage.setItem(overrideKey, videoId);
+        else localStorage.removeItem(overrideKey);
+      } catch {
+        // Storage unavailable; the choice just lasts until the page reloads.
+      }
+    },
+    [overrideKey]
+  );
+
+  const allVideos = useMemo(() => normalizeTvVideos(data), [data]);
+
+  // A chosen video that no longer exists is dropped.
+  const overrideVideo = overrideId ? allVideos.find((video) => video.id === overrideId) : null;
+  useEffect(() => {
+    if (data && overrideId && !overrideVideo) chooseVideo(null);
+  }, [data, overrideId, overrideVideo, chooseVideo]);
 
   const queue = useMemo(() => {
     const videos = normalizeTvVideos(data);
-    if (data?.mode === 'playlist') return videos;
-    const one = videos.find((video) => video.id === data?.activeId) || videos[0];
-    return one ? [one] : [];
-  }, [data]);
+    const fallback = videos[0] ? [videos[0]] : []; // the default video
 
-  // Start from the first video whenever the list or the choice changes.
+    if (overrideVideo) return [overrideVideo];
+
+    if (data?.mode !== 'playlist') {
+      const one = videos.find((video) => video.id === data?.activeId) || videos[0];
+      return one ? [one] : [];
+    }
+
+    const picked = Array.isArray(data?.selectedIds)
+      ? videos.filter((video) => data.selectedIds.includes(video.id))
+      : videos;
+    const base = picked.length ? picked : fallback;
+
+    return shuffle ? seededShuffle(base, order.seed, order.avoid) : base;
+  }, [data, order, shuffle, overrideVideo]);
+
+  // Start from the first video whenever the list or the order changes.
   const queueKey = queue.map((video) => video.id).join(',');
   useEffect(() => setIndex(0), [queueKey]);
 
@@ -158,11 +237,20 @@ function useSharedLobbyVideo(kioskId) {
     return `${current.url}${current.url.includes('?') ? '&' : '?'}v=${encodeURIComponent(current.uploaded_at || '')}`;
   }, [current]);
 
-  // Playlist: move to the next video; after the last one restart if looping.
+  // Playlist: move to the next video; after the last one restart (and
+  // reshuffle) if looping.
   const onEnded = useCallback(() => {
     if (queue.length <= 1) return;
-    setIndex((i) => (i + 1 < queue.length ? i + 1 : loop ? 0 : i));
-  }, [queue.length, loop]);
+
+    if (index + 1 < queue.length) {
+      setIndex(index + 1);
+    } else if (loop) {
+      setIndex(0);
+      if (shuffle) {
+        setOrder({ seed: Math.floor(Math.random() * 1e9), avoid: current?.id ?? null });
+      }
+    }
+  }, [queue.length, index, loop, shuffle, current]);
 
   return {
     url,
@@ -171,6 +259,10 @@ function useSharedLobbyVideo(kioskId) {
     // One video repeats by itself; a playlist advances through onEnded instead.
     nativeLoop: queue.length <= 1 ? loop : false,
     onEnded,
+    videos: allVideos,
+    currentId: current?.id ?? null,
+    overrideId: overrideVideo ? overrideVideo.id : null,
+    chooseVideo,
   };
 }
 
@@ -776,6 +868,7 @@ export default function TvDisplay() {
 
   // Shared video wins; otherwise fall back to the video saved in this browser.
   const shared = useSharedLobbyVideo(kioskId);
+  const [showVideoPicker, setShowVideoPicker] = useState(false);
   const activeUrl = shared.url || videoUrl;
   const activeName = shared.url ? shared.name : videoName;
   const activeSettings = shared.url ? shared.settings : settings;
@@ -914,6 +1007,45 @@ export default function TvDisplay() {
                 <div className="flex shrink-0 items-center gap-2">
                   {activeSettings.muted && (
                     <span className="rounded bg-[#F1F3F5] px-2 py-0.5">Muted for Lobby</span>
+                  )}
+                  {shared.url && shared.videos.length > 1 && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowVideoPicker((open) => !open)}
+                        aria-expanded={showVideoPicker}
+                        className="swu-press rounded-md border border-[#E5E7EB] px-2 py-1 font-medium transition-colors hover:border-[#F0DADA] hover:text-[#9D0A0E]"
+                      >
+                        Videos
+                      </button>
+                      {showVideoPicker && (
+                        <div className="absolute bottom-full right-0 z-20 mb-2 w-64 rounded-lg border border-[#E5E7EB] bg-white p-1 shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              shared.chooseVideo(null);
+                              setShowVideoPicker(false);
+                            }}
+                            className={`block w-full rounded-md px-2 py-1.5 text-left font-semibold hover:bg-[#F1F3F5] ${shared.overrideId ? '' : 'text-[#9D0A0E]'}`}
+                          >
+                            Follow admin choice
+                          </button>
+                          {shared.videos.map((video) => (
+                            <button
+                              key={video.id}
+                              type="button"
+                              onClick={() => {
+                                shared.chooseVideo(video.id);
+                                setShowVideoPicker(false);
+                              }}
+                              className={`block w-full truncate rounded-md px-2 py-1.5 text-left hover:bg-[#F1F3F5] ${shared.overrideId === video.id ? 'font-bold text-[#9D0A0E]' : ''}`}
+                            >
+                              {video.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                   {!shared.url && (
                   <button

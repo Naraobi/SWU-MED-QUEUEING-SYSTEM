@@ -4157,10 +4157,14 @@ function LegalDocumentModal({ document: doc, onClose }) {
  * Each kiosk can hold several videos (up to TV_MAX_VIDEOS). The files live in
  * Firebase Storage (tv-videos/<kioskId>/<videoId>) and the list lives in
  * Firestore at kiosks/<kioskId>/settings/tvVideo as:
- *   { videos: [{ id, name, size, url, uploaded_at }], mode, activeId, loop, muted }
+ *   { videos: [{ id, name, size, url, uploaded_at }], mode, activeId,
+ *     selectedIds, shuffle, loop, muted }
  *
+ *   The DEFAULT video is the first one uploaded (first in the list). It plays
+ *   whenever nothing else is chosen.
  *   mode 'single'   -> the TV plays only the video chosen as activeId
- *   mode 'playlist' -> the TV plays every video in order, one after another
+ *   mode 'playlist' -> the TV plays the ticked videos (selectedIds; null means
+ *                      all of them), in order or random (shuffle)
  *   loop            -> repeat the video (single) or restart the list (playlist)
  *
  * TV displays subscribe to that document, so changes appear without a refresh.
@@ -4196,6 +4200,7 @@ async function updateTvVideos(kioskId, change) {
     videos: normalizeTvVideos(data),
     activeId: data.activeId ?? null,
     mode: data.mode === 'playlist' ? 'playlist' : 'single',
+    selectedIds: Array.isArray(data.selectedIds) ? data.selectedIds : null, // null = all
   });
 
   await setDoc(
@@ -4204,6 +4209,7 @@ async function updateTvVideos(kioskId, change) {
       videos: next.videos,
       activeId: next.activeId,
       mode: next.mode,
+      selectedIds: next.selectedIds ?? null,
       url: null,
       name: null,
       size: null,
@@ -4219,9 +4225,22 @@ function formatVideoSize(bytes) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`;
 }
 
-function TvVideoSettings() {
+// Shared by Admin, Super Admin and Staff settings.
+//   accentColor        - pass it where there is no Admin AppearanceProvider
+//   canManage          - false hides "Add videos" and "Remove" (Staff)
+//   lockToDepartment   - limit the kiosk to the signed-in user's department
+//                        (Admin, Staff); Super Admin leaves it off to pick any
+export function TvVideoSettings({ accentColor: accentProp, canManage = true, lockToDepartment = false }) {
   // Follows the accent colour chosen in Settings.
-  const { accent: accentColor } = useAppearance();
+  let appearanceAccent;
+  try {
+    appearanceAccent = useAppearance().accent;
+  } catch {
+    // Not inside the Admin AppearanceProvider; the accentColor prop is used.
+  }
+  const accentColor = accentProp ?? appearanceAccent ?? '#9D0A0E';
+  const { user: tvUser } = useAuth();
+  const [noKiosk, setNoKiosk] = useState(false);
 
   const [kiosks, setKiosks] = useState([]);
   const [kioskId, setKioskId] = useState('');
@@ -4232,6 +4251,19 @@ function TvVideoSettings() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    if (lockToDepartment) {
+      Promise.all([getKiosks(), getDepartments()])
+        .then(([kioskRows, departmentRows]) => {
+          const list = Array.isArray(kioskRows) ? kioskRows : [];
+          const kiosk = findKioskForDepartment(list, findDepartmentForUser(departmentRows, tvUser));
+          setKiosks(kiosk ? [kiosk] : []);
+          setKioskId(kiosk ? String(kiosk.kiosk_id) : '');
+          setNoKiosk(!kiosk);
+        })
+        .catch((e) => setError(e?.message || 'Unable to load kiosks.'));
+      return;
+    }
+
     getKiosks()
       .then((rows) => {
         const list = Array.isArray(rows) ? rows : [];
@@ -4239,7 +4271,7 @@ function TvVideoSettings() {
         if (list[0]) setKioskId(String(list[0].kiosk_id));
       })
       .catch((e) => setError(e?.message || 'Unable to load kiosks.'));
-  }, []);
+  }, [lockToDepartment, tvUser]);
 
   // Live view of this kiosk's videos and playback settings.
   useEffect(() => {
@@ -4260,7 +4292,16 @@ function TvVideoSettings() {
     info?.activeId && videos.some((video) => video.id === info.activeId)
       ? info.activeId
       : videos[0]?.id ?? null;
-  const tvSettings = { loop: info?.loop ?? true, muted: info?.muted ?? true };
+  const tvSettings = {
+    loop: info?.loop ?? true,
+    muted: info?.muted ?? true,
+    shuffle: info?.shuffle ?? false,
+  };
+
+  // Videos ticked for "Play all videos" (everything when nothing was ever unticked).
+  const selectedIds = Array.isArray(info?.selectedIds)
+    ? videos.filter((video) => info.selectedIds.includes(video.id)).map((video) => video.id)
+    : videos.map((video) => video.id);
 
   async function saveChange(change, doneMessage) {
     setError('');
@@ -4277,7 +4318,11 @@ function TvVideoSettings() {
   async function updateTvSettings(next) {
     setError('');
     try {
-      await setDoc(tvInfoDoc(kioskId), { loop: next.loop, muted: next.muted }, { merge: true });
+      await setDoc(
+        tvInfoDoc(kioskId),
+        { loop: next.loop, muted: next.muted, shuffle: next.shuffle },
+        { merge: true }
+      );
     } catch {
       setError('Could not save the playback settings.');
     }
@@ -4346,6 +4391,8 @@ function TvVideoSettings() {
             { id, name: file.name, size: file.size, url, uploaded_at: new Date().toISOString() },
           ],
           activeId: current.activeId ?? id,
+          // a new video joins the rotation automatically
+          selectedIds: current.selectedIds === null ? null : [...current.selectedIds, id],
         }));
 
         added += 1;
@@ -4368,6 +4415,19 @@ function TvVideoSettings() {
     }
   }
 
+  // Tick / untick a video for "Play all videos".
+  function toggleSelected(video) {
+    saveChange((current) => {
+      const all = current.videos.map((item) => item.id);
+      const chosen = new Set(
+        current.selectedIds === null ? all : current.selectedIds.filter((id) => all.includes(id))
+      );
+      if (chosen.has(video.id)) chosen.delete(video.id);
+      else chosen.add(video.id);
+      return { ...current, selectedIds: all.filter((id) => chosen.has(id)) };
+    });
+  }
+
   async function handleRemove(video) {
     setError('');
     setMessage('');
@@ -4379,6 +4439,10 @@ function TvVideoSettings() {
           ...current,
           videos: remaining,
           activeId: current.activeId === video.id ? remaining[0]?.id ?? null : current.activeId,
+          selectedIds:
+            current.selectedIds === null
+              ? null
+              : current.selectedIds.filter((item) => item !== video.id),
         };
       });
       setMessage('Video removed.');
@@ -4390,7 +4454,13 @@ function TvVideoSettings() {
   return (
     <SettingsExactSection icon={Video} title="Lobby TV Video" subtitle="Upload the information videos shown beside the queue on the TV display.">
       <SettingsExactFieldLabel>Kiosk / TV</SettingsExactFieldLabel>
-      <select value={kioskId} onChange={(event) => setKioskId(event.target.value)} aria-label="Kiosk" className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20">
+      {lockToDepartment && noKiosk && (
+        <p className="text-xs font-medium text-[#9D0A0E]">No kiosk is assigned to your department</p>
+      )}
+      {lockToDepartment && !noKiosk && (
+        <p className="text-sm font-semibold text-[#1F2937]">{kiosks[0]?.name || ''}</p>
+      )}
+      <select hidden={lockToDepartment} value={kioskId} onChange={(event) => setKioskId(event.target.value)} aria-label="Kiosk"className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20">
         {kiosks.length === 0 && <option value="">No kiosks found</option>}
         {kiosks.map((k) => (
           <option key={k.kiosk_id} value={k.kiosk_id}>{k.name}</option>
@@ -4402,7 +4472,7 @@ function TvVideoSettings() {
         <div className="grid gap-2 sm:grid-cols-2">
           {[
             { key: 'single', title: 'Play one video', caption: 'Choose which video the TV plays' },
-            { key: 'playlist', title: 'Play all videos', caption: 'Plays every video one after another' },
+            { key: 'playlist', title: 'Play all videos', caption: 'Plays the ticked videos, in order or random' },
           ].map(({ key, title, caption }) => (
             <button
               key={key}
@@ -4431,7 +4501,7 @@ function TvVideoSettings() {
           </div>
         )}
 
-        {videos.map((video, index) => {
+        {videos.map((video) => {
           const isActive = mode === 'single' && video.id === activeId;
 
           return (
@@ -4440,45 +4510,56 @@ function TvVideoSettings() {
                 <p className="truncate text-xs font-semibold text-[#1F2937]">{video.name}</p>
                 <p className="mt-0.5 flex items-center gap-2 text-xs text-[#98A2B3]">
                   {formatVideoSize(video.size)}
+                  {video.id === videos[0]?.id && (
+                    <span className="rounded border border-[#E5E7EB] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#4B5563]">Default</span>
+                  )}
                   {isActive && (
                     <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white" style={{ backgroundColor: accentColor }}>Now playing</span>
-                  )}
-                  {mode === 'playlist' && (
-                    <span className="rounded bg-[#F1F3F5] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#4B5563]">#{index + 1} in order</span>
                   )}
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
+                {mode === 'playlist' && (
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#1F2937]">
+                    <input type="checkbox" checked={selectedIds.includes(video.id)} onChange={() => toggleSelected(video)} style={{ accentColor }} className="h-3.5 w-3.5 shrink-0" />
+                    In rotation
+                  </label>
+                )}
                 {mode === 'single' && !isActive && (
                   <button type="button" onClick={() => saveChange((current) => ({ ...current, activeId: video.id, mode: 'single' }), 'Playing this video on the TV.')} className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]">
                     Play this one
                   </button>
                 )}
-                <button type="button" onClick={() => handleRemove(video)} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#667085] transition hover:border-[#F0DADA] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60">
+                {canManage && <button type="button" onClick={() => handleRemove(video)} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#667085] transition hover:border-[#F0DADA] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60">
                   <Trash2 size={14} />Remove
-                </button>
+                </button>}
               </div>
             </div>
           );
         })}
       </div>
 
+      {mode === 'playlist' && videos.length > 0 && selectedIds.length === 0 && (
+        <p className="mt-2 text-xs text-[#98A2B3]">Nothing is ticked, so the default video plays.</p>
+      )}
+
       <div className="mt-3 flex items-center justify-between gap-3">
         <p className="text-xs text-[#98A2B3]">{videos.length} of {TV_MAX_VIDEOS} videos</p>
-        <label className={`flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] ${busy || !kioskId || videos.length >= TV_MAX_VIDEOS ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+        {canManage && <label className={`flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] ${busy || !kioskId || videos.length >= TV_MAX_VIDEOS ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
           <Upload size={14} />{busy ? uploadLabel || 'Uploading...' : 'Add videos'}
           <input type="file" multiple accept="video/mp4,video/webm" className="hidden" disabled={busy || !kioskId || videos.length >= TV_MAX_VIDEOS} onChange={handleUpload} />
-        </label>
+        </label>}
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {[
           { key: 'loop', title: 'Loop playback', caption: 'Repeat the video, or restart the list after the last one' },
           { key: 'muted', title: 'Mute video audio', caption: 'Recommended for the waiting lobby' },
+          { key: 'shuffle', title: 'Random order', caption: 'Shuffle the ticked videos (when playing all videos)' },
         ].map(({ key, title, caption }) => (
-          <label key={key} className="flex cursor-pointer items-start gap-2 rounded-md border border-[#E5E7EB] bg-white p-2.5">
-            <input type="checkbox" checked={tvSettings[key]} disabled={!kioskId} onChange={(event) => updateTvSettings({ ...tvSettings, [key]: event.target.checked })} style={{ accentColor }} className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <label key={key} className={`flex items-start gap-2 rounded-md border border-[#E5E7EB] bg-white p-2.5 ${key === 'shuffle' && mode !== 'playlist' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+            <input type="checkbox" checked={tvSettings[key]} disabled={!kioskId || (key === 'shuffle' && mode !== 'playlist')} onChange={(event) => updateTvSettings({ ...tvSettings, [key]: event.target.checked })} style={{ accentColor }} className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               <span className="block text-xs font-semibold text-[#1F2937]">{title}</span>
               <span className="block text-xs text-[#98A2B3]">{caption}</span>
@@ -4489,7 +4570,7 @@ function TvVideoSettings() {
 
       {message && <p className="mt-3 text-xs font-medium text-emerald-700">{message}</p>}
       {error && <p className="mt-3 text-xs text-[#9D0A0E]">{error}</p>}
-      <SettingsExactHint>Videos are stored online, so they play on every TV display for this kiosk, on any device. Up to {TV_MAX_VIDEOS} videos, 500MB each.</SettingsExactHint>
+      <SettingsExactHint>Videos are stored online, so they play on every TV display for this kiosk, on any device. The first video uploaded is the default and plays whenever nothing else is chosen. Up to {TV_MAX_VIDEOS} videos, 500MB each.</SettingsExactHint>
     </SettingsExactSection>
   );
 }
@@ -4797,7 +4878,7 @@ function SettingsExactPage() {
         </div>
       </SettingsExactSection>
 
-      <TvVideoSettings />
+      <TvVideoSettings lockToDepartment />
 
       <SettingsExactSection icon={Gavel} title={t('settingsPage.legal.title')} subtitle={t('settingsPage.legal.subtitle')}>
         <div className="divide-y divide-[#E5E7EB]">
