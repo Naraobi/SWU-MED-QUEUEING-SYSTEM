@@ -12,6 +12,7 @@ import {
 import { LanguageProvider, useLanguage } from './LanguageContext';
 import { AppearanceProvider, useAppearance } from './AppearanceContext';
 import { UnsavedChangesProvider, useUnsavedChanges } from './UnsavedChangesContext';
+import AppFooter from '../../components/AppFooter';
 
 // Asks before leaving Settings while there are unsaved edits. "Leave"
 // discards them back to the last saved values (Settings registers that
@@ -95,6 +96,8 @@ function AdminShell() {
           {activeItem === 'reports' && <ReportsPage />}
           {activeItem === 'settings' && <SettingsPage />}
         </main>
+
+        <AppFooter accent={accent} />
       </div>
 
       {pendingItem && <LeaveSettingsModal onStay={handleStay} onLeave={handleLeave} />}

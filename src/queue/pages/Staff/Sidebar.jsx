@@ -104,7 +104,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto shrink-0 border-t border-slate-100 p-3">
+      <div className="mt-auto flex h-[var(--bottom-bar-height)] shrink-0 items-center border-t border-slate-100 px-3">
         <button
           type="button"
           onClick={() => setShowLogout(true)}

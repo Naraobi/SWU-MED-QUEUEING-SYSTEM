@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 
 import Sidebar from './Sidebar.jsx'
+import AppFooter from '../../components/AppFooter.jsx'
 import Topbar from './Topbar.jsx'
 import StaffStatCard from './StaffStatCard.jsx'
 import TerminalSelectionPage from './TerminalSelectionPage.jsx'
@@ -1189,6 +1190,8 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        <div className="mt-auto"><AppFooter accent={accent} /></div>
       </main>
 
       {showTerminalModal && (

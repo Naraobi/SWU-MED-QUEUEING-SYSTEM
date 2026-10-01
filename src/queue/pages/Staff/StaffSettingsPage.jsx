@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Globe, Image, KeyRound, Monitor, Moon, Palette, Save, ShieldCheck, Sun, Upload } from 'lucide-react';
 import Sidebar from './Sidebar.jsx';
+import AppFooter from '../../components/AppFooter.jsx';
 import Topbar from './Topbar.jsx';
 import { useStaffPreferences } from './StaffPreferencesContext.jsx';
 import { LANGUAGES } from './staffI18n';
@@ -313,6 +314,8 @@ export default function StaffSettingsPage() {
 
           <TvVideoSettings accentColor={accent} canManage={false} lockToDepartment />
         </div>
+
+        <div className="mt-auto"><AppFooter accent={accent} /></div>
       </main>
 
       {showChangePassword && (
