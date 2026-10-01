@@ -1,4 +1,5 @@
 import { getOfflineData, saveOfflineData } from './offlineStorage';
+import { clearStaffOverride } from './staffOverride';
 
 import {
   createContext,
@@ -881,6 +882,15 @@ function clearLocalUser(staffId = null) {
   clearStaffTerminalStorage(
     staffId
   );
+
+  /*
+  | A staff member's colour/theme/language picks are temporary and end with
+  | the session. Every session end (logout button, timeout, revoked token,
+  | failed login) passes through here, so the next login starts from the
+  | defaults and never sees this staff member's customization.
+  */
+
+  clearStaffOverride();
 }
 
 /*

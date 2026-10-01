@@ -9,6 +9,13 @@ import {
 } from 'react';
 
 import { LANGUAGE_CODES, translate } from './staffI18n';
+import { useAuth } from '../../services/Authcontext';
+import {
+  STAFF_OVERRIDE_CLEARED_EVENT,
+  getDefaultStaffAppearance,
+  markStaffOverrideOwner,
+  reconcileStaffOverride,
+} from '../../services/staffOverride';
 
 const StaffPreferencesContext = createContext(null);
 
@@ -22,7 +29,7 @@ export const DEFAULT_STAFF_ACCENT = '#9D0A0E';
 
 function loadStoredTheme() {
   try {
-    return localStorage.getItem(THEME_STORAGE_KEY) || 'light';
+    return localStorage.getItem(THEME_STORAGE_KEY) || getDefaultStaffAppearance().theme;
   } catch {
     return 'light';
   }
@@ -38,7 +45,7 @@ function saveStoredTheme(mode) {
 
 function loadStoredAccent() {
   try {
-    return localStorage.getItem(ACCENT_STORAGE_KEY) || DEFAULT_STAFF_ACCENT;
+    return localStorage.getItem(ACCENT_STORAGE_KEY) || getDefaultStaffAppearance().accent;
   } catch {
     return DEFAULT_STAFF_ACCENT;
   }
@@ -54,7 +61,7 @@ function saveStoredAccent(hex) {
 
 function loadStoredLanguage() {
   try {
-    return localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'English';
+    return localStorage.getItem(LANGUAGE_STORAGE_KEY) || getDefaultStaffAppearance().language;
   } catch {
     return 'English';
   }
@@ -116,6 +123,18 @@ function getSystemTheme() {
 // so it can prompt instead of silently dropping an unsaved pick.
 
 export function StaffPreferencesProvider({ children }) {
+  const { user } = useAuth();
+  const staffId = user?.staff_id ?? user?.user_id ?? user?.id ?? null;
+  const staffIdRef = useRef(staffId);
+
+  useEffect(() => {
+    staffIdRef.current = staffId;
+  }, [staffId]);
+
+  // Temporary override: drop anything that belongs to a previous staff
+  // member or session before the stored values are read below.
+  useState(() => reconcileStaffOverride(staffId));
+
   const [theme, setThemeState] = useState(loadStoredTheme);
   const [accent, setAccentState] = useState(loadStoredAccent);
   const [language, setLanguageState] = useState(loadStoredLanguage);
@@ -142,24 +161,46 @@ export function StaffPreferencesProvider({ children }) {
     return () => query.removeEventListener('change', handleChange);
   }, []);
 
+  // When the staff session ends, fall back to the defaults right away
+  // (services/staffOverride has already removed the stored override).
+  useEffect(() => {
+    const handleCleared = () => {
+      const defaults = getDefaultStaffAppearance();
+
+      setThemeState(defaults.theme);
+      setAccentState(defaults.accent);
+      setLanguageState(defaults.language);
+      setLogoUrlState('');
+      setIsDirty(false);
+    };
+
+    window.addEventListener(STAFF_OVERRIDE_CLEARED_EVENT, handleCleared);
+
+    return () => window.removeEventListener(STAFF_OVERRIDE_CLEARED_EVENT, handleCleared);
+  }, []);
+
   const setTheme = useCallback((mode) => {
     setThemeState(mode);
     saveStoredTheme(mode);
+    markStaffOverrideOwner(staffIdRef.current);
   }, []);
 
   const setAccent = useCallback((hex) => {
     setAccentState(hex);
     saveStoredAccent(hex);
+    markStaffOverrideOwner(staffIdRef.current);
   }, []);
 
   const setLanguage = useCallback((name) => {
     setLanguageState(name);
     saveStoredLanguage(name);
+    markStaffOverrideOwner(staffIdRef.current);
   }, []);
 
   const setLogo = useCallback((dataUrl) => {
     setLogoUrlState(dataUrl || '');
     saveStoredLogo(dataUrl || '');
+    markStaffOverrideOwner(staffIdRef.current);
   }, []);
 
   const registerDiscard = useCallback((fn) => {
