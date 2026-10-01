@@ -82,6 +82,7 @@ import {
 import { useLanguage } from './LanguageContext';
 import { useAppearance } from './AppearanceContext';
 import { useUnsavedChanges } from './UnsavedChangesContext';
+import ActivateKioskModal from './ActivateKioskModal';
 import { LEGAL_DOCUMENTS, LEGAL_ORGANIZATION } from './legalDocuments';
 import { extractDominantColor } from '../../theme/colors';
 import Logo from '../../../assets/logo.png';
@@ -263,6 +264,11 @@ export function QueueManagementPage() {
   const [departmentTerminals, setDepartmentTerminals] = useState([]);
   const [selectedTerminalId, setSelectedTerminalId] = useState('all');
 
+  // --- Activate Kiosk (Admin only; scoped to this Admin's department) ---
+  const [queueDepartment, setQueueDepartment] = useState(null);
+  const [showActivateKiosk, setShowActivateKiosk] = useState(false);
+  const [kioskNotice, setKioskNotice] = useState('');
+
   // Same "issued_at -> called_at" average wait SuperAdmin's Dashboard and
   // Reports pages compute server-side (server/routes/dashboardRoutes.js),
   // reused here instead of the department's average SERVICE time that
@@ -320,6 +326,7 @@ export function QueueManagementPage() {
 
       setTerminalLabel(`${active}/${departmentTerminals.length}`);
       setDepartmentTerminals(departmentTerminals);
+      setQueueDepartment(department || null);
     } catch (err) {
       console.error('Failed to load terminal stats:', err);
       setTerminalLabel('--');
@@ -528,6 +535,14 @@ export function QueueManagementPage() {
 
           <button
             type="button"
+            onClick={() => setShowActivateKiosk(true)}
+            className="flex h-[50px] items-center gap-2 rounded-lg border border-[#9D0A0E] bg-white px-6 text-sm font-bold tracking-[0.6px] text-[#9D0A0E] transition hover:bg-[#FBF1F1]"
+          >
+            {t('queue.activateKiosk')}
+          </button>
+
+          <button
+            type="button"
             onClick={handleApplyFilter}
             disabled={refreshing}
             className="flex h-[50px] items-center gap-2 rounded-lg bg-[#9D0A0E] px-6 text-sm font-bold tracking-[0.6px] text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-70"
@@ -571,6 +586,23 @@ export function QueueManagementPage() {
           <button
             type="button"
             onClick={() => setResetNotice('')}
+            aria-label={t('common.close')}
+            className="rounded p-0.5 text-green-700 transition hover:bg-green-100"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {kioskNotice && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 size={16} />
+            {kioskNotice}
+          </span>
+          <button
+            type="button"
+            onClick={() => setKioskNotice('')}
             aria-label={t('common.close')}
             className="rounded p-0.5 text-green-700 transition hover:bg-green-100"
           >
@@ -822,6 +854,21 @@ export function QueueManagementPage() {
         resetting={resetting}
         error={resetError}
         t={t}
+      />
+
+      <ActivateKioskModal
+        open={showActivateKiosk}
+        department={queueDepartment}
+        onClose={() => setShowActivateKiosk(false)}
+        onActivated={async (kiosk) => {
+          setShowActivateKiosk(false);
+
+          // Refresh the queue numbers, including the active Terminal count.
+          await handleApplyFilter();
+
+          setKioskNotice(t('kioskActivate.success', { name: kiosk?.name || '' }));
+          setTimeout(() => setKioskNotice(''), 5000);
+        }}
       />
     </div>
   );
