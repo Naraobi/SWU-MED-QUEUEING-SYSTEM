@@ -850,23 +850,33 @@ console.log('FORMATTED ROLES FOR UI:', formattedRoles);
   // =========================================================
   // CREATE ROLE
   // =========================================================
+const handleCreate = async () => {
+  const selectedPermissions = Array.isArray(draft.permissions)
+    ? draft.permissions
+    : [];
 
-  const handleCreate = async () => {
-    const roleClassification = String(draft.role || '')
-      .trim()
-      .toLowerCase();
+  const selectedScopes = [
+    ...new Set(
+      selectedPermissions
+        .map((permission) =>
+          String(permission).split(':')[0].trim().toLowerCase()
+        )
+        .filter(Boolean)
+    ),
+  ];
 
-    const roleName = String(draft.role_name || '').trim();
-    const description = String(draft.description || '').trim();
+  if (
+    selectedScopes.length !== 1 ||
+    !['superadmin', 'admin', 'staff'].includes(selectedScopes[0])
+  ) {
+    setError('Please select permissions from exactly one valid section.');
+    return;
+  }
 
-    if (
-      !['superadmin', 'admin', 'staff'].includes(
-        roleClassification
-      )
-    ) {
-      setError('Please select a valid role classification.');
-      return;
-    }
+  const roleClassification = selectedScopes[0];
+
+  const roleName = String(draft.role_name || '').trim();
+  const description = String(draft.description || '').trim();
 
     if (!roleName) {
       setError('Custom role name is required.');

@@ -221,6 +221,25 @@ const ADMIN_TAB_ALIASES = {
   reports: ["reports", "reports_analytics"],
   settings: ["settings"],
 };
+const STAFF_TAB_ALIASES = {
+  todays_queue: [
+    "todays_queue",
+    "today's_queue",
+    "today_queue",
+    "queues",
+    "queue",
+    "queue_management",
+  ],
+
+  queue_history: [
+    "queue_history",
+    "history",
+  ],
+
+  settings: [
+    "settings",
+  ],
+};
 
 function hasPositionTabAccess(user, pageKey) {
   const tabs = parsePositionTabs(user?.position_tabs);

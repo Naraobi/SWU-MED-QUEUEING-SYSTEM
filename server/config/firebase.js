@@ -7,6 +7,7 @@ const {
 } = require("firebase-admin/app");
 
 const { getAuth } = require("firebase-admin/auth");
+const { getFirestore } = require("firebase-admin/firestore");
 
 const path = require("path");
 const fs = require("fs");
@@ -51,9 +52,10 @@ const app =
 
 // Initialize Firebase Authentication.
 const auth = getAuth(app);
-
+const db = getFirestore(app);
 // Export both services.
 module.exports = {
   admin,
   auth,
+  db,
 };
