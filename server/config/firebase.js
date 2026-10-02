@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 const admin = require("firebase-admin");
 
 const {
@@ -8,14 +7,9 @@ const {
 } = require("firebase-admin/app");
 
 const { getAuth } = require("firebase-admin/auth");
-=======
-const { initializeApp, cert } = require("firebase-admin/app");
->>>>>>> JP-SUPER-ADMIN
 const { getFirestore } = require("firebase-admin/firestore");
-const { getAuth } = require("firebase-admin/auth");
 const { getDatabase } = require("firebase-admin/database");
 
-<<<<<<< HEAD
 const path = require("path");
 const fs = require("fs");
 
@@ -26,7 +20,7 @@ const serviceAccountPath = path.join(
   "../serviceAccountKey.json"
 );
 
-// Load local credentials or Hostinger environment variables.
+// Load credentials from a local file or environment variables.
 if (fs.existsSync(serviceAccountPath)) {
   serviceAccount = require(serviceAccountPath);
 } else {
@@ -48,56 +42,32 @@ if (
   );
 }
 
+// Resolve project ID and database URL.
+const projectId =
+  serviceAccount.project_id || serviceAccount.projectId;
+
+const databaseURL =
+  process.env.FIREBASE_DATABASE_URL ||
+  `https://${projectId}-default-rtdb.firebaseio.com`;
+
 // Initialize Firebase Admin only once.
-const app =
+const firebaseApp =
   getApps().length === 0
     ? initializeApp({
         credential: cert(serviceAccount),
-        databaseURL: process.env.FIREBASE_DATABASE_URL,
+        databaseURL,
       })
     : getApps()[0];
 
-// Initialize Firebase Authentication.
-const auth = getAuth(app);
-const db = getFirestore(app);
-// Export both services.
+// Initialize Firebase services.
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+const realtimeDb = getDatabase(firebaseApp);
+
+// Export services.
 module.exports = {
   admin,
   auth,
   db,
-};
-=======
-let serviceAccount;
-
-if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-  // Render / cloud environment
-  serviceAccount = {
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-  };
-} else {
-  // Local development
-  serviceAccount = require("../serviceAccountKey.json");
-}
-
-const firebaseApp = initializeApp({
-  credential: cert(serviceAccount),
-  databaseURL:
-    process.env.FIREBASE_DATABASE_URL ||
-    `https://${serviceAccount.projectId || serviceAccount.project_id}-default-rtdb.firebaseio.com`,
-});
-
-const db = getFirestore(firebaseApp);
-const realtimeDb = getDatabase(firebaseApp);
-const auth = getAuth(firebaseApp);
-console.log(
-  "🔥 BACKEND FIREBASE PROJECT:",
-  firebaseApp.options.projectId
-);
-module.exports = {
-  db,
   realtimeDb,
-  auth,
 };
->>>>>>> JP-SUPER-ADMIN

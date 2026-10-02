@@ -35,12 +35,6 @@ const NAV_ITEMS = [
     permission: 'superadmin:dashboard',
   },
   {
-    key: 'reports',
-    labelKey: 'sa.nav.reports',
-    icon: BarChart3,
-    permission: 'superadmin:reports_analytics',
-  },
-  {
     key: 'users',
     labelKey: 'sa.nav.users',
     icon: Users,
@@ -75,6 +69,12 @@ const NAV_ITEMS = [
     labelKey: 'sa.nav.queues',
     icon: ClipboardList,
     permission: 'superadmin:queues',
+  },
+    {
+    key: 'reports',
+    labelKey: 'sa.nav.reports',
+    icon: BarChart3,
+    permission: 'superadmin:reports_analytics',
   },
   {
     key: 'settings',
