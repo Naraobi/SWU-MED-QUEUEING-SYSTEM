@@ -287,16 +287,19 @@ export function canAccessAdminPage(user, key) {
     return false;
   }
 
-  // Admin without an assigned position has full access.
-  if (!hasAssignedPosition(user)) {
-    return true;
+  const permissions = getRolePermissions(user);
+
+  // Use configured role permissions when available.
+  if (permissions.length > 0) {
+    return hasRolePermission(user, key);
   }
 
-  // Allow access if the custom role permission or position tab permits it.
-  return (
-    hasRolePermission(user, key) ||
-    hasPositionTabAccess(user, key)
-  );
+  // Fall back to position tabs only if no role permissions exist.
+  if (hasAssignedPosition(user)) {
+    return hasPositionTabAccess(user, key);
+  }
+
+  return false;
 }
 
 // =====================================================
