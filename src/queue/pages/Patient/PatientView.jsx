@@ -12,7 +12,8 @@ import {
   getPatientDepartments,
   getWaitingCount,
   createPatientQueue,
-validateKioskSecurityPin,
+  validateKioskSecurityPin,
+  getKioskUnlockStatus,
 } from '../../services/backendApi';
 
 import {
@@ -331,60 +332,19 @@ function withEstimatedWait(service, waiting) {
    KIOSK DAILY UNLOCK HELPERS
 ========================================================= */
 
-/*
-  The kiosk is unlocked PER DAY.
+// Keep only the selected kiosk ID locally.
+// The backend remains the authority on unlock status.
 
-  Example:
-    swu_kiosk_unlocked_<kiosk_id>_2026-09-14
-
-  The kiosk automatically becomes locked again
-  on the next calendar day.
-*/
-
-function getTodayKey() {
+function getActiveKioskKeyForToday() {
   const now = new Date();
 
-  return `${now.getFullYear()}-${String(
+  const today = `${now.getFullYear()}-${String(
     now.getMonth() + 1
   ).padStart(2, '0')}-${String(
     now.getDate()
   ).padStart(2, '0')}`;
-}
 
-function getKioskUnlockKey(kioskId) {
-  return `swu_kiosk_unlocked_${kioskId}_${getTodayKey()}`;
-}
-
-function getActiveKioskKeyForToday() {
-  return `swu_active_kiosk_${getTodayKey()}`;
-}
-
-function isKioskUnlocked(kioskId) {
-  if (!kioskId) {
-    return false;
-  }
-
-  return (
-    localStorage.getItem(
-      getKioskUnlockKey(kioskId)
-    ) === 'true'
-  );
-}
-
-function unlockKioskForToday(kioskId) {
-  if (!kioskId) {
-    return;
-  }
-
-  localStorage.setItem(
-    getKioskUnlockKey(kioskId),
-    'true'
-  );
-
-  localStorage.setItem(
-    getActiveKioskKeyForToday(),
-    kioskId
-  );
+  return `swu_active_kiosk_${today}`;
 }
 
 function setActiveKioskForToday(kioskId) {
@@ -394,7 +354,7 @@ function setActiveKioskForToday(kioskId) {
 
   localStorage.setItem(
     getActiveKioskKeyForToday(),
-    kioskId
+    String(kioskId)
   );
 }
 
@@ -407,20 +367,22 @@ function getActiveKioskForToday(kiosks) {
     return null;
   }
 
-  const activeKiosk = kiosks.find(
-    (item) =>
-      String(item.kiosk_id) ===
-      String(activeKioskId)
+  return (
+    kiosks.find(
+      (item) =>
+        String(item.kiosk_id) === String(activeKioskId)
+    ) || null
   );
+}
 
-  if (
-    !activeKiosk ||
-    !isKioskUnlocked(activeKiosk.kiosk_id)
-  ) {
-    return null;
-  }
+async function checkKioskUnlocked(kioskId) {
+  const result = await getKioskUnlockStatus(kioskId);
 
-  return activeKiosk;
+  return Boolean(
+    result.unlocked ??
+    result.is_unlocked ??
+    result.isUnlocked
+  );
 }
 
 /* =========================================================
@@ -915,11 +877,6 @@ function SelectKioskScreen({
               selected?.kiosk_id ===
               currentKiosk.kiosk_id;
 
-            const isUnlocked =
-              isKioskUnlocked(
-                currentKiosk.kiosk_id
-              );
-
             return (
               <div
                 key={currentKiosk.kiosk_id}
@@ -969,8 +926,6 @@ function SelectKioskScreen({
                     <p className={`text-sm font-semibold uppercase tracking-wide ${ isSelected ? 'text-white' : 'text-slate-800' }`}>
                       {currentKiosk.name}
                     </p>
-
-                    {isUnlocked && ( <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700"> UNLOCKED </span> )}
                   </div>
 
                   <p className={`text-xs ${isSelected ? 'text-white/70' : 'text-slate-400'}`}>
@@ -1022,18 +977,26 @@ async function handleSubmit() {
   }
 
   setSubmitting(true);
+try {
+  // Validate the staff PIN.
+  // The backend should save the daily unlock here.
+  await validateKioskSecurityPin(
+    kiosk.kiosk_id,
+    pin
+  );
 
-  try {
-    await validateKioskSecurityPin(
-      kiosk.kiosk_id,
-      pin
+  // Confirm that the backend now considers the kiosk unlocked.
+  const isUnlocked = await checkKioskUnlocked(
+    kiosk.kiosk_id
+  );
+
+  if (!isUnlocked) {
+    throw new Error(
+      'The kiosk could not be unlocked. Please try again.'
     );
+  }
 
-    unlockKioskForToday(
-      kiosk.kiosk_id
-    );
-
-    onSuccess();
+  onSuccess();
 
   } catch (error) {
     console.error(
@@ -2556,87 +2519,61 @@ export default function PatientView({
   /* =======================================================
      GET STARTED
   ======================================================= */
+async function handleStart() {
+  try {
+    const configuredKiosk = kioskId
+      ? kiosks.find(
+          (item) =>
+            String(item.kiosk_id) === String(kioskId)
+        )
+      : null;
 
-  function handleStart() {
-    const configuredKiosk =
-      kioskId
-        ? kiosks.find(
-            (item) =>
-              String(
-                item.kiosk_id
-              ) ===
-              String(kioskId)
-          )
-        : null;
+    const savedActiveKiosk = configuredKiosk
+      ? configuredKiosk
+      : getActiveKioskForToday(kiosks);
 
-    const activeKiosk =
-      configuredKiosk
-        ? isKioskUnlocked(
-            configuredKiosk.kiosk_id
-          )
-          ? configuredKiosk
-          : null
-        : getActiveKioskForToday(
-            kiosks
-          );
+    // If we have a kiosk candidate, verify its status with the backend.
+    if (savedActiveKiosk) {
+      const isUnlocked = await checkKioskUnlocked(
+        savedActiveKiosk.kiosk_id
+      );
 
-    /* ---------------------------------------------
-       ALREADY UNLOCKED
-    --------------------------------------------- */
-
-    if (activeKiosk) {
-      setKiosk(activeKiosk);
+      setKiosk(savedActiveKiosk);
       setQueueType(null);
       setService(null);
 
-      setRequiresKioskSelection(
-        false
-      );
-
+      setRequiresKioskSelection(false);
       resetStepProgress();
-      goTo('queueType');
+
+      if (isUnlocked) {
+        goTo('queueType');
+      } else {
+        goTo('kioskPin');
+      }
 
       return;
     }
 
-    /* ---------------------------------------------
-       CONFIGURED KIOSK BUT NOT UNLOCKED
-    --------------------------------------------- */
-
-    if (configuredKiosk) {
-      setKiosk(
-        configuredKiosk
-      );
-
-      setQueueType(null);
-      setService(null);
-
-      setRequiresKioskSelection(
-        false
-      );
-
-      resetStepProgress();
-      goTo('kioskPin');
-
-      return;
-    }
-
-    /* ---------------------------------------------
-       PATIENT MUST SELECT KIOSK
-    --------------------------------------------- */
-
+    // No configured or previously selected kiosk.
     setKiosk(null);
     setQueueType(null);
     setService(null);
 
-    setRequiresKioskSelection(
-      true
-    );
-
+    setRequiresKioskSelection(true);
     resetStepProgress();
     goTo('kiosk');
-  }
+  } catch (error) {
+    console.error(
+      'Unable to check kiosk unlock status:',
+      error
+    );
 
+    alert(
+      error?.message ||
+      'Unable to verify kiosk status. Please check your connection and try again.'
+    );
+  }
+}
   /* =======================================================
      KIOSK SELECTION
   ======================================================= */
@@ -2755,7 +2692,15 @@ export default function PatientView({
           'The selected department does not belong to the selected kiosk.'
         );
       }
+const isUnlocked = await checkKioskUnlocked(kiosk.kiosk_id);
 
+if (!isUnlocked) {
+  setQueueType(null);
+  setService(null);
+  resetStepProgress();
+  goTo('kioskPin');
+  throw new Error('This kiosk is locked. Please enter the Security PIN.');
+}
       /* ---------------------------------------------
          REQUEST DATA
       --------------------------------------------- */
@@ -2783,64 +2728,14 @@ export default function PatientView({
       /* ---------------------------------------------
          CREATE QUEUE ONLINE
       --------------------------------------------- */
+let result;
 
-      let result;
-
-      try {
-        result =
-          await createPatientQueue(
-            requestData
-          );
-      } catch (onlineError) {
-        console.warn(
-          'Unable to create queue through backend. Saving as pending offline operation:',
-          onlineError
-        );
-
-        /* -------------------------------------------
-           OFFLINE QUEUE
-        ------------------------------------------- */
-
-        const localQueueId =
-          `offline-${crypto.randomUUID()}`;
-
-        const pendingOperation = {
-          type:
-            'CREATE_PATIENT_QUEUE',
-
-          local_id:
-            localQueueId,
-
-          payload:
-            requestData,
-
-          created_at:
-            new Date().toISOString(),
-
-          status:
-            'pending',
-        };
-
-        await addPendingOperation(
-          pendingOperation
-        );
-
-        const offlineQueueNumber =
-          `OFFLINE-${Date.now()}`;
-
-        setQueueId(
-          localQueueId
-        );
-
-        setQueueNumber(
-          offlineQueueNumber
-        );
-
-        goTo('ticket');
-
-        return;
-      }
-
+try {
+  result = await createPatientQueue(requestData);
+} catch (error) {
+  console.error('Unable to create queue:', error);
+  throw error;
+}
       /* ---------------------------------------------
          VALIDATE SERVER RESPONSE
       --------------------------------------------- */
@@ -2862,7 +2757,6 @@ export default function PatientView({
           'Queue was created, but no queue number was returned.'
         );
       }
-
       /* ---------------------------------------------
          SAVE QUEUE
       --------------------------------------------- */
@@ -3194,33 +3088,27 @@ export default function PatientView({
           onBack={() =>
             goTo('queueType')
           }
-          onContinue={async () => {
-            if (!service) {
-              return;
-            }
+        onContinue={async () => {
+  if (!kiosk) return;
 
-            try {
-              const waitingData =
-                await getWaitingCount(
-                  service.department_id
-                );
+  try {
+    const isUnlocked = await checkKioskUnlocked(
+      kiosk.kiosk_id
+    );
 
-              setService(
-                (current) =>
-                  withEstimatedWait(
-                    current,
-                    waitingData?.waiting_count
-                  )
-              );
-            } catch (error) {
-              console.warn(
-                'Unable to refresh waiting count:',
-                error
-              );
-            }
-
-            goTo('confirm');
-          }}
+    if (isUnlocked) {
+      setActiveKioskForToday(kiosk.kiosk_id);
+      resetStepProgress();
+      goTo('queueType');
+    } else {
+      resetStepProgress();
+      goTo('kioskPin');
+    }
+  } catch (error) {
+    console.error('Kiosk status check failed:', error);
+    alert(error.message || 'Unable to verify kiosk status.');
+  }
+}}
         />
 
         {departmentsError && (

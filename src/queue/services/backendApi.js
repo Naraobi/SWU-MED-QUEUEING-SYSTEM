@@ -178,7 +178,43 @@ export const resetDepartmentIds = resetDepartments;
 // =====================================================
 // KIOSK API
 // =====================================================
+export async function remotelyUnlockKiosk(firebaseUser, kioskId, pin) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
 
+  if (!kioskId) {
+    throw new Error("Kiosk ID is required");
+  }
+
+  if (!/^\d{6}$/.test(String(pin || ""))) {
+    throw new Error("Security PIN must be exactly 6 digits");
+  }
+
+  const token = await firebaseUser.getIdToken();
+
+  const response = await fetch(
+    `${API_URL}/kiosks/${encodeURIComponent(kioskId)}/remote-unlock`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ pin }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to remotely unlock kiosk"
+    );
+  }
+
+  return result;
+}
 export async function getKiosks() {
   const response = await fetch(`${API_URL}/kiosks`);
   const result = await response.json();
@@ -1753,7 +1789,27 @@ export async function validateKioskSecurityPin(kioskId, pin) {
 
   return result;
 }
+export async function getKioskUnlockStatus(kioskId) {
+  if (!kioskId) {
+    throw new Error("Kiosk ID is required.");
+  }
 
+  const response = await fetch(
+    `${API_URL}/security/pin/kiosk-status/${encodeURIComponent(
+      kioskId
+    )}`
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to retrieve kiosk unlock status."
+    );
+  }
+
+  return result;
+}
 // =====================================================
 // BACKEND / DATABASE TEST
 // =====================================================

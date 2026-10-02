@@ -355,18 +355,18 @@ export default function EstimatedTransactionTime() {
        * No services table yet. Fall back to the department-level est_time,
        * which is real, already drives the queue, and is editable right now.
        */
-      const fallback = departmentRows.map((department) => ({
-        id: department.id,
-        departmentId: department.id,
-        department: department.name,
-        service: department.name,
-        minutes: clampMinutes(department.estTime),
-      }));
+  const fallback = departmentRows.map((department) => ({
+  id: department.id,
+  departmentId: department.id,
+  department: department.name,
+  service: department.name,
+  minutes: clampMinutes(department.estTime),
+}));
 
-      setMode('department');
-      setRows(fallback);
-      setBaseline(fallback);
-      setServices([]);
+setMode('department');
+setRows(fallback);
+setBaseline(fallback);
+setServices([]);
     } finally {
       setLoading(false);
     }

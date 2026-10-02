@@ -7,6 +7,8 @@ import {
   MapPin,
   Monitor,
   MoreVertical,
+    Power,
+  Search,
   Plus,
   User,
   X,
@@ -21,11 +23,13 @@ import {
   getStaffByDepartment,
   createKiosk,
   createTerminal,
+    remotelyUnlockKiosk,
   updateTerminal,
 } from '../../services/backendApi';
+import { getAuth } from 'firebase/auth';
 
 import useFormDraft, { DraftRestoreBar } from '../../hooks/useFormDraft';
-
+import InputPinModal from '../../components/modals/inputPinModal';
 export default function KioskManagement() {
 
   const [kiosks, setKiosks] = useState([]);
@@ -41,7 +45,7 @@ export default function KioskManagement() {
   const [kioskName, setKioskName] = useState('');
   const [kioskLocation, setKioskLocation] = useState('');
   const [kioskStatus, setKioskStatus] = useState('active');
-
+const [pinModalOpen, setPinModalOpen] = useState(false);
   const [savingKiosk, setSavingKiosk] = useState(false);
   const [kioskError, setKioskError] = useState(null);
 
@@ -70,7 +74,81 @@ export default function KioskManagement() {
 
   const [kioskStatusModal, setKioskStatusModal] = useState(null);
   const [changingKioskStatus, setChangingKioskStatus] = useState(false);
+  
+  // =============================================
+// ACTIVATE KIOSK MODAL
+// =============================================
 
+const [activateModalOpen, setActivateModalOpen] = useState(false);
+const [activateSearch, setActivateSearch] = useState('');
+const [selectedActivateId, setSelectedActivateId] = useState(null);
+const [activatingKiosk, setActivatingKiosk] = useState(false);
+const [activateError, setActivateError] = useState(null);
+const [activateSuccess, setActivateSuccess] = useState('');
+const filteredActivateKiosks = kiosks.filter((kiosk) => {
+  const term = activateSearch.trim().toLowerCase();
+  if (!term) return true;
+
+  return (
+    kiosk.name.toLowerCase().includes(term) ||
+    (kiosk.location || '').toLowerCase().includes(term)
+  );
+});
+
+const activeKioskCount = kiosks.filter(
+  (kiosk) => kiosk.status === 'active'
+).length;
+
+const selectedActivateKiosk = kiosks.find(
+  (kiosk) => kiosk.kiosk_id === selectedActivateId
+);
+
+function openActivateModal() {
+  setActivateSearch('');
+  setSelectedActivateId(null);
+  setActivateError(null);
+  setActivateSuccess('');
+  setPinModalOpen(false);
+  setActivateModalOpen(true);
+}
+function closeActivateModal() {
+  if (activatingKiosk) return;
+  setActivateModalOpen(false);
+}
+
+async function handleVerifyPin(pin) {
+  if (!selectedActivateKiosk) {
+    throw new Error('Please select a kiosk.');
+  }
+
+  const currentUser = getAuth().currentUser;
+
+  if (!currentUser) {
+    throw new Error('You must be logged in to unlock a kiosk.');
+  }
+
+  try {
+    setActivatingKiosk(true);
+    setActivateError(null);
+
+    const result = await remotelyUnlockKiosk(
+      currentUser,
+      selectedActivateKiosk.kiosk_id,
+      pin
+    );
+
+    setActivateSuccess(
+      result.message || 'Kiosk unlocked successfully for today.'
+    );
+
+    return result;
+  } catch (err) {
+    console.error('REMOTE KIOSK UNLOCK ERROR:', err);
+    throw err;
+  } finally {
+    setActivatingKiosk(false);
+  }
+}
   // =============================================
   // TERMINAL MODAL
   // =============================================
@@ -665,16 +743,24 @@ async function handleSaveKiosk() {
             Manage kiosks, departments, and terminals.
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={openAddKioskModal}
-          className="swu-press inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
-        >
-          <Plus size={16} />
-          Add Kiosk
-        </button>
-      </div>
+<div className="flex items-center gap-3">
+<button
+  type="button"
+  onClick={openActivateModal}
+  className="swu-press rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50"
+>
+  Unlock Kiosk
+</button>
+      <button
+    type="button"
+    onClick={openAddKioskModal}
+    className="swu-press inline-flex items-center gap-2 rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25"
+  >
+    <Plus size={16} />
+    Add Kiosk
+  </button>
+</div>
+</div>
       {loading && (
         <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 text-sm text-[#4B5563]">
           Loading kiosks...
@@ -1086,6 +1172,181 @@ async function handleSaveKiosk() {
           </div>
         </div>
       )}
+      {activateModalOpen && (
+  <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+    <div className="swu-pop w-full max-w-md rounded-2xl bg-white shadow-2xl">
+      {/* HEADER */}
+      <div className="flex items-start justify-between px-6 pb-2 pt-5">
+        <div>
+          <h3 className="text-lg font-semibold text-[#1F2937]">
+            Activate Kiosk
+          </h3>
+          <p className="mt-0.5 text-sm text-[#6B7280]">
+            Select an inactive kiosk to make it available for use.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={closeActivateModal}
+          className="rounded-lg p-2 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#4B5563]"
+          title="Close"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="space-y-4 px-6 py-4">
+        {activateError && (
+          <div className="rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2.5 text-sm text-[#9D0A0E]">
+            {activateError}
+          </div>
+        )}
+
+        {/* SEARCH */}
+        <div className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] px-3 py-2 focus-within:border-[#9D0A0E] focus-within:ring-2 focus-within:ring-[#9D0A0E]/10">
+          <Search size={16} className="shrink-0 text-[#9CA3AF]" />
+          <input
+            type="text"
+            value={activateSearch}
+            onChange={(event) => setActivateSearch(event.target.value)}
+            placeholder="Search by kiosk name or location..."
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9CA3AF]"
+          />
+          <span className="shrink-0 rounded-full bg-[#F1F3F5] px-2 py-0.5 text-[10px] font-medium text-[#4B5563]">
+            • All kiosks
+          </span>
+        </div>
+
+  {/* LIST */}
+<div>
+  <div className="mb-2 flex items-center justify-between">
+    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">
+      Available Kiosks
+    </p>
+    <p className="text-xs text-[#6B7280]">
+      {activeKioskCount} of {kiosks.length} active
+    </p>
+  </div>
+
+  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+    {filteredActivateKiosks.length > 0 ? (
+      filteredActivateKiosks.map((kiosk) => {
+        const isActive = kiosk.status === 'active';
+        const isSelected = selectedActivateId === kiosk.kiosk_id;
+
+        return (
+          <button
+            key={kiosk.kiosk_id}
+            type="button"
+            disabled={!isActive}
+            onClick={() => isActive && setSelectedActivateId(kiosk.kiosk_id)}
+            className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
+              !isActive
+                ? 'cursor-not-allowed border-[#E5E7EB] bg-[#F8F9FA] opacity-60'
+                : isSelected
+                ? 'border-[#9D0A0E] bg-[#FBF1F1]'
+                : 'border-[#E5E7EB] bg-white hover:border-[#9D0A0E]/40 hover:bg-[#FBF1F1]/50'
+            }`}
+          >
+            <span
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                isSelected
+                  ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+                  : 'border-[#D1D5DB] bg-white'
+              }`}
+            >
+              {isSelected && <Check size={12} />}
+            </span>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[#1F2937]">
+                {kiosk.name}
+              </p>
+              <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[#6B7280]">
+                <MapPin size={12} />
+                <span className="truncate">
+                  {kiosk.location || 'No location set'}
+                </span>
+              </div>
+            </div>
+
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                isActive
+                  ? 'border border-[#86EFAC] bg-[#E8F8F0] text-[#0D8A4E]'
+                  : 'bg-[#F1F3F5] text-[#4B5563]'
+              }`}
+            >
+              {isActive ? 'ACTIVE' : 'INACTIVE'}
+            </span>
+          </button>
+        );
+      })
+    ) : (
+      <div className="rounded-xl border border-dashed border-[#E5E7EB] p-6 text-center text-sm text-[#4B5563]">
+        {kiosks.length === 0
+          ? 'No kiosks found.'
+          : 'No kiosks match your search.'}
+      </div>
+    )}
+  </div>
+</div>
+        {/* SELECTED SUMMARY */}
+        {selectedActivateKiosk && (
+          <div className="flex items-start gap-3 rounded-xl border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[#9D0A0E] text-[#9D0A0E]">
+              <Check size={12} />
+            </span>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B7280]">
+                Selected Kiosk
+              </p>
+              <p className="text-sm font-semibold text-[#1F2937]">
+                {selectedActivateKiosk.name}
+                {selectedActivateKiosk.location
+                  ? ` — ${selectedActivateKiosk.location}`
+                  : ''}
+              </p>
+              <p className="mt-0.5 text-xs text-[#6B7280]">
+                This kiosk will be available for patient queueing upon
+                activation.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+      {/* FOOTER */}
+      <div className="flex justify-end gap-3 border-t border-[#E5E7EB] px-6 py-4">
+        <button
+          type="button"
+          onClick={closeActivateModal}
+          disabled={activatingKiosk}
+          className="swu-press rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Cancel
+        </button>
+
+<button
+  type="button"
+  onClick={() => {
+    if (!selectedActivateKiosk) {
+      setActivateError('Please select a kiosk.');
+      return;
+    }
+
+    setActivateError(null);
+    setPinModalOpen(true);
+  }}
+  disabled={!selectedActivateKiosk || activatingKiosk}
+  className="rounded-lg bg-[#9D0A0E] px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+>
+  Unlock Kiosk
+</button>
+      </div>
+    </div>
+  </div>
+)}
       {kioskStatusModal && (
         <div className="swu-enter-fade fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
           <div className="swu-pop w-full max-w-sm rounded-2xl bg-white shadow-2xl">
@@ -1356,6 +1617,23 @@ async function handleSaveKiosk() {
           </div>
         </div>
       )}
+<InputPinModal
+  open={pinModalOpen}
+  onClose={() => setPinModalOpen(false)}
+  onVerify={handleVerifyPin}
+  onSuccess={() => {
+    setPinModalOpen(false);
+    setActivateModalOpen(false);
+    setActivateError(null);
+  }}
+  title="Enter Security PIN"
+  description={`Enter your Security PIN to unlock ${
+    selectedActivateKiosk?.name || 'this kiosk'
+  } for today.`}
+  confirmLabel="Verify & Unlock"
+  successMessage="Kiosk has been successfully unlocked for today."
+  successNote="Patients can now use this kiosk."
+/>
     </div>
   );
   }

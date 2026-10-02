@@ -695,119 +695,32 @@ async function insertKioskIntoMySQL(
 |
 |--------------------------------------------------------------------------
 */
-
-async function updateKiosk(
-  kioskId,
-  kioskData = {}
-) {
+async function updateKiosk(kioskId, kioskData = {}) {
   if (!kioskId) {
-    throw new Error(
-      "Kiosk ID is required."
-    );
+    throw new Error("Kiosk ID is required.");
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | GET EXISTING KIOSK INCLUDING PIN HASH
-  |--------------------------------------------------------------------------
-  */
-
-  let existingKiosk =
-    await getKioskWithPinFromMySQL(
-      kioskId
-    );
-
-  /*
-  |--------------------------------------------------------------------------
-  | IF NOT IN MYSQL, CHECK FIREBASE
-  |--------------------------------------------------------------------------
-  */
-
-  if (!existingKiosk) {
-    try {
-      const kioskDoc =
-        await db
-          .collection(
-            KIOSK_COLLECTION
-          )
-          .doc(kioskId)
-          .get();
-
-      if (kioskDoc.exists) {
-        const firebaseData =
-          kioskDoc.data();
-
-        existingKiosk = {
-          ...formatKiosk(
-            firebaseData,
-            kioskDoc.id
-          ),
-
-          kiosk_pin:
-            firebaseData.kiosk_pin ||
-            null,
-        };
-      }
-    } catch (error) {
-      console.error(
-        "FIREBASE CHECK KIOSK ERROR:",
-        error.message
-      );
-    }
-  }
+  const existingKiosk = await getKioskById(kioskId);
 
   if (!existingKiosk) {
     return null;
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | NAME
-  |--------------------------------------------------------------------------
-  */
-
   const name =
-    kioskData.name !==
-    undefined
-      ? String(
-          kioskData.name ||
-            ""
-        ).trim()
+    kioskData.name !== undefined
+      ? String(kioskData.name || "").trim()
       : existingKiosk.name;
 
-  /*
-  |--------------------------------------------------------------------------
-  | STATUS
-  |--------------------------------------------------------------------------
-  */
-
   const status =
-    kioskData.status !==
-    undefined
-      ? normalizeStatus(
-          kioskData.status
-        )
-      : normalizeStatus(
-          existingKiosk.status
-        );
+    kioskData.status !== undefined
+      ? normalizeStatus(kioskData.status)
+      : normalizeStatus(existingKiosk.status);
 
   if (!name) {
-    throw new Error(
-      "Kiosk name is required."
-    );
+    throw new Error("Kiosk name is required.");
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | CHECK DUPLICATE NAME
-  |--------------------------------------------------------------------------
-  */
-
-  const duplicate =
-    await kioskNameExists(
-      name,
-      kioskId
-    );
+  const duplicate = await kioskNameExists(name, kioskId);
 
   if (duplicate) {
     throw new Error(
@@ -815,251 +728,89 @@ async function updateKiosk(
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | PIN
-  |--------------------------------------------------------------------------
-  |
-  | Existing kiosk PIN behavior is preserved.
-  |
-  | If a new PIN is supplied:
-  |   validate → hash → replace old hash
-  |
-  | If no PIN is supplied:
-  |   keep the existing hash
-  |
-  |--------------------------------------------------------------------------
-  */
-
-  let kioskPinHash =
-    existingKiosk.kiosk_pin ||
-    null;
-
-  const hasNewPin =
-    kioskData.kiosk_pin !==
-      undefined &&
-    kioskData.kiosk_pin !==
-      null &&
-    String(
-      kioskData.kiosk_pin
-    ).trim() !== "";
-
-  if (hasNewPin) {
-    const newKioskPin =
-      validateKioskPin(
-        kioskData.kiosk_pin
-      );
-
-    kioskPinHash =
-      await bcrypt.hash(
-        newKioskPin,
-        10
-      );
-  }
-
-  /*
-  |--------------------------------------------------------------------------
-  | UPDATED KIOSK
-  |--------------------------------------------------------------------------
-  */
-
-  const updatedAt =
-    new Date().toISOString();
+  const updatedAt = new Date().toISOString();
 
   const updatedKiosk = {
-    kiosk_id:
-      kioskId,
-
+    kiosk_id: kioskId,
     name,
-
     status,
-
-    kiosk_pin:
-      kioskPinHash,
-
-    created_at:
-      existingKiosk.created_at ||
-      null,
-
-    updated_at:
-      updatedAt,
+    created_at: existingKiosk.created_at,
+    updated_at: updatedAt,
   };
 
-  const mode =
-    await getDatabaseMode();
-
-  /*
-  |--------------------------------------------------------------------------
-  | FIREBASE ONLINE
-  |--------------------------------------------------------------------------
-  */
+  const mode = await getDatabaseMode();
 
   if (mode === "firebase") {
     try {
-      const firebaseUpdate = {
-        kiosk_id:
-          kioskId,
-
-        name,
-
-        status,
-
-        updated_at:
-          updatedAt,
-      };
-
-      /*
-      |--------------------------------------------------------------------------
-      | ONLY UPDATE PIN WHEN A NEW PIN WAS PROVIDED
-      |--------------------------------------------------------------------------
-      */
-
-      if (hasNewPin) {
-        firebaseUpdate.kiosk_pin =
-          kioskPinHash;
-      }
-
       await db
-        .collection(
-          KIOSK_COLLECTION
-        )
+        .collection(KIOSK_COLLECTION)
         .doc(kioskId)
         .set(
-          firebaseUpdate,
           {
-            merge: true,
-          }
+            kiosk_id: kioskId,
+            name,
+            status,
+            updated_at: updatedAt,
+          },
+          { merge: true }
         );
 
-      await updateKioskInMySQL(
-        kioskId,
-        updatedKiosk,
-        hasNewPin
-      );
+      await updateKioskInMySQL(kioskId, updatedKiosk);
 
-      console.log(
-        `UPDATE kiosk: ${kioskId} updated in Firebase and MySQL.`
-      );
-
-      return formatKiosk(
-        updatedKiosk
-      );
+      return formatKiosk(updatedKiosk);
     } catch (error) {
       console.error(
         "FIREBASE UPDATE KIOSK ERROR:",
         error.message
       );
 
-      await updateKioskInMySQL(
-        kioskId,
-        updatedKiosk,
-        hasNewPin
-      );
+      await updateKioskInMySQL(kioskId, updatedKiosk);
 
-      return formatKiosk(
-        updatedKiosk
-      );
+      return formatKiosk(updatedKiosk);
     }
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | MYSQL
-  |--------------------------------------------------------------------------
-  */
-
   if (mode === "mysql") {
-    await updateKioskInMySQL(
-      kioskId,
-      updatedKiosk,
-      hasNewPin
-    );
+    await updateKioskInMySQL(kioskId, updatedKiosk);
 
-    console.log(
-      `UPDATE kiosk: ${kioskId} updated in MySQL.`
-    );
-
-    return formatKiosk(
-      updatedKiosk
-    );
+    return formatKiosk(updatedKiosk);
   }
 
-  throw new Error(
-    "No database is currently available."
-  );
+  throw new Error("No database is currently available.");
 }
-
 /*
 |--------------------------------------------------------------------------
 | UPDATE KIOSK IN MYSQL
 |--------------------------------------------------------------------------
 */
 
-async function updateKioskInMySQL(
-  kioskId,
-  kiosk,
-  updatePin = false
-) {
-  let sql = `
+async function updateKioskInMySQL(kioskId, kiosk) {
+  const [result] = await pool.query(
+    `
     UPDATE \`kiosk\`
     SET
       name = ?,
       status = ?,
       updated_at = CURRENT_TIMESTAMP
-  `;
-
-  const params = [
-    kiosk.name,
-    kiosk.status,
-  ];
-
-  /*
-  |--------------------------------------------------------------------------
-  | ONLY UPDATE PIN WHEN REQUESTED
-  |--------------------------------------------------------------------------
-  */
-
-  if (updatePin) {
-    sql += `,
-      kiosk_pin = ?
-    `;
-
-    params.push(
-      kiosk.kiosk_pin
-    );
-  }
-
-  sql += `
     WHERE kiosk_id = ?
-  `;
-
-  params.push(
-    kioskId
+    `,
+    [
+      kiosk.name,
+      kiosk.status,
+      kioskId,
+    ]
   );
 
-  const [result] =
-    await pool.query(
-      sql,
-      params
-    );
+  if (result.affectedRows === 0) {
+    const existing = await getKioskFromMySQL(kioskId);
 
-  /*
-  |--------------------------------------------------------------------------
-  | IF MYSQL ROW DOES NOT EXIST, INSERT IT
-  |--------------------------------------------------------------------------
-  */
-
-  if (
-    result.affectedRows === 0
-  ) {
-    await insertKioskIntoMySQL(
-      kiosk
-    );
+    if (!existing) {
+      await insertKioskIntoMySQL(kiosk);
+    }
   }
 
   return true;
 }
-
 /*
 |--------------------------------------------------------------------------
 | VERIFY KIOSK PIN
@@ -1206,6 +957,331 @@ async function verifyKioskPin(
 
   return isValid;
 }
+/*
+|--------------------------------------------------------------------------
+| VALIDATE PIN FORMAT
+|--------------------------------------------------------------------------
+*/
+
+function validateKioskPin(pin) {
+  const normalizedPin = String(pin || "").trim();
+
+  if (!/^\d{4}$/.test(normalizedPin)) {
+    throw new Error(
+      "Kiosk PIN must be exactly 4 digits."
+    );
+  }
+
+  return normalizedPin;
+}
+
+/*
+|--------------------------------------------------------------------------
+| CREATE OR UPDATE KIOSK PIN
+|--------------------------------------------------------------------------
+|
+| Superadmin:
+|   kiosk_id = NULL
+|   department_id = NULL
+|
+| Admin:
+|   kiosk_id = selected kiosk
+|   department_id = assigned department
+|
+|--------------------------------------------------------------------------
+*/
+
+async function createOrUpdateKioskPin({
+  kioskId = null,
+  departmentId = null,
+  role,
+  pin,
+}) {
+  const normalizedRole = String(role || "")
+    .trim()
+    .toLowerCase();
+
+  if (!["superadmin", "admin"].includes(normalizedRole)) {
+    throw new Error("Invalid PIN role.");
+  }
+
+  const normalizedPin = validateKioskPin(pin);
+
+  if (normalizedRole === "superadmin") {
+    kioskId = null;
+    departmentId = null;
+  }
+
+  if (normalizedRole === "admin") {
+    if (!kioskId || !departmentId) {
+      throw new Error(
+        "Kiosk ID and department ID are required for admin PINs."
+      );
+    }
+
+    const [departments] = await pool.query(
+      `
+      SELECT department_id
+      FROM department
+      WHERE department_id = ?
+        AND kiosk_id = ?
+      LIMIT 1
+      `,
+      [departmentId, kioskId]
+    );
+
+    if (departments.length === 0) {
+      throw new Error(
+        "This department does not belong to the selected kiosk."
+      );
+    }
+
+    const kiosk = await getKioskFromMySQL(kioskId);
+
+    if (!kiosk || kiosk.status !== "active") {
+      throw new Error(
+        "The selected kiosk is not active or does not exist."
+      );
+    }
+  }
+
+  const pinHash = await bcrypt.hash(normalizedPin, 10);
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    let existingRows;
+
+    if (normalizedRole === "superadmin") {
+      [existingRows] = await connection.query(
+        `
+        SELECT pin_id
+        FROM kiosk_pin
+        WHERE role = 'superadmin'
+          AND kiosk_id IS NULL
+          AND department_id IS NULL
+        LIMIT 1
+        FOR UPDATE
+        `
+      );
+    } else {
+      [existingRows] = await connection.query(
+        `
+        SELECT pin_id
+        FROM kiosk_pin
+        WHERE role = 'admin'
+          AND kiosk_id = ?
+          AND department_id = ?
+        LIMIT 1
+        FOR UPDATE
+        `,
+        [kioskId, departmentId]
+      );
+    }
+
+    if (existingRows.length > 0) {
+      await connection.query(
+        `
+        UPDATE kiosk_pin
+        SET
+          pin_hash = ?,
+          status = 'active',
+          updated_at = CURRENT_TIMESTAMP
+        WHERE pin_id = ?
+        `,
+        [
+          pinHash,
+          existingRows[0].pin_id,
+        ]
+      );
+    } else {
+      await connection.query(
+        `
+        INSERT INTO kiosk_pin (
+          kiosk_id,
+          department_id,
+          role,
+          pin_hash,
+          status
+        )
+        VALUES (?, ?, ?, ?, 'active')
+        `,
+        [
+          kioskId,
+          departmentId,
+          normalizedRole,
+          pinHash,
+        ]
+      );
+    }
+
+    await connection.commit();
+
+    return {
+      success: true,
+      message: "Kiosk PIN saved successfully.",
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| VERIFY KIOSK PIN
+|--------------------------------------------------------------------------
+|
+| Checks a PIN against:
+|   - The global superadmin PIN
+|   - Admin PINs belonging to the selected kiosk
+|
+| Returns the matched role and department.
+|
+|--------------------------------------------------------------------------
+*/
+
+async function verifyKioskPin(kioskId, pin) {
+  if (!kioskId) {
+    throw new Error("Kiosk ID is required.");
+  }
+
+  const normalizedPin = validateKioskPin(pin);
+
+  const kiosk = await getKioskFromMySQL(kioskId);
+
+  if (!kiosk || kiosk.status !== "active") {
+    throw new Error(
+      "The kiosk is inactive or does not exist."
+    );
+  }
+
+  const [pinRows] = await pool.query(
+    `
+    SELECT
+      pin_id,
+      kiosk_id,
+      department_id,
+      role,
+      pin_hash
+    FROM kiosk_pin
+    WHERE status = 'active'
+      AND (
+        (
+          role = 'superadmin'
+          AND kiosk_id IS NULL
+          AND department_id IS NULL
+        )
+        OR
+        (
+          role = 'admin'
+          AND kiosk_id = ?
+        )
+      )
+    `,
+    [kioskId]
+  );
+
+  for (const pinRecord of pinRows) {
+    const isMatch = await bcrypt.compare(
+      normalizedPin,
+      pinRecord.pin_hash
+    );
+
+    if (!isMatch) {
+      continue;
+    }
+
+    if (pinRecord.role === "superadmin") {
+      return {
+        valid: true,
+        role: "superadmin",
+        department_id: null,
+        kiosk_id: kioskId,
+      };
+    }
+
+    const [departments] = await pool.query(
+      `
+      SELECT department_id
+      FROM department
+      WHERE department_id = ?
+        AND kiosk_id = ?
+      LIMIT 1
+      `,
+      [
+        pinRecord.department_id,
+        kioskId,
+      ]
+    );
+
+    if (departments.length > 0) {
+      return {
+        valid: true,
+        role: "admin",
+        department_id: pinRecord.department_id,
+        kiosk_id: kioskId,
+      };
+    }
+  }
+
+  return {
+    valid: false,
+    role: null,
+    department_id: null,
+    kiosk_id: kioskId,
+  };
+}
+
+/*
+|--------------------------------------------------------------------------
+| GET KIOSK PIN CONFIGURATION STATUS
+|--------------------------------------------------------------------------
+|
+| Returns configuration metadata only.
+| Never returns PIN hashes.
+|
+|--------------------------------------------------------------------------
+*/
+
+async function getKioskPinStatus(kioskId) {
+  if (!kioskId) {
+    throw new Error("Kiosk ID is required.");
+  }
+
+  const [rows] = await pool.query(
+    `
+    SELECT
+      pin_id,
+      department_id,
+      role,
+      status,
+      created_at,
+      updated_at
+    FROM kiosk_pin
+    WHERE kiosk_id = ?
+       OR (
+         role = 'superadmin'
+         AND kiosk_id IS NULL
+       )
+    ORDER BY role, department_id
+    `,
+    [kioskId]
+  );
+
+  return rows.map((row) => ({
+    pin_id: row.pin_id,
+    department_id: row.department_id,
+    role: row.role,
+    status: row.status,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -1333,5 +1409,7 @@ module.exports = {
 
   kioskNameExists,
 
+  createOrUpdateKioskPin,
   verifyKioskPin,
+  getKioskPinStatus,
 };

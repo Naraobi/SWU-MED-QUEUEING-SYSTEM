@@ -607,15 +607,171 @@ async function validateKioskSecurityPin(
       "This Security PIN is not authorized for this kiosk.",
   };
 }
+function getPhilippineDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
+async function unlockKiosk(kioskId, validationResult) {
+  const unlockDate = getPhilippineDate();
+
+  await db.execute(
+    `
+      INSERT INTO kiosk_daily_unlock (
+        kiosk_id,
+        unlock_date,
+        unlocked_at,
+        unlocked_by_role,
+        department_id
+      )
+      VALUES (?, ?, NOW(), ?, ?)
+      ON DUPLICATE KEY UPDATE
+        unlock_date = VALUES(unlock_date),
+        unlocked_at = NOW(),
+        unlocked_by_role = VALUES(unlocked_by_role),
+        department_id = VALUES(department_id)
+    `,
+    [
+      kioskId,
+      unlockDate,
+      validationResult.role,
+      validationResult.department_id || null,
+    ]
+  );
+
+  return {
+    unlocked: true,
+    unlock_date: unlockDate,
+  };
+}
+
+async function getKioskUnlockStatus(kioskId) {
+  const today = getPhilippineDate();
+
+  const [rows] = await db.execute(
+    `
+      SELECT
+        kiosk_id,
+        unlock_date,
+        unlocked_at,
+        unlocked_by_role,
+        department_id
+      FROM kiosk_daily_unlock
+      WHERE kiosk_id = ?
+      LIMIT 1
+    `,
+    [kioskId]
+  );
+
+  const record = rows[0];
+
+  return {
+    unlocked: Boolean(
+      record &&
+      String(record.unlock_date).slice(0, 10) === today
+    ),
+    unlock_date: record?.unlock_date || null,
+  };
+}
   /**
    * Export all Security PIN functions.
    */
-  module.exports = {
-    getSecurityPin,
-    createVerificationChallenge,
-    verifyVerificationCode,
-    saveSecurityPin,
-    validateSecurityPin,
-    validateKioskSecurityPin,
+async function remoteUnlockKiosk(kioskId, userId, pin) {
+  if (!kioskId || !userId) {
+    return {
+      success: false,
+      message: "Kiosk ID and user ID are required.",
+    };
+  }
+
+  // Verify the PIN belongs to the authenticated superadmin.
+  const isValid = await validateSecurityPin(userId, pin);
+
+  if (!isValid) {
+    return {
+      success: false,
+      message: "Invalid Security PIN.",
+    };
+  }
+
+  // Confirm the authenticated user is an active superadmin.
+  const [rows] = await db.execute(
+    `
+      SELECT r.role, u.status AS user_status, r.status AS role_status
+      FROM \`user\` u
+      INNER JOIN \`role\` r
+        ON CAST(u.role_id AS BINARY) =
+           CAST(r.role_id AS BINARY)
+      WHERE u.user_id = ?
+      LIMIT 1
+    `,
+    [userId]
+  );
+
+  const user = rows[0];
+
+  if (
+    !user ||
+    String(user.role || "").toLowerCase() !== "superadmin" ||
+    String(user.user_status || "").toLowerCase() !== "active" ||
+    String(user.role_status || "").toLowerCase() !== "active"
+  ) {
+    return {
+      success: false,
+      message: "Only an active superadmin can remotely unlock a kiosk.",
+    };
+  }
+
+  // Confirm that the target kiosk exists and is active.
+  const [kiosks] = await db.execute(
+    `
+      SELECT kiosk_id, status
+      FROM kiosk
+      WHERE CAST(kiosk_id AS BINARY) =
+            CAST(? AS BINARY)
+      LIMIT 1
+    `,
+    [kioskId]
+  );
+
+  if (!kiosks[0]) {
+    return {
+      success: false,
+      message: "Kiosk not found.",
+    };
+  }
+
+  if (String(kiosks[0].status || "").toLowerCase() !== "active") {
+    return {
+      success: false,
+      message: "This kiosk is inactive.",
+    };
+  }
+
+  const result = await unlockKiosk(kioskId, {
+    role: "superadmin",
+    department_id: null,
+  });
+
+  return {
+    success: true,
+    message: "Kiosk remotely unlocked for today.",
+    ...result,
   };
+}
+
+module.exports = {
+  getSecurityPin,
+  createVerificationChallenge,
+  verifyVerificationCode,
+  saveSecurityPin,
+  validateSecurityPin,
+  validateKioskSecurityPin,
+  unlockKiosk,
+  getKioskUnlockStatus,
+  remoteUnlockKiosk,
+};
