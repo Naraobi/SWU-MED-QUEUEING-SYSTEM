@@ -1675,12 +1675,46 @@ export default function Dashboard() {
     );
   }, []);
 
-  const fetchDashboardData = useCallback(async (range, filters = {}) => {
+  /*
+   * One load per applied filter change:
+   *  - the same request is never started twice while it is in flight (React
+   *    StrictMode mounts effects twice in development);
+   *  - an answer that arrives after a newer request was made is dropped;
+   *  - the department and terminal lists do not depend on the filters, so they
+   *    are read once and kept. Only Refresh / Retry ({ force: true }) read them
+   *    again.
+   * There is no automatic retry: a failure shows the Retry button.
+   */
+  const requestRef = useRef(0);
+  const inFlightRef = useRef('');
+  const staticLoadedRef = useRef(false);
+
+  const fetchDashboardData = useCallback(async (range, filters = {}, { force = false } = {}) => {
+    const key = JSON.stringify([
+      formatDate(range.start),
+      formatDate(range.end || range.start),
+      filters.departmentIds || [],
+      filters.counterIds || [],
+    ]);
+
+    if (!force && inFlightRef.current === key) return;
+
+    inFlightRef.current = key;
+
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+
     try {
       setLoading(true);
       setError(null);
 
-      setAnalytics(await fetchRows(range, filters));
+      const analyticsData = await fetchRows(range, filters);
+
+      if (requestId !== requestRef.current) return;
+
+      setAnalytics(analyticsData);
+
+      if (staticLoadedRef.current && !force) return;
 
       /*
        * The department filter needs the department records themselves.
@@ -1710,7 +1744,10 @@ export default function Dashboard() {
 
       const departmentData = departmentResult.data || departmentResult;
 
+      if (requestId !== requestRef.current) return;
+
       setDepartments(Array.isArray(departmentData) ? departmentData : []);
+      staticLoadedRef.current = true;
 
       // Terminals only feed the terminal filter, so a failure here is not fatal.
       try {
@@ -1725,10 +1762,15 @@ export default function Dashboard() {
         setTerminals([]);
       }
     } catch (err) {
+      if (requestId !== requestRef.current) return;
+
       console.error('Dashboard loading error:', err);
       setError(err.message || tRef.current('sa.dash.state.error'));
     } finally {
-      setLoading(false);
+      if (requestId === requestRef.current) {
+        inFlightRef.current = '';
+        setLoading(false);
+      }
     }
   }, [fetchRows]);
 
@@ -2279,10 +2321,14 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() =>
-                fetchDashboardData(appliedRange, {
-                  departmentIds: applied.departmentIds,
-                  counterIds: applied.counterIds,
-                })
+                fetchDashboardData(
+                  appliedRange,
+                  {
+                    departmentIds: applied.departmentIds,
+                    counterIds: applied.counterIds,
+                  },
+                  { force: true }
+                )
               }
               disabled={loading}
               className="swu-press flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-xs font-medium text-[#4B5563] shadow-sm transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] disabled:opacity-60"
@@ -2314,7 +2360,22 @@ export default function Dashboard() {
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-4 py-3 text-xs text-[#9D0A0E]">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          {error}
+          <span className="flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={() =>
+              fetchDashboardData(
+                appliedRange,
+                { departmentIds: applied.departmentIds, counterIds: applied.counterIds },
+                { force: true }
+              )
+            }
+            disabled={loading}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[#9D0A0E] bg-white px-2.5 py-1 font-semibold text-[#9D0A0E] transition hover:bg-[#FBF1F1] disabled:opacity-60"
+          >
+            <RotateCw size={11} className={loading ? 'animate-spin' : ''} />
+            {t('reports.retry')}
+          </button>
         </div>
       )}
 
