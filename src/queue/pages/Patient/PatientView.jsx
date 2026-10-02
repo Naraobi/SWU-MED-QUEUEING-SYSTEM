@@ -2958,27 +2958,39 @@ try {
           onBack={
             handleReset
           }
-          onContinue={() => {
-            if (!kiosk) {
-              return;
-            }
+      
+onContinue={async () => {
+  if (!kiosk) {
+    return;
+  }
 
-            if (
-              isKioskUnlocked(
-                kiosk.kiosk_id
-              )
-            ) {
-              setActiveKioskForToday(
-                kiosk.kiosk_id
-              );
+  try {
+    const unlocked = await checkKioskUnlocked(
+      kiosk.kiosk_id
+    );
 
-              resetStepProgress();
-              goTo('queueType');
-            } else {
-              resetStepProgress();
-              goTo('kioskPin');
-            }
-          }}
+    if (unlocked) {
+      setActiveKioskForToday(kiosk.kiosk_id);
+      setQueueType(null);
+      setService(null);
+      resetStepProgress();
+      goTo('queueType');
+    } else {
+      resetStepProgress();
+      goTo('kioskPin');
+    }
+  } catch (error) {
+    console.error(
+      'Kiosk unlock status check failed:',
+      error
+    );
+
+    alert(
+      error?.message ||
+        'Unable to verify kiosk status. Please try again.'
+    );
+  }
+}}
         />
 
         {kiosksError && (
@@ -3088,26 +3100,12 @@ try {
           onBack={() =>
             goTo('queueType')
           }
-        onContinue={async () => {
-  if (!kiosk) return;
-
-  try {
-    const isUnlocked = await checkKioskUnlocked(
-      kiosk.kiosk_id
-    );
-
-    if (isUnlocked) {
-      setActiveKioskForToday(kiosk.kiosk_id);
-      resetStepProgress();
-      goTo('queueType');
-    } else {
-      resetStepProgress();
-      goTo('kioskPin');
-    }
-  } catch (error) {
-    console.error('Kiosk status check failed:', error);
-    alert(error.message || 'Unable to verify kiosk status.');
+  onContinue={() => {
+  if (!service) {
+    return;
   }
+
+  goTo('confirm');
 }}
         />
 

@@ -656,12 +656,13 @@ async function getKioskUnlockStatus(kioskId) {
     `
       SELECT
         kiosk_id,
-        unlock_date,
+        DATE_FORMAT(unlock_date, '%Y-%m-%d') AS unlock_date,
         unlocked_at,
         unlocked_by_role,
         department_id
       FROM kiosk_daily_unlock
       WHERE kiosk_id = ?
+      ORDER BY unlocked_at DESC
       LIMIT 1
     `,
     [kioskId]
@@ -672,7 +673,7 @@ async function getKioskUnlockStatus(kioskId) {
   return {
     unlocked: Boolean(
       record &&
-      String(record.unlock_date).slice(0, 10) === today
+      record.unlock_date === today
     ),
     unlock_date: record?.unlock_date || null,
   };

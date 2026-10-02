@@ -405,6 +405,47 @@ router.post("/kiosk-validate", async (req, res) => {
     });
   }
 });
+// =====================================================
+// GET KIOSK UNLOCK STATUS
+// GET /api/security/pin/kiosk-status/:kioskId
+// =====================================================
+
+// Patient View needs this endpoint without login.
+router.get("/kiosk-status/:kioskId", async (req, res) => {
+  try {
+    const { kioskId } = req.params;
+
+    if (!kioskId) {
+      return res.status(400).json({
+        success: false,
+        message: "Kiosk ID is required.",
+      });
+    }
+
+    const result = await getKioskUnlockStatus(kioskId);
+
+    const unlocked =
+      typeof result === "boolean"
+        ? result
+        : Boolean(
+            result?.unlocked ??
+            result?.is_unlocked ??
+            result?.isUnlocked
+          );
+
+    return res.json({
+      success: true,
+      unlocked,
+    });
+  } catch (error) {
+    console.error("KIOSK UNLOCK STATUS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve kiosk unlock status.",
+    });
+  }
+});
 
   module.exports = router;
       
