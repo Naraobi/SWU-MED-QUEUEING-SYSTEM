@@ -67,12 +67,12 @@ const NAV_ITEMS = [
     icon: ClipboardList,
     permission: 'superadmin:queues',
   },
-  {
-    key: 'reports',
-    labelKey: 'sa.nav.reports',
-    icon: BarChart3,
-    permission: 'superadmin:reports',
-  },
+{
+  key: 'reports',
+  labelKey: 'sa.nav.reports',
+  icon: BarChart3,
+  permission: 'superadmin:reports_analytics',
+},
   {
     key: 'settings',
     labelKey: 'sa.nav.settings',

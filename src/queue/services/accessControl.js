@@ -87,16 +87,39 @@ export function getRolePermissions(user) {
 // PERMISSION MAPPING
 // =====================================================
 
-const PAGE_PERMISSION_MAP = {
+const ROLE_PAGE_PERMISSION_MAP = {
+  // SUPERADMIN
+  superadmin: {
+    dashboard: ["dashboard"],
+    queues: ["queue_management", "queue", "queues"],
+    reports: ["reports_analytics", "reports"],
+    users: ["user_management", "users"],
+    departments: ["department_management", "departments"],
+    kiosks: ["kiosk_management", "kiosks"],
+    roles: ["role_management", "roles"],
+    positions: ["position_management", "positions"],
+    settings: ["settings"],
+  },
+admin: {
   dashboard: ["dashboard"],
-  users: ["user_management", "users"],
-  departments: ["department_management", "departments"],
-  kiosks: ["kiosk_management", "kiosks"],
-  roles: ["role_management", "roles"],
-  positions: ["position_management", "positions"],
+  staff: ["staff_management", "user_management", "staff"],
   queues: ["queue_management", "queue", "queues"],
+  terminal: [
+    "terminal_management",
+    "terminal",
+    "kiosk_management",
+    "kiosks",
+  ],
   reports: ["reports_analytics", "reports"],
   settings: ["settings"],
+},
+
+  // STAFF
+  staff: {
+    today: ["todays_queue", "today_queue", "queue_management"],
+    history: ["queue_history", "history"],
+    settings: ["settings"],
+  },
 };
 
 // =====================================================
@@ -112,11 +135,13 @@ export function hasRolePermission(user, key) {
     .toLowerCase();
 
   const possiblePermissions =
-    PAGE_PERMISSION_MAP[normalizedKey] ?? [normalizedKey];
+    ROLE_PAGE_PERMISSION_MAP[role]?.[normalizedKey] ??
+    [normalizedKey];
 
-  return possiblePermissions.some((permission) =>
-    permissions.includes(permission) ||
-    permissions.includes(`${role}:${permission}`)
+  return possiblePermissions.some(
+    (permission) =>
+      permissions.includes(permission) ||
+      permissions.includes(`${role}:${permission}`)
   );
 }
 
@@ -220,18 +245,15 @@ const ADMIN_TAB_ALIASES = {
   terminal: ["terminal", "kiosk", "kiosks", "kiosk_management"],
   reports: ["reports", "reports_analytics"],
   settings: ["settings"],
-};
-const STAFF_TAB_ALIASES = {
-  todays_queue: [
+};const STAFF_TAB_ALIASES = {
+  today: [
     "todays_queue",
     "today's_queue",
     "today_queue",
-    "queues",
-    "queue",
-    "queue_management",
+    "today",
   ],
 
-  queue_history: [
+  history: [
     "queue_history",
     "history",
   ],
@@ -240,7 +262,6 @@ const STAFF_TAB_ALIASES = {
     "settings",
   ],
 };
-
 function hasPositionTabAccess(user, pageKey) {
   const tabs = parsePositionTabs(user?.position_tabs);
   const possibleTabs = ADMIN_TAB_ALIASES[pageKey] ?? [pageKey];
@@ -271,8 +292,11 @@ export function canAccessAdminPage(user, key) {
     return true;
   }
 
-  // Assigned admins are restricted by their position tabs.
-  return hasPositionTabAccess(user, key);
+  // Allow access if the custom role permission or position tab permits it.
+  return (
+    hasRolePermission(user, key) ||
+    hasPositionTabAccess(user, key)
+  );
 }
 
 // =====================================================
@@ -289,6 +313,11 @@ export function canAccessStaffPage(user, key) {
     return true;
   }
 
-  // Assigned staff are restricted by their position tabs.
+  // Check custom role permissions first.
+  if (hasRolePermission(user, key)) {
+    return true;
+  }
+
+  // Fall back to assigned position tabs.
   return hasStaffPositionTabAccess(user, key);
 }

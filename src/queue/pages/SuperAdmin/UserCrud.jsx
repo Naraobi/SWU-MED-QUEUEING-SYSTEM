@@ -1662,25 +1662,28 @@ async function fetchRoles() {
       const roleName =
         roleFromData || normalizeRole(matchingRole?.name) || 'Staff';
 
-      return {
-        id: data.user_id ?? data.id,
-        user_id: data.user_id ?? data.id,
-        first_name: data.first_name ?? '',
-        last_name: data.last_name ?? '',
-        mi: data.mi ?? '',
-        email: data.email ?? '',
-        contact_number: data.contact_number ?? data.contact_info ?? '',
-        kiosk: data.kiosk ?? 'Whole',
-        kiosk_id: normalizeId(data.kiosk_id),
-        position: data.position ?? null,
-        department: data.department ?? 'Whole',
-        department_id: normalizeId(data.department_id),
-        status: normalizeStatus(data.status),
-        role: roleName,
-        role_id: normalizeId(data.role_id) ?? normalizeId(matchingRole?.id),
-        created_at: data.created_at ?? null,
-        updated_at: data.updated_at ?? null,
-      };
+    return {
+  id: data.user_id ?? data.id,
+  user_id: data.user_id ?? data.id,
+  first_name: data.first_name ?? '',
+  last_name: data.last_name ?? '',
+  mi: data.mi ?? '',
+  email: data.email ?? '',
+  contact_number: data.contact_number ?? data.contact_info ?? '',
+  kiosk: data.kiosk ?? 'Whole',
+  kiosk_id: normalizeId(data.kiosk_id),
+  position: data.position ?? null,
+  department: data.department ?? 'Whole',
+  department_id: normalizeId(data.department_id),
+  status: normalizeStatus(data.status),
+
+  role: roleName,
+  role_name: data.role_name ?? matchingRole?.name ?? '',
+
+  role_id: normalizeId(data.role_id) ?? normalizeId(matchingRole?.id),
+  created_at: data.created_at ?? null,
+  updated_at: data.updated_at ?? null,
+};
     });
   }
 
@@ -2353,6 +2356,7 @@ async function handleReset() {
                 <th className="px-6 py-3.5">FULL NAME</th>
                 <th className="px-6 py-3.5">EMAIL</th>
                 <th className="px-6 py-3.5">DEPARTMENT</th>
+                    <th className="px-3 py-3.5 text-left">ROLE NAME</th>
                 <th className="px-6 py-3.5">ROLE</th>
                 <th className="px-6 py-3.5">STATUS</th>
               </tr>
@@ -2369,7 +2373,7 @@ async function handleReset() {
 
               {!loading && filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center">
+                  <td colSpan={6} className="px-6 py-8 text-center">
                     No users found matching your criteria.
                   </td>
                 </tr>
@@ -2382,35 +2386,45 @@ async function handleReset() {
                     onClick={() => openEdit(user)}
                     className="cursor-pointer transition-colors hover:bg-[#FBF1F1]"
                   >
-                    <td className="px-6 py-4 font-semibold text-[#1F2937]">
-                      {user.first_name} {user.last_name}
-                    </td>
-                    <td className="px-6 py-4">{user.email}</td>
-                    <td className="px-6 py-4">
-                      {user.department || 'Whole'}
-                    </td>
-                    <td className="px-6 py-4 capitalize">
-                      {normalizeRole(user.role)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${
-                          user.status === 'Active'
-                            ? 'text-emerald-600'
-                            : 'text-[#4B5563]'
-                        }`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            user.status === 'Active'
-                              ? 'bg-emerald-500'
-                              : 'bg-[#9CA3AF]'
-                          }`}
-                        />
-                        {user.status}
-                      </span>
-                    </td>
+                  <td className="px-4 py-4 font-semibold text-[#1F2937]">
+  {user.first_name} {user.last_name}
+</td>
+
+<td className="px-4 py-4">
+  {user.email}
+</td>
+
+<td className="px-3 py-4 max-w-[140px] truncate">
+  {user.department || 'Whole'}
+</td>
+
+<td className="px-3 py-4">
+  {user.role_name || '—'}
+</td>
+
+<td className="px-3 py-4 capitalize">
+  {normalizeRole(user.role)}
+</td>
+
+<td className="px-4 py-4">
+  <span
+    className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${
+      user.status === 'Active'
+        ? 'text-emerald-600'
+        : 'text-[#4B5563]'
+    }`}
+  >
+    <span
+      aria-hidden="true"
+      className={`h-1.5 w-1.5 rounded-full ${
+        user.status === 'Active'
+          ? 'bg-emerald-500'
+          : 'bg-[#9CA3AF]'
+      }`}
+    />
+    {user.status}
+  </span>
+</td>
                   </tr>
                 ))}
             </tbody>

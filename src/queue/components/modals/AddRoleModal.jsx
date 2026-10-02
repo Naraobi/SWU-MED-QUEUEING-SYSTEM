@@ -512,42 +512,32 @@ export default function AddRoleModal({
     });
   };
 
-  const handleSelectAll = () => {
-    if (typeof onSelectAll === 'function') {
-      onSelectAll(selectableKeys);
-      return;
-    }
+const handleSelectAll = () => {
+  if (!activeSection || selectableKeys.length === 0) return;
 
-    setDraft((current) => ({
-      ...current,
-      permissions: Array.from(
-        new Set([
-          ...(Array.isArray(current.permissions)
-            ? current.permissions
-            : []),
-          ...selectableKeys,
-        ])
-      ),
-    }));
-  };
-
-  const handleClearAll = () => {
-    if (typeof onClearAll === 'function') {
-      onClearAll(selectableKeys);
-      return;
-    }
-
-    setDraft((current) => ({
-      ...current,
-      permissions: (
-        Array.isArray(current.permissions)
+  setDraft((current) => ({
+    ...current,
+    permissions: Array.from(
+      new Set([
+        ...(Array.isArray(current.permissions)
           ? current.permissions
-          : []
-      ).filter(
-        (key) => !selectableKeys.includes(key)
-      ),
-    }));
-  };
+          : []),
+        ...selectableKeys,
+      ])
+    ),
+  }));
+};
+
+const handleClearAll = () => {
+  setDraft((current) => ({
+    ...current,
+    permissions: (
+      Array.isArray(current.permissions)
+        ? current.permissions
+        : []
+    ).filter((key) => !selectableKeys.includes(key)),
+  }));
+};
 
   /* =======================================================
      FIELD UPDATES
