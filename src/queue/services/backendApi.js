@@ -1811,3 +1811,146 @@ export async function deletePosition(positionId) {
 
   return result.data;
 }
+
+// =====================================================
+// REPORTS
+// =====================================================
+
+export async function getReportDepartments(firebaseUser) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  const token = await firebaseUser.getIdToken();
+
+  const response = await fetch(
+    `${API_URL}/reports/departments`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message ||
+        "Failed to load report departments."
+    );
+  }
+
+  return result.data;
+}
+
+export async function getReportKiosks(firebaseUser) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  const token = await firebaseUser.getIdToken();
+
+  const response = await fetch(
+    `${API_URL}/reports/kiosks`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message ||
+        "Failed to load report kiosks."
+    );
+  }
+
+  return result.data;
+}
+
+export async function getReportData(
+  firebaseUser,
+  {
+    reportType,
+    startDate,
+    endDate,
+    departmentId = 'all',
+    kioskId = 'all',
+  }
+) {
+  if (!firebaseUser) {
+    throw new Error(
+      'Firebase user is required.'
+    );
+  }
+
+  const token =
+    await firebaseUser.getIdToken();
+
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    'reportType',
+    reportType
+  );
+
+  params.set(
+    'startDate',
+    startDate
+  );
+
+  params.set(
+    'endDate',
+    endDate
+  );
+
+  if (departmentId !== 'all') {
+    params.set(
+      'departmentId',
+      departmentId
+    );
+  }
+
+  if (kioskId !== 'all') {
+    params.set(
+      'kioskId',
+      kioskId
+    );
+  }
+
+  const response = await fetch(
+    `${API_URL}/reports/data?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type':
+          'application/json',
+      },
+    }
+  );
+
+  const result =
+    await response.json();
+
+  if (
+    !response.ok ||
+    !result.success
+  ) {
+    throw new Error(
+      result.message ||
+        'Failed to load report.'
+    );
+  }
+
+  return result.data;
+}
