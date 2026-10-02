@@ -20,15 +20,6 @@ const NAV_ITEMS = [
 export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () => {} }) {
   const { user } = useAuth();
 
-  console.log("=== ADMIN ACCESS DEBUG ===");
-  console.log("User:", user);
-  console.log("Role:", user?.role);
-  console.log("Position:", user?.position);
-  console.log("Position ID:", user?.position_id);
-  console.log("Position Name:", user?.position_name);
-  console.log("Position Tabs:", user?.position_tabs);
-  console.log("==========================");
-
   const { t } = useLanguage();
   const { logoUrl } = useAppearance();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -157,8 +148,11 @@ export function AdminHeaderBar({ title }) {
       ? `${user.first_name} ${user.last_name}`
       : 'John Doe';
 
-  const profileRole =
-    user?.role?.role || 'Admin';
+const profileRole =
+  user?.position_name ||
+  user?.role_name ||
+  user?.role?.role ||
+  'Admin';
 
   const initials =
     user?.first_name && user?.last_name

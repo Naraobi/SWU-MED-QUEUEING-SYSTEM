@@ -98,8 +98,8 @@ const [users] = await pool.query(
       });
     }
 
-    const currentRole = String(
-  currentUser.role_name || ""
+ const currentRole = String(
+  currentUser.system_role || ""
 )
   .trim()
   .toLowerCase();
@@ -113,7 +113,6 @@ if (
     message: "Dashboard access is restricted to administrators.",
   });
 }
-
 let departmentId = null;
 let departmentName = null;
 

@@ -231,19 +231,18 @@ function UserModal({
     const selectedRoleName =
       event.target.value;
 
-    const selectedRole =
-      roleOptions.find(
-        (role) =>
-          normalizeRole(role.name).toLowerCase() ===
-          selectedRoleName.toLowerCase()
-      );
-
+const selectedRole = roleOptions.find(
+  (role) =>
+    String(role.name).trim().toLowerCase() ===
+    selectedRoleName.trim().toLowerCase()
+);
     const selectedRoleId =
       selectedRole?.id ?? null;
 
-    const isSelectedSuperadmin =
-      selectedRoleName.toLowerCase() ===
-      'superadmin';
+   const isSelectedSuperadmin =
+  String(selectedRole?.role || selectedRole?.name)
+    .trim()
+    .toLowerCase() === 'superadmin';
 
     /*
      * IMPORTANT:
@@ -594,17 +593,14 @@ function UserModal({
                     Select role
                   </option>
 
-                  {roleOptions.map((role) => (
-                    <option
-                      key={
-                        role.id ??
-                        role.name
-                      }
-                      value={role.name}
-                    >
-                      {role.name}
-                    </option>
-                  ))}
+                {roleOptions.map((role) => (
+  <option
+    key={role.id ?? role.name}
+    value={role.name}
+  >
+    {role.name}
+  </option>
+))}
 
                 </select>
 
@@ -1577,22 +1573,28 @@ async function handleSaveRole() {
     }
   }
 
-  async function fetchRoles() {
-    const response = await getRoles();
-    const roleRows = response?.data ?? response ?? [];
 
-    const formattedRoles = (Array.isArray(roleRows) ? roleRows : [])
-      .map((role) => ({
-        id: role.role_id ?? role.id,
-        name: role.role ?? role.name ?? '',
-      }))
-      .filter((role) => role.name)
-      .sort((a, b) => a.name.localeCompare(b.name));
+async function fetchRoles() {
+  const response = await getRoles();
+  const roleRows = response?.data ?? response ?? [];
 
-    return formattedRoles.length > 0
-      ? formattedRoles
-      : DEFAULT_ROLE_OPTIONS.map((name) => ({ id: null, name }));
-  }
+  const formattedRoles = (Array.isArray(roleRows) ? roleRows : [])
+    .map((role) => ({
+      id: role.role_id ?? role.id,
+      name: role.role_name ?? role.role ?? role.name ?? '',
+      role: role.role ?? '',
+    }))
+    .filter((role) => role.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return formattedRoles.length > 0
+    ? formattedRoles
+    : DEFAULT_ROLE_OPTIONS.map((name) => ({
+        id: null,
+        name,
+        role: name,
+      }));
+}
 
   async function fetchPositions() {
     const response = await getPositions();
@@ -1949,8 +1951,11 @@ function clearAllRolePermissions() {
       }
 
       const roleId = selectedRoleId;
-      const roleName = selectedRole.name;
-      const isSuperadmin = roleName.toLowerCase() === 'superadmin';
+    const roleName = selectedRole.role || selectedRole.name;
+const isSuperadmin =
+  String(selectedRole.role || selectedRole.name)
+    .trim()
+    .toLowerCase() === 'superadmin';
 
       const finalKiosk = isSuperadmin
         ? 'Whole'

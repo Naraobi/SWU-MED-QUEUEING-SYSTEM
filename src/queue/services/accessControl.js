@@ -14,7 +14,11 @@ export function normalizeRole(role) {
 }
 
 export function getUserRole(user) {
-  return normalizeRole(user?.role?.role ?? user?.role);
+  return normalizeRole(
+    user?.system_role ??
+    user?.role?.role ??
+    user?.role
+  );
 }
 
 // =====================================================
@@ -163,15 +167,93 @@ export function canAccessSuperadminPage(user, key) {
   );
 }
 
+function parsePositionTabs(rawTabs) {
+  if (Array.isArray(rawTabs)) {
+    return rawTabs
+      .map((tab) => {
+        if (typeof tab === "object" && tab !== null) {
+          return tab.key ?? tab.value ?? tab.name ?? tab.label ?? "";
+        }
+
+        return tab;
+      })
+      .map((tab) => String(tab).trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  if (typeof rawTabs === "string") {
+    const trimmed = rawTabs.trim();
+
+    if (!trimmed) return [];
+
+    try {
+      return parsePositionTabs(JSON.parse(trimmed));
+    } catch {
+      return trimmed
+        .split(",")
+        .map((tab) => tab.trim().toLowerCase())
+        .filter(Boolean);
+    }
+  }
+
+  if (rawTabs && typeof rawTabs === "object") {
+    return Object.entries(rawTabs)
+      .filter(([, enabled]) => enabled === true)
+      .map(([key]) => key.trim().toLowerCase());
+  }
+
+  return [];
+}
+
+function hasAssignedPosition(user) {
+  return Boolean(
+    user?.position_id ||
+    user?.position_name ||
+    user?.position
+  );
+}
+
+const ADMIN_TAB_ALIASES = {
+  dashboard: ["dashboard"],
+  staff: ["staff", "users", "user_management"],
+  queues: ["queues", "queue", "queue_management"],
+  terminal: ["terminal", "kiosk", "kiosks", "kiosk_management"],
+  reports: ["reports", "reports_analytics"],
+  settings: ["settings"],
+};
+
+function hasPositionTabAccess(user, pageKey) {
+  const tabs = parsePositionTabs(user?.position_tabs);
+  const possibleTabs = ADMIN_TAB_ALIASES[pageKey] ?? [pageKey];
+
+  return possibleTabs.some((tab) => tabs.includes(tab));
+}
+function hasStaffPositionTabAccess(user, pageKey) {
+  const tabs = parsePositionTabs(user?.position_tabs);
+  const possibleTabs = STAFF_TAB_ALIASES[pageKey] ?? [pageKey];
+
+  return possibleTabs.some((tab) => tabs.includes(tab));
+}
+// =====================================================
+// POSITION TAB ACCESS
+// =====================================================
+
 // =====================================================
 // ADMIN PAGE ACCESS
 // =====================================================
 
 export function canAccessAdminPage(user, key) {
-  return (
-    getUserRole(user) === "admin" &&
-    hasRolePermission(user, key)
-  );
+  if (getUserRole(user) !== "admin") {
+    return false;
+  }
+
+  // Admin without an assigned position has full access.
+  if (!hasAssignedPosition(user)) {
+    return true;
+  }
+
+  // Assigned admins are restricted by their position tabs.
+  return hasPositionTabAccess(user, key);
 }
 
 // =====================================================
@@ -179,8 +261,15 @@ export function canAccessAdminPage(user, key) {
 // =====================================================
 
 export function canAccessStaffPage(user, key) {
-  return (
-    getUserRole(user) === "staff" &&
-    hasRolePermission(user, key)
-  );
+  if (getUserRole(user) !== "staff") {
+    return false;
+  }
+
+  // Staff without an assigned position have full staff page access.
+  if (!hasAssignedPosition(user)) {
+    return true;
+  }
+
+  // Assigned staff are restricted by their position tabs.
+  return hasStaffPositionTabAccess(user, key);
 }

@@ -55,11 +55,27 @@ export default function Sidebar() {
   const visibleLinks = LINKS.filter(({ key }) => canAccessStaffPage(user, key));
 
   // Keep restricted staff from remaining on Today's Queue if their permissions change.
-  React.useEffect(() => {
-    if (user && !canAccessStaffPage(user, 'today') && canAccessStaffPage(user, 'history')) {
-      navigate('/staff/history', { replace: true });
+React.useEffect(() => {
+  if (!user) return;
+
+  const currentPath = location.pathname;
+
+  const currentPage = LINKS.find(
+    ({ to }) =>
+      to === currentPath ||
+      (to !== '/staff' && currentPath.startsWith(to))
+  );
+
+  if (currentPage && !canAccessStaffPage(user, currentPage.key)) {
+    const firstAllowedLink = LINKS.find(
+      ({ key }) => canAccessStaffPage(user, key)
+    );
+
+    if (firstAllowedLink) {
+      navigate(firstAllowedLink.to, { replace: true });
     }
-  }, [user, navigate]);
+  }
+}, [user, location.pathname, navigate]);
 
   function handleNavClick(event, to) {
     const onSettingsPage = location.pathname.startsWith('/staff/settings');
