@@ -20,6 +20,7 @@ import { useAuth } from '../../services/Authcontext';
 import logo from '../../../assets/logo-transparent.png';
 import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';
+import Footer from '../../components/Footer';
 import { useLanguage } from '../../services/language';
 import { getLogo, subscribeAppearance } from '../../services/appearance';
 
@@ -300,6 +301,13 @@ function handleNavigate(key) {
           <main className="flex-1 px-8 py-6">
             {children}
           </main>
+
+          {/*
+            College attribution. It sits inside the content column rather
+            than across the whole window so it lines up with the page and
+            never runs underneath the sticky sidebar.
+          */}
+          <Footer />
         </div>
       </div>
 
