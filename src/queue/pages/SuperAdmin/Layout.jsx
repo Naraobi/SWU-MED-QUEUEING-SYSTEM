@@ -28,12 +28,17 @@ import SharedProfileModal, {
 
 
 const NAV_ITEMS = [
-<<<<<<< HEAD
   {
     key: 'dashboard',
     labelKey: 'sa.nav.dashboard',
     icon: LayoutGrid,
     permission: 'superadmin:dashboard',
+  },
+  {
+    key: 'reports',
+    labelKey: 'sa.nav.reports',
+    icon: BarChart3,
+    permission: 'superadmin:reports_analytics',
   },
   {
     key: 'users',
@@ -71,30 +76,14 @@ const NAV_ITEMS = [
     icon: ClipboardList,
     permission: 'superadmin:queues',
   },
-{
-  key: 'reports',
-  labelKey: 'sa.nav.reports',
-  icon: BarChart3,
-  permission: 'superadmin:reports_analytics',
-},
   {
     key: 'settings',
     labelKey: 'sa.nav.settings',
     icon: SettingsIcon,
     permission: 'superadmin:settings',
   },
-=======
-  { key: 'dashboard', labelKey: 'sa.nav.dashboard', icon: LayoutGrid },
-  { key: 'reports', labelKey: 'sa.nav.reports', icon: BarChart3 },
-  { key: 'users', labelKey: 'sa.nav.users', icon: Users },
-  { key: 'departments', labelKey: 'sa.nav.departments', icon: Building2 },
-  { key: 'kiosks', labelKey: 'sa.nav.kiosks', icon: Monitor },
-  { key: 'roles', labelKey: 'sa.nav.roles', icon: ShieldCheck },
-  { key: 'positions', labelKey: 'sa.nav.positions', icon: BriefcaseBusiness },
-  { key: 'queues', labelKey: 'sa.nav.queues', icon: ClipboardList },
-  { key: 'settings', labelKey: 'sa.nav.settings', icon: SettingsIcon },
->>>>>>> JP-SUPER-ADMIN
 ];
+
 
 function toInitials(value, fallback = '?') {
   const initials = (value || '')
@@ -195,6 +184,7 @@ const visibleNavItems = NAV_ITEMS.filter(({ permission }) => {
   );
 
   const scopeInitials = toInitials(scopeRole, 'SA');
+
 function handleNavigate(key) {
   const navItem = NAV_ITEMS.find((item) => item.key === key);
 
@@ -205,16 +195,12 @@ function handleNavigate(key) {
       onNavigate(fallbackPage);
     }
 
-<<<<<<< HEAD
     return;
-=======
-    if (activePage === 'settings' && key !== 'settings' && saDirty) {
-      setPendingPage(key);
-      return;
-    }
+  }
 
-    onNavigate(key);
->>>>>>> JP-SUPER-ADMIN
+  if (activePage === 'settings' && key !== 'settings' && saDirty) {
+    setPendingPage(key);
+    return;
   }
 
   onNavigate(key);
