@@ -59,6 +59,11 @@ const MAX_DEPARTMENTS = 4;
 const WAITING_ROWS = 2;
 const SETTINGS_KEY = 'swumed_tv_video_settings';
 
+// Uploading is done from Admin / Super Admin Settings -> Lobby TV Video.
+// Set to true to bring the local upload panel (and "Replace video") back on
+// this screen. The panel and the IndexedDB code stay in this file either way.
+const SHOW_TV_UPLOAD_PANEL = false;
+
 /* ---------------------------------------------------------------
    Video storage (IndexedDB) — a TV should not lose its video on reboot
 --------------------------------------------------------------- */
@@ -158,6 +163,8 @@ function seededShuffle(list, seed, avoidFirstId) {
  */
 function useSharedLobbyVideo(kioskId) {
   const [data, setData] = useState(null);
+  // Set only when the Firestore read FAILS (an empty document is not an error).
+  const [readError, setReadError] = useState(null);
   const [index, setIndex] = useState(0);
   // Random order for shuffle. It only changes at the end of a pass, so other
   // settings changes never reorder or restart the video that is playing.
@@ -169,8 +176,15 @@ function useSharedLobbyVideo(kioskId) {
 
     return onSnapshot(
       doc(getFirestore(auth.app), 'kiosks', String(kioskId), 'settings', 'tvVideo'),
-      (snap) => setData(snap.exists() ? snap.data() : null),
-      () => setData(null)
+      (snap) => {
+        setReadError(null);
+        setData(snap.exists() ? snap.data() : null);
+      },
+      (error) => {
+        console.warn('Lobby video settings could not be read:', error?.code || '', error?.message || error);
+        setReadError(error || true);
+        setData(null);
+      }
     );
   }, [kioskId]);
 
@@ -270,6 +284,7 @@ function useSharedLobbyVideo(kioskId) {
     currentId: current?.id ?? null,
     overrideId: overrideVideo ? overrideVideo.id : null,
     chooseVideo,
+    readError,
   };
 }
 
@@ -870,6 +885,61 @@ function KioskPicker() {
   );
 }
 
+/* ---------------------------------------------------------------
+   Empty state for the video card: nothing to play yet.
+   Plain text only - this is a public screen, so nothing is clickable.
+--------------------------------------------------------------- */
+
+function useKioskName(kioskId, enabled) {
+  const [name, setName] = useState('');
+
+  useEffect(() => {
+    if (!kioskId || !enabled) return undefined;
+
+    let cancelled = false;
+
+    getKiosks()
+      .then((rows) => {
+        const kiosk = (Array.isArray(rows) ? rows : []).find(
+          (item) => String(item.kiosk_id) === String(kioskId)
+        );
+
+        if (!cancelled && kiosk?.name) setName(kiosk.name);
+      })
+      .catch(() => {
+        // The short ID below is shown instead.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [kioskId, enabled]);
+
+  return name;
+}
+
+function NoLobbyVideoGuide({ kioskLabel, failed, tr }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 bg-[#F8F9FA] px-8 text-center">
+      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
+        <Video size={30} />
+      </span>
+
+      <h2 className="text-xl font-bold text-[#1F2937]">{tr('tvGuide.title')}</h2>
+
+      <p className="max-w-md text-sm leading-6 text-[#4B5563]">{tr('tvGuide.body')}</p>
+
+      <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#4B5563] ring-1 ring-[#E5E7EB]">
+        {tr('tvGuide.kiosk', { name: kioskLabel })}
+      </p>
+
+      <p className="max-w-md text-xs text-[#9CA3AF]">{tr('tvGuide.hint')}</p>
+
+      {failed && <p className="text-xs text-[#9CA3AF]">{tr('tvGuide.error')}</p>}
+    </div>
+  );
+}
+
 export default function TvDisplay() {
   const [params] = useSearchParams();
   const kioskId = params.get('kiosk');
@@ -904,6 +974,7 @@ export default function TvDisplay() {
   const activeUrl = shared.url || videoUrl;
   const activeName = shared.url ? shared.name : videoName;
   const activeSettings = shared.url ? shared.settings : settings;
+  const kioskName = useKioskName(kioskId, !activeUrl);
 
   /* load any video already saved for this kiosk */
   useEffect(() => {
@@ -1079,7 +1150,7 @@ export default function TvDisplay() {
                       )}
                     </div>
                   )}
-                  {!shared.url && (
+                  {SHOW_TV_UPLOAD_PANEL && !shared.url && (
                   <button
                     type="button"
                     onClick={clearVideo}
@@ -1112,12 +1183,18 @@ export default function TvDisplay() {
                 </div>
               )}
             </>
-          ) : (
+          ) : SHOW_TV_UPLOAD_PANEL ? (
             <UploadPanel
               onPublish={publish}
               settings={settings}
               setSettings={setSettings}
               error={videoError}
+            />
+          ) : (
+            <NoLobbyVideoGuide
+              kioskLabel={kioskName || String(kioskId).slice(0, 8)}
+              failed={Boolean(shared.readError)}
+              tr={tr}
             />
           )}
         </section>
