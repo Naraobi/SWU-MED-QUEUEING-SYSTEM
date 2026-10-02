@@ -20,7 +20,7 @@ import { useAuth } from '../../services/Authcontext';
 import logo from '../../../assets/logo-transparent.png';
 import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';
-import Footer from '../../components/Footer';
+import AppFooter from '../../components/AppFooter';
 import { useLanguage } from '../../services/language';
 import { getLogo, subscribeAppearance } from '../../services/appearance';
 
@@ -171,7 +171,7 @@ export default function Layout({ activePage, onNavigate, children }) {
           </nav>
 
           {/* Logout Button at the bottom of the sidebar */}
-          <div className="mt-auto shrink-0 border-t border-[#E5E7EB] p-3">
+          <div className="mt-auto flex h-[var(--bottom-bar-height)] shrink-0 items-center border-t border-[#E5E7EB] px-3">
             <button
               type="button"
               onClick={() => setShowLogoutModal(true)}
@@ -196,7 +196,13 @@ export default function Layout({ activePage, onNavigate, children }) {
               </span>
 
               <h1 className="truncate text-[22px] font-medium text-[#1F2937]">
-                {scopeRole} <span className="text-[#9CA3AF]">/</span> {pageLabel}
+                {activePage === 'dashboard' ? (
+                  t('sa.nav.superAdmin')
+                ) : (
+                  <>
+                    {scopeRole} <span className="text-[#9CA3AF]">/</span> {pageLabel}
+                  </>
+                )}
               </h1>
             </div>
 
@@ -248,11 +254,11 @@ export default function Layout({ activePage, onNavigate, children }) {
           </main>
 
           {/*
-            College attribution. It sits inside the content column rather
-            than across the whole window so it lines up with the page and
-            never runs underneath the sticky sidebar.
+            Shared footer (Admin, Staff and Super Admin). It sits inside the
+            content column so it never runs underneath the sticky sidebar, and
+            follows the saved accent colour.
           */}
-          <Footer />
+          <AppFooter />
         </div>
       </div>
 

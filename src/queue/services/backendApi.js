@@ -1225,7 +1225,8 @@ export async function getCurrentUserProfile(firebaseUser) {
 export async function getDashboardAnalytics(
   firebaseUser,
   startDate,
-  endDate
+  endDate,
+  filters = {}
 ) {
   if (!firebaseUser) {
     throw new Error("Firebase user is required");
@@ -1240,6 +1241,15 @@ export async function getDashboardAnalytics(
 
   if (endDate) {
     params.set("endDate", endDate);
+  }
+
+  // Optional: narrow the queue rows to these departments / terminals.
+  if (filters.departmentIds?.length) {
+    params.set("departmentIds", filters.departmentIds.join(","));
+  }
+
+  if (filters.counterIds?.length) {
+    params.set("counterIds", filters.counterIds.join(","));
   }
 
   const queryString = params.toString();

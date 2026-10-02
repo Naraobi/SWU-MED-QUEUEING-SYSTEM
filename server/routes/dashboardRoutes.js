@@ -553,6 +553,80 @@ const [departmentInsightRows] = await pool.query(
 
     /*
     |--------------------------------------------------------------------------
+    | 10b. QUEUE ROWS
+    |--------------------------------------------------------------------------
+    |
+    | One row per ticket issued inside the range, which is what the dashboard
+    | panels and the Excel export are computed from. Additive: nothing above
+    | is changed. Optional filters, comma separated ids:
+    |
+    |   ?departmentIds=1,2&counterIds=5,6
+    |
+    | The staff member is the one currently assigned to the terminal that
+    | handled the ticket (the ticket itself does not record who served it).
+    | There is no skip-reason column, so none is returned.
+    |
+    */
+
+    const toIdList = (value) =>
+      String(value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    const filterDepartmentIds = toIdList(req.query.departmentIds);
+    const filterCounterIds = toIdList(req.query.counterIds);
+
+    const queueRowConditions = ["DATE(qt.issued_at) BETWEEN ? AND ?"];
+    const queueRowParams = [startDate, endDate];
+
+    if (departmentId !== null) {
+      queueRowConditions.push("qt.department_id = ?");
+      queueRowParams.push(departmentId);
+    }
+
+    if (filterDepartmentIds.length > 0) {
+      queueRowConditions.push("qt.department_id IN (?)");
+      queueRowParams.push(filterDepartmentIds);
+    }
+
+    if (filterCounterIds.length > 0) {
+      queueRowConditions.push("qt.counter_id IN (?)");
+      queueRowParams.push(filterCounterIds);
+    }
+
+    const [queueRows] = await pool.query(
+      `
+        SELECT
+          qt.queue_id,
+          qt.queue_number,
+          qt.status,
+          qt.issued_at,
+          qt.called_at,
+          qt.service_began_at,
+          qt.completed_at,
+          qt.department_id,
+          d.name AS department,
+          qt.counter_id,
+          c.counter_number,
+          c.prefix AS counter_prefix,
+          c.assigned_staff_id AS staff_id,
+          TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS staff_name
+        FROM queue_ticket qt
+        INNER JOIN department d
+          ON d.department_id = qt.department_id
+        LEFT JOIN counter c
+          ON c.counter_id = qt.counter_id
+        LEFT JOIN user u
+          ON u.user_id = c.assigned_staff_id
+        WHERE ${queueRowConditions.join(" AND ")}
+        ORDER BY qt.issued_at DESC
+      `,
+      queueRowParams
+    );
+
+    /*
+    |--------------------------------------------------------------------------
     | 11. FORMAT NUMBERS
     |--------------------------------------------------------------------------
     */
@@ -758,6 +832,33 @@ const [departmentInsightRows] = await pool.query(
         ),
 
         insights,
+
+        queues: queueRows.map((row) => ({
+          queue_id: row.queue_id,
+          queue_number: row.queue_number,
+          status: row.status,
+          issued_at: row.issued_at,
+          called_at: row.called_at,
+          completed_at: row.completed_at,
+          department_id: row.department_id,
+          department: row.department,
+          counter_id: row.counter_id,
+          counter_number: row.counter_number,
+          counter_prefix: row.counter_prefix,
+          staff_id: row.staff_id,
+          staff_name: row.staff_name || null,
+          serving_seconds:
+            row.completed_at && (row.service_began_at || row.called_at)
+              ? Math.max(
+                  0,
+                  Math.round(
+                    (new Date(row.completed_at) -
+                      new Date(row.service_began_at || row.called_at)) /
+                      1000
+                  )
+                )
+              : null,
+        })),
       },
     });
   } catch (error) {
