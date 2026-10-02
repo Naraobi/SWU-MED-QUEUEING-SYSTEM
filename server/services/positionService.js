@@ -93,12 +93,6 @@ function validatePositionData(positionData = {}) {
     ? positionData.tabs
     : [];
 
-  if (tabs.length === 0) {
-    throw new Error(
-      "At least one feature access tab is required."
-    );
-  }
-
   return {
     name,
     status: normalizeStatus(

@@ -14,9 +14,13 @@
 const ACCENT_KEY = 'swumed_accent_color';
 const THEME_KEY = 'swumed_theme_mode';
 const LOGO_KEY = 'swumed_system_logo';
+const NAME_KEY = 'swumed_system_name';
+const CLOCK_KEY = 'swumed_clock_format';
 
 export const DEFAULT_ACCENT = '#9D0A0E';
 export const DEFAULT_THEME = 'light';
+export const DEFAULT_SYSTEM_NAME = 'SWUMed Queuing System';
+export const DEFAULT_CLOCK = '12h';
 
 function read(key, fallback) {
   try {
@@ -40,6 +44,29 @@ export function getAccentColor() {
 
 export function getThemeMode() {
   return read(THEME_KEY, DEFAULT_THEME);
+}
+
+/*
+ * System name and clock format live here rather than in page state so they
+ * survive a refresh and can be read by the sidebar, the TV board and the
+ * ticket printer without Settings having to be open.
+ */
+export function getSystemName() {
+  return read(NAME_KEY, DEFAULT_SYSTEM_NAME);
+}
+
+export function setSystemName(name) {
+  write(NAME_KEY, String(name || '').trim() || DEFAULT_SYSTEM_NAME);
+  notify();
+}
+
+export function getClockFormat() {
+  return read(CLOCK_KEY, DEFAULT_CLOCK) === '24h' ? '24h' : '12h';
+}
+
+export function setClockFormat(format) {
+  write(CLOCK_KEY, format === '24h' ? '24h' : '12h');
+  notify();
 }
 
 /* Resolve "system" into the OS preference. */
@@ -356,6 +383,8 @@ export function getAppearance() {
     accentColor: getAccentColor(),
     themeMode: getThemeMode(),
     logo: getLogo(),
+    systemName: getSystemName(),
+    clockFormat: getClockFormat(),
   };
 }
 

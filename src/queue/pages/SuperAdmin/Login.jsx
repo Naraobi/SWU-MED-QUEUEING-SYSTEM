@@ -5,6 +5,7 @@ import { useAuth } from '../../services/Authcontext';
 import { getLandingPath } from '../../services/accessControl';
 import ChangePasswordModal from '../../components/changePasswordModal';
 import LegalModal from '../../components/LegalModal';
+import Footer from '../../components/Footer';
 import LoginBG1 from '../../../assets/LoginBG1.jpg';
 import Logo from '../../../assets/logo.png';
 
@@ -554,6 +555,9 @@ async function handlePasswordChangeSuccess(
           <p className="mt-5 text-center text-xs text-[#6B7280]">
             For authorized users only.
           </p>
+
+          {/* College attribution - one quiet line so the form stays the focus. */}
+          <Footer variant="compact" className="mt-3" />
         </div>
 
         {/* =====================================================

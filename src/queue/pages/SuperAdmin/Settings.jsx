@@ -22,6 +22,7 @@ import {
 
 import { auth } from '../../../firebase';
 import { TvVideoSettings } from '../Admin/AdminScreens';
+import EstimatedTransactionTime from '../../components/settings/EstimatedTransactionTime';
 import {
   getSecurityPinStatus,
   requestSecurityPinVerification,
@@ -1375,6 +1376,14 @@ export default function Settings() {
       </SettingsSection>
 
       <TvVideoSettings accentColor={accentColor} />
+
+      {/* =====================================================
+          ESTIMATED TRANSACTION TIME
+          Self-contained, with its own Save Changes button - not part
+          of the Save All draft above (same as the TV videos).
+      ===================================================== */}
+
+      <EstimatedTransactionTime />
 
       {/* =====================================================
           TERMS & CONDITIONS

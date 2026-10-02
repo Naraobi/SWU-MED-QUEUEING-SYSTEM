@@ -179,85 +179,9 @@ function playTurnNotificationSound() {
 export default function TrackerPage() {
 
   /* ==========================================================================
-     STATE
-     ========================================================================== */
-
-  const [ticket, setTicket] =
-    useState(null)
-
-  const [error, setError] =
-    useState(null)
-
-  /*
-   * Controls the temporary on-screen
-   * notification.
-   */
-  const [
-    turnNotification,
-    setTurnNotification,
-  ] = useState(false)
-
-  /* ==========================================================================
-     TRACKING REFS
-     ========================================================================== */
-
-  /*
-   * Stores the previous ticket status.
-   *
-   * Used to detect:
-   *
-   * waiting → called
-   *
-   * waiting → serving
-   */
-  const previousStatusRef =
-    useRef(null)
-
-  /*
-   * Stores the previous notification/call marker.
-   *
-   * This allows the Tracker to detect a Recall
-   * even when the ticket status does not change.
-   *
-   * Example:
-   *
-   * notificationVersion = 1
-   *
-   * Staff presses Recall
-   *
-   * notificationVersion = 2
-   *
-   * The Tracker sees the change and alerts
-   * the patient again.
-   */
-  const previousCallMarkerRef =
-    useRef(null)
-
-  /*
-   * Prevents the first API response from
-   * triggering a notification.
-   *
-   * This is important if the patient opens
-   * the Tracker after they have already been
-   * called.
-   */
-  const initializedRef =
-    useRef(false)
-
-  /*
-   * Stores the notification timeout so
-   * it can be cleaned up properly.
-   */
-  const notificationTimeoutRef =
-    useRef(null)
-
-  /* ==========================================================================
      URL PARAMETERS
      ========================================================================== */
 
-  /*
-   * The QR code contains the unique queue_id UUID.
-   */
   const params =
     new URLSearchParams(
       window.location.search
@@ -282,47 +206,349 @@ export default function TrackerPage() {
       : null
 
   /* ==========================================================================
+     NOTIFICATION SETUP STATE
+     ========================================================================== */
+
+  const [
+    showNotificationSetup,
+    setShowNotificationSetup,
+  ] = useState(false)
+
+  const [
+    notificationPermission,
+    setNotificationPermission,
+  ] = useState('default')
+
+  /* ==========================================================================
+     TICKET STATE
+     ========================================================================== */
+
+  const [
+    ticket,
+    setTicket,
+  ] = useState(null)
+
+  const [
+    error,
+    setError,
+  ] = useState(null)
+
+  /* ==========================================================================
+     TURN NOTIFICATION STATE
+     ========================================================================== */
+
+  /*
+   * Controls the temporary on-screen
+   * notification.
+   */
+  const [
+    turnNotification,
+    setTurnNotification,
+  ] = useState(false)
+
+  /*
+   * Stores the previous queue status.
+   *
+   * Used to detect:
+   *
+   * waiting → called
+   * waiting → serving
+   */
+  const previousStatusRef =
+    useRef(null)
+
+  /*
+   * Stores the previous call/recall marker.
+   *
+   * Used to detect:
+   *
+   * notificationVersion 1 → 2
+   * notificationVersion 2 → 3
+   */
+  const previousCallMarkerRef =
+    useRef(null)
+
+  /*
+   * Prevents the first API response from
+   * immediately triggering a notification.
+   */
+  const initializedRef =
+    useRef(false)
+
+  /*
+   * Stores the temporary notification timeout.
+   */
+  const notificationTimeoutRef =
+    useRef(null)
+
+  /* ==========================================================================
+     NOTIFICATION SETUP
+     ========================================================================== */
+
+  useEffect(() => {
+
+    /*
+     * Preview mode should work immediately
+     * without requiring notification setup.
+     */
+    if (previewMode) {
+      return
+    }
+
+    /*
+     * Check whether the patient has already
+     * completed the notification setup on
+     * this browser/device.
+     */
+    const setupCompleted =
+      localStorage.getItem(
+        'trackerNotificationSetup'
+      ) === 'true'
+
+    if (setupCompleted) {
+      /*
+       * Still keep the current browser
+       * permission state available.
+       */
+      if ('Notification' in window) {
+        setNotificationPermission(
+          Notification.permission
+        )
+      }
+
+      return
+    }
+
+    /*
+     * Read the current browser notification
+     * permission before showing the setup screen.
+     */
+    if ('Notification' in window) {
+      setNotificationPermission(
+        Notification.permission
+      )
+    }
+
+    /*
+     * Show the setup screen.
+     */
+    setShowNotificationSetup(true)
+
+  }, [
+    previewMode,
+  ])
+
+  /* ==========================================================================
+     ENABLE NOTIFICATIONS
+     ========================================================================== */
+
+  const enableNotifications =
+    async () => {
+
+      try {
+
+        /*
+         * Request browser notification
+         * permission if the browser supports it.
+         */
+        if (
+          'Notification' in window
+        ) {
+
+          const permission =
+            await Notification.requestPermission()
+
+          setNotificationPermission(
+            permission
+          )
+
+          /*
+           * Show a small confirmation notification
+           * when permission is granted.
+           */
+          if (
+            permission === 'granted'
+          ) {
+
+            new Notification(
+              'SWU Med Notifications Enabled',
+              {
+                body:
+                  'You will be notified when it is your turn.',
+                icon: logo,
+              }
+            )
+
+          }
+
+        }
+
+        /*
+         * Remember that the setup screen
+         * has already been completed.
+         */
+        localStorage.setItem(
+          'trackerNotificationSetup',
+          'true'
+        )
+
+        /*
+         * Continue to the tracker.
+         */
+        setShowNotificationSetup(
+          false
+        )
+
+      } catch (error) {
+
+        console.warn(
+          'Unable to enable notifications:',
+          error
+        )
+
+        /*
+         * Even if notification permission
+         * cannot be requested, allow the
+         * patient to continue using the tracker.
+         */
+        localStorage.setItem(
+          'trackerNotificationSetup',
+          'true'
+        )
+
+        setShowNotificationSetup(
+          false
+        )
+
+      }
+
+    }
+
+  /* ==========================================================================
+     CONTINUE WITHOUT NOTIFICATIONS
+     ========================================================================== */
+
+  const continueWithoutNotifications =
+    () => {
+
+      localStorage.setItem(
+        'trackerNotificationSetup',
+        'true'
+      )
+
+      setShowNotificationSetup(
+        false
+      )
+
+    }
+
+  /* ==========================================================================
      TURN NOTIFICATION HELPER
      ========================================================================== */
 
   /*
-   * Shows the notification and plays the
-   * notification sound.
+   * Shows the notification and performs:
+   *
+   * 1. On-screen notification
+   * 2. Notification sound
+   * 3. Vibration request
+   * 4. Browser notification
    *
    * This helper is used for BOTH:
    *
    * 1. waiting → called/serving
    * 2. Recall
-   *
-   * Keeping the behavior in one function
-   * prevents duplicated notification logic.
    */
-const triggerTurnNotification = () => {
-  setTurnNotification(true);
+  const triggerTurnNotification =
+    (currentTicket) => {
 
-  // 🔊 Sound
-  playTurnNotificationSound();
+      /*
+       * Show the on-screen notification.
+       */
+      setTurnNotification(
+        true
+      )
 
-  // 📳 Vibration
-  if ("vibrate" in navigator) {
-    navigator.vibrate([300, 150, 300, 150, 500]);
-  }
+      /*
+       * 🔊 Sound
+       */
+      playTurnNotificationSound()
+
+      /*
+       * 📳 Vibration
+       *
+       * The website can request vibration,
+       * but the device/browser ultimately
+       * controls whether vibration occurs.
+       */
       if (
-        notificationTimeoutRef.current
+        'vibrate' in navigator &&
+        typeof navigator.vibrate ===
+          'function'
       ) {
-        clearTimeout(
-          notificationTimeoutRef.current
-        )
+
+        navigator.vibrate([
+          300,
+          150,
+          300,
+          150,
+          500,
+        ])
+
       }
 
       /*
-       * Keep the notification visible
-       * for 6 seconds.
+       * 🔔 Browser notification
+       *
+       * Only create a browser notification
+       * when permission was granted.
+       */
+      if (
+        'Notification' in window &&
+        Notification.permission ===
+          'granted'
+      ) {
+
+        new Notification(
+          "It's your turn!",
+          {
+            body:
+              `Please proceed to ${
+                currentTicket?.terminal ||
+                'your assigned terminal'
+              }.`,
+            icon: logo,
+          }
+        )
+
+      }
+
+      /*
+       * Clear an existing notification timeout.
+       */
+      if (
+        notificationTimeoutRef.current
+      ) {
+
+        clearTimeout(
+          notificationTimeoutRef.current
+        )
+
+      }
+
+      /*
+       * Keep the on-screen notification
+       * visible for 6 seconds.
        */
       notificationTimeoutRef.current =
         setTimeout(() => {
-          setTurnNotification(false)
+
+          setTurnNotification(
+            false
+          )
+
         }, 6000)
+
     }
 
   /* ==========================================================================
@@ -340,9 +566,11 @@ const triggerTurnNotification = () => {
       if (
         notificationTimeoutRef.current
       ) {
+
         clearTimeout(
           notificationTimeoutRef.current
         )
+
       }
 
     }
@@ -377,6 +605,7 @@ const triggerTurnNotification = () => {
         )
 
         return
+
       }
 
       try {
@@ -402,6 +631,7 @@ const triggerTurnNotification = () => {
           setTicket(null)
 
           return
+
         }
 
         /* ====================================================================
@@ -432,23 +662,26 @@ const triggerTurnNotification = () => {
            ==================================================================== */
 
         /*
-         * The backend should return ONE of these
-         * values.
+         * The backend can return ONE of these
+         * supported values.
          *
          * Preferred:
          *
          *   notificationVersion
          *
-         * Other supported names are included so
-         * the Tracker is tolerant of the exact
-         * backend naming.
+         * Other supported names:
          *
-         * Recommended backend value:
+         *   notification_version
+         *   callSequence
+         *   call_sequence
+         *   recallCount
+         *   recall_count
+         *
+         * Example:
          *
          *   1 = first call
          *   2 = first recall
          *   3 = second recall
-         *   etc.
          */
         const currentCallMarker =
           result.notificationVersion ??
@@ -463,12 +696,14 @@ const triggerTurnNotification = () => {
          * Detect whether the backend marker
          * changed since the previous poll.
          *
-         * This is what makes Recall work.
+         * This is what allows Recall to
+         * trigger another notification.
          */
         const callMarkerChanged =
           initializedRef.current &&
           currentCallMarker !== null &&
-          previousCallMarkerRef.current !== null &&
+          previousCallMarkerRef.current !==
+            null &&
           String(
             currentCallMarker
           ) !==
@@ -483,7 +718,8 @@ const triggerTurnNotification = () => {
         /*
          * NORMAL CALL
          *
-         * waiting → called/serving
+         * waiting → called
+         * waiting → serving
          */
         const normalCallDetected =
           initializedRef.current &&
@@ -497,7 +733,7 @@ const triggerTurnNotification = () => {
          *
          * serving → serving
          *
-         * but the notification marker changes:
+         * while the notification marker changes:
          *
          * 1 → 2
          */
@@ -515,7 +751,9 @@ const triggerTurnNotification = () => {
           recallDetected
         ) {
 
-          triggerTurnNotification()
+          triggerTurnNotification(
+            result
+          )
 
         }
 
@@ -541,14 +779,17 @@ const triggerTurnNotification = () => {
          *
          * Therefore, if the Tracker is opened
          * while the patient is already serving,
-         * it will NOT immediately make a sound.
+         * it will NOT immediately make a sound
+         * or notification.
          */
         initializedRef.current =
           true
 
         setError(null)
 
-        setTicket(result)
+        setTicket(
+          result
+        )
 
       } catch (err) {
 
@@ -585,7 +826,9 @@ const triggerTurnNotification = () => {
 
       cancelled = true
 
-      clearInterval(interval)
+      clearInterval(
+        interval
+      )
 
     }
 
@@ -606,6 +849,152 @@ const triggerTurnNotification = () => {
    */
   const shown =
     previewTicket || ticket
+
+  /* ==========================================================================
+     NOTIFICATION SETUP SCREEN
+     ========================================================================== */
+
+  if (
+    showNotificationSetup
+  ) {
+
+    return (
+
+      <div className="flex min-h-screen items-center justify-center bg-[#EAF3FB] px-4 py-8">
+
+        <div className="w-full max-w-md">
+
+          <img
+            src={logo}
+            alt="SWU Med"
+            className="mx-auto mb-6 h-14 w-auto object-contain"
+          />
+
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-lg sm:p-8">
+
+            {/* ICON */}
+
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F0DADA]">
+
+              <BellRing
+                size={26}
+                className="text-[#9D0A0E]"
+              />
+
+            </div>
+
+            {/* TITLE */}
+
+            <h1 className="mt-5 text-center text-xl font-bold text-[#1F2937]">
+              Stay Updated
+            </h1>
+
+            <p className="mt-2 text-center text-sm leading-6 text-[#6B7280]">
+              Enable notifications so SWU Med can
+              alert you when it is your turn.
+            </p>
+
+            {/* NOTIFICATION INFORMATION */}
+
+            <div className="mt-6 space-y-3">
+
+              <div className="rounded-xl bg-[#F8FAFC] p-4">
+
+                <div className="flex gap-3">
+
+                  <BellRing
+                    size={20}
+                    className="mt-0.5 shrink-0 text-[#9D0A0E]"
+                  />
+
+                  <div>
+
+                    <p className="text-sm font-semibold text-[#1F2937]">
+                      Notifications
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+                      Receive an alert when your queue
+                      is being served.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* VIBRATION INFORMATION */}
+
+              <div className="rounded-xl bg-[#F8FAFC] p-4">
+
+                <div className="flex gap-3">
+
+                  <span
+                    className="mt-0.5 text-lg"
+                    aria-hidden="true"
+                  >
+                    📳
+                  </span>
+
+                  <div>
+
+                    <p className="text-sm font-semibold text-[#1F2937]">
+                      Vibration
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+                      For vibration alerts, make sure
+                      vibration is enabled in your
+                      phone's settings.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* ENABLE BUTTON */}
+
+            <button
+              type="button"
+              onClick={
+                enableNotifications
+              }
+              className="mt-6 w-full rounded-xl bg-[#9D0A0E] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#82080B]"
+            >
+              Enable Notifications
+            </button>
+
+            {/* SKIP BUTTON */}
+
+            <button
+              type="button"
+              onClick={
+                continueWithoutNotifications
+              }
+              className="mt-3 w-full px-4 py-2 text-sm font-medium text-[#6B7280] hover:text-[#1F2937]"
+            >
+              Continue without notifications
+            </button>
+
+            <p className="mt-4 text-center text-[11px] leading-4 text-[#9CA3AF]">
+              You can continue using the tracker even
+              if notifications are not enabled.
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    )
+
+  }
 
   /* ==========================================================================
      TICKET NOT FOUND / API ERROR
@@ -646,6 +1035,7 @@ const triggerTurnNotification = () => {
       </div>
 
     )
+
   }
 
   /* ==========================================================================
@@ -670,6 +1060,7 @@ const triggerTurnNotification = () => {
       </div>
 
     )
+
   }
 
   /* ==========================================================================
@@ -745,7 +1136,7 @@ const triggerTurnNotification = () => {
          called/serving → YourTurnScreen
 
          everything else → WaitingScreen
-      ====================================================================== */}
+      ========================================================================== */}
 
       <div className="transition-opacity duration-200 ease-out">
 
@@ -775,4 +1166,5 @@ const triggerTurnNotification = () => {
     </div>
 
   )
+
 }

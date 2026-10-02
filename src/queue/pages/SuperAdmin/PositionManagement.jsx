@@ -19,25 +19,7 @@ import {
   deletePosition,
   getUsers,
 } from '../../services/backendApi';
-
-/*
- * SWUMed Position Management
- *
- * A position is a job title - Head Nurse, Cashier, Lab Technician. It says
- * what somebody does, not what they may open: system access is decided by
- * Role, which is why the tab-access grid that used to live here has gone.
- *
- * Everything on screen comes from the backend. An empty database renders an
- * empty state; nothing here is seeded or faked.
- *
- * Expected position row from GET /api/positions:
- *   { position_id, name, status, description, users, updated_at }
- *
- * The assigned-users table is derived from GET /api/users, matched on the
- * user's position name. There is no positions/:id/users endpoint, and adding
- * one is a backend change - see the note above buildAssignments().
- */
-
+import AddPositionModal from '../../components/modals/AddPositionModal';
 const blankDraft = () => ({ name: '', status: 'Active' });
 
 /* ---------------------------------------------------------------
@@ -141,9 +123,7 @@ function buildAssignments(users, positionName) {
 /* =========================================================
    ADD / EDIT MODAL
 ========================================================= */
-
 function PositionModal({
-  mode,
   draft,
   setDraft,
   onClose,
@@ -152,7 +132,6 @@ function PositionModal({
   lastUpdated,
   error,
 }) {
-  const edit = mode === 'edit';
 
   return (
     <div
@@ -172,19 +151,15 @@ function PositionModal({
               id="position-modal-title"
               className="text-base font-bold text-[#1F2937]"
             >
-              {edit ? 'Edit Position' : 'Add Position'}
+           Edit Position
             </h2>
 
             <p className="mt-0.5 text-xs text-[#4B5563]">
-              {edit
-                ? 'Update the position name and status.'
-                : 'Create a position that staff can be assigned to.'}
+            Update the position name and status.
             </p>
 
             <p className="mt-0.5 text-xs text-[#9CA3AF]">
-              {edit
-                ? `Last updated ${formatDate(lastUpdated)}`
-                : 'Fields marked * are required.'}
+           {`Last updated ${formatDate(lastUpdated)}`}
             </p>
           </div>
 
@@ -287,7 +262,7 @@ function PositionModal({
             disabled={saving || !draft.name.trim()}
             className="swu-press h-9 rounded-lg bg-[#9D0A0E] px-4 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
           >
-            {saving ? 'Saving...' : edit ? 'Save Changes' : 'Save Position'}
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -518,6 +493,7 @@ export default function PositionManagement() {
   const [draft, setDraft] = useState(blankDraft());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [showAddPositionModal, setShowAddPositionModal] = useState(false);
 
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -605,11 +581,11 @@ export default function PositionManagement() {
     [users, usersLoading, usersError]
   );
 
-  const openAdd = () => {
-    setDraft(blankDraft());
-    setSaveError(null);
-    setModalMode('add');
-  };
+const openAdd = () => {
+  setDraft(blankDraft());
+  setSaveError(null);
+  setShowAddPositionModal(true);
+};
 
   const openEdit = () => {
     if (!selected) return;
@@ -625,26 +601,31 @@ export default function PositionManagement() {
     setSaving(true);
     setSaveError(null);
 
-    const payload = {
-      name: draft.name.trim(),
-      status: draft.status,
-      // Passed through untouched. This screen no longer edits tab access, but
-      // the column is still in the table, so we send back what was there.
-      tabs: modalMode === 'edit' ? selected?.tabs ?? [] : [],
-    };
+  const payload = {
+  name: draft.name.trim(),
+  status: draft.status,
+  tabs: selected?.tabs ?? [],
+};
 
-    try {
-      if (modalMode === 'add') {
-        const created = await createPosition(payload);
-        setModalMode(null);
-        await Promise.all([loadPositions(), loadUsers()]);
-        if (created?.position_id) setSelectedId(created.position_id);
-      } else if (selected) {
-        await updatePosition(selected.id, payload);
-        setModalMode(null);
-        await Promise.all([loadPositions(), loadUsers()]);
-      }
-    } catch (error) {
+  try {
+  if (showAddPositionModal) {
+    const created = await createPosition(payload);
+
+    setShowAddPositionModal(false);
+
+    await Promise.all([loadPositions(), loadUsers()]);
+
+    if (created?.position_id) {
+      setSelectedId(created.position_id);
+    }
+  } else if (selected) {
+    await updatePosition(selected.id, payload);
+
+    setModalMode(null);
+
+    await Promise.all([loadPositions(), loadUsers()]);
+  }
+}catch (error) {
       setSaveError(error?.message || 'Failed to save the position.');
     } finally {
       setSaving(false);
@@ -930,18 +911,33 @@ export default function PositionManagement() {
         </section>
       </div>
 
-      {modalMode && (
-        <PositionModal
-          mode={modalMode}
-          draft={draft}
-          setDraft={setDraft}
-          onClose={() => !saving && setModalMode(null)}
-          onSave={savePosition}
-          saving={saving}
-          lastUpdated={selected?.updatedAt}
-          error={saveError}
-        />
-      )}
+{showAddPositionModal && (
+  <AddPositionModal
+    draft={draft}
+    setDraft={setDraft}
+    onClose={() => {
+      if (saving) return;
+
+      setShowAddPositionModal(false);
+      setSaveError(null);
+    }}
+    onSave={savePosition}
+    saving={saving}
+    error={saveError}
+  />
+)}
+
+{modalMode === 'edit' && (
+  <PositionModal
+    draft={draft}
+    setDraft={setDraft}
+    onClose={() => !saving && setModalMode(null)}
+    onSave={savePosition}
+    saving={saving}
+    lastUpdated={selected?.updatedAt}
+    error={saveError}
+  />
+)}
 
       {pendingDelete && (
         <DeletePositionModal

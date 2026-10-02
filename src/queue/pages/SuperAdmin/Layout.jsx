@@ -215,7 +215,13 @@ export default function Layout({ activePage, onNavigate, children }) {
               </span>
 
               <h1 className="truncate text-[22px] font-medium text-[#1F2937]">
-                {scopeRole} <span className="text-[#9CA3AF]">/</span> {pageLabel}
+                {activePage === 'dashboard' ? (
+                  t('sa.nav.superAdmin')
+                ) : (
+                  <>
+                    {scopeRole} <span className="text-[#9CA3AF]">/</span> {pageLabel}
+                  </>
+                )}
               </h1>
             </div>
 
@@ -266,6 +272,11 @@ export default function Layout({ activePage, onNavigate, children }) {
             {children}
           </main>
 
+          {/*
+            Shared footer (Admin, Staff and Super Admin). It sits inside the
+            content column so it never runs underneath the sticky sidebar, and
+            follows this Super Admin's own saved accent colour.
+          */}
           <AppFooter accent={saAccent} />
         </div>
       </div>

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-
 import {
   Search,
   User,
@@ -13,19 +12,29 @@ import {
   EyeOff,
   AlertTriangle,
   CheckCircle2,
+  BarChart3,
+  BriefcaseBusiness,
+  Building2,
+  ClipboardList,
+  LayoutDashboard,
+  Monitor,
+  Settings,
+  ShieldCheck,
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
 
 import AddKioskModal from '../../components/modals/AddKioskModal';
 import AddDepartmentModal from '../../components/modals/AddDepartmentModal';
-
+import AddPositionModal from '../../components/modals/AddPositionModal';
 import {
   getUsers,
   createUser,
   updateUser,
   deleteUser,
   getRoles,
+  createRole,
+  createPosition,
   getKiosks,
   getTerminals,
   getDepartments,
@@ -38,7 +47,7 @@ import {
 import SecurityPinModal, {
   readPinIsSet,
 } from '../../components/SecurityPinModal';
-
+import AddRoleModal from '../../components/modals/AddRoleModal';
 
 /* =========================================================
    HELPERS
@@ -1118,6 +1127,110 @@ function FieldLabel({
     </label>
   );
 }
+
+const FEATURES = [
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    caption: 'Overview & metrics',
+    icon: LayoutDashboard,
+  },
+  {
+    key: 'staff',
+    label: 'Staff Management',
+    caption: 'See and manage Staff',
+    icon: Users,
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    caption: 'Global Configuration',
+    icon: Settings,
+  },
+  {
+    key: 'terminals',
+    label: 'Terminal Management',
+    caption: 'Touch terminals & printers',
+    icon: Monitor,
+  },
+  {
+    key: 'roles',
+    label: 'Role Management',
+    caption: 'Restricted to Superadmin',
+    icon: ShieldCheck,
+    locked: true,
+  },
+  {
+    key: 'positions',
+    label: 'Position Management',
+    caption: 'Designation assignment',
+    icon: BriefcaseBusiness,
+    locked: true,
+  },
+  {
+    key: 'queues',
+    label: 'Queue Management',
+    caption: 'Live ticket & window monitor',
+    icon: ClipboardList,
+  },
+  {
+    key: 'reports',
+    label: 'Reports & Analytics',
+    caption: 'Queue trends & wait times',
+    icon: BarChart3,
+  },
+  {
+    key: 'departments',
+    label: 'Department Management',
+    caption: 'Manage departments & services',
+    icon: Building2,
+  },
+];
+
+const FEATURE_KEYS = FEATURES.map(
+  (feature) => feature.key
+);
+
+const LOCKED_KEYS = FEATURES
+  .filter((feature) => feature.locked)
+  .map((feature) => feature.key);
+
+const AVAILABLE_PERMISSIONS =
+  FEATURE_KEYS.filter(
+    (key) => !LOCKED_KEYS.includes(key)
+  );
+
+function isSuperadminRole(name) {
+  return (
+    String(name || '')
+      .trim()
+      .toLowerCase() === 'superadmin'
+  );
+}
+
+function effectivePermissions(
+  roleName,
+  permissions
+) {
+  const granted = new Set(
+    Array.isArray(permissions)
+      ? permissions
+      : []
+  );
+
+  LOCKED_KEYS.forEach((key) => {
+    if (isSuperadminRole(roleName)) {
+      granted.add(key);
+    } else {
+      granted.delete(key);
+    }
+  });
+
+  return FEATURE_KEYS.filter((key) =>
+    granted.has(key)
+  );
+}
+
 /* =========================================================
   MAIN USER CRUD
 ========================================================= */
@@ -1159,7 +1272,24 @@ export default function DepartmentCrud({
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showResetDone, setShowResetDone] = useState(false);
   const [resetDoneCount, setResetDoneCount] = useState(0);
+const [showAddRoleModal, setShowAddRoleModal] = useState(false);
 
+const [roleDraft, setRoleDraft] = useState({
+  name: '',
+  description: '',
+  status: 'Active',
+  permissions: [],
+});
+const [showAddPositionModal, setShowAddPositionModal] =
+  useState(false);
+
+const [positionDraft, setPositionDraft] = useState({
+  name: '',
+  status: 'Active',
+});
+
+const [savingPosition, setSavingPosition] = useState(false);
+const [positionError, setPositionError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -1172,6 +1302,74 @@ export default function DepartmentCrud({
     setError(null);
     setShowAddKioskModal(true);
   }
+  function handleAddPosition() {
+  setPositionDraft({
+    name: '',
+    status: 'Active',
+  });
+
+  setPositionError(null);
+  setShowAddPositionModal(true);
+}
+async function handleSavePosition() {
+  const name = positionDraft.name.trim();
+
+  if (!name) {
+    setPositionError('Position name is required.');
+    return;
+  }
+
+  setSavingPosition(true);
+  setPositionError(null);
+
+  try {
+    const created = await createPosition({
+      name,
+      status: positionDraft.status,
+      tabs: [],
+    });
+
+    /*
+     * Refresh the position dropdown from the backend.
+     * fetchPositions() already filters inactive positions
+     * and sorts them alphabetically.
+     */
+    const refreshedPositions = await fetchPositions();
+
+    setPositions(refreshedPositions);
+
+    /*
+     * Automatically select the newly created position
+     * in the Add User form.
+     */
+    const createdName =
+      created?.name ??
+      created?.position_name ??
+      name;
+
+    const matchingPosition = refreshedPositions.find(
+      (position) =>
+        String(position.name).trim().toLowerCase() ===
+        String(createdName).trim().toLowerCase()
+    );
+
+    setForm((current) => ({
+      ...current,
+      position: matchingPosition?.name ?? createdName,
+    }));
+
+    setShowAddPositionModal(false);
+    setPositionError(null);
+  } catch (error) {
+    console.error('Failed to create position:', error);
+
+    setPositionError(
+      error?.message || 'Failed to create the position.'
+    );
+  } finally {
+    setSavingPosition(false);
+  }
+}
 
   function handleAddDepartment() {
     if (!form.kiosk_id) {
@@ -1188,7 +1386,114 @@ export default function DepartmentCrud({
     });
     setShowAddDepartmentModal(true);
   }
+async function handleSaveRole() {
+  const roleName =
+    roleDraft.name.trim();
 
+  if (!roleName) {
+    setError('Role name is required.');
+    return;
+  }
+
+  const permissions =
+    effectivePermissions(
+      roleName,
+      roleDraft.permissions
+    );
+
+  if (permissions.length === 0) {
+    setError(
+      'Please select at least one feature.'
+    );
+    return;
+  }
+
+  setSaving(true);
+  setError(null);
+  setSuccess(null);
+
+  try {
+    const createdRoleResponse =
+      await createRole({
+        role_id: crypto.randomUUID(),
+        role: roleName,
+        description:
+          roleDraft.description?.trim() || null,
+        status:
+          roleDraft.status || 'Active',
+        permissions,
+      });
+
+    const createdRole =
+      createdRoleResponse?.data ??
+      createdRoleResponse;
+
+    const formattedRole = {
+      id:
+        createdRole?.role_id ??
+        createdRole?.id,
+      name:
+        createdRole?.role ??
+        createdRole?.name ??
+        roleName,
+    };
+
+    if (!formattedRole.id) {
+      throw new Error(
+        'Role was created but no role ID was returned.'
+      );
+    }
+
+    setRoles((current) => {
+      const exists = current.some(
+        (role) =>
+          String(role.id) ===
+          String(formattedRole.id)
+      );
+
+      return exists
+        ? current
+        : [...current, formattedRole];
+    });
+
+    // Automatically select the newly created role
+    // in the still-open Add User modal.
+    setForm((current) => ({
+      ...current,
+      role: formattedRole.name,
+      role_id: formattedRole.id,
+      kiosk: 'Select Kiosk',
+      kiosk_id: null,
+      department: 'Select Department',
+      department_id: null,
+    }));
+
+    setRoleDraft({
+      name: '',
+      description: '',
+      status: 'Active',
+      permissions: [],
+    });
+
+    setShowAddRoleModal(false);
+
+    setSuccess(
+      'Role added successfully.'
+    );
+  } catch (err) {
+    console.error(
+      'CREATE ROLE ERROR:',
+      err
+    );
+
+    setError(
+      err?.message ||
+        'Unable to create role.'
+    );
+  } finally {
+    setSaving(false);
+  }
+}
   async function handleSaveDepartment() {
     const departmentName = departmentForm.department_name.trim();
     const selectedKioskId = String(departmentForm.kiosk_id ?? '').trim();
@@ -1344,6 +1649,7 @@ export default function DepartmentCrud({
       )
       .sort((a, b) => a.name.localeCompare(b.name));
   }
+  
 
   function formatUsers(rows, roleData) {
     return (Array.isArray(rows) ? rows : []).map((data) => {
@@ -1557,6 +1863,45 @@ export default function DepartmentCrud({
       setSaving(false);
     }
   }
+  function toggleRolePermission(key) {
+  setRoleDraft((current) => {
+    const permissions =
+      current.permissions.includes(key)
+        ? current.permissions.filter(
+            (permission) =>
+              permission !== key
+          )
+        : [
+            ...current.permissions,
+            key,
+          ];
+
+    return {
+      ...current,
+      permissions,
+    };
+  });
+}
+
+function selectAllRolePermissions() {
+  setRoleDraft((current) => ({
+    ...current,
+    permissions: [
+      ...current.permissions,
+      ...AVAILABLE_PERMISSIONS.filter(
+        (key) =>
+          !current.permissions.includes(key)
+      ),
+    ],
+  }));
+}
+
+function clearAllRolePermissions() {
+  setRoleDraft((current) => ({
+    ...current,
+    permissions: [],
+  }));
+}
 
   async function handleSave() {
     if (
@@ -1675,20 +2020,37 @@ export default function DepartmentCrud({
     }
   }
 
-  // Step 1 -> Step 2. Selecting users only opens the confirmation message;
-  // nothing is reset and no PIN is requested until the user confirms.
-  function handleResetSelectionContinue() {
-    if (selectedResetIds.length === 0) {
-      return;
-    }
+function handleResetSelectionContinue() {
+  const currentEmail = normalizeEmail(
+    auth.currentUser?.email
+  );
 
-    setResettingIds([...selectedResetIds]);
-    setPinInput('');
-    setShowResetSelection(false);
-    setError(null);
-    setSuccess(null);
-    setShowResetConfirm(true);
+  const eligibleIds = selectedResetIds.filter(
+    (id) => {
+      const user = users.find(
+        (item) =>
+          String(item.user_id ?? item.id) ===
+          String(id)
+      );
+
+      return (
+        user &&
+        normalizeEmail(user.email) !== currentEmail
+      );
+    }
+  );
+
+  if (eligibleIds.length === 0) {
+    return;
   }
+
+  setResettingIds(eligibleIds);
+  setPinInput('');
+  setShowResetSelection(false);
+  setError(null);
+  setSuccess(null);
+  setShowResetConfirm(true);
+}
 
   // Step 2 -> Step 3. Confirmed, so now ask for the Security PIN.
   async function handleResetConfirmProceed() {
@@ -2131,15 +2493,18 @@ async function handleReset() {
           onClose={closeModal}
           isEditing={isEditing}
           saving={saving}
-          onAddRole={() => {
-            closeModal();
-            onNavigate?.('roles');
-          }}
+         onAddRole={() => {
+  setRoleDraft({
+    name: '',
+    description: '',
+    status: 'Active',
+    permissions: [],
+  });
+
+  setShowAddRoleModal(true);
+}}
           onAddKiosk={handleAddKiosk}
-          onAddPosition={() => {
-            closeModal();
-            onNavigate?.('positions');
-          }}
+         onAddPosition={handleAddPosition}
           onAddDepartment={handleAddDepartment}
           kioskOptions={kiosks}
           departmentOptions={availableDepartments}
@@ -2181,31 +2546,72 @@ async function handleReset() {
           setShowAddKioskModal(false);
         }}
       />
+<AddDepartmentModal
+  open={showAddDepartmentModal}
+  onClose={() => setShowAddDepartmentModal(false)}
+  form={departmentForm}
+  setForm={setDepartmentForm}
+  onSave={handleSaveDepartment}
+  isEditing={false}
+  saving={savingDepartment}
+  kiosks={kiosks}
+  onAddKiosk={handleAddKiosk}
+/>
 
-      <AddDepartmentModal
-        open={showAddDepartmentModal}
-        onClose={() => setShowAddDepartmentModal(false)}
-        form={departmentForm}
-        setForm={setDepartmentForm}
-        onSave={handleSaveDepartment}
-        isEditing={false}
-        saving={savingDepartment}
-        kiosks={kiosks}
-        onAddKiosk={handleAddKiosk}
-      />
+{showAddPositionModal && (
+  <AddPositionModal
+    draft={positionDraft}
+    setDraft={setPositionDraft}
+    onClose={() => {
+      if (savingPosition) return;
 
-      <ResetUserSelectionModal
-        open={showResetSelection}
-        onClose={() => {
-          setShowResetSelection(false);
-          setSelectedResetIds([]);
-        }}
-        users={visibleUsers}
-        selectedResetIds={selectedResetIds}
-        setSelectedResetIds={setSelectedResetIds}
-        onContinue={handleResetSelectionContinue}
-      />
+      setShowAddPositionModal(false);
+      setPositionError(null);
+    }}
+    onSave={handleSavePosition}
+    saving={savingPosition}
+    error={positionError}
+  />
+)}
+<AddRoleModal
+  open={showAddRoleModal}
+  draft={roleDraft}
+  setDraft={setRoleDraft}
+  onToggle={toggleRolePermission}
+  onSelectAll={selectAllRolePermissions}
+  onClearAll={clearAllRolePermissions}
+  onClose={() => {
+    if (saving) {
+      return;
+    }
 
+    setShowAddRoleModal(false);
+
+    setRoleDraft({
+      name: '',
+      description: '',
+      status: 'Active',
+      permissions: [],
+    });
+  }}
+  onSave={handleSaveRole}
+  saving={saving}
+  features={FEATURES}
+  availablePermissions={AVAILABLE_PERMISSIONS}
+  effectivePermissions={effectivePermissions}
+/>
+    <ResetUserSelectionModal
+  open={showResetSelection}
+  onClose={() => {
+    setShowResetSelection(false);
+    setSelectedResetIds([]);
+  }}
+  users={visibleUsers}
+  selectedResetIds={selectedResetIds}
+  setSelectedResetIds={setSelectedResetIds}
+  onContinue={handleResetSelectionContinue}
+  currentUserEmail={auth.currentUser?.email}
+/>
       <ResetConfirmModal
         open={showResetConfirm}
         count={resettingIds.length}
@@ -2375,37 +2781,73 @@ function ResetUserSelectionModal({
   selectedResetIds,
   setSelectedResetIds,
   onContinue,
+  currentUserEmail,
 }) {
   if (!open) {
     return null;
   }
 
-  const allSelected =
-    users.length > 0 && selectedResetIds.length === users.length;
+  const currentEmail = normalizeEmail(currentUserEmail);
 
-  function toggleUser(userId) {
-    setSelectedResetIds((currentIds) => {
-      const exists = currentIds.some(
-        (id) => String(id) === String(userId)
-      );
+const isCurrentUser = (user) =>
+  normalizeEmail(user.email) === currentEmail;
 
-      return exists
-        ? currentIds.filter((id) => String(id) !== String(userId))
-        : [...currentIds, userId];
-    });
+const eligibleUsers = users.filter(
+  (user) => !isCurrentUser(user)
+);
+
+const allSelected =
+  eligibleUsers.length > 0 &&
+  eligibleUsers.every((user) =>
+    selectedResetIds.some(
+      (id) =>
+        String(id) ===
+        String(user.user_id ?? user.id)
+    )
+  );
+  const eligibleSelectedIds = selectedResetIds.filter((id) =>
+  eligibleUsers.some(
+    (user) =>
+      String(user.user_id ?? user.id) === String(id)
+  )
+);
+
+function toggleUser(userId) {
+  const selectedUser = users.find(
+    (user) =>
+      String(user.user_id ?? user.id) ===
+      String(userId)
+  );
+
+  if (!selectedUser || isCurrentUser(selectedUser)) {
+    return;
   }
 
-  function toggleAll() {
-    if (allSelected) {
-      setSelectedResetIds([]);
-      return;
-    }
-
-    setSelectedResetIds(
-      users.map((user) => user.user_id ?? user.id)
+  setSelectedResetIds((currentIds) => {
+    const exists = currentIds.some(
+      (id) => String(id) === String(userId)
     );
+
+    return exists
+      ? currentIds.filter(
+          (id) => String(id) !== String(userId)
+        )
+      : [...currentIds, userId];
+  });
+}
+
+function toggleAll() {
+  if (allSelected) {
+    setSelectedResetIds([]);
+    return;
   }
 
+  setSelectedResetIds(
+    eligibleUsers.map(
+      (user) => user.user_id ?? user.id
+    )
+  );
+}
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -2438,15 +2880,17 @@ function ResetUserSelectionModal({
               <span className="text-sm font-semibold text-[#1F2937]">
                 {allSelected ? 'Unselect All' : 'Select All'}
               </span>
-              <span
-                className={`flex h-5 w-5 items-center justify-center rounded border ${
-                  allSelected
-                    ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
-                    : 'border-[#D1D5DB] bg-white'
-                }`}
-              >
-                {allSelected && <Check size={13} />}
-              </span>
+        <span
+className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+  isCurrentUser
+    ? 'border-gray-300 bg-gray-200'
+    : isSelected
+      ? 'border-[#9D0A0E] bg-[#9D0A0E] text-white'
+      : 'border-[#D1D5DB] bg-white'
+}`}
+>
+  {!isCurrentUser && isSelected && <Check size={13} />}
+</span>
             </button>
           )}
 
@@ -2457,30 +2901,42 @@ function ResetUserSelectionModal({
           ) : (
             <div className="space-y-2">
               {users.map((user) => {
-                const userId = user.user_id ?? user.id;
-                const isSelected = selectedResetIds.some(
-                  (id) => String(id) === String(userId)
-                );
+        const userId = user.user_id ?? user.id;
+          const isLoggedInUser = isCurrentUser(user);
+          const isSelected = selectedResetIds.some(
+            (id) => String(id) === String(userId)
+          );
+  return (
+  <button
+    key={userId}
+    type="button"
+    onClick={() => toggleUser(userId)}
+    disabled={isLoggedInUser}
+    className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
+      isLoggedInUser
+        ? 'cursor-not-allowed border-gray-200 bg-gray-100 opacity-70'
+        : isSelected
+          ? 'border-[#9D0A0E] bg-[#FBF1F1]'
+          : 'border-[#E5E7EB] bg-white hover:bg-[#F8F9FA]'
+    }`}
+  >
+              <div>
+  <div className="flex flex-wrap items-center gap-2">
+    <p className="text-sm font-semibold text-[#1F2937]">
+      {user.first_name} {user.last_name}
+    </p>
 
-                return (
-                  <button
-                    key={userId}
-                    type="button"
-                    onClick={() => toggleUser(userId)}
-                    className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
-                      isSelected
-                        ? 'border-[#9D0A0E] bg-[#FBF1F1]'
-                        : 'border-[#E5E7EB] bg-white hover:bg-[#F8F9FA]'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-[#1F2937]">
-                        {user.first_name} {user.last_name}
-                      </p>
-                      <p className="mt-0.5 text-xs text-[#4B5563]">
-                        {user.email}
-                      </p>
-                    </div>
+    {isLoggedInUser && (
+      <span className="rounded-md bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+      </span>
+    )}
+  </div>
+
+  <p className="mt-0.5 text-xs text-[#4B5563]">
+    {user.email}
+  </p>
+</div>
+                    
                     <span
                       className={`flex h-5 w-5 items-center justify-center rounded border ${
                         isSelected
@@ -2488,6 +2944,11 @@ function ResetUserSelectionModal({
                           : 'border-[#D1D5DB] bg-white'
                       }`}
                     >
+
+  {isLoggedInUser && (
+    <span className="rounded-md bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+    </span>
+  )}
                       {isSelected && <Check size={13} />}
                     </span>
                   </button>
@@ -2496,13 +2957,13 @@ function ResetUserSelectionModal({
             </div>
           )}
         </div>
+<div className="flex items-center justify-between border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
+  <span className="text-xs text-[#4B5563]">
+  {eligibleSelectedIds.length} user
+{eligibleSelectedIds.length === 1 ? '' : 's'} selected
+  </span>
 
-        <div className="flex items-center justify-between border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-4">
-          <span className="text-xs text-[#4B5563]">
-            {selectedResetIds.length} user
-            {selectedResetIds.length === 1 ? '' : 's'} selected
-          </span>
-          <div className="flex items-center gap-3">
+  <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -2513,7 +2974,7 @@ function ResetUserSelectionModal({
             <button
               type="button"
               onClick={onContinue}
-              disabled={selectedResetIds.length === 0}
+           disabled={eligibleSelectedIds.length === 0}
               className="rounded-lg bg-[#9D0A0E] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Continue
