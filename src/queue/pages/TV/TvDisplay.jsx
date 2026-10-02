@@ -28,11 +28,18 @@ import { auth } from '../../../firebase';
 import brandMark from '../../../assets/logo-transparent.png';
 
 import {
-  announceCall,
   attachVideo,
   enable as enableAnnouncer,
   cancelAnnouncements,
 } from '../../services/announcer';
+import {
+  playCallSound,
+  preloadCallSound,
+  unlockCallSound,
+  useCallSoundBlocked,
+  useCallSoundMode,
+} from '../../utils/callSound';
+import { useLanguage } from '../../services/language';
 
 /*
  * SWUMed TV Display — one screen per kiosk.
@@ -409,9 +416,17 @@ function callSignature(serving, terminal) {
   ].join('|');
 }
 
-function useAnnouncer(departments) {
+function useAnnouncer(departments, mode) {
   const [enabled, setEnabled] = useState(false);
   const [latest, setLatest] = useState(null);
+
+  // The saved mode can change while the TV is running; read it at call time
+  // instead of restarting the effect below.
+  const modeRef = useRef(mode);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Signatures already announced, plus the tickets behind them. A ticket seen
   // before that arrives under a NEW signature is a recall rather than a call.
@@ -453,9 +468,10 @@ function useAnnouncer(departments) {
 
     setLatest(announcements[announcements.length - 1]);
 
-    // Each call is chimed, spoken twice, and queued so they never overlap.
+    // What plays depends on the kiosk's call sound: nothing, the chime, or the
+    // chime then the number (chimed, spoken twice, queued so calls never overlap).
     announcements.forEach((call) =>
-      announceCall({ number: call.number, terminal: call.terminal })
+      playCallSound(modeRef.current, call.number, { terminal: call.terminal })
     );
   }, [departments, enabled]);
 
@@ -466,6 +482,7 @@ function useAnnouncer(departments) {
     enabled,
     enable: () => {
       enableAnnouncer();
+      unlockCallSound();
       setEnabled(true);
     },
     latest,
@@ -851,7 +868,14 @@ export default function TvDisplay() {
 
   const now = useClock();
   const { loading, error, departments } = useKioskQueue(kioskId);
-  const { enabled: soundOn, enable: enableSound, latest } = useAnnouncer(departments);
+  const { mode: callMode } = useCallSoundMode(kioskId);
+  const soundBlocked = useCallSoundBlocked();
+  const { t: tr } = useLanguage();
+  const { enabled: soundOn, enable: enableSound, latest } = useAnnouncer(departments, callMode);
+
+  useEffect(() => {
+    preloadCallSound();
+  }, []);
 
   // A logo uploaded in Settings replaces the bundled mark on the TV too.
   const [brandLogo, setBrandLogo] = useState(() => getLogo());
@@ -1091,7 +1115,7 @@ export default function TvDisplay() {
         </section>
       </div>
 
-      {!soundOn && (
+      {(!soundOn || soundBlocked) && callMode !== 'muted' && (
         <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 px-6">
           <div className="swu-pop w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
@@ -1099,12 +1123,11 @@ export default function TvDisplay() {
             </span>
 
             <h2 className="mt-4 text-xl font-bold text-[#1F2937]">
-              Turn on voice announcements
+              {tr('callSound.tv.turnOn')}
             </h2>
 
             <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#4B5563]">
-              Called numbers will be announced aloud in the lobby. This screen
-              needs one tap before it is allowed to play sound.
+              {tr('callSound.tv.body')}
             </p>
 
             <button
@@ -1112,11 +1135,11 @@ export default function TvDisplay() {
               onClick={enableSound}
               className="swu-press mt-6 w-full rounded-lg bg-[#9D0A0E] py-3 text-base font-bold text-white transition-colors hover:bg-[#7D080B]"
             >
-              Start Display
+              {tr('callSound.tv.start')}
             </button>
 
             <p className="mt-3 text-xs text-[#9CA3AF]">
-              Only needed once, each time the screen is restarted.
+              {tr('callSound.tv.foot')}
             </p>
           </div>
         </div>

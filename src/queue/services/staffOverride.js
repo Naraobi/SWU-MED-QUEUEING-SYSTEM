@@ -18,6 +18,7 @@ const OVERRIDE_KEYS = [
   'swumed_staff_accent',
   'swumed_staff_language',
   'swumed_staff_logo',
+  'swumed_staff_call_sound',
 ];
 
 const OWNER_KEY = 'swumed_staff_override_owner';
@@ -102,4 +103,29 @@ export function reconcileStaffOverride(staffId) {
   if (owner !== String(staffId)) {
     removeOverrideKeys();
   }
+}
+
+// ---- call sound -------------------------------------------------------
+//
+// A Staff member can pick Muted / Chime only / Chime + voice for THEIR OWN
+// screen. It is stored like every other override above, so it is wiped on
+// logout and never inherited by the next staff member. It never changes the
+// kiosk's saved call sound or what the TV plays.
+
+const CALL_SOUND_KEY = 'swumed_staff_call_sound';
+
+export function getStaffCallSoundOverride() {
+  const value = readLocal(CALL_SOUND_KEY);
+
+  return value === 'muted' || value === 'chime' || value === 'voice' ? value : '';
+}
+
+export function setStaffCallSoundOverride(mode, staffId) {
+  try {
+    localStorage.setItem(CALL_SOUND_KEY, mode);
+  } catch {
+    // Ignore storage issues in private mode or restricted browsers.
+  }
+
+  markStaffOverrideOwner(staffId);
 }

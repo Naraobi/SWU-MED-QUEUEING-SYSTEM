@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState} from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Camera,
@@ -39,6 +39,8 @@ import {
   Undo2,
   Users,
   Video,
+  Volume2,
+  VolumeX,
   X,
   XCircle,
 } from 'lucide-react';
@@ -79,7 +81,14 @@ import {
   saveStoredAvatar,
 } from './adminHelpers';
 
-import { useLanguage } from './LanguageContext';
+import { useLanguage, LanguageContext } from './LanguageContext';
+import { useLanguage as useSuperAdminLanguage } from '../../services/language';
+import {
+  DEFAULT_CALL_SOUND_MODE,
+  saveCallSoundMode,
+  subscribeCallSoundMode,
+  testCallSound,
+} from '../../utils/callSound';
 import { useAppearance } from './AppearanceContext';
 import { useUnsavedChanges } from './UnsavedChangesContext';
 import ActivateKioskModal from './ActivateKioskModal';
@@ -4622,6 +4631,306 @@ export function TvVideoSettings({ accentColor: accentProp, canManage = true, loc
   );
 }
 
+/* ---------------- Call sounds ----------------
+ *
+ * What patients hear when a queue number is called, saved per kiosk in
+ * Firestore at kiosks/<kioskId>/settings/callSound as { mode, updated_at }
+ * (the same pattern as the Lobby TV video above). Modes: 'muted', 'chime'
+ * (the default) and 'voice' (chime, then the number spoken). TV displays
+ * subscribe to that document, so a change applies without a refresh.
+ *
+ * Shared by Admin and Super Admin settings. Like the Lobby TV block it saves
+ * immediately - it is not part of the page's Save Changes.
+ *   accentColor        - pass it where there is no Admin AppearanceProvider
+ *   lockToDepartment   - limit the kiosk to the signed-in user's department
+ *                        (Admin); Super Admin leaves it off to pick any kiosk
+ *   allowApplyAll      - show "Apply to all kiosks" (Super Admin)
+ */
+
+const CALL_SOUND_OPTIONS = [
+  { key: 'muted', icon: VolumeX },
+  { key: 'chime', icon: Volume2 },
+  { key: 'voice', icon: Volume2 },
+];
+
+export function CallSoundSettings({ accentColor = '#9D0A0E', lockToDepartment = false, allowApplyAll = false }) {
+
+  // Admin pages carry the Admin language; Super Admin has its own, whose t()
+  // falls back to the Admin keys these strings live in.
+  const adminLanguage = useContext(LanguageContext);
+  const superAdminLanguage = useSuperAdminLanguage();
+  const t = adminLanguage ? adminLanguage.t : superAdminLanguage.t;
+
+  const { user: soundUser } = useAuth();
+  const departmentKey = soundUser?.department_id ?? soundUser?.department ?? '';
+
+  const [kiosks, setKiosks] = useState([]);
+  const [kioskId, setKioskId] = useState('');
+  const [noKiosk, setNoKiosk] = useState(false);
+  const [loadState, setLoadState] = useState('loading'); // loading | ready | error
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
+  const [modeState, setModeState] = useState({ kioskId: '', mode: DEFAULT_CALL_SOUND_MODE });
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const messageTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(messageTimer.current), []);
+
+  // The saved mode belongs to the kiosk it was read for.
+  const modeReady = Boolean(kioskId) && modeState.kioskId === kioskId;
+  const mode = modeReady ? modeState.mode : DEFAULT_CALL_SOUND_MODE;
+
+  // The kiosks this screen may manage. Reads once; Retry reads again.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadKiosks() {
+      try {
+        if (lockToDepartment) {
+          const [kioskRows, departmentRows] = await Promise.all([getKiosks(), getDepartments()]);
+          if (cancelled) return;
+
+          const list = Array.isArray(kioskRows) ? kioskRows : [];
+          const kiosk = findKioskForDepartment(list, findDepartmentForUser(departmentRows, soundUser));
+
+          setKiosks(kiosk ? [kiosk] : []);
+          setKioskId(kiosk ? String(kiosk.kiosk_id) : '');
+          setNoKiosk(!kiosk);
+        } else {
+          const rows = await getKiosks();
+          if (cancelled) return;
+
+          const list = Array.isArray(rows) ? rows : [];
+
+          setKiosks(list);
+          setKioskId((current) => current || (list[0] ? String(list[0].kiosk_id) : ''));
+          setNoKiosk(false);
+        }
+
+        setLoadState('ready');
+      } catch (loadError) {
+        if (cancelled) return;
+
+        console.error('Call sound: kiosks could not be loaded:', loadError);
+        setLoadState('error');
+      }
+    }
+
+    loadKiosks();
+
+    return () => {
+      cancelled = true;
+    };
+    // soundUser is read for the department only; departmentKey stands for it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockToDepartment, departmentKey, loadAttempt]);
+
+  // Live view of this kiosk's saved mode.
+  useEffect(() => {
+    if (!kioskId) return undefined;
+
+    return subscribeCallSoundMode(kioskId, (next) => setModeState({ kioskId, mode: next }));
+  }, [kioskId]);
+
+  function flashSaved(text) {
+    clearTimeout(messageTimer.current);
+    setMessage(text);
+    messageTimer.current = setTimeout(() => setMessage(''), 3000);
+  }
+
+  function describeError(saveError) {
+    return saveError?.code === 'permission-denied' || !auth.currentUser
+      ? t('callSound.signIn')
+      : t('callSound.saveFailed');
+  }
+
+  async function chooseMode(next) {
+    if (!kioskId || next === mode) return;
+
+    setError('');
+    setMessage('');
+
+    const previous = mode;
+    setModeState({ kioskId, mode: next }); // show the choice straight away; it is put back if saving fails
+
+    try {
+      if (!auth.currentUser) {
+        const noUser = new Error('not signed in');
+        noUser.code = 'permission-denied';
+        throw noUser;
+      }
+
+      await saveCallSoundMode(kioskId, next);
+      flashSaved(t('callSound.saved'));
+    } catch (saveError) {
+      console.error('Call sound could not be saved:', saveError);
+      setModeState({ kioskId, mode: previous });
+      setError(describeError(saveError));
+    }
+  }
+
+  async function applyToAll() {
+    if (kiosks.length === 0) return;
+
+    setApplying(true);
+    setError('');
+    setMessage('');
+
+    if (!auth.currentUser) {
+      setApplying(false);
+      setError(t('callSound.signIn'));
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      kiosks.map((kiosk) => saveCallSoundMode(kiosk.kiosk_id, mode))
+    );
+
+    const failed = results.filter((result) => result.status === 'rejected').length;
+
+    setApplying(false);
+
+    if (failed === 0) {
+      flashSaved(t('callSound.applyAllDone', { n: kiosks.length }));
+    } else {
+      setError(t('callSound.applyAllFailed', { n: failed }));
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+
+    try {
+      await testCallSound(mode);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const disabled = !kioskId || !modeReady;
+
+  return (
+    <SettingsExactSection icon={Volume2} title={t('callSound.title')} subtitle={t('callSound.subtitle')}>
+      {loadState === 'loading' && <p className="text-xs text-[#98A2B3]">{t('callSound.loading')}</p>}
+
+      {loadState === 'error' && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-[#F0DADA] px-4 py-3">
+          <p className="text-xs text-[#9D0A0E]">{t('callSound.loadFailed')}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoadState('loading');
+              setLoadAttempt((attempt) => attempt + 1);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
+          >
+            <RefreshCw size={12} />
+            {t('callSound.retry')}
+          </button>
+        </div>
+      )}
+
+      {loadState === 'ready' && (
+        <>
+          <SettingsExactFieldLabel>{t('callSound.kiosk')}</SettingsExactFieldLabel>
+
+          {lockToDepartment && noKiosk && (
+            <p className="text-xs font-medium text-[#9D0A0E]">{t('callSound.noKiosk')}</p>
+          )}
+
+          {lockToDepartment && !noKiosk && (
+            <p className="text-sm font-semibold text-[#1F2937]">{kiosks[0]?.name || ''}</p>
+          )}
+
+          {!lockToDepartment && (
+            <select
+              value={kioskId}
+              onChange={(event) => {
+                setKioskId(event.target.value);
+                setMessage('');
+                setError('');
+              }}
+              aria-label={t('callSound.kiosk')}
+              className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+            >
+              {kiosks.length === 0 && <option value="">{t('callSound.noKiosksFound')}</option>}
+              {kiosks.map((kiosk) => (
+                <option key={kiosk.kiosk_id} value={kiosk.kiosk_id}>
+                  {kiosk.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label={t('callSound.title')}>
+            {CALL_SOUND_OPTIONS.map(({ key, icon: Icon }) => {
+              const selected = mode === key;
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  disabled={disabled}
+                  onClick={() => chooseMode(key)}
+                  className="rounded-md border bg-white p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{
+                    borderColor: selected ? accentColor : '#E5E7EB',
+                    boxShadow: selected ? `0 0 0 1px ${accentColor}` : 'none',
+                  }}
+                >
+                  <span className="flex items-center gap-2">
+                    <Icon size={14} style={{ color: selected ? accentColor : '#667085' }} />
+                    <span className="text-xs font-semibold text-[#1F2937]">{t(`callSound.option.${key}.title`)}</span>
+                    {key === DEFAULT_CALL_SOUND_MODE && (
+                      <span className="rounded border border-[#E5E7EB] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#4B5563]">
+                        {t('callSound.default')}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-1 block text-xs text-[#98A2B3]">{t(`callSound.option.${key}.desc`)}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={testing}
+              className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Volume2 size={14} />
+              {testing ? t('callSound.testing') : t('callSound.test')}
+            </button>
+
+            {allowApplyAll && (
+              <button
+                type="button"
+                onClick={applyToAll}
+                disabled={applying || disabled || kiosks.length < 2}
+                className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Check size={14} />
+                {applying ? t('callSound.applyAllBusy') : t('callSound.applyAll')}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {message && <p className="mt-3 text-xs font-medium text-emerald-700">{message}</p>}
+      {error && <p className="mt-3 text-xs text-[#9D0A0E]">{error}</p>}
+      <SettingsExactHint>{t('callSound.hint')}</SettingsExactHint>
+    </SettingsExactSection>
+  );
+}
+
 function SettingsExactPage() {
   const { user } = useAuth();
   const { t, language, setLanguage } = useLanguage();
@@ -4926,6 +5235,8 @@ function SettingsExactPage() {
       </SettingsExactSection>
 
       <TvVideoSettings lockToDepartment />
+
+      <CallSoundSettings accentColor={accentColor} lockToDepartment />
 
       <SettingsExactSection icon={Gavel} title={t('settingsPage.legal.title')} subtitle={t('settingsPage.legal.subtitle')}>
         <div className="divide-y divide-[#E5E7EB]">

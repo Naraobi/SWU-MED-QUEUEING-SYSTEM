@@ -61,7 +61,8 @@ const FILE_TYPE_NAMES = {
 const TOAST_MS = 5000;
 
 // Picks black or white text for a given accent so a light accent stays readable.
-function readableOn(hex) {
+// eslint-disable-next-line react-refresh/only-export-components
+export function readableOn(hex) {
   const match = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
   if (!match) return '#ffffff';
 
@@ -75,7 +76,8 @@ function readableOn(hex) {
   return luminance > 0.5 ? '#111827' : '#ffffff';
 }
 
-function pageWindow(current, total) {
+// eslint-disable-next-line react-refresh/only-export-components
+export function pageWindow(current, total) {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
 
   const pages = new Set([1, total, current - 1, current, current + 1]);
@@ -90,7 +92,7 @@ function pageWindow(current, total) {
   return result;
 }
 
-function ReportToast({ toast, onClose }) {
+export function ReportToast({ toast, onClose }) {
   const { t } = useLanguage();
   if (!toast) return null;
 

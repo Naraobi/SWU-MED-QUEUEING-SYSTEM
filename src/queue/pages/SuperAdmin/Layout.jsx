@@ -33,13 +33,13 @@ import { getLogo, subscribeAppearance } from '../../services/appearance';
  */
 const NAV_ITEMS = [
   { key: 'dashboard', labelKey: 'sa.nav.dashboard', icon: LayoutGrid },
+  { key: 'reports', labelKey: 'sa.nav.reports', icon: BarChart3 },
   { key: 'users', labelKey: 'sa.nav.users', icon: Users },
   { key: 'departments', labelKey: 'sa.nav.departments', icon: Building2 },
   { key: 'kiosks', labelKey: 'sa.nav.kiosks', icon: Monitor },
   { key: 'roles', labelKey: 'sa.nav.roles', icon: ShieldCheck },
   { key: 'positions', labelKey: 'sa.nav.positions', icon: BriefcaseBusiness },
   { key: 'queues', labelKey: 'sa.nav.queues', icon: ClipboardList },
-  { key: 'reports', labelKey: 'sa.nav.reports', icon: BarChart3 },
   { key: 'settings', labelKey: 'sa.nav.settings', icon: SettingsIcon },
 ];
 
@@ -215,7 +215,7 @@ export default function Layout({ activePage, onNavigate, children }) {
               </span>
 
               <h1 className="truncate text-[22px] font-medium text-[#1F2937]">
-                {activePage === 'dashboard' ? (
+                {activePage === 'dashboard' || activePage === 'reports' ? (
                   t('sa.nav.superAdmin')
                 ) : (
                   <>

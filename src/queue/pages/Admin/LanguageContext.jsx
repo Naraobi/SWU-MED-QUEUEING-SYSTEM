@@ -4,6 +4,10 @@ import { LANGUAGE_CODES, translate } from './i18n';
 
 const LanguageContext = createContext(null);
 
+// Exported so the Super Admin Reports page can feed the shared report
+// dropdowns its own language (its t() falls back to these Admin keys).
+export { LanguageContext };
+
 // =====================================================
 // LANGUAGE PROVIDER
 // =====================================================

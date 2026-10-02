@@ -26,12 +26,14 @@ import { REPORT_TYPES, buildTodayValue, daysInclusive, formatDateValue, formatDa
 // colour picker restyles them. Neutral greys use the same Tailwind
 // classes the rest of Admin uses, which the dark theme already remaps.
 
-const ACCENT = 'var(--admin-accent)';
-const ON_ACCENT = 'var(--rep-on-accent, #ffffff)';
-const tint = (percent) => `color-mix(in srgb, var(--admin-accent) ${percent}%, transparent)`;
+export const ACCENT = 'var(--admin-accent)';
+export const ON_ACCENT = 'var(--rep-on-accent, #ffffff)';
+// eslint-disable-next-line react-refresh/only-export-components
+export const tint = (percent) => `color-mix(in srgb, var(--admin-accent) ${percent}%, transparent)`;
 
 // Closes a popover on an outside click or Escape.
-function useDismiss(ref, open, onClose) {
+// eslint-disable-next-line react-refresh/only-export-components
+export function useDismiss(ref, open, onClose) {
   useEffect(() => {
     if (!open) return undefined;
 
@@ -53,7 +55,7 @@ function useDismiss(ref, open, onClose) {
   }, [ref, open, onClose]);
 }
 
-function TriggerButton({ icon: Icon, label, open, onClick, ariaLabel, haspopup = 'dialog', minWidth }) {
+export function TriggerButton({ icon: Icon, label, open, onClick, ariaLabel, haspopup = 'dialog', minWidth }) {
   const Chevron = open ? ChevronUp : ChevronDown;
 
   return (
@@ -75,7 +77,8 @@ function TriggerButton({ icon: Icon, label, open, onClick, ariaLabel, haspopup =
   );
 }
 
-const primaryButtonProps = {
+// eslint-disable-next-line react-refresh/only-export-components
+export const primaryButtonProps = {
   style: { backgroundColor: ACCENT, color: ON_ACCENT },
   className: 'rounded-md px-4 py-1.5 text-xs font-bold transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40',
 };
@@ -84,8 +87,11 @@ const primaryButtonProps = {
 // REPORT TYPE DROPDOWN
 // =====================================================
 
-export function ReportTypeDropdown({ value, onChange }) {
+// `types` / `labelOf` are optional: Super Admin passes its own three reports.
+// Left out, this is the Admin dropdown exactly as before.
+export function ReportTypeDropdown({ value, onChange, types = REPORT_TYPES, labelOf }) {
   const { t } = useLanguage();
+  const labelFor = (type) => (labelOf ? labelOf(type, t) : t(`reports.type.${type}`));
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
   const rootRef = useRef(null);
@@ -98,24 +104,24 @@ export function ReportTypeDropdown({ value, onChange }) {
   }, [open, focusIndex]);
 
   function openPanel() {
-    setFocusIndex(Math.max(0, REPORT_TYPES.indexOf(value)));
+    setFocusIndex(Math.max(0, types.indexOf(value)));
     setOpen(true);
   }
 
   function handleKeyDown(event) {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setFocusIndex((index) => (index + 1) % REPORT_TYPES.length);
+      setFocusIndex((index) => (index + 1) % types.length);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setFocusIndex((index) => (index - 1 + REPORT_TYPES.length) % REPORT_TYPES.length);
+      setFocusIndex((index) => (index - 1 + types.length) % types.length);
     }
   }
 
   return (
     <div className="relative" ref={rootRef}>
       <TriggerButton
-        label={t(`reports.type.${value}`)}
+        label={labelFor(value)}
         open={open}
         haspopup="listbox"
         ariaLabel={t('reports.type.label')}
@@ -130,12 +136,12 @@ export function ReportTypeDropdown({ value, onChange }) {
               {t('reports.type.select')}
             </span>
             <span className="rounded bg-[#F1F3F5] px-2 py-0.5 text-[10px] font-semibold text-[#4B5563]">
-              {t('reports.type.count', { n: REPORT_TYPES.length })}
+              {t('reports.type.count', { n: types.length })}
             </span>
           </div>
 
           <div role="listbox" aria-label={t('reports.type.select')} onKeyDown={handleKeyDown} className="space-y-1 p-2">
-            {REPORT_TYPES.map((type, index) => {
+            {types.map((type, index) => {
               const selected = type === value;
 
               return (
@@ -160,7 +166,7 @@ export function ReportTypeDropdown({ value, onChange }) {
                   </span>
 
                   <span className="flex-1" style={selected ? { color: ACCENT } : undefined}>
-                    {t(`reports.type.${type}`)}
+                    {labelFor(type)}
                   </span>
 
                   {selected && (
@@ -572,8 +578,19 @@ export function DateFilterDropdown({ value, onApply }) {
 // terminals: [{ id, label, subtitle }]  (already limited to the Admin's department)
 // value: null (all terminals) or an array of selected ids.
 
-export function TerminalFilterDropdown({ terminals, value, onApply }) {
+// `icon` / `labelKeys` are optional: Super Admin reuses this list as its Kiosk
+// filter. Left out, it is the Admin terminal dropdown exactly as before.
+export function TerminalFilterDropdown({ terminals, value, onApply, icon: TriggerIcon = Monitor, labelKeys }) {
   const { t } = useLanguage();
+  const k = {
+    filter: 'reports.terminal.filter',
+    all: 'reports.terminal.all',
+    count: 'reports.terminal.count',
+    search: 'reports.terminal.search',
+    none: 'reports.terminal.none',
+    clearAll: 'reports.terminal.clearAll',
+    ...labelKeys,
+  };
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [pending, setPending] = useState([]);
@@ -608,21 +625,21 @@ export function TerminalFilterDropdown({ terminals, value, onApply }) {
     setOpen(false);
   }
 
-  let triggerLabel = t('reports.terminal.all');
+  let triggerLabel = t(k.all);
 
   if (value && value.length === 1) {
     triggerLabel = terminals.find((terminal) => String(terminal.id) === String(value[0]))?.label || triggerLabel;
   } else if (value && value.length > 1) {
-    triggerLabel = t('reports.terminal.count', { n: value.length });
+    triggerLabel = t(k.count, { n: value.length });
   }
 
   return (
     <div className="relative" ref={rootRef}>
       <TriggerButton
-        icon={Monitor}
+        icon={TriggerIcon}
         label={triggerLabel}
         open={open}
-        ariaLabel={t('reports.terminal.filter')}
+        ariaLabel={t(k.filter)}
         onClick={() => (open ? setOpen(false) : openPanel())}
         minWidth={170}
       />
@@ -630,7 +647,7 @@ export function TerminalFilterDropdown({ terminals, value, onApply }) {
       {open && (
         <div
           role="dialog"
-          aria-label={t('reports.terminal.filter')}
+          aria-label={t(k.filter)}
           className="absolute left-0 z-30 mt-2 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl"
         >
           <div className="p-3">
@@ -640,8 +657,8 @@ export function TerminalFilterDropdown({ terminals, value, onApply }) {
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={t('reports.terminal.search')}
-                aria-label={t('reports.terminal.search')}
+                placeholder={t(k.search)}
+                aria-label={t(k.search)}
                 className="w-full bg-transparent text-xs text-[#1F2937] outline-none placeholder:text-slate-400"
               />
             </label>
@@ -658,7 +675,7 @@ export function TerminalFilterDropdown({ terminals, value, onApply }) {
               style={{ accentColor: ACCENT }}
               className="h-4 w-4"
             />
-            <span className="flex-1 text-xs font-bold text-[#1F2937]">{t('reports.terminal.all')}</span>
+            <span className="flex-1 text-xs font-bold text-[#1F2937]">{t(k.all)}</span>
             <span className="text-[10px] font-semibold text-slate-400">
               {pending.length}/{allIds.length}
             </span>
@@ -666,7 +683,7 @@ export function TerminalFilterDropdown({ terminals, value, onApply }) {
 
           <div className="max-h-56 overflow-y-auto px-3 py-1">
             {visible.length === 0 && (
-              <p className="py-4 text-center text-[11px] text-slate-400">{t('reports.terminal.none')}</p>
+              <p className="py-4 text-center text-[11px] text-slate-400">{t(k.none)}</p>
             )}
 
             {visible.map((terminal) => {
@@ -697,7 +714,7 @@ export function TerminalFilterDropdown({ terminals, value, onApply }) {
               className="text-xs font-semibold hover:underline"
               style={{ color: ACCENT }}
             >
-              {t('reports.terminal.clearAll')}
+              {t(k.clearAll)}
             </button>
 
             <button type="button" onClick={apply} {...primaryButtonProps}>

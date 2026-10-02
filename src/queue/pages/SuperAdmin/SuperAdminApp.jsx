@@ -4,7 +4,7 @@ import Dashboard from './Dashboard';
 import UserCrud from './UserCrud';
 import RoleManagement from './roleManagement';
 import DepartmentManagement from './DepartmentManagement';
-import Reports from './Reports';
+import Reports from './ReportsPage';
 import AdminQueueManagement from './QueueManagement';
 import Settings from './Settings';
 import KioskManagement from './KioskManagement';

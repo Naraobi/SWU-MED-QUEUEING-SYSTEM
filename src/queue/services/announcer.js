@@ -187,10 +187,14 @@ async function drain() {
 
   try {
     while (pending.length > 0) {
-      const phrase = pending.shift();
+      const { phrase, withChime } = pending.shift();
 
-      chime();
-      await wait(700);
+      // The built-in chime is skipped when the caller already played the
+      // shared call sound (see utils/callSound.js).
+      if (withChime) {
+        chime();
+        await wait(700);
+      }
 
       for (let round = 0; round < REPEAT_COUNT; round += 1) {
         await speakOnce(phrase);
@@ -206,14 +210,27 @@ async function drain() {
 }
 
 /* Announce one called ticket. Ignored until enable() has been called. */
-export function announceCall({ number, terminal }) {
+export function announceCall({ number, terminal, withChime = true }) {
   if (!enabled) return;
 
   const phrase = buildPhrase(number, terminal);
   if (!phrase) return;
 
-  pending.push(phrase);
+  pending.push({ phrase, withChime });
   drain();
+}
+
+/* Read-only / helper exports used by utils/callSound.js. */
+export function isAnnouncing() {
+  return speaking || pending.length > 0;
+}
+
+export function duckVideo() {
+  duck();
+}
+
+export function unduckVideo() {
+  unduck();
 }
 
 export function cancelAnnouncements() {

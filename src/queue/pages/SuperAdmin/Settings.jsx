@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 import { auth } from '../../../firebase';
-import { TvVideoSettings } from '../Admin/AdminScreens';
+import { TvVideoSettings, CallSoundSettings } from '../Admin/AdminScreens';
 import EstimatedTransactionTime from '../../components/settings/EstimatedTransactionTime';
 import {
   getSecurityPinStatus,
@@ -1376,6 +1376,8 @@ export default function Settings() {
       </SettingsSection>
 
       <TvVideoSettings accentColor={accentColor} />
+
+      <CallSoundSettings accentColor={accentColor} allowApplyAll />
 
       {/* =====================================================
           ESTIMATED TRANSACTION TIME
