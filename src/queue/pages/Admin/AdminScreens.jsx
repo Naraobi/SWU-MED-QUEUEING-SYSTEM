@@ -4392,6 +4392,13 @@ export function TvVideoSettings({ accentColor: accentProp, canManage = true, loc
     setError('');
     setMessage('');
 
+    // The Storage rules only let a signed-in Firebase user upload. Say so
+    // plainly instead of failing halfway through.
+    if (!auth.currentUser) {
+      setError('You are not allowed to upload. Please sign in again.');
+      return;
+    }
+
     const room = TV_MAX_VIDEOS - videos.length;
     if (room <= 0) {
       setError(`This kiosk already has ${TV_MAX_VIDEOS} videos. Remove one first.`);
@@ -4487,6 +4494,12 @@ export function TvVideoSettings({ accentColor: accentProp, canManage = true, loc
   async function handleRemove(video) {
     setError('');
     setMessage('');
+
+    if (!auth.currentUser) {
+      setError('You are not allowed to remove videos. Please sign in again.');
+      return;
+    }
+
     try {
       await deleteObject(tvFileRef(kioskId, video.id)).catch(() => {}); // already gone is fine
       await updateTvVideos(kioskId, (current) => {
