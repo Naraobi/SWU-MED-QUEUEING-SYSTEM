@@ -256,15 +256,14 @@ router.get(
     // -------------------------------------------------
 
     if (
-      reportType ===
-      "staff"
-    ) {
-      return res.status(501).json({
-        success: false,
-        message:
-          "Staff Performance is not available yet because historical staff terminal session data is not stored.",
-      });
-    }
+  reportType ===
+  "staff"
+) {
+  return getStaffReport(
+    req,
+    res
+  );
+}
 
     return res.status(400).json({
       success: false,
@@ -601,18 +600,14 @@ async function getServedReport(
         `
         SELECT
 
-            DATE_FORMAT(qt.issued_at, '%Y-%m-%d')
-            AS report_date,
+            DATE_FORMAT(qt.issued_at, '%Y-%m-%d') AS report_date,
 
             d.department_id,
 
             d.name
                 AS department,
 
-          COUNT(
-            DISTINCT qt.queue_id
-          )
-            AS served_queues
+          COUNT(DISTINCT qt.queue_id) AS served_queues
 
         FROM queue_ticket qt
 
@@ -725,5 +720,302 @@ async function getServedReport(
   }
 }
 
+// =====================================================
+// STAFF PERFORMANCE REPORT
+// =====================================================
+//
+// Columns:
+//
+// Staff
+// Department
+// Terminal
+// Queues Served
+// Login Timestamp
+// Logout Timestamp
+//
+// One row represents one staff terminal session.
+//
+// Queues Served is calculated by matching completed
+// queues to the same terminal and the staff member's
+// login/logout session.
+// =====================================================
+
+async function getStaffReport(
+  req,
+  res
+) {
+  const {
+    startDate,
+    endDate,
+    departmentId,
+    kioskId,
+  } = req.query;
+
+  const conditions = [
+    `
+    sts.login_at >=
+      CONCAT(?, ' 00:00:00')
+    `,
+    `
+    sts.login_at <
+      DATE_ADD(
+        CONCAT(?, ' 00:00:00'),
+        INTERVAL 1 DAY
+      )
+    `,
+    `
+    LOWER(
+      TRIM(r.role)
+    ) = 'staff'
+    `,
+  ];
+
+  // The first two parameters are for the
+  // selected report date range.
+  //
+  // The next two parameters are used inside
+  // the queue join so queues are also limited
+  // to the selected report period.
+
+  const params = [
+    startDate,
+    endDate,
+  ];
+
+  // -------------------------------------------------
+  // DEPARTMENT FILTER
+  // -------------------------------------------------
+
+  if (
+    departmentId &&
+    departmentId !== "all"
+  ) {
+    conditions.push(
+      `d.department_id = ?`
+    );
+
+    params.push(
+      departmentId
+    );
+  }
+
+  // -------------------------------------------------
+  // KIOSK FILTER
+  // -------------------------------------------------
+
+  if (
+    kioskId &&
+    kioskId !== "all"
+  ) {
+    conditions.push(
+      `d.kiosk_id = ?`
+    );
+
+    params.push(
+      kioskId
+    );
+  }
+
+  const whereClause =
+    conditions.join(
+      " AND "
+    );
+
+  try {
+    const [rows] =
+      await pool.query(
+        `
+        SELECT
+
+          sts.session_id,
+
+          sts.staff_id,
+
+          CONCAT_WS(
+            ' ',
+            NULLIF(
+              TRIM(u.first_name),
+              ''
+            ),
+            NULLIF(
+              TRIM(u.last_name),
+              ''
+            )
+          )
+            AS staff,
+
+          d.name
+            AS department,
+
+          CONCAT(
+            'Terminal ',
+            c.counter_number
+          )
+            AS terminal,
+
+          COUNT(
+            DISTINCT qt.queue_id
+          )
+            AS queues_served,
+
+          sts.login_at,
+
+          sts.logout_at
+
+        FROM staff_terminal_session sts
+
+        INNER JOIN \`user\` u
+          ON u.user_id =
+             sts.staff_id
+
+        INNER JOIN \`role\` r
+          ON r.role_id =
+             u.role_id
+
+        INNER JOIN counter c
+          ON c.counter_id =
+             sts.counter_id
+
+        INNER JOIN department d
+          ON d.department_id =
+             c.department_id
+
+        LEFT JOIN queue_ticket qt
+          ON qt.counter_id =
+             sts.counter_id
+
+          AND qt.status =
+              'completed'
+
+          AND qt.completed_at
+              IS NOT NULL
+
+          AND qt.completed_at >=
+              sts.login_at
+
+          AND qt.completed_at <
+              COALESCE(
+                sts.logout_at,
+                CURRENT_TIMESTAMP
+              )
+
+          AND qt.completed_at >=
+              CONCAT(
+                ?,
+                ' 00:00:00'
+              )
+
+          AND qt.completed_at <
+              DATE_ADD(
+                CONCAT(
+                  ?,
+                  ' 00:00:00'
+                ),
+                INTERVAL 1 DAY
+              )
+
+        WHERE ${whereClause}
+
+        GROUP BY
+
+          sts.session_id,
+
+          sts.staff_id,
+
+          u.first_name,
+
+          u.last_name,
+
+          d.department_id,
+
+          d.name,
+
+          c.counter_id,
+
+          c.counter_number,
+
+          sts.login_at,
+
+          sts.logout_at
+
+        ORDER BY
+          sts.login_at DESC
+        `,
+        [
+          startDate,
+          endDate,
+          ...params,
+        ]
+      );
+
+    const reportRows =
+      rows.map((row) => ({
+        sessionId:
+          row.session_id,
+
+        staffId:
+          row.staff_id,
+
+        staff:
+          row.staff ||
+          "—",
+
+        department:
+          row.department ||
+          "—",
+
+        terminal:
+          row.terminal ||
+          "—",
+
+        queuesServed:
+          Number(
+            row.queues_served
+          ) || 0,
+
+        loginTimestamp:
+          row.login_at,
+
+        logoutTimestamp:
+          row.logout_at,
+      }));
+
+    return res.json({
+      success: true,
+
+      data: {
+        reportType:
+          "staff",
+
+        startDate,
+
+        endDate,
+
+        departmentId:
+          departmentId ||
+          "all",
+
+        kioskId:
+          kioskId ||
+          "all",
+
+        rows:
+          reportRows,
+      },
+    });
+
+  } catch (error) {
+    console.error(
+      "Staff report error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Failed to generate Staff Performance report.",
+    });
+  }
+}
 
 module.exports = router;

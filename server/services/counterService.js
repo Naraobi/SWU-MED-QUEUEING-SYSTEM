@@ -1179,16 +1179,62 @@ async function assignCounter(
     // =================================================
 
     if (
-      counter.assigned_staff_id &&
-      String(
-        counter.assigned_staff_id
-      ) ===
-      String(staffId)
-    ) {
-      return normalizeCounter(
-        counter
-      );
-    }
+  counter.assigned_staff_id &&
+  String(
+    counter.assigned_staff_id
+  ) ===
+  String(staffId)
+) {
+  // Check whether this staff member already
+  // has an open session for this terminal.
+  const [
+    existingSession,
+  ] = await pool.query(
+    `
+    SELECT
+      session_id
+    FROM staff_terminal_session
+    WHERE staff_id = ?
+      AND counter_id = ?
+      AND logout_at IS NULL
+    ORDER BY login_at DESC
+    LIMIT 1
+    `,
+    [
+      staffId,
+      counterId,
+    ]
+  );
+
+  // If no open session exists, this is a new
+  // terminal login even though the counter is
+  // already assigned to the same staff member.
+  if (
+    existingSession.length ===
+    0
+  ) {
+    await pool.query(
+      `
+      INSERT INTO staff_terminal_session (
+        session_id,
+        staff_id,
+        counter_id,
+        login_at
+      )
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      `,
+      [
+        randomUUID(),
+        staffId,
+        counterId,
+      ]
+    );
+  }
+
+  return normalizeCounter(
+    counter
+  );
+}
 
     // =================================================
     // CHECK IF ASSIGNED TO ANOTHER STAFF
