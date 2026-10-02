@@ -11,8 +11,6 @@ import {
   ShieldCheck,
   BriefcaseBusiness,
   LogOut,
-  User as UserIcon,
-  Mail,
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +22,9 @@ import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';
 import { useLanguage } from '../../services/language';
 import { getLogo, subscribeAppearance } from '../../services/appearance';
+import SharedProfileModal, {
+  getStoredProfileAvatar,
+} from '../../components/modals/ProfileModal';
 
 
 /*
@@ -88,13 +89,38 @@ export default function Layout({ activePage, onNavigate, children }) {
     canAccessSuperadminPage(user, key)
   );
 
-  // Header identity, read from the signed-in user
-  const displayName = user?.full_name || user?.email || '';
+  // The profile photo is saved per account by the shared profile modal; it is
+  // read from there on every render and the counter re-renders when it changes.
+  const [, setAvatarTick] = useState(0);
+  const profileAvatar = getStoredProfileAvatar(user);
 
-  const roleLabel =
+  useEffect(() => {
+    function handleAvatarChanged() {
+      setAvatarTick((tick) => tick + 1);
+    }
+
+    window.addEventListener('swumed-profile-avatar-changed', handleAvatarChanged);
+
+    return () => window.removeEventListener('swumed-profile-avatar-changed', handleAvatarChanged);
+  }, []);
+
+  // Header identity, read from the signed-in user
+  const personName =
+    user?.first_name && user?.last_name
+      ? `${user.first_name} ${user.last_name}`
+      : user?.full_name || user?.name || '';
+
+  const displayName = personName || user?.email || '';
+
+  const rawRole =
     typeof user?.role === 'object'
       ? user?.role?.role ?? ''
       : user?.role ?? '';
+
+  const roleLabel =
+    String(rawRole).trim().toLowerCase() === 'superadmin'
+      ? t('sa.nav.superAdmin')
+      : rawRole;
 
   const initials = toInitials(displayName);
 
@@ -253,9 +279,9 @@ export default function Layout({ activePage, onNavigate, children }) {
                 </span>
 
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E4EAF4] text-sm font-semibold text-[#3E4A61]">
-                  {user?.avatar_url ? (
+                  {profileAvatar || user?.avatar_url ? (
                     <img
-                      src={user.avatar_url}
+                      src={profileAvatar || user.avatar_url}
                       alt=""
                       className="h-full w-full object-cover"
                     />
@@ -316,7 +342,10 @@ export default function Layout({ activePage, onNavigate, children }) {
 
       {/* Profile Modal Popup */}
       {showProfileModal && (
-        <ProfileModal
+        <SharedProfileModal
+          accent={saAccent}
+          onLogoChange={() => {}}
+          t={t}
           onClose={() => setShowProfileModal(false)}
         />
       )}
@@ -401,157 +430,6 @@ function LogoutModal({ onCancel, onConfirm }) {
             {t('sa.nav.logout')}
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Internal Profile Modal Component
-function ProfileModal({ onClose }) {
-  const { user } = useAuth();
-  const { t } = useLanguage();
-
-  const fullName = user?.full_name || user?.name || '\u2014';
-
-  const roleLabel =
-    typeof user?.role === 'object'
-      ? user?.role?.role ?? '\u2014'
-      : user?.role ?? '\u2014';
-
-  const initials =
-    String(fullName)
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join('')
-      .toUpperCase() || '?';
-
-  const isActive =
-    String(user?.status ?? 'active').toLowerCase() === 'active';
-
-  // Labels are keys so the card re-labels with the rest of the interface.
-  const details = [
-    { key: 'name', labelKey: 'sa.profile.fullName', value: fullName, icon: UserIcon },
-    {
-      key: 'email',
-      labelKey: 'sa.profile.emailAddress',
-      value: user?.email || '\u2014',
-      icon: Mail,
-    },
-    {
-      key: 'role',
-      labelKey: 'sa.profile.systemRole',
-      value: roleLabel,
-      icon: ShieldCheck,
-    },
-    {
-      key: 'position',
-      labelKey: 'sa.profile.positionTitle',
-      value: user?.position || user?.position_name || '\u2014',
-      icon: BriefcaseBusiness,
-    },
-    {
-      key: 'department',
-      labelKey: 'sa.common.department',
-      value: user?.department || user?.department_name || '\u2014',
-      icon: Building2,
-    },
-    {
-      key: 'kiosk',
-      labelKey: 'sa.profile.assignedKiosk',
-      value: user?.kiosk || user?.kiosk_name || '\u2014',
-      icon: Monitor,
-    },
-  ];
-
-  return (
-    <div
-      className="swu-enter-fade fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 px-4"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="profile-title"
-        onClick={(event) => event.stopPropagation()}
-        className="swu-pop w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
-      >
-
-        {/* BANNER */}
-
-        <div className="h-24 bg-[#9D0A0E]" />
-
-        {/* AVATAR + STATUS */}
-
-        <div className="-mt-12 flex flex-col items-center px-6">
-          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-[#E4E7F5] text-xl font-bold text-[#1F2937] ring-4 ring-white">
-            {user?.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              initials
-            )}
-          </div>
-
-          <span
-            className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
-              isActive
-                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20'
-                : 'bg-[#F1F3F5] text-[#4B5563] ring-1 ring-[#E5E7EB]'
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`h-1.5 w-1.5 rounded-full ${
-                isActive ? 'bg-emerald-500' : 'bg-[#9CA3AF]'
-              }`}
-            />
-            {t('sa.profile.status')}:{' '}
-            {isActive ? t('sa.common.active') : t('sa.common.inactive')}
-          </span>
-
-          <h2 id="profile-title" className="sr-only">
-            {t('sa.profile.title')}
-          </h2>
-        </div>
-
-        {/* DETAILS */}
-
-        <div className="grid gap-3 px-6 py-5 sm:grid-cols-2">
-          {details.map(({ key, labelKey, value, icon: Icon }) => (
-            <div
-              key={key}
-              className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5"
-            >
-              <p className="flex items-center gap-1.5 text-xs text-[#9CA3AF]">
-                <Icon size={12} />
-                {t(labelKey)}
-              </p>
-
-              <p className="mt-0.5 truncate text-sm font-bold text-[#1F2937]" title={value}>
-                {value}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* FOOTER */}
-
-        <div className="flex justify-end border-t border-[#E5E7EB] bg-[#F8F9FA] px-6 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="swu-press rounded-lg border border-[#E5E7EB] bg-white px-5 py-2 text-sm font-medium text-[#1F2937] transition-colors hover:border-[#9CA3AF] hover:bg-[#F1F3F5]"
-          >
-            {t('sa.common.close')}
-          </button>
-        </div>
-
       </div>
     </div>
   );
