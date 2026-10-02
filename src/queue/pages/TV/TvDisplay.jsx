@@ -325,9 +325,15 @@ function useClock() {
 function useKioskQueue(kioskId) {
   const [state, setState] = useState({ loading: true, error: null, departments: [] });
   const terminals = useRef(new Map());
+  const loadingNow = useRef(false);
 
   const load = useCallback(async () => {
     if (!kioskId) return;
+
+    // A slow or hanging server must not pile up a new round of requests every
+    // poll: skip this tick while the previous one is still running.
+    if (loadingNow.current) return;
+    loadingNow.current = true;
 
     try {
       if (terminals.current.size === 0) {
@@ -376,6 +382,8 @@ function useKioskQueue(kioskId) {
       });
     } catch (error) {
       setState((prev) => ({ ...prev, loading: false, error: error?.message || 'Unable to load the queue.' }));
+    } finally {
+      loadingNow.current = false;
     }
   }, [kioskId]);
 

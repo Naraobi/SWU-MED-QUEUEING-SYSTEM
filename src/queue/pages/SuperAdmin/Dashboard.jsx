@@ -1772,8 +1772,12 @@ export default function Dashboard() {
   useEffect(() => {
     if (!rangeIncludesToday) return undefined;
 
+    let busy = false;
+
     const timer = setInterval(async () => {
-      if (document.hidden) return;
+      // One refresh at a time, even if the server is slow.
+      if (document.hidden || busy) return;
+      busy = true;
 
       try {
         setAnalytics(
@@ -1784,6 +1788,8 @@ export default function Dashboard() {
         );
       } catch {
         // A missed refresh is not worth an error banner; the next one retries.
+      } finally {
+        busy = false;
       }
     }, REFRESH_MS);
 
