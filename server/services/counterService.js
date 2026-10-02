@@ -1275,6 +1275,27 @@ async function assignCounter(
     }
 
     // =================================================
+// CREATE STAFF TERMINAL SESSION
+// =================================================
+
+await pool.query(
+  `
+  INSERT INTO staff_terminal_session (
+    session_id,
+    staff_id,
+    counter_id,
+    login_at
+  )
+  VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+  `,
+  [
+    randomUUID(),
+    staffId,
+    counterId,
+  ]
+);
+
+    // =================================================
     // FIREBASE SYNC
     // =================================================
 
@@ -1392,6 +1413,29 @@ async function releaseCounter(
         staffId,
       ]
     );
+
+    // =================================================
+// CLOSE STAFF TERMINAL SESSION
+// =================================================
+
+if (result.affectedRows > 0) {
+  await pool.query(
+    `
+    UPDATE staff_terminal_session
+    SET
+      logout_at = CURRENT_TIMESTAMP
+    WHERE staff_id = ?
+      AND counter_id = ?
+      AND logout_at IS NULL
+    ORDER BY login_at DESC
+    LIMIT 1
+    `,
+    [
+      staffId,
+      counterId,
+    ]
+  );
+}
 
     // =================================================
     // FIREBASE SYNC

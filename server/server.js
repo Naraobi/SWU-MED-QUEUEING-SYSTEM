@@ -30,6 +30,7 @@ const authRoutes = require("./routes/authRoutes");
 const patientRoutes = require("./routes/patientRoutes");
 const staffQueueRoutes = require("./routes/staffQueueRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const reportsRoutes = require("./routes/reportsRoutes");
 const securityPinRoutes = require("./routes/securityPinRoutes");
 const positionRoutes = require("./routes/positionRoutes");
 const trackerRoutes = require("./routes/trackerRoutes");
@@ -93,7 +94,14 @@ app.use(
   "/api/staff-queue",
   staffQueueRoutes
 );
-app.use("/api/dashboard", dashboardRoutes);
+app.use(
+  "/api/dashboard", 
+  dashboardRoutes);
+
+app.use(
+  '/api/reports',
+  reportsRoutes
+);  
 
 app.use(
   "/api/security/pin",
@@ -104,6 +112,7 @@ app.use(
   "/api/positions",
   positionRoutes
 );
+
 app.use("/api/tracker", trackerRoutes);
 
 // =====================================================
@@ -397,6 +406,10 @@ server.listen(PORT, () => {
 
   console.log(
   "Position API: /api/positions"
+);
+
+  console.log(
+  "Reports API: /api/reports"
 );
 
 });
