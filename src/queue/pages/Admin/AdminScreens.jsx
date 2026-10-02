@@ -23,6 +23,8 @@ import {
   Circle,
   Palette,
   Upload,
+  Play,
+  Square,
   Monitor,
   Moon,
   Pipette,
@@ -84,10 +86,16 @@ import {
 import { useLanguage, LanguageContext } from './LanguageContext';
 import { useLanguage as useSuperAdminLanguage } from '../../services/language';
 import {
+  CUSTOM_SOUND_ACCEPT,
   DEFAULT_CALL_SOUND_MODE,
+  deleteCustomSoundFileIfUnused,
+  isValidCustomSoundFile,
+  readCustomCallSound,
   saveCallSoundMode,
-  subscribeCallSoundMode,
+  saveCustomCallSound,
+  subscribeCallSound,
   testCallSound,
+  uploadCustomCallSound,
 } from '../../utils/callSound';
 import { useAppearance } from './AppearanceContext';
 import { useUnsavedChanges } from './UnsavedChangesContext';
@@ -4683,7 +4691,14 @@ export function CallSoundSettings({ accentColor = '#9D0A0E', lockToDepartment = 
   const [loadState, setLoadState] = useState('loading'); // loading | ready | error
   const [loadAttempt, setLoadAttempt] = useState(0);
 
-  const [modeState, setModeState] = useState({ kioskId: '', mode: DEFAULT_CALL_SOUND_MODE });
+  const [modeState, setModeState] = useState({ kioskId: '', mode: DEFAULT_CALL_SOUND_MODE, custom: null });
+  const [uploadPercent, setUploadPercent] = useState(null); // null = not uploading
+  const [soundBusy, setSoundBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [durationInfo, setDurationInfo] = useState({ url: '', seconds: null });
+  const fileInput = useRef(null);
+  const previewAudio = useRef(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [testing, setTesting] = useState(false);
@@ -4695,6 +4710,7 @@ export function CallSoundSettings({ accentColor = '#9D0A0E', lockToDepartment = 
   // The saved mode belongs to the kiosk it was read for.
   const modeReady = Boolean(kioskId) && modeState.kioskId === kioskId;
   const mode = modeReady ? modeState.mode : DEFAULT_CALL_SOUND_MODE;
+  const custom = modeReady ? modeState.custom : null;
 
   // The kiosks this screen may manage. Reads once; Retry reads again.
   useEffect(() => {
@@ -4745,8 +4761,37 @@ export function CallSoundSettings({ accentColor = '#9D0A0E', lockToDepartment = 
   useEffect(() => {
     if (!kioskId) return undefined;
 
-    return subscribeCallSoundMode(kioskId, (next) => setModeState({ kioskId, mode: next }));
+    return subscribeCallSound(kioskId, ({ mode: nextMode, custom: nextCustom }) =>
+      setModeState({ kioskId, mode: nextMode, custom: nextCustom })
+    );
   }, [kioskId]);
+
+  // The custom sound's length, read from the file itself (metadata only).
+  const customUrl = custom?.url || '';
+
+  useEffect(() => {
+    if (!customUrl) return undefined;
+
+    const probe = new Audio();
+    probe.preload = 'metadata';
+    probe.addEventListener('loadedmetadata', () => {
+      setDurationInfo({ url: customUrl, seconds: Number.isFinite(probe.duration) ? probe.duration : null });
+    });
+    probe.src = customUrl;
+
+    return () => {
+      probe.removeAttribute('src');
+    };
+  }, [customUrl]);
+
+  // Stop a preview when the sound or the kiosk changes, or the page closes.
+  useEffect(
+    () => () => {
+      previewAudio.current?.pause();
+      previewAudio.current = null;
+    },
+    [customUrl, kioskId]
+  );
 
   function flashSaved(text) {
     clearTimeout(messageTimer.current);
@@ -4767,7 +4812,7 @@ export function CallSoundSettings({ accentColor = '#9D0A0E', lockToDepartment = 
     setMessage('');
 
     const previous = mode;
-    setModeState({ kioskId, mode: next }); // show the choice straight away; it is put back if saving fails
+    setModeState((state) => ({ ...state, kioskId, mode: next })); // show the choice straight away; it is put back if saving fails
 
     try {
       if (!auth.currentUser) {
@@ -4780,7 +4825,7 @@ export function CallSoundSettings({ accentColor = '#9D0A0E', lockToDepartment = 
       flashSaved(t('callSound.saved'));
     } catch (saveError) {
       console.error('Call sound could not be saved:', saveError);
-      setModeState({ kioskId, mode: previous });
+      setModeState((state) => ({ ...state, kioskId, mode: previous }));
       setError(describeError(saveError));
     }
   }
@@ -4822,6 +4867,206 @@ export function CallSoundSettings({ accentColor = '#9D0A0E', lockToDepartment = 
       setTesting(false);
     }
   }
+
+  // Every kiosk id, read fresh: a custom file may be shared by several kiosks.
+  async function allKioskIds() {
+    const rows = await getKiosks();
+    const ids = (Array.isArray(rows) ? rows : []).map((kiosk) => String(kiosk.kiosk_id));
+
+    return [...new Set([...ids, ...kiosks.map((kiosk) => String(kiosk.kiosk_id)), String(kioskId)])];
+  }
+
+  // Deletes an old file once nothing points at it. A failure only leaves a file behind.
+  async function cleanUpFile(path) {
+    if (!path) return;
+
+    try {
+      await deleteCustomSoundFileIfUnused(path, await allKioskIds());
+    } catch (cleanUpError) {
+      console.warn('Old call sound file could not be deleted:', cleanUpError?.code || cleanUpError?.message);
+    }
+  }
+
+  function requireSignIn() {
+    if (auth.currentUser) return true;
+
+    setError(t('callSound.signIn'));
+    return false;
+  }
+
+  async function uploadSound(file) {
+    if (!file || !kioskId || soundBusy) return;
+
+    setError('');
+    setMessage('');
+
+    if (!isValidCustomSoundFile(file)) {
+      setError(t('callSound.custom.badFile'));
+      return;
+    }
+
+    if (!requireSignIn()) return;
+
+    const previous = custom;
+    let uploaded = null;
+
+    setSoundBusy(true);
+    setUploadPercent(0);
+
+    try {
+      uploaded = await uploadCustomCallSound(kioskId, file, setUploadPercent);
+      await saveCustomCallSound(kioskId, uploaded);
+      flashSaved(t('callSound.custom.uploaded'));
+
+      if (previous?.path && previous.path !== uploaded.path) await cleanUpFile(previous.path);
+    } catch (uploadError) {
+      console.error('Call sound upload failed:', uploadError?.code, uploadError);
+
+      // The file went up but could not be saved: do not leave it behind.
+      if (uploaded) await cleanUpFile(uploaded.path);
+
+      setError(
+        uploadError?.code === 'storage/unauthorized' || uploadError?.code === 'permission-denied'
+          ? t('callSound.custom.unauthorized')
+          : t('callSound.custom.uploadFailed', { code: uploadError?.code || 'unknown' })
+      );
+    } finally {
+      setSoundBusy(false);
+      setUploadPercent(null);
+    }
+  }
+
+  function handleFileChosen(event) {
+    const file = event.target.files?.[0];
+
+    event.target.value = '';
+    uploadSound(file);
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    setDragging(false);
+    uploadSound(event.dataTransfer?.files?.[0]);
+  }
+
+  // "Use default sound": stops using the file but leaves it in Storage.
+  async function useDefaultSound() {
+    if (!custom || soundBusy) return;
+
+    setError('');
+    setMessage('');
+
+    if (!requireSignIn()) return;
+
+    setSoundBusy(true);
+
+    try {
+      await saveCustomCallSound(kioskId, null);
+      flashSaved(t('callSound.custom.defaulted'));
+    } catch (saveError) {
+      console.error('Call sound could not be reset:', saveError);
+      setError(describeError(saveError));
+    } finally {
+      setSoundBusy(false);
+    }
+  }
+
+  // "Remove": clears the sound and deletes the file (unless another kiosk uses it).
+  async function removeSound() {
+    if (!custom || soundBusy) return;
+
+    setError('');
+    setMessage('');
+
+    if (!requireSignIn()) return;
+
+    setSoundBusy(true);
+
+    try {
+      const { path } = custom;
+
+      await saveCustomCallSound(kioskId, null);
+      await cleanUpFile(path);
+      flashSaved(t('callSound.custom.removed'));
+    } catch (saveError) {
+      console.error('Call sound could not be removed:', saveError);
+      setError(describeError(saveError));
+    } finally {
+      setSoundBusy(false);
+    }
+  }
+
+  // Super Admin: the same file and URL goes to every other kiosk - nothing is uploaded again.
+  async function applySoundToAll() {
+    if (!custom || soundBusy) return;
+
+    setError('');
+    setMessage('');
+
+    if (!requireSignIn()) return;
+
+    setSoundBusy(true);
+
+    try {
+      const others = kiosks.map((kiosk) => String(kiosk.kiosk_id)).filter((id) => id !== String(kioskId));
+      const oldPaths = new Set();
+
+      const results = await Promise.allSettled(
+        others.map(async (id) => {
+          const existing = await readCustomCallSound(id);
+
+          await saveCustomCallSound(id, custom);
+
+          if (existing?.path && existing.path !== custom.path) oldPaths.add(existing.path);
+        })
+      );
+
+      for (const path of oldPaths) await cleanUpFile(path);
+
+      const failed = results.filter((result) => result.status === 'rejected').length;
+
+      if (failed === 0) flashSaved(t('callSound.custom.applyAllDone', { n: others.length }));
+      else setError(t('callSound.custom.applyAllFailed', { n: failed }));
+    } catch (applyError) {
+      console.error('Call sound could not be applied to all kiosks:', applyError);
+      setError(describeError(applyError));
+    } finally {
+      setSoundBusy(false);
+    }
+  }
+
+  function togglePreview() {
+    if (previewing) {
+      previewAudio.current?.pause();
+      setPreviewing(false);
+      return;
+    }
+
+    if (!custom) return;
+
+    const element = new Audio(custom.url);
+
+    element.addEventListener('ended', () => setPreviewing(false));
+    element.addEventListener('error', () => {
+      setPreviewing(false);
+      setError(t('callSound.custom.playFailed'));
+    });
+
+    previewAudio.current = element;
+    setPreviewing(true);
+
+    element.play().catch((playError) => {
+      console.warn('Call sound preview could not play:', playError?.message || playError);
+      setPreviewing(false);
+      setError(t('callSound.custom.playFailed'));
+    });
+  }
+
+  const formatSize = (bytes) => (bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+  const formatDuration = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+
+  const customDuration = durationInfo.url === customUrl ? durationInfo.seconds : null;
 
   const disabled = !kioskId || !modeReady;
 
@@ -4931,6 +5176,122 @@ export function CallSoundSettings({ accentColor = '#9D0A0E', lockToDepartment = 
               >
                 <Check size={14} />
                 {applying ? t('callSound.applyAllBusy') : t('callSound.applyAll')}
+              </button>
+            )}
+          </div>
+
+          {/* Custom call sound */}
+          <div className="mt-5 border-t border-[#E5E7EB] pt-4">
+            <SettingsExactFieldLabel>{t('callSound.custom.title')}</SettingsExactFieldLabel>
+            <p className="mb-3 text-xs text-[#98A2B3]">{t('callSound.custom.desc')}</p>
+
+            <input
+              ref={fileInput}
+              type="file"
+              accept={CUSTOM_SOUND_ACCEPT}
+              onChange={handleFileChosen}
+              className="hidden"
+              tabIndex={-1}
+            />
+
+            {custom && (
+              <div className="mb-3 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3">
+                <p className="truncate text-sm font-semibold text-[#1F2937]" title={custom.name}>
+                  {custom.name || t('callSound.custom.unnamed')}
+                </p>
+                <p className="mt-0.5 text-xs text-[#667085]">
+                  {custom.size ? formatSize(custom.size) : '—'}
+                  {customDuration != null && ` · ${formatDuration(customDuration)}`}
+                </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={togglePreview}
+                    disabled={soundBusy}
+                    className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ borderColor: accentColor, color: accentColor }}
+                  >
+                    {previewing ? <Square size={12} /> : <Play size={12} />}
+                    {previewing ? t('callSound.custom.stop') : t('callSound.custom.play')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={useDefaultSound}
+                    disabled={soundBusy}
+                    className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {t('callSound.custom.useDefault')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={removeSound}
+                    disabled={soundBusy}
+                    className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#9D0A0E] transition hover:bg-[#FBF1F1] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Trash2 size={12} />
+                    {t('callSound.custom.remove')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!custom && (
+              <p className="mb-3 text-xs font-medium text-[#4B5563]">{t('callSound.custom.usingDefault')}</p>
+            )}
+
+            <div
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (!soundBusy && !disabled) setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed px-4 py-3 transition"
+              style={{
+                borderColor: dragging ? accentColor : '#D0D5DD',
+                backgroundColor: dragging ? `${accentColor}10` : 'transparent',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                disabled={soundBusy || disabled}
+                className="flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ backgroundColor: accentColor }}
+              >
+                <Upload size={14} />
+                {custom ? t('callSound.custom.replace') : t('callSound.custom.upload')}
+              </button>
+
+              <span className="text-xs text-[#98A2B3]">{t('callSound.custom.drop')}</span>
+            </div>
+
+            {uploadPercent !== null && (
+              <div className="mt-3" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadPercent}>
+                <p className="mb-1 text-xs font-medium text-[#4B5563]">
+                  {t('callSound.custom.uploading', { n: uploadPercent })}
+                </p>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
+                  <div
+                    className="h-full rounded-full transition-[width] duration-200"
+                    style={{ width: `${uploadPercent}%`, backgroundColor: accentColor }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {allowApplyAll && custom && (
+              <button
+                type="button"
+                onClick={applySoundToAll}
+                disabled={soundBusy || kiosks.length < 2}
+                className="mt-3 flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Check size={14} />
+                {soundBusy ? t('callSound.custom.applyAllBusy') : t('callSound.custom.applyAll')}
               </button>
             )}
           </div>
