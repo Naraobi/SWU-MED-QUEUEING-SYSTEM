@@ -410,9 +410,10 @@ router.delete("/:id", async (req, res) => {
     });
   }
 });
+
 router.post(
   "/:id/remote-unlock",
-  auth,
+  authenticateRequest,
   authorizeRoles("superadmin"),
   async (req, res) => {
     try {
