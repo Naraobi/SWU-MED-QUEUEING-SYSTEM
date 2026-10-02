@@ -22,14 +22,24 @@ import {
 import { fetchQueueState } from '../../services/api';
 import { getLogo, subscribeAppearance } from '../../services/appearance';
 
+import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import { auth } from '../../../firebase';
+
 import brandMark from '../../../assets/logo-transparent.png';
 
 import {
-  announceCall,
   attachVideo,
   enable as enableAnnouncer,
   cancelAnnouncements,
 } from '../../services/announcer';
+import {
+  playCallSound,
+  preloadCallSound,
+  unlockCallSound,
+  useCallSoundBlocked,
+  useCallSoundMode,
+} from '../../utils/callSound';
+import { useLanguage } from '../../services/language';
 
 /*
  * SWUMed TV Display — one screen per kiosk.
@@ -48,6 +58,11 @@ const POLL_MS = 5000;
 const MAX_DEPARTMENTS = 4;
 const WAITING_ROWS = 2;
 const SETTINGS_KEY = 'swumed_tv_video_settings';
+
+// Uploading is done from Admin / Super Admin Settings -> Lobby TV Video.
+// Set to true to bring the local upload panel (and "Replace video") back on
+// this screen. The panel and the IndexedDB code stay in this file either way.
+const SHOW_TV_UPLOAD_PANEL = false;
 
 /* ---------------------------------------------------------------
    Video storage (IndexedDB) — a TV should not lose its video on reboot
@@ -96,6 +111,181 @@ async function removeVideo(kioskId) {
     tx.objectStore(STORE).delete(kioskId);
     tx.oncomplete = () => resolve();
   });
+}
+
+/* ---------------------------------------------------------------
+   Shared lobby video (Firebase) - set from Admin Settings, plays on every
+   TV on any device. When present it takes priority over the video saved in
+   this browser.
+--------------------------------------------------------------- */
+
+function normalizeTvVideos(data) {
+  if (Array.isArray(data?.videos)) return data.videos.filter((video) => video?.url);
+  if (data?.url) {
+    return [{ id: 'legacy', name: data.name, url: data.url, uploaded_at: data.updated_at }];
+  }
+  return [];
+}
+
+// Deterministic shuffle, so one pass plays every video once in a random order.
+function seededShuffle(list, seed, avoidFirstId) {
+  const items = [...list];
+  let state = seed >>> 0;
+
+  const random = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+
+  // Do not repeat the video that just played at the start of a new pass.
+  if (items.length > 1 && avoidFirstId && items[0].id === avoidFirstId) {
+    [items[0], items[1]] = [items[1], items[0]];
+  }
+
+  return items;
+}
+
+/*
+ * The DEFAULT video is the first one uploaded. It plays whenever nothing else
+ * is chosen.
+ * mode 'single'   -> play the video chosen in Admin Settings (default if none)
+ * mode 'playlist' -> play the ticked videos (selectedIds; all when never set),
+ *                    in order or random (shuffle); default if none are ticked
+ * loop            -> repeat the video, or restart the list after the last one
+ */
+function useSharedLobbyVideo(kioskId) {
+  const [data, setData] = useState(null);
+  // Set only when the Firestore read FAILS (an empty document is not an error).
+  const [readError, setReadError] = useState(null);
+  const [index, setIndex] = useState(0);
+  // Random order for shuffle. It only changes at the end of a pass, so other
+  // settings changes never reorder or restart the video that is playing.
+  const [order, setOrder] = useState(() => ({ seed: Math.floor(Math.random() * 1e9), avoid: null }));
+
+  useEffect(() => {
+    if (!kioskId) return undefined;
+    setData(null);
+
+    return onSnapshot(
+      doc(getFirestore(auth.app), 'kiosks', String(kioskId), 'settings', 'tvVideo'),
+      (snap) => {
+        setReadError(null);
+        setData(snap.exists() ? snap.data() : null);
+      },
+      (error) => {
+        console.warn('Lobby video settings could not be read:', error?.code || '', error?.message || error);
+        setReadError(error || true);
+        setData(null);
+      }
+    );
+  }, [kioskId]);
+
+  const loop = data?.loop ?? true;
+  const muted = data?.muted ?? true;
+  const shuffle = data?.shuffle ?? false;
+
+  // This screen's own choice (never written to Firestore). It overrides the
+  // admin's choice here only, until "Follow admin choice" clears it.
+  const overrideKey = `swu-tv-video-override-${kioskId}`;
+  const [overrideId, setOverrideId] = useState(null);
+
+  useEffect(() => {
+    try {
+      setOverrideId(localStorage.getItem(overrideKey) || null);
+    } catch {
+      setOverrideId(null);
+    }
+  }, [overrideKey]);
+
+  const chooseVideo = useCallback(
+    (videoId) => {
+      setOverrideId(videoId || null);
+      try {
+        if (videoId) localStorage.setItem(overrideKey, videoId);
+        else localStorage.removeItem(overrideKey);
+      } catch {
+        // Storage unavailable; the choice just lasts until the page reloads.
+      }
+    },
+    [overrideKey]
+  );
+
+  const allVideos = useMemo(() => normalizeTvVideos(data), [data]);
+
+  // A chosen video that no longer exists is dropped.
+  const overrideVideo = overrideId ? allVideos.find((video) => video.id === overrideId) : null;
+  useEffect(() => {
+    if (data && overrideId && !overrideVideo) chooseVideo(null);
+  }, [data, overrideId, overrideVideo, chooseVideo]);
+
+  const queue = useMemo(() => {
+    const videos = normalizeTvVideos(data);
+    const fallback = videos[0] ? [videos[0]] : []; // the default video
+
+    if (overrideVideo) return [overrideVideo];
+
+    if (data?.mode !== 'playlist') {
+      const one = videos.find((video) => video.id === data?.activeId) || videos[0];
+      return one ? [one] : [];
+    }
+
+    const picked = Array.isArray(data?.selectedIds)
+      ? videos.filter((video) => data.selectedIds.includes(video.id))
+      : videos;
+    const base = picked.length ? picked : fallback;
+
+    return shuffle ? seededShuffle(base, order.seed, order.avoid) : base;
+  }, [data, order, shuffle, overrideVideo]);
+
+  // Start from the first video whenever the list or the order changes.
+  const queueKey = queue.map((video) => video.id).join(',');
+  useEffect(() => setIndex(0), [queueKey]);
+
+  const current = queue.length ? queue[Math.min(index, queue.length - 1)] : null;
+
+  // The version suffix makes the TV fetch a replaced video instead of
+  // replaying a cached copy of an old one at the same address.
+  const url = useMemo(() => {
+    if (!current?.url) return null;
+    return `${current.url}${current.url.includes('?') ? '&' : '?'}v=${encodeURIComponent(current.uploaded_at || '')}`;
+  }, [current]);
+
+  // Playlist: move to the next video; after the last one restart (and
+  // reshuffle) if looping.
+  const onEnded = useCallback(() => {
+    if (queue.length <= 1) return;
+
+    if (index + 1 < queue.length) {
+      setIndex(index + 1);
+    } else if (loop) {
+      setIndex(0);
+      if (shuffle) {
+        setOrder({ seed: Math.floor(Math.random() * 1e9), avoid: current?.id ?? null });
+      }
+    }
+  }, [queue.length, index, loop, shuffle, current]);
+
+  return {
+    url,
+    name: current?.name || null,
+    settings: { loop, muted },
+    // One video repeats by itself; a playlist advances through onEnded instead.
+    nativeLoop: queue.length <= 1 ? loop : false,
+    onEnded,
+    videos: allVideos,
+    currentId: current?.id ?? null,
+    overrideId: overrideVideo ? overrideVideo.id : null,
+    chooseVideo,
+    readError,
+  };
 }
 
 /* ---------------------------------------------------------------
@@ -150,9 +340,15 @@ function useClock() {
 function useKioskQueue(kioskId) {
   const [state, setState] = useState({ loading: true, error: null, departments: [] });
   const terminals = useRef(new Map());
+  const loadingNow = useRef(false);
 
   const load = useCallback(async () => {
     if (!kioskId) return;
+
+    // A slow or hanging server must not pile up a new round of requests every
+    // poll: skip this tick while the previous one is still running.
+    if (loadingNow.current) return;
+    loadingNow.current = true;
 
     try {
       if (terminals.current.size === 0) {
@@ -201,6 +397,8 @@ function useKioskQueue(kioskId) {
       });
     } catch (error) {
       setState((prev) => ({ ...prev, loading: false, error: error?.message || 'Unable to load the queue.' }));
+    } finally {
+      loadingNow.current = false;
     }
   }, [kioskId]);
 
@@ -241,9 +439,17 @@ function callSignature(serving, terminal) {
   ].join('|');
 }
 
-function useAnnouncer(departments) {
+function useAnnouncer(departments, mode) {
   const [enabled, setEnabled] = useState(false);
   const [latest, setLatest] = useState(null);
+
+  // The saved mode can change while the TV is running; read it at call time
+  // instead of restarting the effect below.
+  const modeRef = useRef(mode);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Signatures already announced, plus the tickets behind them. A ticket seen
   // before that arrives under a NEW signature is a recall rather than a call.
@@ -285,9 +491,10 @@ function useAnnouncer(departments) {
 
     setLatest(announcements[announcements.length - 1]);
 
-    // Each call is chimed, spoken twice, and queued so they never overlap.
+    // What plays depends on the kiosk's call sound: nothing, the chime, or the
+    // chime then the number (chimed, spoken twice, queued so calls never overlap).
     announcements.forEach((call) =>
-      announceCall({ number: call.number, terminal: call.terminal })
+      playCallSound(modeRef.current, call.number, { terminal: call.terminal })
     );
   }, [departments, enabled]);
 
@@ -298,6 +505,7 @@ function useAnnouncer(departments) {
     enabled,
     enable: () => {
       enableAnnouncer();
+      unlockCallSound();
       setEnabled(true);
     },
     latest,
@@ -677,13 +885,75 @@ function KioskPicker() {
   );
 }
 
+/* ---------------------------------------------------------------
+   Empty state for the video card: nothing to play yet.
+   Plain text only - this is a public screen, so nothing is clickable.
+--------------------------------------------------------------- */
+
+function useKioskName(kioskId, enabled) {
+  const [name, setName] = useState('');
+
+  useEffect(() => {
+    if (!kioskId || !enabled) return undefined;
+
+    let cancelled = false;
+
+    getKiosks()
+      .then((rows) => {
+        const kiosk = (Array.isArray(rows) ? rows : []).find(
+          (item) => String(item.kiosk_id) === String(kioskId)
+        );
+
+        if (!cancelled && kiosk?.name) setName(kiosk.name);
+      })
+      .catch(() => {
+        // The short ID below is shown instead.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [kioskId, enabled]);
+
+  return name;
+}
+
+function NoLobbyVideoGuide({ kioskLabel, failed, tr }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 bg-[#F8F9FA] px-8 text-center">
+      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
+        <Video size={30} />
+      </span>
+
+      <h2 className="text-xl font-bold text-[#1F2937]">{tr('tvGuide.title')}</h2>
+
+      <p className="max-w-md text-sm leading-6 text-[#4B5563]">{tr('tvGuide.body')}</p>
+
+      <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#4B5563] ring-1 ring-[#E5E7EB]">
+        {tr('tvGuide.kiosk', { name: kioskLabel })}
+      </p>
+
+      <p className="max-w-md text-xs text-[#9CA3AF]">{tr('tvGuide.hint')}</p>
+
+      {failed && <p className="text-xs text-[#9CA3AF]">{tr('tvGuide.error')}</p>}
+    </div>
+  );
+}
+
 export default function TvDisplay() {
   const [params] = useSearchParams();
   const kioskId = params.get('kiosk');
 
   const now = useClock();
   const { loading, error, departments } = useKioskQueue(kioskId);
-  const { enabled: soundOn, enable: enableSound, latest } = useAnnouncer(departments);
+  const { mode: callMode } = useCallSoundMode(kioskId);
+  const soundBlocked = useCallSoundBlocked();
+  const { t: tr } = useLanguage();
+  const { enabled: soundOn, enable: enableSound, latest } = useAnnouncer(departments, callMode);
+
+  useEffect(() => {
+    preloadCallSound();
+  }, []);
 
   // A logo uploaded in Settings replaces the bundled mark on the TV too.
   const [brandLogo, setBrandLogo] = useState(() => getLogo());
@@ -697,6 +967,14 @@ export default function TvDisplay() {
   const [videoName, setVideoName] = useState(null);
   const [settings, setSettings] = useState(() => readSettings());
   const [videoError, setVideoError] = useState(null);
+
+  // Shared video wins; otherwise fall back to the video saved in this browser.
+  const shared = useSharedLobbyVideo(kioskId);
+  const [showVideoPicker, setShowVideoPicker] = useState(false);
+  const activeUrl = shared.url || videoUrl;
+  const activeName = shared.url ? shared.name : videoName;
+  const activeSettings = shared.url ? shared.settings : settings;
+  const kioskName = useKioskName(kioskId, !activeUrl);
 
   /* load any video already saved for this kiosk */
   useEffect(() => {
@@ -810,28 +1088,69 @@ export default function TvDisplay() {
         {/* RIGHT — video */}
 
         <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
-          {videoUrl ? (
+          {activeUrl ? (
             <>
               <div className="relative min-h-0 flex-1 bg-black">
                 <video
                   ref={attachVideo}
-                  key={videoUrl}
-                  src={videoUrl}
+                  key={activeUrl}
+                  src={activeUrl}
                   autoPlay
                   controls
-                  loop={settings.loop}
-                  muted={settings.muted}
+                  loop={shared.url ? shared.nativeLoop : settings.loop}
+                  onEnded={shared.url ? shared.onEnded : undefined}
+                  muted={activeSettings.muted}
                   playsInline
                   className="absolute inset-0 h-full w-full object-cover"
                 />
               </div>
 
               <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[#E5E7EB] px-3 py-2 text-xs text-[#4B5563]">
-                <span className="truncate">{videoName}</span>
+                <span className="truncate">{activeName}</span>
                 <div className="flex shrink-0 items-center gap-2">
-                  {settings.muted && (
+                  {activeSettings.muted && (
                     <span className="rounded bg-[#F1F3F5] px-2 py-0.5">Muted for Lobby</span>
                   )}
+                  {shared.url && shared.videos.length > 1 && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowVideoPicker((open) => !open)}
+                        aria-expanded={showVideoPicker}
+                        className="swu-press rounded-md border border-[#E5E7EB] px-2 py-1 font-medium transition-colors hover:border-[#F0DADA] hover:text-[#9D0A0E]"
+                      >
+                        Videos
+                      </button>
+                      {showVideoPicker && (
+                        <div className="absolute bottom-full right-0 z-20 mb-2 w-64 rounded-lg border border-[#E5E7EB] bg-white p-1 shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              shared.chooseVideo(null);
+                              setShowVideoPicker(false);
+                            }}
+                            className={`block w-full rounded-md px-2 py-1.5 text-left font-semibold hover:bg-[#F1F3F5] ${shared.overrideId ? '' : 'text-[#9D0A0E]'}`}
+                          >
+                            Follow admin choice
+                          </button>
+                          {shared.videos.map((video) => (
+                            <button
+                              key={video.id}
+                              type="button"
+                              onClick={() => {
+                                shared.chooseVideo(video.id);
+                                setShowVideoPicker(false);
+                              }}
+                              className={`block w-full truncate rounded-md px-2 py-1.5 text-left hover:bg-[#F1F3F5] ${shared.overrideId === video.id ? 'font-bold text-[#9D0A0E]' : ''}`}
+                            >
+                              {video.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {SHOW_TV_UPLOAD_PANEL && !shared.url && (
                   <button
                     type="button"
                     onClick={clearVideo}
@@ -839,6 +1158,7 @@ export default function TvDisplay() {
                   >
                     Replace video
                   </button>
+                  )}
                 </div>
               </div>
 
@@ -863,18 +1183,24 @@ export default function TvDisplay() {
                 </div>
               )}
             </>
-          ) : (
+          ) : SHOW_TV_UPLOAD_PANEL ? (
             <UploadPanel
               onPublish={publish}
               settings={settings}
               setSettings={setSettings}
               error={videoError}
             />
+          ) : (
+            <NoLobbyVideoGuide
+              kioskLabel={kioskName || String(kioskId).slice(0, 8)}
+              failed={Boolean(shared.readError)}
+              tr={tr}
+            />
           )}
         </section>
       </div>
 
-      {!soundOn && (
+      {(!soundOn || soundBlocked) && callMode !== 'muted' && (
         <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 px-6">
           <div className="swu-pop w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FBF1F1] text-[#9D0A0E]">
@@ -882,12 +1208,11 @@ export default function TvDisplay() {
             </span>
 
             <h2 className="mt-4 text-xl font-bold text-[#1F2937]">
-              Turn on voice announcements
+              {tr('callSound.tv.turnOn')}
             </h2>
 
             <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#4B5563]">
-              Called numbers will be announced aloud in the lobby. This screen
-              needs one tap before it is allowed to play sound.
+              {tr('callSound.tv.body')}
             </p>
 
             <button
@@ -895,11 +1220,11 @@ export default function TvDisplay() {
               onClick={enableSound}
               className="swu-press mt-6 w-full rounded-lg bg-[#9D0A0E] py-3 text-base font-bold text-white transition-colors hover:bg-[#7D080B]"
             >
-              Start Display
+              {tr('callSound.tv.start')}
             </button>
 
             <p className="mt-3 text-xs text-[#9CA3AF]">
-              Only needed once, each time the screen is restarted.
+              {tr('callSound.tv.foot')}
             </p>
           </div>
         </div>

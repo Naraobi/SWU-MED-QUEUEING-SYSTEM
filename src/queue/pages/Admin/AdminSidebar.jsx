@@ -69,7 +69,7 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
           ))}
         </nav>
 
-        <div className="mt-auto shrink-0 border-t border-slate-100 px-3 py-3">
+        <div className="mt-auto flex h-[var(--bottom-bar-height)] shrink-0 items-center border-t border-slate-100 px-3 py-0">
           <button
             type="button"
             onClick={() => setShowLogoutModal(true)}

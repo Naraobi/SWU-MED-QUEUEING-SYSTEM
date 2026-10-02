@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState} from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Camera,
@@ -23,6 +23,8 @@ import {
   Circle,
   Palette,
   Upload,
+  Play,
+  Square,
   Monitor,
   Moon,
   Pipette,
@@ -38,6 +40,9 @@ import {
   TriangleAlert,
   Undo2,
   Users,
+  Video,
+  Volume2,
+  VolumeX,
   X,
   XCircle,
 } from 'lucide-react';
@@ -78,22 +83,38 @@ import {
   saveStoredAvatar,
 } from './adminHelpers';
 
-import { useLanguage } from './LanguageContext';
+import { useLanguage, LanguageContext } from './LanguageContext';
+import { useLanguage as useSuperAdminLanguage } from '../../services/language';
+import {
+  CUSTOM_SOUND_ACCEPT,
+  DEFAULT_CALL_SOUND_MODE,
+  deleteCustomSoundFileIfUnused,
+  isValidCustomSoundFile,
+  readCustomCallSound,
+  saveCallSoundMode,
+  saveCustomCallSound,
+  subscribeCallSound,
+  testCallSound,
+  uploadCustomCallSound,
+} from '../../utils/callSound';
 import { useAppearance } from './AppearanceContext';
 import { useUnsavedChanges } from './UnsavedChangesContext';
+import ActivateKioskModal from './ActivateKioskModal';
 import { LEGAL_DOCUMENTS, LEGAL_ORGANIZATION } from './legalDocuments';
 import { extractDominantColor } from '../../theme/colors';
 import Logo from '../../../assets/logo.png';
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getFirestore, doc as fsDoc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // =====================================================
 // SHARED HELPERS
 // =====================================================
 
-function normalizeRole(role) {
+export function normalizeRole(role) {
   return String(role || '').trim().toLowerCase();
 }
 
-function getRoleName(user) {
+export function getRoleName(user) {
   if (user?.role?.role) return user.role.role;
   if (user?.role_name) return user.role_name;
   if (typeof user?.role === 'string') return user.role;
@@ -102,7 +123,7 @@ function getRoleName(user) {
   return '';
 }
 
-function findDepartmentForUser(departments, user) {
+export function findDepartmentForUser(departments, user) {
   if (!Array.isArray(departments)) {
     return null;
   }
@@ -260,6 +281,11 @@ export function QueueManagementPage() {
   const [departmentTerminals, setDepartmentTerminals] = useState([]);
   const [selectedTerminalId, setSelectedTerminalId] = useState('all');
 
+  // --- Activate Kiosk (Admin only; scoped to this Admin's department) ---
+  const [queueDepartment, setQueueDepartment] = useState(null);
+  const [showActivateKiosk, setShowActivateKiosk] = useState(false);
+  const [kioskNotice, setKioskNotice] = useState('');
+
   // Same "issued_at -> called_at" average wait SuperAdmin's Dashboard and
   // Reports pages compute server-side (server/routes/dashboardRoutes.js),
   // reused here instead of the department's average SERVICE time that
@@ -317,6 +343,7 @@ export function QueueManagementPage() {
 
       setTerminalLabel(`${active}/${departmentTerminals.length}`);
       setDepartmentTerminals(departmentTerminals);
+      setQueueDepartment(department || null);
     } catch (err) {
       console.error('Failed to load terminal stats:', err);
       setTerminalLabel('--');
@@ -525,6 +552,14 @@ export function QueueManagementPage() {
 
           <button
             type="button"
+            onClick={() => setShowActivateKiosk(true)}
+            className="flex h-[50px] items-center gap-2 rounded-lg border border-[#9D0A0E] bg-white px-6 text-sm font-bold tracking-[0.6px] text-[#9D0A0E] transition hover:bg-[#FBF1F1]"
+          >
+            {t('queue.activateKiosk')}
+          </button>
+
+          <button
+            type="button"
             onClick={handleApplyFilter}
             disabled={refreshing}
             className="flex h-[50px] items-center gap-2 rounded-lg bg-[#9D0A0E] px-6 text-sm font-bold tracking-[0.6px] text-white hover:bg-[#7d0809] disabled:cursor-not-allowed disabled:opacity-70"
@@ -568,6 +603,23 @@ export function QueueManagementPage() {
           <button
             type="button"
             onClick={() => setResetNotice('')}
+            aria-label={t('common.close')}
+            className="rounded p-0.5 text-green-700 transition hover:bg-green-100"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {kioskNotice && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <span className="flex items-center gap-2">
+            <CheckCircle2 size={16} />
+            {kioskNotice}
+          </span>
+          <button
+            type="button"
+            onClick={() => setKioskNotice('')}
             aria-label={t('common.close')}
             className="rounded p-0.5 text-green-700 transition hover:bg-green-100"
           >
@@ -819,6 +871,21 @@ export function QueueManagementPage() {
         resetting={resetting}
         error={resetError}
         t={t}
+      />
+
+      <ActivateKioskModal
+        open={showActivateKiosk}
+        department={queueDepartment}
+        onClose={() => setShowActivateKiosk(false)}
+        onActivated={async (kiosk) => {
+          setShowActivateKiosk(false);
+
+          // Refresh the queue numbers, including the active Terminal count.
+          await handleApplyFilter();
+
+          setKioskNotice(t('kioskActivate.success', { name: kiosk?.name || '' }));
+          setTimeout(() => setKioskNotice(''), 5000);
+        }}
       />
     </div>
   );
@@ -2748,8 +2815,8 @@ function SettingsPinBoxes({ value, onChange, ariaLabel, autoFocus = false, showT
   const inputType = showToggle && show ? 'text' : 'password';
 
   return (
-    <div className={boxed ? 'relative w-full rounded-md border border-[#667085] bg-white p-2.5' : 'w-full'}>
-      <div className={`grid w-full grid-cols-6 gap-2 ${boxed ? 'pr-10' : ''}`}>
+    <div className={boxed ? 'relative w-full rounded-md border border-[#667085] bg-white p-2.5' : `w-full${showToggle ? ' relative' : ''}`}>
+      <div className={`grid w-full grid-cols-6 gap-2 ${boxed || showToggle ? 'pr-10' : ''}`}>
         {Array.from({ length: 6 }, (_, index) => (
           <input
             key={index}
@@ -4149,6 +4216,1095 @@ function LegalDocumentModal({ document: doc, onClose }) {
   );
 }
 
+/* ---------------- Lobby TV video ----------------
+ *
+ * Each kiosk can hold several videos (up to TV_MAX_VIDEOS). The files live in
+ * Firebase Storage (tv-videos/<kioskId>/<videoId>) and the list lives in
+ * Firestore at kiosks/<kioskId>/settings/tvVideo as:
+ *   { videos: [{ id, name, size, url, uploaded_at }], mode, activeId,
+ *     selectedIds, shuffle, loop, muted }
+ *
+ *   The DEFAULT video is the first one uploaded (first in the list). It plays
+ *   whenever nothing else is chosen.
+ *   mode 'single'   -> the TV plays only the video chosen as activeId
+ *   mode 'playlist' -> the TV plays the ticked videos (selectedIds; null means
+ *                      all of them), in order or random (shuffle)
+ *   loop            -> repeat the video (single) or restart the list (playlist)
+ *
+ * TV displays subscribe to that document, so changes appear without a refresh.
+ */
+
+const TV_MAX_BYTES = 500 * 1024 * 1024;
+const TV_MAX_VIDEOS = 10;
+
+const tvInfoDoc = (kioskId) =>
+  fsDoc(getFirestore(auth.app), 'kiosks', String(kioskId), 'settings', 'tvVideo');
+
+// 'legacy' is the single video saved by the first version of this feature.
+const tvFileRef = (kioskId, videoId) =>
+  storageRef(
+    getStorage(auth.app),
+    videoId === 'legacy' ? `tv-videos/${kioskId}` : `tv-videos/${kioskId}/${videoId}`
+  );
+
+function normalizeTvVideos(data) {
+  if (Array.isArray(data?.videos)) return data.videos.filter((video) => video?.url);
+  if (data?.url) {
+    return [{ id: 'legacy', name: data.name, size: data.size, url: data.url, uploaded_at: data.updated_at }];
+  }
+  return [];
+}
+
+// Reads the latest saved list, applies a change, and saves it back.
+async function updateTvVideos(kioskId, change) {
+  const snap = await getDoc(tvInfoDoc(kioskId));
+  const data = snap.exists() ? snap.data() : {};
+
+  const next = change({
+    videos: normalizeTvVideos(data),
+    activeId: data.activeId ?? null,
+    mode: data.mode === 'playlist' ? 'playlist' : 'single',
+    selectedIds: Array.isArray(data.selectedIds) ? data.selectedIds : null, // null = all
+  });
+
+  await setDoc(
+    tvInfoDoc(kioskId),
+    {
+      videos: next.videos,
+      activeId: next.activeId,
+      mode: next.mode,
+      selectedIds: next.selectedIds ?? null,
+      url: null,
+      name: null,
+      size: null,
+      updated_at: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+}
+
+function formatVideoSize(bytes) {
+  if (!bytes) return '';
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`;
+}
+
+// Shared by Admin, Super Admin and Staff settings.
+//   accentColor        - pass it where there is no Admin AppearanceProvider
+//   canManage          - false hides "Add videos" and "Remove" (Staff)
+//   lockToDepartment   - limit the kiosk to the signed-in user's department
+//                        (Admin, Staff); Super Admin leaves it off to pick any
+export function TvVideoSettings({ accentColor: accentProp, canManage = true, lockToDepartment = false }) {
+  // Follows the accent colour chosen in Settings.
+  let appearanceAccent;
+  try {
+    appearanceAccent = useAppearance().accent;
+  } catch {
+    // Not inside the Admin AppearanceProvider; the accentColor prop is used.
+  }
+  const accentColor = accentProp ?? appearanceAccent ?? '#9D0A0E';
+  const { user: tvUser } = useAuth();
+  const [noKiosk, setNoKiosk] = useState(false);
+
+  const [kiosks, setKiosks] = useState([]);
+  const [kioskId, setKioskId] = useState('');
+  const [info, setInfo] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [uploadLabel, setUploadLabel] = useState('');
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (lockToDepartment) {
+      Promise.all([getKiosks(), getDepartments()])
+        .then(([kioskRows, departmentRows]) => {
+          const list = Array.isArray(kioskRows) ? kioskRows : [];
+          const kiosk = findKioskForDepartment(list, findDepartmentForUser(departmentRows, tvUser));
+          setKiosks(kiosk ? [kiosk] : []);
+          setKioskId(kiosk ? String(kiosk.kiosk_id) : '');
+          setNoKiosk(!kiosk);
+        })
+        .catch((e) => setError(e?.message || 'Unable to load kiosks.'));
+      return;
+    }
+
+    getKiosks()
+      .then((rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        setKiosks(list);
+        if (list[0]) setKioskId(String(list[0].kiosk_id));
+      })
+      .catch((e) => setError(e?.message || 'Unable to load kiosks.'));
+  }, [lockToDepartment, tvUser]);
+
+  // Live view of this kiosk's videos and playback settings.
+  useEffect(() => {
+    if (!kioskId) return undefined;
+    setMessage('');
+    setInfo(null);
+
+    return onSnapshot(
+      tvInfoDoc(kioskId),
+      (snap) => setInfo(snap.exists() ? snap.data() : null),
+      () => setInfo(null)
+    );
+  }, [kioskId]);
+
+  const videos = useMemo(() => normalizeTvVideos(info), [info]);
+  const mode = info?.mode === 'playlist' ? 'playlist' : 'single';
+  const activeId =
+    info?.activeId && videos.some((video) => video.id === info.activeId)
+      ? info.activeId
+      : videos[0]?.id ?? null;
+  const tvSettings = {
+    loop: info?.loop ?? true,
+    muted: info?.muted ?? true,
+    shuffle: info?.shuffle ?? false,
+  };
+
+  // Videos ticked for "Play all videos" (everything when nothing was ever unticked).
+  const selectedIds = Array.isArray(info?.selectedIds)
+    ? videos.filter((video) => info.selectedIds.includes(video.id)).map((video) => video.id)
+    : videos.map((video) => video.id);
+
+  async function saveChange(change, doneMessage) {
+    setError('');
+    setMessage('');
+    try {
+      await updateTvVideos(kioskId, change);
+      if (doneMessage) setMessage(doneMessage);
+    } catch (err) {
+      console.error('Lobby TV update failed:', err);
+      setError('Could not save the change. Please try again.');
+    }
+  }
+
+  async function updateTvSettings(next) {
+    setError('');
+    try {
+      await setDoc(
+        tvInfoDoc(kioskId),
+        { loop: next.loop, muted: next.muted, shuffle: next.shuffle },
+        { merge: true }
+      );
+    } catch {
+      setError('Could not save the playback settings.');
+    }
+  }
+
+  async function handleUpload(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length || !kioskId) return;
+
+    setError('');
+    setMessage('');
+
+    // The Storage rules only let a signed-in Firebase user upload. Say so
+    // plainly instead of failing halfway through.
+    if (!auth.currentUser) {
+      setError('You are not allowed to upload. Please sign in again.');
+      return;
+    }
+
+    const room = TV_MAX_VIDEOS - videos.length;
+    if (room <= 0) {
+      setError(`This kiosk already has ${TV_MAX_VIDEOS} videos. Remove one first.`);
+      return;
+    }
+
+    const accepted = [];
+    const problems = [];
+
+    files.forEach((file) => {
+      if (!/^video\/(mp4|webm)$/.test(file.type)) {
+        problems.push(`${file.name}: not an MP4 or WebM video.`);
+      } else if (file.size > TV_MAX_BYTES) {
+        problems.push(`${file.name}: larger than 500MB.`);
+      } else {
+        accepted.push(file);
+      }
+    });
+
+    if (accepted.length > room) {
+      accepted.splice(room);
+      problems.push(`Only ${room} more video(s) fit on this kiosk, so the rest were skipped.`);
+    }
+
+    let added = 0;
+
+    try {
+      setBusy(true);
+
+      for (let i = 0; i < accepted.length; i += 1) {
+        const file = accepted[i];
+        const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        const label = (percent) => `Uploading ${i + 1}/${accepted.length}... ${percent}%`;
+
+        setUploadLabel(label(0));
+
+        const task = uploadBytesResumable(tvFileRef(kioskId, id), file, { contentType: file.type });
+        await new Promise((resolve, reject) => {
+          task.on(
+            'state_changed',
+            (s) => setUploadLabel(label(Math.round((s.bytesTransferred / s.totalBytes) * 100))),
+            reject,
+            resolve
+          );
+        });
+
+        const url = await getDownloadURL(task.snapshot.ref);
+
+        await updateTvVideos(kioskId, (current) => ({
+          ...current,
+          videos: [
+            ...current.videos,
+            { id, name: file.name, size: file.size, url, uploaded_at: new Date().toISOString() },
+          ],
+          activeId: current.activeId ?? id,
+          // a new video joins the rotation automatically
+          selectedIds: current.selectedIds === null ? null : [...current.selectedIds, id],
+        }));
+
+        added += 1;
+      }
+
+      if (added) {
+        setMessage(`${added} video${added > 1 ? 's' : ''} added. TV displays will update automatically.`);
+      }
+      if (problems.length) setError(problems.join(' '));
+    } catch (err) {
+      console.error('Lobby TV upload failed:', err);
+      setError(
+        err?.code === 'storage/unauthorized'
+          ? 'You are not allowed to upload. Please sign in again.'
+          : 'Could not upload the video. Please try again.'
+      );
+    } finally {
+      setBusy(false);
+      setUploadLabel('');
+    }
+  }
+
+  // Tick / untick a video for "Play all videos".
+  function toggleSelected(video) {
+    saveChange((current) => {
+      const all = current.videos.map((item) => item.id);
+      const chosen = new Set(
+        current.selectedIds === null ? all : current.selectedIds.filter((id) => all.includes(id))
+      );
+      if (chosen.has(video.id)) chosen.delete(video.id);
+      else chosen.add(video.id);
+      return { ...current, selectedIds: all.filter((id) => chosen.has(id)) };
+    });
+  }
+
+  async function handleRemove(video) {
+    setError('');
+    setMessage('');
+
+    if (!auth.currentUser) {
+      setError('You are not allowed to remove videos. Please sign in again.');
+      return;
+    }
+
+    try {
+      await deleteObject(tvFileRef(kioskId, video.id)).catch(() => {}); // already gone is fine
+      await updateTvVideos(kioskId, (current) => {
+        const remaining = current.videos.filter((item) => item.id !== video.id);
+        return {
+          ...current,
+          videos: remaining,
+          activeId: current.activeId === video.id ? remaining[0]?.id ?? null : current.activeId,
+          selectedIds:
+            current.selectedIds === null
+              ? null
+              : current.selectedIds.filter((item) => item !== video.id),
+        };
+      });
+      setMessage('Video removed.');
+    } catch {
+      setError('Could not remove the video.');
+    }
+  }
+
+  return (
+    <SettingsExactSection icon={Video} title="Lobby TV Video" subtitle="Upload the information videos shown beside the queue on the TV display.">
+      <SettingsExactFieldLabel>Kiosk / TV</SettingsExactFieldLabel>
+      {lockToDepartment && noKiosk && (
+        <p className="text-xs font-medium text-[#9D0A0E]">No kiosk is assigned to your department</p>
+      )}
+      {lockToDepartment && !noKiosk && (
+        <p className="text-sm font-semibold text-[#1F2937]">{kiosks[0]?.name || ''}</p>
+      )}
+      <select hidden={lockToDepartment} value={kioskId} onChange={(event) => setKioskId(event.target.value)} aria-label="Kiosk"className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20">
+        {kiosks.length === 0 && <option value="">No kiosks found</option>}
+        {kiosks.map((k) => (
+          <option key={k.kiosk_id} value={k.kiosk_id}>{k.name}</option>
+        ))}
+      </select>
+
+      <div className="mt-5">
+        <SettingsExactFieldLabel>What to play</SettingsExactFieldLabel>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {[
+            { key: 'single', title: 'Play one video', caption: 'Choose which video the TV plays' },
+            { key: 'playlist', title: 'Play all videos', caption: 'Plays the ticked videos, in order or random' },
+          ].map(({ key, title, caption }) => (
+            <button
+              key={key}
+              type="button"
+              disabled={!kioskId || videos.length === 0}
+              aria-pressed={mode === key}
+              onClick={() => saveChange((current) => ({ ...current, mode: key }))}
+              className="rounded-md border bg-white p-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                borderColor: mode === key ? accentColor : '#E5E7EB',
+                boxShadow: mode === key ? `0 0 0 1px ${accentColor}` : 'none',
+              }}
+            >
+              <span className="block text-xs font-semibold text-[#1F2937]">{title}</span>
+              <span className="block text-xs text-[#98A2B3]">{caption}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {videos.length === 0 && (
+          <div className="rounded-lg border border-[#E5E7EB] px-4 py-3">
+            <p className="text-xs font-semibold text-[#1F2937]">No video uploaded</p>
+            <p className="mt-0.5 text-xs text-[#98A2B3]">MP4 or WebM, up to 500MB each</p>
+          </div>
+        )}
+
+        {videos.map((video) => {
+          const isActive = mode === 'single' && video.id === activeId;
+
+          return (
+            <div key={video.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-[#1F2937]">{video.name}</p>
+                <p className="mt-0.5 flex items-center gap-2 text-xs text-[#98A2B3]">
+                  {formatVideoSize(video.size)}
+                  {video.id === videos[0]?.id && (
+                    <span className="rounded border border-[#E5E7EB] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#4B5563]">Default</span>
+                  )}
+                  {isActive && (
+                    <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase text-white" style={{ backgroundColor: accentColor }}>Now playing</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {mode === 'playlist' && (
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#1F2937]">
+                    <input type="checkbox" checked={selectedIds.includes(video.id)} onChange={() => toggleSelected(video)} style={{ accentColor }} className="h-3.5 w-3.5 shrink-0" />
+                    In rotation
+                  </label>
+                )}
+                {mode === 'single' && !isActive && (
+                  <button type="button" onClick={() => saveChange((current) => ({ ...current, activeId: video.id, mode: 'single' }), 'Playing this video on the TV.')} className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]">
+                    Play this one
+                  </button>
+                )}
+                {canManage && <button type="button" onClick={() => handleRemove(video)} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#667085] transition hover:border-[#F0DADA] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60">
+                  <Trash2 size={14} />Remove
+                </button>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {mode === 'playlist' && videos.length > 0 && selectedIds.length === 0 && (
+        <p className="mt-2 text-xs text-[#98A2B3]">Nothing is ticked, so the default video plays.</p>
+      )}
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="text-xs text-[#98A2B3]">{videos.length} of {TV_MAX_VIDEOS} videos</p>
+        {canManage && <label className={`flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] ${busy || !kioskId || videos.length >= TV_MAX_VIDEOS ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+          <Upload size={14} />{busy ? uploadLabel || 'Uploading...' : 'Add videos'}
+          <input type="file" multiple accept="video/mp4,video/webm" className="hidden" disabled={busy || !kioskId || videos.length >= TV_MAX_VIDEOS} onChange={handleUpload} />
+        </label>}
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {[
+          { key: 'loop', title: 'Loop playback', caption: 'Repeat the video, or restart the list after the last one' },
+          { key: 'muted', title: 'Mute video audio', caption: 'Recommended for the waiting lobby' },
+          { key: 'shuffle', title: 'Random order', caption: 'Shuffle the ticked videos (when playing all videos)' },
+        ].map(({ key, title, caption }) => (
+          <label key={key} className={`flex items-start gap-2 rounded-md border border-[#E5E7EB] bg-white p-2.5 ${key === 'shuffle' && mode !== 'playlist' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+            <input type="checkbox" checked={tvSettings[key]} disabled={!kioskId || (key === 'shuffle' && mode !== 'playlist')} onChange={(event) => updateTvSettings({ ...tvSettings, [key]: event.target.checked })} style={{ accentColor }} className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              <span className="block text-xs font-semibold text-[#1F2937]">{title}</span>
+              <span className="block text-xs text-[#98A2B3]">{caption}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {message && <p className="mt-3 text-xs font-medium text-emerald-700">{message}</p>}
+      {error && <p className="mt-3 text-xs text-[#9D0A0E]">{error}</p>}
+      <SettingsExactHint>Videos are stored online, so they play on every TV display for this kiosk, on any device. The first video uploaded is the default and plays whenever nothing else is chosen. Up to {TV_MAX_VIDEOS} videos, 500MB each.</SettingsExactHint>
+    </SettingsExactSection>
+  );
+}
+
+/* ---------------- Call sounds ----------------
+ *
+ * What patients hear when a queue number is called, saved per kiosk in
+ * Firestore at kiosks/<kioskId>/settings/callSound as { mode, updated_at }
+ * (the same pattern as the Lobby TV video above). Modes: 'muted', 'chime'
+ * (the default) and 'voice' (chime, then the number spoken). TV displays
+ * subscribe to that document, so a change applies without a refresh.
+ *
+ * Shared by Admin and Super Admin settings. Like the Lobby TV block it saves
+ * immediately - it is not part of the page's Save Changes.
+ *   accentColor        - pass it where there is no Admin AppearanceProvider
+ *   lockToDepartment   - limit the kiosk to the signed-in user's department
+ *                        (Admin); Super Admin leaves it off to pick any kiosk
+ *   allowApplyAll      - show "Apply to all kiosks" (Super Admin)
+ */
+
+const CALL_SOUND_OPTIONS = [
+  { key: 'muted', icon: VolumeX },
+  { key: 'chime', icon: Volume2 },
+  { key: 'voice', icon: Volume2 },
+];
+
+export function CallSoundSettings({ accentColor = '#9D0A0E', lockToDepartment = false, allowApplyAll = false }) {
+
+  // Admin pages carry the Admin language; Super Admin has its own, whose t()
+  // falls back to the Admin keys these strings live in.
+  const adminLanguage = useContext(LanguageContext);
+  const superAdminLanguage = useSuperAdminLanguage();
+  const t = adminLanguage ? adminLanguage.t : superAdminLanguage.t;
+
+  const { user: soundUser } = useAuth();
+  const departmentKey = soundUser?.department_id ?? soundUser?.department ?? '';
+
+  const [kiosks, setKiosks] = useState([]);
+  const [kioskId, setKioskId] = useState('');
+  const [noKiosk, setNoKiosk] = useState(false);
+  const [loadState, setLoadState] = useState('loading'); // loading | ready | error
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
+  const [modeState, setModeState] = useState({ kioskId: '', mode: DEFAULT_CALL_SOUND_MODE, custom: null });
+  const [uploadPercent, setUploadPercent] = useState(null); // null = not uploading
+  const [soundBusy, setSoundBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [durationInfo, setDurationInfo] = useState({ url: '', seconds: null });
+  const fileInput = useRef(null);
+  const previewAudio = useRef(null);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const messageTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(messageTimer.current), []);
+
+  // The saved mode belongs to the kiosk it was read for.
+  const modeReady = Boolean(kioskId) && modeState.kioskId === kioskId;
+  const mode = modeReady ? modeState.mode : DEFAULT_CALL_SOUND_MODE;
+  const custom = modeReady ? modeState.custom : null;
+
+  // The kiosks this screen may manage. Reads once; Retry reads again.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadKiosks() {
+      try {
+        if (lockToDepartment) {
+          const [kioskRows, departmentRows] = await Promise.all([getKiosks(), getDepartments()]);
+          if (cancelled) return;
+
+          const list = Array.isArray(kioskRows) ? kioskRows : [];
+          const kiosk = findKioskForDepartment(list, findDepartmentForUser(departmentRows, soundUser));
+
+          setKiosks(kiosk ? [kiosk] : []);
+          setKioskId(kiosk ? String(kiosk.kiosk_id) : '');
+          setNoKiosk(!kiosk);
+        } else {
+          const rows = await getKiosks();
+          if (cancelled) return;
+
+          const list = Array.isArray(rows) ? rows : [];
+
+          setKiosks(list);
+          setKioskId((current) => current || (list[0] ? String(list[0].kiosk_id) : ''));
+          setNoKiosk(false);
+        }
+
+        setLoadState('ready');
+      } catch (loadError) {
+        if (cancelled) return;
+
+        console.error('Call sound: kiosks could not be loaded:', loadError);
+        setLoadState('error');
+      }
+    }
+
+    loadKiosks();
+
+    return () => {
+      cancelled = true;
+    };
+    // soundUser is read for the department only; departmentKey stands for it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockToDepartment, departmentKey, loadAttempt]);
+
+  // Live view of this kiosk's saved mode.
+  useEffect(() => {
+    if (!kioskId) return undefined;
+
+    return subscribeCallSound(kioskId, ({ mode: nextMode, custom: nextCustom }) =>
+      setModeState({ kioskId, mode: nextMode, custom: nextCustom })
+    );
+  }, [kioskId]);
+
+  // The custom sound's length, read from the file itself (metadata only).
+  const customUrl = custom?.url || '';
+
+  useEffect(() => {
+    if (!customUrl) return undefined;
+
+    const probe = new Audio();
+    probe.preload = 'metadata';
+    probe.addEventListener('loadedmetadata', () => {
+      setDurationInfo({ url: customUrl, seconds: Number.isFinite(probe.duration) ? probe.duration : null });
+    });
+    probe.src = customUrl;
+
+    return () => {
+      probe.removeAttribute('src');
+    };
+  }, [customUrl]);
+
+  // Stop a preview when the sound or the kiosk changes, or the page closes.
+  useEffect(
+    () => () => {
+      previewAudio.current?.pause();
+      previewAudio.current = null;
+    },
+    [customUrl, kioskId]
+  );
+
+  function flashSaved(text) {
+    clearTimeout(messageTimer.current);
+    setMessage(text);
+    messageTimer.current = setTimeout(() => setMessage(''), 3000);
+  }
+
+  function describeError(saveError) {
+    return saveError?.code === 'permission-denied' || !auth.currentUser
+      ? t('callSound.signIn')
+      : t('callSound.saveFailed');
+  }
+
+  async function chooseMode(next) {
+    if (!kioskId || next === mode) return;
+
+    setError('');
+    setMessage('');
+
+    const previous = mode;
+    setModeState((state) => ({ ...state, kioskId, mode: next })); // show the choice straight away; it is put back if saving fails
+
+    try {
+      if (!auth.currentUser) {
+        const noUser = new Error('not signed in');
+        noUser.code = 'permission-denied';
+        throw noUser;
+      }
+
+      await saveCallSoundMode(kioskId, next);
+      flashSaved(t('callSound.saved'));
+    } catch (saveError) {
+      console.error('Call sound could not be saved:', saveError);
+      setModeState((state) => ({ ...state, kioskId, mode: previous }));
+      setError(describeError(saveError));
+    }
+  }
+
+  async function applyToAll() {
+    if (kiosks.length === 0) return;
+
+    setApplying(true);
+    setError('');
+    setMessage('');
+
+    if (!auth.currentUser) {
+      setApplying(false);
+      setError(t('callSound.signIn'));
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      kiosks.map((kiosk) => saveCallSoundMode(kiosk.kiosk_id, mode))
+    );
+
+    const failed = results.filter((result) => result.status === 'rejected').length;
+
+    setApplying(false);
+
+    if (failed === 0) {
+      flashSaved(t('callSound.applyAllDone', { n: kiosks.length }));
+    } else {
+      setError(t('callSound.applyAllFailed', { n: failed }));
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+
+    try {
+      await testCallSound(mode);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  // Every kiosk id, read fresh: a custom file may be shared by several kiosks.
+  async function allKioskIds() {
+    const rows = await getKiosks();
+    const ids = (Array.isArray(rows) ? rows : []).map((kiosk) => String(kiosk.kiosk_id));
+
+    return [...new Set([...ids, ...kiosks.map((kiosk) => String(kiosk.kiosk_id)), String(kioskId)])];
+  }
+
+  // Deletes an old file once nothing points at it. A failure only leaves a file behind.
+  async function cleanUpFile(path) {
+    if (!path) return;
+
+    try {
+      await deleteCustomSoundFileIfUnused(path, await allKioskIds());
+    } catch (cleanUpError) {
+      console.warn('Old call sound file could not be deleted:', cleanUpError?.code || cleanUpError?.message);
+    }
+  }
+
+  function requireSignIn() {
+    if (auth.currentUser) return true;
+
+    setError(t('callSound.signIn'));
+    return false;
+  }
+
+  async function uploadSound(file) {
+    if (!file || !kioskId || soundBusy) return;
+
+    setError('');
+    setMessage('');
+
+    if (!isValidCustomSoundFile(file)) {
+      setError(t('callSound.custom.badFile'));
+      return;
+    }
+
+    if (!requireSignIn()) return;
+
+    const previous = custom;
+    let uploaded = null;
+
+    setSoundBusy(true);
+    setUploadPercent(0);
+
+    try {
+      uploaded = await uploadCustomCallSound(kioskId, file, setUploadPercent);
+      await saveCustomCallSound(kioskId, uploaded);
+      flashSaved(t('callSound.custom.uploaded'));
+
+      if (previous?.path && previous.path !== uploaded.path) await cleanUpFile(previous.path);
+    } catch (uploadError) {
+      console.error('Call sound upload failed:', uploadError?.code, uploadError);
+
+      // The file went up but could not be saved: do not leave it behind.
+      if (uploaded) await cleanUpFile(uploaded.path);
+
+      setError(
+        uploadError?.code === 'storage/unauthorized' || uploadError?.code === 'permission-denied'
+          ? t('callSound.custom.unauthorized')
+          : t('callSound.custom.uploadFailed', { code: uploadError?.code || 'unknown' })
+      );
+    } finally {
+      setSoundBusy(false);
+      setUploadPercent(null);
+    }
+  }
+
+  function handleFileChosen(event) {
+    const file = event.target.files?.[0];
+
+    event.target.value = '';
+    uploadSound(file);
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    setDragging(false);
+    uploadSound(event.dataTransfer?.files?.[0]);
+  }
+
+  // "Use default sound": stops using the file but leaves it in Storage.
+  async function useDefaultSound() {
+    if (!custom || soundBusy) return;
+
+    setError('');
+    setMessage('');
+
+    if (!requireSignIn()) return;
+
+    setSoundBusy(true);
+
+    try {
+      await saveCustomCallSound(kioskId, null);
+      flashSaved(t('callSound.custom.defaulted'));
+    } catch (saveError) {
+      console.error('Call sound could not be reset:', saveError);
+      setError(describeError(saveError));
+    } finally {
+      setSoundBusy(false);
+    }
+  }
+
+  // "Remove": clears the sound and deletes the file (unless another kiosk uses it).
+  async function removeSound() {
+    if (!custom || soundBusy) return;
+
+    setError('');
+    setMessage('');
+
+    if (!requireSignIn()) return;
+
+    setSoundBusy(true);
+
+    try {
+      const { path } = custom;
+
+      await saveCustomCallSound(kioskId, null);
+      await cleanUpFile(path);
+      flashSaved(t('callSound.custom.removed'));
+    } catch (saveError) {
+      console.error('Call sound could not be removed:', saveError);
+      setError(describeError(saveError));
+    } finally {
+      setSoundBusy(false);
+    }
+  }
+
+  // Super Admin: the same file and URL goes to every other kiosk - nothing is uploaded again.
+  async function applySoundToAll() {
+    if (!custom || soundBusy) return;
+
+    setError('');
+    setMessage('');
+
+    if (!requireSignIn()) return;
+
+    setSoundBusy(true);
+
+    try {
+      const others = kiosks.map((kiosk) => String(kiosk.kiosk_id)).filter((id) => id !== String(kioskId));
+      const oldPaths = new Set();
+
+      const results = await Promise.allSettled(
+        others.map(async (id) => {
+          const existing = await readCustomCallSound(id);
+
+          await saveCustomCallSound(id, custom);
+
+          if (existing?.path && existing.path !== custom.path) oldPaths.add(existing.path);
+        })
+      );
+
+      for (const path of oldPaths) await cleanUpFile(path);
+
+      const failed = results.filter((result) => result.status === 'rejected').length;
+
+      if (failed === 0) flashSaved(t('callSound.custom.applyAllDone', { n: others.length }));
+      else setError(t('callSound.custom.applyAllFailed', { n: failed }));
+    } catch (applyError) {
+      console.error('Call sound could not be applied to all kiosks:', applyError);
+      setError(describeError(applyError));
+    } finally {
+      setSoundBusy(false);
+    }
+  }
+
+  function togglePreview() {
+    if (previewing) {
+      previewAudio.current?.pause();
+      setPreviewing(false);
+      return;
+    }
+
+    if (!custom) return;
+
+    const element = new Audio(custom.url);
+
+    element.addEventListener('ended', () => setPreviewing(false));
+    element.addEventListener('error', () => {
+      setPreviewing(false);
+      setError(t('callSound.custom.playFailed'));
+    });
+
+    previewAudio.current = element;
+    setPreviewing(true);
+
+    element.play().catch((playError) => {
+      console.warn('Call sound preview could not play:', playError?.message || playError);
+      setPreviewing(false);
+      setError(t('callSound.custom.playFailed'));
+    });
+  }
+
+  const formatSize = (bytes) => (bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+  const formatDuration = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+
+  const customDuration = durationInfo.url === customUrl ? durationInfo.seconds : null;
+
+  const disabled = !kioskId || !modeReady;
+
+  return (
+    <SettingsExactSection icon={Volume2} title={t('callSound.title')} subtitle={t('callSound.subtitle')}>
+      {loadState === 'loading' && <p className="text-xs text-[#98A2B3]">{t('callSound.loading')}</p>}
+
+      {loadState === 'error' && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-[#F0DADA] px-4 py-3">
+          <p className="text-xs text-[#9D0A0E]">{t('callSound.loadFailed')}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoadState('loading');
+              setLoadAttempt((attempt) => attempt + 1);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5]"
+          >
+            <RefreshCw size={12} />
+            {t('callSound.retry')}
+          </button>
+        </div>
+      )}
+
+      {loadState === 'ready' && (
+        <>
+          <SettingsExactFieldLabel>{t('callSound.kiosk')}</SettingsExactFieldLabel>
+
+          {lockToDepartment && noKiosk && (
+            <p className="text-xs font-medium text-[#9D0A0E]">{t('callSound.noKiosk')}</p>
+          )}
+
+          {lockToDepartment && !noKiosk && (
+            <p className="text-sm font-semibold text-[#1F2937]">{kiosks[0]?.name || ''}</p>
+          )}
+
+          {!lockToDepartment && (
+            <select
+              value={kioskId}
+              onChange={(event) => {
+                setKioskId(event.target.value);
+                setMessage('');
+                setError('');
+              }}
+              aria-label={t('callSound.kiosk')}
+              className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+            >
+              {kiosks.length === 0 && <option value="">{t('callSound.noKiosksFound')}</option>}
+              {kiosks.map((kiosk) => (
+                <option key={kiosk.kiosk_id} value={kiosk.kiosk_id}>
+                  {kiosk.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label={t('callSound.title')}>
+            {CALL_SOUND_OPTIONS.map(({ key, icon: Icon }) => {
+              const selected = mode === key;
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  disabled={disabled}
+                  onClick={() => chooseMode(key)}
+                  className="rounded-md border bg-white p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{
+                    borderColor: selected ? accentColor : '#E5E7EB',
+                    boxShadow: selected ? `0 0 0 1px ${accentColor}` : 'none',
+                  }}
+                >
+                  <span className="flex items-center gap-2">
+                    <Icon size={14} style={{ color: selected ? accentColor : '#667085' }} />
+                    <span className="text-xs font-semibold text-[#1F2937]">{t(`callSound.option.${key}.title`)}</span>
+                    {key === DEFAULT_CALL_SOUND_MODE && (
+                      <span className="rounded border border-[#E5E7EB] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#4B5563]">
+                        {t('callSound.default')}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-1 block text-xs text-[#98A2B3]">{t(`callSound.option.${key}.desc`)}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={testing}
+              className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Volume2 size={14} />
+              {testing ? t('callSound.testing') : t('callSound.test')}
+            </button>
+
+            {allowApplyAll && (
+              <button
+                type="button"
+                onClick={applyToAll}
+                disabled={applying || disabled || kiosks.length < 2}
+                className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Check size={14} />
+                {applying ? t('callSound.applyAllBusy') : t('callSound.applyAll')}
+              </button>
+            )}
+          </div>
+
+          {/* Custom call sound */}
+          <div className="mt-5 border-t border-[#E5E7EB] pt-4">
+            <SettingsExactFieldLabel>{t('callSound.custom.title')}</SettingsExactFieldLabel>
+            <p className="mb-3 text-xs text-[#98A2B3]">{t('callSound.custom.desc')}</p>
+
+            <input
+              ref={fileInput}
+              type="file"
+              accept={CUSTOM_SOUND_ACCEPT}
+              onChange={handleFileChosen}
+              className="hidden"
+              tabIndex={-1}
+            />
+
+            {custom && (
+              <div className="mb-3 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3">
+                <p className="truncate text-sm font-semibold text-[#1F2937]" title={custom.name}>
+                  {custom.name || t('callSound.custom.unnamed')}
+                </p>
+                <p className="mt-0.5 text-xs text-[#667085]">
+                  {custom.size ? formatSize(custom.size) : '—'}
+                  {customDuration != null && ` · ${formatDuration(customDuration)}`}
+                </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={togglePreview}
+                    disabled={soundBusy}
+                    className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ borderColor: accentColor, color: accentColor }}
+                  >
+                    {previewing ? <Square size={12} /> : <Play size={12} />}
+                    {previewing ? t('callSound.custom.stop') : t('callSound.custom.play')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={useDefaultSound}
+                    disabled={soundBusy}
+                    className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {t('callSound.custom.useDefault')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={removeSound}
+                    disabled={soundBusy}
+                    className="flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#9D0A0E] transition hover:bg-[#FBF1F1] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Trash2 size={12} />
+                    {t('callSound.custom.remove')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!custom && (
+              <p className="mb-3 text-xs font-medium text-[#4B5563]">{t('callSound.custom.usingDefault')}</p>
+            )}
+
+            <div
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (!soundBusy && !disabled) setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed px-4 py-3 transition"
+              style={{
+                borderColor: dragging ? accentColor : '#D0D5DD',
+                backgroundColor: dragging ? `${accentColor}10` : 'transparent',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                disabled={soundBusy || disabled}
+                className="flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ backgroundColor: accentColor }}
+              >
+                <Upload size={14} />
+                {custom ? t('callSound.custom.replace') : t('callSound.custom.upload')}
+              </button>
+
+              <span className="text-xs text-[#98A2B3]">{t('callSound.custom.drop')}</span>
+            </div>
+
+            {uploadPercent !== null && (
+              <div className="mt-3" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadPercent}>
+                <p className="mb-1 text-xs font-medium text-[#4B5563]">
+                  {t('callSound.custom.uploading', { n: uploadPercent })}
+                </p>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E5E7EB]">
+                  <div
+                    className="h-full rounded-full transition-[width] duration-200"
+                    style={{ width: `${uploadPercent}%`, backgroundColor: accentColor }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {allowApplyAll && custom && (
+              <button
+                type="button"
+                onClick={applySoundToAll}
+                disabled={soundBusy || kiosks.length < 2}
+                className="mt-3 flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Check size={14} />
+                {soundBusy ? t('callSound.custom.applyAllBusy') : t('callSound.custom.applyAll')}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {message && <p className="mt-3 text-xs font-medium text-emerald-700">{message}</p>}
+      {error && <p className="mt-3 text-xs text-[#9D0A0E]">{error}</p>}
+      <SettingsExactHint>{t('callSound.hint')}</SettingsExactHint>
+    </SettingsExactSection>
+  );
+}
+
 function SettingsExactPage() {
   const { user } = useAuth();
   const { t, language, setLanguage } = useLanguage();
@@ -4451,6 +5607,10 @@ function SettingsExactPage() {
           <SettingsExactHint>{t('settingsPage.locale.clockHint')}</SettingsExactHint>
         </div>
       </SettingsExactSection>
+
+      <TvVideoSettings lockToDepartment />
+
+      <CallSoundSettings accentColor={accentColor} lockToDepartment />
 
       <SettingsExactSection icon={Gavel} title={t('settingsPage.legal.title')} subtitle={t('settingsPage.legal.subtitle')}>
         <div className="divide-y divide-[#E5E7EB]">

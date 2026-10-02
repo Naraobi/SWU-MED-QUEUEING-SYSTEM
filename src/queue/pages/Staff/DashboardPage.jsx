@@ -14,9 +14,13 @@ import {
   Clock,
   X,
   Search,
+  Volume2,
+  VolumeX,
+  Check,
 } from 'lucide-react'
 
 import Sidebar from './Sidebar.jsx'
+import AppFooter from '../../components/AppFooter.jsx'
 import Topbar from './Topbar.jsx'
 import StaffStatCard from './StaffStatCard.jsx'
 import TerminalSelectionPage from './TerminalSelectionPage.jsx'
@@ -35,6 +39,13 @@ import {
   joinDepartment,
   onQueueUpdated,
 } from '../../services/socketService'
+
+import { playCallSound, preloadCallSound, useCallSoundMode } from '../../utils/callSound'
+import {
+  STAFF_OVERRIDE_CLEARED_EVENT,
+  getStaffCallSoundOverride,
+  setStaffCallSoundOverride,
+} from '../../services/staffOverride'
 
 // Matches TerminalSelectionPage.jsx's per-staff key so both components
 // agree on where a staff member's chosen terminal lives. Two staff on
@@ -154,6 +165,81 @@ function announceCalledPatient(queueNumber, terminalName) {
   utterance.rate = 0.9
 
   window.speechSynthesis.speak(utterance)
+}
+
+// Small speaker control: the staff member's own call sound, for this screen only.
+function CallSoundPicker({ mode, onChange, t }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+
+    const close = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false)
+    }
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open])
+
+  const Icon = mode === 'muted' ? VolumeX : Volume2
+
+  return (
+    <div ref={rootRef} className="absolute right-4 top-4 z-10 text-left">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={t('sound.label')}
+        title={t('sound.label')}
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-[#9D0A0E] hover:text-[#9D0A0E]"
+      >
+        <Icon size={14} />
+        {t(`sound.${mode}`)}
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label={t('sound.label')}
+          className="absolute right-0 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+        >
+          {['muted', 'chime', 'voice'].map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="option"
+              aria-selected={mode === option}
+              onClick={() => {
+                onChange(option)
+                setOpen(false)
+              }}
+              className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-xs font-semibold transition hover:bg-slate-50 ${
+                mode === option ? 'text-[#9D0A0E]' : 'text-slate-700'
+              }`}
+            >
+              {t(`sound.${option}`)}
+              {mode === option && <Check size={13} />}
+            </button>
+          ))}
+
+          <p className="border-t border-slate-100 bg-slate-50 px-3 py-2 text-[11px] leading-4 text-slate-400">
+            {t('sound.note')}
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function matchesStaffDepartment(patientId, staffPrefix) {
@@ -476,6 +562,65 @@ export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
 
   const staffId = user?.staff_id ?? user?.user_id ?? user?.id ?? null
+
+  // ---- call sound ----------------------------------------------------
+  // Starts from the kiosk's saved mode; the staff member can change it for
+  // this screen only. The pick is a temporary override (staffOverride.js),
+  // reset on logout or when another staff member signs in.
+  const [resolvedKioskId, setResolvedKioskId] = useState('')
+  const soundKioskId = user?.kiosk_id ? String(user.kiosk_id) : resolvedKioskId
+  const [soundOverrideTick, setSoundOverrideTick] = useState(0)
+  // Read from storage, which staffOverride.js keeps tied to this staff member.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const soundOverride = useMemo(() => getStaffCallSoundOverride(), [staffId, soundOverrideTick])
+  const { mode: kioskSoundMode } = useCallSoundMode(soundKioskId)
+  const soundMode = soundOverride || kioskSoundMode
+
+  useEffect(() => {
+    preloadCallSound()
+  }, [])
+
+  // The kiosk behind this staff member's department.
+  useEffect(() => {
+    if (user?.kiosk_id || !user?.department_id) return undefined;
+
+    let cancelled = false
+
+    getDepartmentById(user.department_id)
+      .then((dept) => {
+        if (!cancelled && dept?.kiosk_id) setResolvedKioskId(String(dept.kiosk_id))
+      })
+      .catch((err) => console.warn('Call sound: kiosk could not be resolved:', err?.message))
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.kiosk_id, user?.department_id])
+
+  // A logout wipes the stored pick (staffOverride.js); re-reading it then puts
+  // the screen back on the kiosk default. A different staff member never
+  // inherits it, because the pick is only valid for the staff who made it.
+  useEffect(() => {
+    const handleCleared = () => setSoundOverrideTick((tick) => tick + 1)
+
+    window.addEventListener(STAFF_OVERRIDE_CLEARED_EVENT, handleCleared)
+    return () => window.removeEventListener(STAFF_OVERRIDE_CLEARED_EVENT, handleCleared)
+  }, [])
+
+  function chooseSoundMode(next) {
+    setStaffCallSoundOverride(next, staffId)
+    setSoundOverrideTick((tick) => tick + 1)
+  }
+
+  // Every call or recall on this screen goes through here: the chime and/or
+  // the existing spoken announcement, depending on the mode.
+  function announceStaffCall(queueNumber, terminalName) {
+    if (!queueNumber) return
+
+    playCallSound(soundMode, queueNumber, {
+      speak: () => announceCalledPatient(queueNumber, terminalName),
+    })
+  }
 
   const [staffPrefix, setStaffPrefix] = useState('')
   const [showSkip, setShowSkip] = useState(false)
@@ -914,7 +1059,9 @@ export default function DashboardPage() {
 
           <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(350px,1fr)] flex-1 items-start">
             <div className="space-y-6">
-              <div className="select-none rounded-2xl border border-slate-200/90 bg-white p-10 text-center shadow-sm" style={{ caretColor: 'transparent' }}>
+              <div className="relative select-none rounded-2xl border border-slate-200/90 bg-white p-10 text-center shadow-sm" style={{ caretColor: 'transparent' }}>
+                <CallSoundPicker mode={soundMode} onChange={chooseSoundMode} t={t} />
+
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   {t('dashboard.currentlyServing')}
                 </p>
@@ -993,7 +1140,7 @@ export default function DashboardPage() {
 
                               const recalledPatient = result?.currentlyServing || activeServing
 
-                              announceCalledPatient(recalledPatient?.id, terminalDisplayName)
+                              announceStaffCall(recalledPatient?.id, terminalDisplayName)
 
                               await refresh(staffPrefix, undefined, { terminalId })
                             } catch (err) {
@@ -1070,7 +1217,7 @@ export default function DashboardPage() {
                           // calling, so the returned ticket is already run through
                           // mapQueueItem() — queue_number comes back as `id`, not
                           // `queue_number` (see api.js's mapQueueItem).
-                          announceCalledPatient(
+                          announceStaffCall(
                             result?.currentlyServing?.id,
                             terminalDisplayName
                           )
@@ -1189,6 +1336,8 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        <div className="mt-auto"><AppFooter accent={accent} /></div>
       </main>
 
       {showTerminalModal && (

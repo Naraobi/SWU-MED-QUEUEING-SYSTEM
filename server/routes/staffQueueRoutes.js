@@ -2171,6 +2171,95 @@ router.get(
 );
 
 // ============================================================
+// ADMIN REPORT ROWS
+// GET /api/staff-queue/report?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+//
+// Raw per-ticket rows (with the terminal each ticket was handled at)
+// for the Admin "Reports" page. The department always comes from the
+// authenticated admin's own profile, never from the client, so an
+// admin can only read their own department. The client aggregates
+// the rows into the Department / Terminal / Staff / Queue reports.
+// ============================================================
+
+router.get(
+  "/report",
+  authenticateRequest,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const departmentId = req.user?.department_id;
+
+      if (!departmentId) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Your account is not assigned to a department.",
+        });
+      }
+
+      const isDateKey = (value) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      const startDate = isDateKey(req.query.startDate)
+        ? req.query.startDate
+        : today;
+
+      const endDate = isDateKey(req.query.endDate)
+        ? req.query.endDate
+        : startDate;
+
+      const [rows] = await pool.query(
+        `
+        SELECT
+          qt.queue_id,
+          qt.queue_number,
+          qt.status,
+          qt.issued_at,
+          qt.called_at,
+          qt.service_began_at,
+          qt.completed_at,
+          qt.counter_id,
+
+          c.prefix AS counter_prefix,
+          c.counter_number,
+
+          d.name AS department
+
+        FROM queue_ticket qt
+
+        INNER JOIN department d
+          ON qt.department_id = d.department_id
+
+        LEFT JOIN counter c
+          ON qt.counter_id = c.counter_id
+
+        WHERE qt.department_id = ?
+          AND DATE(qt.issued_at) BETWEEN ? AND ?
+
+        ORDER BY qt.issued_at ASC
+        `,
+        [departmentId, startDate, endDate]
+      );
+
+      return res.json({
+        success: true,
+        data: rows,
+      });
+    } catch (error) {
+      console.error("GET admin report rows error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Failed to retrieve report data.",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// ============================================================
 // EXPORT ROUTER
 // ============================================================
 

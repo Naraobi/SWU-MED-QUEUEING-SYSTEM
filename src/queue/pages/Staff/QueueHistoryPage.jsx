@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { CheckCircle2, SkipForward, Timer } from 'lucide-react'
 import Sidebar from './Sidebar.jsx'
+import AppFooter from '../../components/AppFooter.jsx'
 import Topbar from './Topbar.jsx'
 import StaffStatCard from './StaffStatCard.jsx'
 import QueueDetailsModal from '../../components/modals/QueueDetailsModal.jsx'
@@ -646,6 +647,7 @@ export default function QueueHistoryPage() {
 
         </div>
 
+        <div className="mt-auto"><AppFooter accent={accent} /></div>
       </main>
 
       {/* QUEUE DETAILS MODAL */}

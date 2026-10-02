@@ -4,11 +4,12 @@ import Dashboard from './Dashboard';
 import UserCrud from './UserCrud';
 import RoleManagement from './roleManagement';
 import DepartmentManagement from './DepartmentManagement';
-import Reports from './Reports';
+import Reports from './ReportsPage';
 import AdminQueueManagement from './QueueManagement';
 import Settings from './Settings';
 import KioskManagement from './KioskManagement';
 import PositionManagement from './PositionManagement';
+import { SuperAdminAppearanceProvider } from './SuperAdminAppearanceContext';
 
 export default function SuperAdminApp() {
   const [activePage, setActivePage] = useState(
@@ -16,6 +17,7 @@ export default function SuperAdminApp() {
 );
 
   return (
+    <SuperAdminAppearanceProvider>
     <Layout activePage={activePage} onNavigate={setActivePage}>
       {activePage === 'dashboard' && (
         <Dashboard onNavigate={setActivePage} />
@@ -31,5 +33,6 @@ export default function SuperAdminApp() {
       {activePage === 'settings' && <Settings />}
       {activePage === 'positions' && <PositionManagement />}
     </Layout>
+    </SuperAdminAppearanceProvider>
   );
 }

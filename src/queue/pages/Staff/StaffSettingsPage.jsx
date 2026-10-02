@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Check, Globe, Image, KeyRound, Monitor, Moon, Palette, Save, ShieldCheck, Sun, Upload } from 'lucide-react';
 import Sidebar from './Sidebar.jsx';
+import AppFooter from '../../components/AppFooter.jsx';
 import Topbar from './Topbar.jsx';
 import { useStaffPreferences } from './StaffPreferencesContext.jsx';
 import { LANGUAGES } from './staffI18n';
 import { extractDominantColor } from '../../theme/colors';
 import ChangePasswordModal from '../../components/modals/ChangePasswordModal.jsx';
 import defaultLogo from '../../../assets/logo.png';
+import { TvVideoSettings } from '../Admin/AdminScreens.jsx';
 
 const THEME_MODES = [
   {
@@ -309,7 +311,11 @@ export default function StaffSettingsPage() {
             </div>
             <p className="mt-3 text-xs leading-5 text-[#98A2B3]">{t('settings.language.hint')}</p>
           </SettingsSection>
+
+          <TvVideoSettings accentColor={accent} canManage={false} lockToDepartment />
         </div>
+
+        <div className="mt-auto"><AppFooter accent={accent} /></div>
       </main>
 
       {showChangePassword && (

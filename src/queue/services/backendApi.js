@@ -1216,7 +1216,8 @@ console.log("PROFILE DATA:", result.data);
 export async function getDashboardAnalytics(
   firebaseUser,
   startDate,
-  endDate
+  endDate,
+  filters = {}
 ) {
   if (!firebaseUser) {
     throw new Error("Firebase user is required");
@@ -1231,6 +1232,15 @@ export async function getDashboardAnalytics(
 
   if (endDate) {
     params.set("endDate", endDate);
+  }
+
+  // Optional: narrow the queue rows to these departments / terminals.
+  if (filters.departmentIds?.length) {
+    params.set("departmentIds", filters.departmentIds.join(","));
+  }
+
+  if (filters.counterIds?.length) {
+    params.set("counterIds", filters.counterIds.join(","));
   }
 
   const queryString = params.toString();
@@ -1303,6 +1313,64 @@ export async function getReportsAnalytics(
   if (!response.ok || !result.success) {
     throw new Error(
       result.message || "Failed to load reports analytics."
+    );
+  }
+
+  return result.data;
+}
+
+// Per-ticket rows (with terminal) for the Admin Reports page.
+// The server scopes them to the signed-in admin's own department.
+export async function getAdminReportRows(
+  firebaseUser,
+  startDate,
+  endDate
+) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  const token = await firebaseUser.getIdToken();
+  const params = new URLSearchParams();
+
+  if (startDate) {
+    params.set("startDate", startDate);
+  }
+
+  if (endDate) {
+    params.set("endDate", endDate);
+  }
+
+  const response = await fetch(
+    `${API_URL}/staff-queue/report?${params.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  // A server that doesn't have this route yet answers with an HTML 404
+  // page; check before parsing so that surfaces as a normal error.
+  const isJson = (response.headers.get("content-type") || "").includes(
+    "application/json"
+  );
+
+  if (!isJson) {
+    throw new Error(
+      response.ok
+        ? "Unexpected response from the server."
+        : `Report request failed (${response.status}).`
+    );
+  }
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to load report data."
     );
   }
 
