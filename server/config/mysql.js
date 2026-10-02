@@ -37,5 +37,16 @@ const pool = mysql.createPool({
 pool.on("connection", (connection) => {
   connection.query("SET time_zone = '+08:00'");
 });
-
+pool.query(`
+  SELECT
+    DATABASE() AS database_name,
+    @@collation_connection AS connection_collation,
+    @@character_set_connection AS connection_charset
+`)
+  .then(([rows]) => {
+    console.log("MYSQL CONNECTION CHECK:", rows);
+  })
+  .catch((error) => {
+    console.error("MYSQL CONNECTION CHECK ERROR:", error);
+  });
 module.exports = pool;

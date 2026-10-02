@@ -37,23 +37,6 @@ export async function getDepartmentById(departmentId) {
 
   return result.data;
 }
-export async function createRole(payload) {
-  const response = await fetch(`${API_BASE_URL}/roles`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || 'Failed to create role.');
-  }
-
-  return result;
-}
 
 export async function createDepartment(department) {
   if (!department) {
@@ -344,141 +327,63 @@ export async function getRoleById(roleId) {
   return result.data;
 }
 
-// =====================================================
-// USER API
-// =====================================================
-
-export async function getUsers() {
-  const response = await fetch(`${API_URL}/users`);
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to retrieve users"
-    );
+export async function createRole(role) {
+  if (!role) {
+    throw new Error("Role data is required");
   }
 
-  return result.data;
-}
-
-export async function getUserById(userId) {
-  if (!userId) {
-    throw new Error("User ID is required");
-  }
-
-  const response = await fetch(
-    `${API_URL}/users/${encodeURIComponent(userId)}`
-  );
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to retrieve user"
-    );
-  }
-
-  return result.data;
-}
-
-export async function getUserByEmail(email) {
-  if (!email) {
-    throw new Error("Email is required");
-  }
-
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const response = await fetch(
-    `${API_URL}/users/by-email/${encodeURIComponent(
-      normalizedEmail
-    )}`
-  );
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to retrieve user"
-    );
-  }
-
-  return result.data;
-}
-
-export async function createUser(user) {
-  if (!user) {
-    throw new Error("User data is required");
-  }
-
-  const response = await fetch(`${API_URL}/users`, {
+  const response = await fetch(`${API_URL}/roles`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(user),
+    body: JSON.stringify({
+      role_id: role.role_id,
+      role: role.role,
+      role_name: role.role_name,
+      description: role.description || "",
+      status: role.status || "active",
+      permissions: Array.isArray(role.permissions)
+        ? role.permissions
+        : [],
+    }),
   });
 
   const result = await response.json();
 
   if (!response.ok || !result.success) {
     throw new Error(
-      result.message || "Failed to create user"
+      result.message || "Failed to create role"
     );
   }
 
   return result.data;
 }
 
-export async function updateUser(userId, user) {
-  if (!userId) {
-    throw new Error("User ID is required");
+export async function updateRole(roleId, role) {
+  if (!roleId) {
+    throw new Error("Role ID is required");
   }
 
-  if (!user) {
-    throw new Error("User data is required");
+  if (!role) {
+    throw new Error("Role data is required");
   }
 
   const response = await fetch(
-    `${API_URL}/users/${encodeURIComponent(userId)}`,
+    `${API_URL}/roles/${encodeURIComponent(roleId)}`,
     {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(user),
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to update user"
-    );
-  }
-
-  return result.data;
-}
-
-export async function deleteUser(
-  userId,
-  deletionReason,
-  deletedBy = "superadmin"
-) {
-  if (!userId) {
-    throw new Error("User ID is required");
-  }
-
-  const response = await fetch(
-    `${API_URL}/users/${encodeURIComponent(userId)}`,
-    {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify({
-        deletion_reason: deletionReason || "",
-        deletedBy,
+        role: role.role,
+        role_name: role.role_name,
+        description: role.description || "",
+        status: role.status || "active",
+        permissions: Array.isArray(role.permissions)
+          ? role.permissions
+          : [],
       }),
     }
   );
@@ -487,138 +392,20 @@ export async function deleteUser(
 
   if (!response.ok || !result.success) {
     throw new Error(
-      result.message || "Failed to delete user"
+      result.message || "Failed to update role"
     );
   }
 
-  return result;
+  return result.data;
 }
 
-// =====================================================
-// STAFF BY DEPARTMENT
-// =====================================================
-
-export async function getStaffByDepartment(departmentId) {
-  if (!departmentId) {
-    throw new Error("Department ID is required");
+export async function deleteRole(roleId) {
+  if (!roleId) {
+    throw new Error("Role ID is required");
   }
 
   const response = await fetch(
-    `${API_URL}/users/department/${encodeURIComponent(
-      departmentId
-    )}`
-  );
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to retrieve department staff"
-    );
-  }
-
-  return result.data;
-}
-
-// =====================================================
-// TERMINAL / COUNTER API
-// =====================================================
-
-export async function getTerminals() {
-  const response = await fetch(`${API_URL}/counters`);
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to retrieve terminals"
-    );
-  }
-
-  return result.data;
-}
-
-export async function getTerminalById(terminalId) {
-  if (!terminalId) {
-    throw new Error("Terminal ID is required");
-  }
-
-  const response = await fetch(
-    `${API_URL}/counters/${encodeURIComponent(terminalId)}`
-  );
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to retrieve terminal"
-    );
-  }
-
-  return result.data;
-}
-
-export async function createTerminal(terminal) {
-  if (!terminal) {
-    throw new Error("Terminal data is required");
-  }
-
-  const response = await fetch(`${API_URL}/counters`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(terminal),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to create terminal"
-    );
-  }
-
-  return result.data;
-}
-
-export async function updateTerminal(terminalId, terminal) {
-  if (!terminalId) {
-    throw new Error("Terminal ID is required");
-  }
-
-  if (!terminal) {
-    throw new Error("Terminal data is required");
-  }
-
-  const response = await fetch(
-    `${API_URL}/counters/${encodeURIComponent(terminalId)}`,
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(terminal),
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(
-      result.message || "Failed to update terminal"
-    );
-  }
-
-  return result.data;
-}
-
-export async function deleteTerminal(terminalId) {
-  if (!terminalId) {
-    throw new Error("Terminal ID is required");
-  }
-
-  const response = await fetch(
-    `${API_URL}/counters/${encodeURIComponent(terminalId)}`,
+    `${API_URL}/roles/${encodeURIComponent(roleId)}`,
     {
       method: "DELETE",
     }
@@ -628,12 +415,13 @@ export async function deleteTerminal(terminalId) {
 
   if (!response.ok || !result.success) {
     throw new Error(
-      result.message || "Failed to delete terminal"
+      result.message || "Failed to delete role"
     );
   }
 
   return result;
 }
+
 
 // =====================================================
 // STAFF TERMINAL SESSION API
@@ -1184,7 +972,206 @@ export async function markAllNotificationsRead() {
 
   return result.data;
 }
+// =====================================================
+// USER MANAGEMENT API
+// =====================================================
 
+export async function createUser(userData) {
+  if (!userData) {
+    throw new Error("User data is required");
+  }
+
+  const response = await fetch(`${API_URL}/users`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(userData),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message ||
+        result.error ||
+        "Failed to create user"
+    );
+  }
+
+  return result.data;
+}
+export async function deleteUser(userId, deletionReason = "") {
+  if (!userId) {
+    throw new Error("User ID is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/users/${encodeURIComponent(userId)}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        deletion_reason: deletionReason,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message ||
+        result.error ||
+        "Failed to delete user"
+    );
+  }
+
+  return result;
+}
+export async function getUsers() {
+  const response = await fetch(`${API_URL}/users`);
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to retrieve users"
+    );
+  }
+
+  return result.data;
+}
+
+export async function updateUser(userId, userData) {
+  if (!userId) {
+    throw new Error("User ID is required");
+  }
+
+  if (!userData) {
+    throw new Error("User data is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/users/${encodeURIComponent(userId)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(userData),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to update user"
+    );
+  }
+
+  return result.data;
+}
+export async function createTerminal(terminalData) {
+  const response = await fetch(`${API_URL}/counters`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(terminalData),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to create terminal"
+    );
+  }
+
+  return result.data;
+}
+export async function updateTerminal(terminalId, terminalData) {
+  if (!terminalId) {
+    throw new Error("Terminal ID is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/counters/${encodeURIComponent(terminalId)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(terminalData),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to update terminal"
+    );
+  }
+
+  return result.data;
+}
+export async function getTerminals() {
+  const response = await fetch(`${API_URL}/counters`);
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to retrieve terminals"
+    );
+  }
+
+  return result.data;
+}
+export async function deleteTerminal(terminalId) {
+  if (!terminalId) {
+    throw new Error("Terminal ID is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/counters/${encodeURIComponent(terminalId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to delete terminal"
+    );
+  }
+
+  return result.data;
+}
+export async function getStaffByDepartment(departmentId) {
+  if (!departmentId) {
+    throw new Error("Department ID is required");
+  }
+
+  const response = await fetch(
+    `${API_URL}/users/department/${encodeURIComponent(departmentId)}`
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to retrieve department staff"
+    );
+  }
+
+  return result.data;
+}
 // =====================================================
 // AUTHENTICATION / USER PROFILE API
 // =====================================================
@@ -1204,6 +1191,10 @@ export async function getCurrentUserProfile(firebaseUser) {
     });
 
     const result = await response.json();
+console.log("PROFILE REQUEST URL:", `${API_URL}/users/profile`);
+console.log("PROFILE HTTP STATUS:", response.status);
+console.log("RAW PROFILE RESPONSE:", result);
+console.log("PROFILE DATA:", result.data);
 
     if (!response.ok || !result.success) {
       throw new Error(

@@ -57,7 +57,7 @@ router.get("/analytics", async (req, res) => {
       });
     }
 
-    let [users] = await pool.query(
+const [users] = await pool.query(
   `
     SELECT
       u.user_id,
@@ -67,7 +67,8 @@ router.get("/analytics", async (req, res) => {
       u.status,
       u.role_id,
       u.department,
-      r.role AS role_name
+      r.role AS system_role,
+      r.role_name AS position_name
     FROM user u
     LEFT JOIN role r
       ON r.role_id = u.role_id

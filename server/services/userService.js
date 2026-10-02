@@ -158,7 +158,28 @@ function normalizePositionTabs(tabs) {
 
   return [];
 }
+function normalizeRolePermissions(permissions) {
+  if (Array.isArray(permissions)) {
+    return permissions;
+  }
 
+  if (typeof permissions === "string") {
+    try {
+      const parsed = JSON.parse(permissions);
+
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error(
+        "Failed to parse role permissions:",
+        error
+      );
+
+      return [];
+    }
+  }
+
+  return [];
+}
 /*
 |--------------------------------------------------------------------------
 | NORMALIZE USER PROFILE
@@ -204,12 +225,21 @@ function normalizeUserProfile(user) {
 
     email:
       user.email || "",
+role_id:
+  user.role_id || null,
 
-    role_id:
-      user.role_id || null,
+// Built-in classification: superadmin, admin, or staff
+role:
+  user.role || "",
 
-    role:
-      user.role || "",
+// Custom role display name: Manager, Teller, etc.
+role_name:
+  user.role_name || "",
+
+permissions:
+  normalizeRolePermissions(
+    user.role_permissions ?? user.permissions
+  ),
 
     /*
     |--------------------------------------------------------------------------
@@ -371,7 +401,9 @@ async function getUsersFromMySQL() {
         u.contact_number,
         u.email,
         u.role_id,
-        r.role,
+     r.role,
+r.role_name,
+r.permissions AS role_permissions,
         u.position,
 
         p.position_id AS position_id,
@@ -497,7 +529,9 @@ async function getUserFromMySQL(
         u.contact_number,
         u.email,
         u.role_id,
-        r.role,
+   r.role,
+r.role_name,
+r.permissions AS role_permissions,
         u.position,
 
         p.position_id AS position_id,
@@ -586,6 +620,8 @@ async function getUserByFirebaseUid(
         u.email,
         u.role_id,
         r.role,
+        r.role_name,
+        r.permissions AS role_permissions,
         u.position,
 
         p.position_id AS position_id,
@@ -627,20 +663,21 @@ async function getUserByFirebaseUid(
           TRIM(u.position)
         )
 
-      WHERE u.firebase_uid = ?
+    WHERE u.firebase_uid = ?
+LIMIT 1
+`,
+[normalizedUid]
+);
 
-      LIMIT 1
-      `,
-      [normalizedUid]
-    );
+if (rows.length === 0) return null;
 
-  if (rows.length === 0) {
-    return null;
-  }
+console.log("RAW ROLE PERMISSIONS:", rows[0].role_permissions);
 
-  return normalizeUserProfile(
-    rows[0]
-  );
+const normalized = normalizeUserProfile(rows[0]);
+
+console.log("NORMALIZED PERMISSIONS:", normalized.permissions);
+
+return normalized;
 }
 
 /*
@@ -794,22 +831,13 @@ async function getAuthenticatedUserProfile(
       .trim()
       .toLowerCase();
 
-  const allowedRoles =
-    new Set([
-      "superadmin",
-      "admin",
-      "staff",
-    ]);
+if (!roleName) {
+  throw new Error("Your account does not have a valid role.");
+}
 
-  if (
-    !allowedRoles.has(
-      roleName
-    )
-  ) {
-    throw new Error(
-      "Your account does not have a valid role."
-    );
-  }
+const permissions = Array.isArray(user.permissions)
+  ? user.permissions
+  : [];
 
   /*
   |--------------------------------------------------------------------------
@@ -1099,18 +1127,16 @@ async function getRoleByIdFromMySQL(
   const [rows] =
     await pool.query(
       `
-      SELECT
-        role_id,
-        role,
-        description,
-        status,
-        permissions
-
-      FROM \`role\`
-
-      WHERE role_id = ?
-
-      LIMIT 1
+  SELECT
+    role_id,
+    role,
+    role_name,
+    description,
+    status,
+    permissions
+  FROM \`role\`
+  WHERE role_id = ?
+  LIMIT 1
       `,
       [roleId]
     );
@@ -2720,7 +2746,9 @@ async function getStaffByDepartmentFromMySQL(
         u.contact_number,
         u.email,
         u.role_id,
-        r.role,
+    r.role,
+r.role_name,
+r.permissions AS role_permissions,
         u.position,
 
         p.position_id AS position_id,
@@ -2879,7 +2907,9 @@ async function getUserByEmailFromMySQL(
         u.contact_number,
         u.email,
         u.role_id,
-        r.role,
+      r.role,
+r.role_name,
+r.permissions AS role_permissions,
         u.position,
 
         p.position_id AS position_id,

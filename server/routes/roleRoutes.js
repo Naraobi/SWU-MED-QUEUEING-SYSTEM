@@ -1,3 +1,4 @@
+
 const express = require("express");
 
 const {
@@ -9,6 +10,34 @@ const {
 } = require("../services/roleService");
 
 const router = express.Router();
+
+const VALID_ROLE_TYPES = ["superadmin", "admin", "staff"];
+
+const validateRoleInput = (role, role_name, res) => {
+  if (
+    typeof role !== "string" ||
+    !VALID_ROLE_TYPES.includes(role.trim().toLowerCase())
+  ) {
+    res.status(400).json({
+      success: false,
+      message: "Role classification must be superadmin, admin, or staff.",
+    });
+    return false;
+  }
+
+  if (
+    typeof role_name !== "string" ||
+    !role_name.trim()
+  ) {
+    res.status(400).json({
+      success: false,
+      message: "Custom role name is required.",
+    });
+    return false;
+  }
+
+  return true;
+};
 
 // GET /api/roles
 router.get("/", async (req, res) => {
@@ -61,6 +90,7 @@ router.post("/", async (req, res) => {
     const {
       role_id,
       role,
+      role_name,
       description,
       status,
       permissions,
@@ -73,16 +103,14 @@ router.post("/", async (req, res) => {
       });
     }
 
-    if (!role || !role.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Role name is required.",
-      });
+    if (!validateRoleInput(role, role_name, res)) {
+      return;
     }
 
     const createdRole = await createRole({
       role_id,
-      role: role.trim(),
+      role: role.trim().toLowerCase(),
+      role_name: role_name.trim(),
       description,
       status,
       permissions,
@@ -112,20 +140,19 @@ router.put("/:id", async (req, res) => {
   try {
     const {
       role,
+      role_name,
       description,
       status,
       permissions,
     } = req.body;
 
-    if (!role || !role.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Role name is required.",
-      });
+    if (!validateRoleInput(role, role_name, res)) {
+      return;
     }
 
     const updatedRole = await updateRole(req.params.id, {
-      role: role.trim(),
+      role: role.trim().toLowerCase(),
+      role_name: role_name.trim(),
       description,
       status,
       permissions,

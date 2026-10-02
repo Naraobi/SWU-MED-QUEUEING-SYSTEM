@@ -1,3 +1,4 @@
+
 // =====================================================
 // ACCESS CONTROL
 // =====================================================
@@ -12,121 +13,107 @@ export function normalizeRole(role) {
     .toLowerCase();
 }
 
-export function normalizePosition(position) {
-  const value = String(position ?? "")
-    .trim()
-    .toLowerCase();
-
-  return value === "" ||
-    value === "null" ||
-    value === "undefined"
-    ? null
-    : value;
-}
-
 export function getUserRole(user) {
   return normalizeRole(user?.role?.role ?? user?.role);
 }
 
-export function getUserPosition(user) {
-  return normalizePosition(user?.position);
-}
-
 // =====================================================
-// POSITION TABS
+// ROLE PERMISSIONS
 // =====================================================
 
-export function getPositionTabs(user) {
-  const rawTabs = user?.position_tabs;
-
-  // Already an array
-  if (Array.isArray(rawTabs)) {
-    return rawTabs
-      .map((tab) =>
-        String(tab)
-          .trim()
-          .toLowerCase()
+function parsePermissions(rawPermissions) {
+  if (Array.isArray(rawPermissions)) {
+    return rawPermissions
+      .map((permission) =>
+        String(permission).trim().toLowerCase()
       )
       .filter(Boolean);
   }
 
-  // JSON string from MySQL / Firestore
-  if (typeof rawTabs === "string") {
-    const trimmed = rawTabs.trim();
+  if (typeof rawPermissions === "string") {
+    const trimmed = rawPermissions.trim();
 
-    if (!trimmed) {
-      return [];
-    }
+    if (!trimmed) return [];
 
     try {
       const parsed = JSON.parse(trimmed);
 
       if (Array.isArray(parsed)) {
-        return parsed
-          .map((tab) =>
-            String(tab)
-              .trim()
-              .toLowerCase()
-          )
-          .filter(Boolean);
+        return parsePermissions(parsed);
+      }
+
+      if (parsed && typeof parsed === "object") {
+        return Object.entries(parsed)
+          .filter(([, enabled]) => enabled === true)
+          .map(([key]) => key.trim().toLowerCase());
       }
     } catch {
-      // Ignore invalid JSON and try comma-separated values below
+      return trimmed
+        .split(",")
+        .map((permission) => permission.trim().toLowerCase())
+        .filter(Boolean);
     }
+  }
 
-    return trimmed
-      .split(",")
-      .map((tab) =>
-        tab
-          .trim()
-          .toLowerCase()
-      )
-      .filter(Boolean);
+  if (rawPermissions && typeof rawPermissions === "object") {
+    return Object.entries(rawPermissions)
+      .filter(([, enabled]) => enabled === true)
+      .map(([key]) => key.trim().toLowerCase());
   }
 
   return [];
 }
 
+export function getRolePermissions(user) {
+  const roleObject =
+    user?.role && typeof user.role === "object"
+      ? user.role
+      : null;
+
+  const rawPermissions =
+    roleObject?.permissions ??
+    user?.role_permissions ??
+    user?.permissions ??
+    [];
+
+  return parsePermissions(rawPermissions);
+}
+
+// =====================================================
+// PERMISSION MAPPING
+// =====================================================
+
+const PAGE_PERMISSION_MAP = {
+  dashboard: ["dashboard"],
+  users: ["user_management", "users"],
+  departments: ["department_management", "departments"],
+  kiosks: ["kiosk_management", "kiosks"],
+  roles: ["role_management", "roles"],
+  positions: ["position_management", "positions"],
+  queues: ["queue_management", "queue", "queues"],
+  reports: ["reports_analytics", "reports"],
+  settings: ["settings"],
+};
+
 // =====================================================
 // TAB ACCESS
 // =====================================================
 
-export function hasPositionTab(user, key) {
-  const position = getUserPosition(user);
-
-  // ===================================================
-  // NO POSITION = FULL ACCESS
-  // ===================================================
-
-  if (!position) {
-    return true;
-  }
-
-  const tabs = getPositionTabs(user);
+export function hasRolePermission(user, key) {
+  const role = getUserRole(user);
+  const permissions = getRolePermissions(user);
 
   const normalizedKey = String(key ?? "")
     .trim()
     .toLowerCase();
 
-  // ===================================================
-  // SUPPORT queue / queues NAMING DIFFERENCE
-  // ===================================================
+  const possiblePermissions =
+    PAGE_PERMISSION_MAP[normalizedKey] ?? [normalizedKey];
 
-  if (normalizedKey === "queues") {
-    return (
-      tabs.includes("queue") ||
-      tabs.includes("queues")
-    );
-  }
-
-  if (normalizedKey === "queue") {
-    return (
-      tabs.includes("queue") ||
-      tabs.includes("queues")
-    );
-  }
-
-  return tabs.includes(normalizedKey);
+  return possiblePermissions.some((permission) =>
+    permissions.includes(permission) ||
+    permissions.includes(`${role}:${permission}`)
+  );
 }
 
 // =====================================================
@@ -135,24 +122,9 @@ export function hasPositionTab(user, key) {
 
 export function getAccessLevel(user) {
   const role = getUserRole(user);
-  const position = getUserPosition(user);
 
-  if (role === "superadmin") {
-    return position
-      ? "superadmin-position"
-      : "superadmin-full";
-  }
-
-  if (role === "admin") {
-    return position
-      ? "admin-position"
-      : "admin-full";
-  }
-
-  if (role === "staff") {
-    return position
-      ? "staff-position"
-      : "staff-full";
+  if (["superadmin", "admin", "staff"].includes(role)) {
+    return `${role}-role`;
   }
 
   return "none";
@@ -185,13 +157,10 @@ export function getLandingPath(user) {
 // =====================================================
 
 export function canAccessSuperadminPage(user, key) {
-  const role = getUserRole(user);
-
-  if (role !== "superadmin") {
-    return false;
-  }
-
-  return hasPositionTab(user, key);
+  return (
+    getUserRole(user) === "superadmin" &&
+    hasRolePermission(user, key)
+  );
 }
 
 // =====================================================
@@ -199,13 +168,10 @@ export function canAccessSuperadminPage(user, key) {
 // =====================================================
 
 export function canAccessAdminPage(user, key) {
-  const role = getUserRole(user);
-
-  if (role !== "admin") {
-    return false;
-  }
-
-  return hasPositionTab(user, key);
+  return (
+    getUserRole(user) === "admin" &&
+    hasRolePermission(user, key)
+  );
 }
 
 // =====================================================
@@ -213,11 +179,8 @@ export function canAccessAdminPage(user, key) {
 // =====================================================
 
 export function canAccessStaffPage(user, key) {
-  const role = getUserRole(user);
-
-  if (role !== "staff") {
-    return false;
-  }
-
-  return hasPositionTab(user, key);
+  return (
+    getUserRole(user) === "staff" &&
+    hasRolePermission(user, key)
+  );
 }

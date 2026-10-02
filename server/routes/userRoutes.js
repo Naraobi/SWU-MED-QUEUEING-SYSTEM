@@ -12,6 +12,7 @@ const {
   createUserDeletionLog,
 } = require("../services/userService");
 
+// Import Firebase Authentication from the initialized config.
 const { auth } = require("../config/firebase");
 
 const router = express.Router();
@@ -97,7 +98,7 @@ router.get("/profile", async (req, res) => {
     |--------------------------------------------------------------------------
     */
 
-    const decodedToken = await auth.verifyIdToken(token);
+const decodedToken = await auth.verifyIdToken(token);
 
     if (!decodedToken || !decodedToken.uid) {
       return res.status(401).json({

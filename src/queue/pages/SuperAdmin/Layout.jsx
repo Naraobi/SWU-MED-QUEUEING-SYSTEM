@@ -24,21 +24,61 @@ import { useLanguage } from '../../services/language';
 import { getLogo, subscribeAppearance } from '../../services/appearance';
 
 
-/*
- * The sidebar stores a translation key rather than English text, so switching
- * language re-labels the nav without touching routing: `key` still drives
- * navigation and permissions, `labelKey` is only what the user reads.
- */
 const NAV_ITEMS = [
-  { key: 'dashboard', labelKey: 'sa.nav.dashboard', icon: LayoutGrid },
-  { key: 'users', labelKey: 'sa.nav.users', icon: Users },
-  { key: 'departments', labelKey: 'sa.nav.departments', icon: Building2 },
-  { key: 'kiosks', labelKey: 'sa.nav.kiosks', icon: Monitor },
-  { key: 'roles', labelKey: 'sa.nav.roles', icon: ShieldCheck },
-  { key: 'positions', labelKey: 'sa.nav.positions', icon: BriefcaseBusiness },
-  { key: 'queues', labelKey: 'sa.nav.queues', icon: ClipboardList },
-  { key: 'reports', labelKey: 'sa.nav.reports', icon: BarChart3 },
-  { key: 'settings', labelKey: 'sa.nav.settings', icon: SettingsIcon },
+  {
+    key: 'dashboard',
+    labelKey: 'sa.nav.dashboard',
+    icon: LayoutGrid,
+    permission: 'superadmin:dashboard',
+  },
+  {
+    key: 'users',
+    labelKey: 'sa.nav.users',
+    icon: Users,
+    permission: 'superadmin:user_management',
+  },
+  {
+    key: 'departments',
+    labelKey: 'sa.nav.departments',
+    icon: Building2,
+    permission: 'superadmin:departments',
+  },
+  {
+    key: 'kiosks',
+    labelKey: 'sa.nav.kiosks',
+    icon: Monitor,
+    permission: 'superadmin:kiosk_management',
+  },
+  {
+    key: 'roles',
+    labelKey: 'sa.nav.roles',
+    icon: ShieldCheck,
+    permission: 'superadmin:roles',
+  },
+  {
+    key: 'positions',
+    labelKey: 'sa.nav.positions',
+    icon: BriefcaseBusiness,
+    permission: 'superadmin:positions',
+  },
+  {
+    key: 'queues',
+    labelKey: 'sa.nav.queues',
+    icon: ClipboardList,
+    permission: 'superadmin:queues',
+  },
+  {
+    key: 'reports',
+    labelKey: 'sa.nav.reports',
+    icon: BarChart3,
+    permission: 'superadmin:reports',
+  },
+  {
+    key: 'settings',
+    labelKey: 'sa.nav.settings',
+    icon: SettingsIcon,
+    permission: 'superadmin:settings',
+  },
 ];
 
 function toInitials(value, fallback = '?') {
@@ -55,7 +95,7 @@ function toInitials(value, fallback = '?') {
 }
 
 export default function Layout({ activePage, onNavigate, children }) {
-  const { signOut, user } = useAuth();
+  const { signOut, user, hasPermission } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -70,10 +110,20 @@ export default function Layout({ activePage, onNavigate, children }) {
     []
   );
 
-  // Only show pages this user is allowed to access
-  const visibleNavItems = NAV_ITEMS.filter(({ key }) =>
-    canAccessSuperadminPage(user, key)
-  );
+console.log('Current user:', user);
+console.log('User permissions:', user?.permissions);
+console.log('hasPermission type:', typeof hasPermission);
+
+const visibleNavItems = NAV_ITEMS.filter(({ permission }) => {
+  const allowed =
+    typeof hasPermission === 'function'
+      ? hasPermission(permission)
+      : false;
+
+  console.log(permission, '=>', allowed);
+
+  return allowed;
+});
 
   // Header identity, read from the signed-in user
   const displayName = user?.full_name || user?.email || '';
@@ -94,16 +144,21 @@ export default function Layout({ activePage, onNavigate, children }) {
   );
 
   const scopeInitials = toInitials(scopeRole, 'SA');
+function handleNavigate(key) {
+  const navItem = NAV_ITEMS.find((item) => item.key === key);
 
-  // Prevent navigation to unauthorized pages
-  function handleNavigate(key) {
-    if (!canAccessSuperadminPage(user, key)) {
-      onNavigate('dashboard');
-      return;
+  if (!navItem || !hasPermission(navItem.permission)) {
+    const fallbackPage = visibleNavItems[0]?.key;
+
+    if (fallbackPage) {
+      onNavigate(fallbackPage);
     }
 
-    onNavigate(key);
+    return;
   }
+
+  onNavigate(key);
+}
 
   // Logout logic
   function handleLogout() {

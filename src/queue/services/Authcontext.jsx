@@ -738,13 +738,30 @@ function buildFinalUser(
     | ROLE
     |--------------------------------------------------------------------------
     */
+role_id: userData.role_id || null,
+role: userData.role || null,
 
-    role:
-      normalizedRole,
+permissions: (() => {
+  const rawPermissions =
+    userData?.permissions ??
+    userData?.role_permissions ??
+    [];
 
-    role_id:
-      userData?.role_id ??
-      null,
+  if (Array.isArray(rawPermissions)) {
+    return rawPermissions;
+  }
+
+  if (typeof rawPermissions === 'string') {
+    try {
+      const parsed = JSON.parse(rawPermissions);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+})(),
 
     /*
     |--------------------------------------------------------------------------
@@ -1050,6 +1067,11 @@ export function AuthProvider({
   const [loading, setLoading] =
     useState(true);
 
+   const hasPermission = (permission) => {
+  return Array.isArray(user?.permissions) &&
+    user.permissions.includes(permission);
+}; 
+
   useEffect(() => {
     const unsubscribe =
       onAuthStateChanged(
@@ -1129,6 +1151,13 @@ export function AuthProvider({
               await getCurrentUserProfile(
                 firebaseUser
               );
+              console.log("BACKEND PROFILE RESPONSE:", userData);
+
+console.log("BACKEND PERMISSIONS:", {
+  permissions: userData?.permissions,
+  role_permissions: userData?.role_permissions,
+  role_id: userData?.role_id,
+});
 
             if (!userData) {
               console.error(
@@ -1140,7 +1169,6 @@ export function AuthProvider({
               | still holds must be freed. Identity comes from the stored
               | session, since the profile lookup returned nothing.
               */
-
               const storedSession =
                 readStoredSessionUser();
 
@@ -1253,7 +1281,7 @@ export function AuthProvider({
                 userData,
                 firebaseUser
               );
-
+console.log("FINAL USER PERMISSIONS:", finalUser.permissions);
             /*
             |--------------------------------------------------------------------------
             | SAVE USER
@@ -2305,42 +2333,32 @@ console.log(
   |--------------------------------------------------------------------------
   */
 
-  const value = {
-    user,
+const value = {
+  user,
 
-    role:
-      normalizeRole(
-        user?.role
-      ) || null,
+  role: normalizeRole(user?.role) || null,
 
-    position:
-      user?.position ??
-      null,
+  position: user?.position ?? null,
 
-    position_id:
-      user?.position_id ??
-      null,
+  position_id: user?.position_id ?? null,
 
-    position_tabs:
-      user?.position_tabs ??
-      [],
+  position_tabs: user?.position_tabs ?? [],
 
-    loading,
+  loading,
 
-signInWithGoogle,
+  hasPermission,
 
-    signIn,
+  signInWithGoogle,
 
-    signOut,
-  };
+  signIn,
 
-  return (
-    <AuthContext.Provider
-      value={value}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  signOut,
+};
+return (
+  <AuthContext.Provider value={value}>
+    {children}
+  </AuthContext.Provider>
+);
 }
 
 /*
