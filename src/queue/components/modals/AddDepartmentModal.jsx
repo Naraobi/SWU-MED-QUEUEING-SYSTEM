@@ -25,36 +25,33 @@ export default function AddDepartmentModal({
   if (!open) {
     return null;
   }
+const getKioskId = (kiosk) =>
+  String(
+    kiosk.id ??
+    kiosk.kiosk_id ??
+    kiosk.firestore_id ??
+    ''
+  );
+
 const activeKiosks = kiosks.filter(
   (kiosk) =>
-    String(kiosk.status || '').toLowerCase() ===
-    'active'
+    String(kiosk.status || '').toLowerCase() === 'active'
 );
+
 const selectedKiosk = kiosks.find(
-  (kiosk) =>
-    String(kiosk.kiosk_id) ===
-      String(form.kiosk_id) ||
-    (
-      kiosk.firestore_id &&
-      String(kiosk.firestore_id) ===
-        String(form.kiosk_id)
-    )
+  (kiosk) => getKioskId(kiosk) === String(form.kiosk_id || '')
 );
 
 const selectableKiosks = [
   ...activeKiosks,
   ...(selectedKiosk &&
-  String(selectedKiosk.status || '').toLowerCase() !==
-    'active' &&
+  String(selectedKiosk.status || '').toLowerCase() !== 'active' &&
   !activeKiosks.some(
-    (kiosk) =>
-      String(kiosk.kiosk_id) ===
-String(selectedKiosk.kiosk_id)
+    (kiosk) => getKioskId(kiosk) === getKioskId(selectedKiosk)
   )
     ? [selectedKiosk]
     : []),
 ];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -155,15 +152,14 @@ String(selectedKiosk.kiosk_id)
   <option value="">
     Select a kiosk
   </option>
-
-  {selectableKiosks.map((kiosk) => (
-    <option
-  key={kiosk.kiosk_id}
-  value={kiosk.kiosk_id}
->
-      {kiosk.name}
-    </option>
-  ))}
+{selectableKiosks.map((kiosk) => (
+  <option
+    key={getKioskId(kiosk)}
+    value={getKioskId(kiosk)}
+  >
+    {kiosk.name}
+  </option>
+))}
 </select>
               <ChevronDown
                 size={16}

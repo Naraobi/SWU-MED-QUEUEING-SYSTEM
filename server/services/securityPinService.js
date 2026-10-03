@@ -681,6 +681,7 @@ async function getKioskUnlockStatus(kioskId) {
   /**
    * Export all Security PIN functions.
    */
+
 async function remoteUnlockKiosk(kioskId, userId, pin) {
   if (!kioskId || !userId) {
     return {
@@ -689,48 +690,76 @@ async function remoteUnlockKiosk(kioskId, userId, pin) {
     };
   }
 
-  // Verify the PIN belongs to the authenticated superadmin.
-  const isValid = await validateSecurityPin(userId, pin);
+  // =========================================================
+  // 1. GET THE AUTHENTICATED USER'S DATABASE RECORD
+  // =========================================================
 
-  if (!isValid) {
-    return {
-      success: false,
-      message: "Invalid Security PIN.",
-    };
-  }
-
-  // Confirm the authenticated user is an active superadmin.
-  const [rows] = await db.execute(
+  const [userRows] = await db.execute(
     `
-      SELECT r.role, u.status AS user_status, r.status AS role_status
+      SELECT
+        u.user_id,
+        u.department_id,
+        u.status AS user_status,
+        r.role,
+        r.status AS role_status
       FROM \`user\` u
       INNER JOIN \`role\` r
         ON CAST(u.role_id AS BINARY) =
            CAST(r.role_id AS BINARY)
-      WHERE u.user_id = ?
+      WHERE CAST(u.user_id AS BINARY) =
+            CAST(? AS BINARY)
       LIMIT 1
     `,
     [userId]
   );
 
-  const user = rows[0];
+  const user = userRows[0];
 
-  if (
-    !user ||
-    String(user.role || "").toLowerCase() !== "superadmin" ||
-    String(user.user_status || "").toLowerCase() !== "active" ||
-    String(user.role_status || "").toLowerCase() !== "active"
-  ) {
+  if (!user) {
     return {
       success: false,
-      message: "Only an active superadmin can remotely unlock a kiosk.",
+      message: "Authenticated user not found.",
     };
   }
 
-  // Confirm that the target kiosk exists and is active.
-  const [kiosks] = await db.execute(
+  const role = String(user.role || "")
+    .trim()
+    .toLowerCase();
+
+  const userStatus = String(user.user_status || "")
+    .trim()
+    .toLowerCase();
+
+  const roleStatus = String(user.role_status || "")
+    .trim()
+    .toLowerCase();
+
+  if (
+    userStatus !== "active" ||
+    roleStatus !== "active"
+  ) {
+    return {
+      success: false,
+      message: "Your account or role is inactive.",
+    };
+  }
+
+  if (!["superadmin", "admin"].includes(role)) {
+    return {
+      success: false,
+      message: "You are not authorized to unlock kiosks.",
+    };
+  }
+
+  // =========================================================
+  // 2. CHECK THAT THE KIOSK EXISTS AND IS ACTIVE
+  // =========================================================
+
+  const [kioskRows] = await db.execute(
     `
-      SELECT kiosk_id, status
+      SELECT
+        kiosk_id,
+        status
       FROM kiosk
       WHERE CAST(kiosk_id AS BINARY) =
             CAST(? AS BINARY)
@@ -739,23 +768,91 @@ async function remoteUnlockKiosk(kioskId, userId, pin) {
     [kioskId]
   );
 
-  if (!kiosks[0]) {
+  const kiosk = kioskRows[0];
+
+  if (!kiosk) {
     return {
       success: false,
       message: "Kiosk not found.",
     };
   }
 
-  if (String(kiosks[0].status || "").toLowerCase() !== "active") {
+  if (
+    String(kiosk.status || "")
+      .trim()
+      .toLowerCase() !== "active"
+  ) {
     return {
       success: false,
       message: "This kiosk is inactive.",
     };
   }
 
+  // =========================================================
+  // 3. CHECK ADMIN DEPARTMENT ACCESS
+  // =========================================================
+
+  let unlockDepartmentId = null;
+
+  if (role === "admin") {
+    const adminDepartmentId = String(
+      user.department_id || ""
+    );
+
+    if (!adminDepartmentId) {
+      return {
+        success: false,
+        message: "Your account has no assigned department.",
+      };
+    }
+
+    const [departmentRows] = await db.execute(
+      `
+        SELECT department_id
+        FROM department
+        WHERE CAST(kiosk_id AS BINARY) =
+              CAST(? AS BINARY)
+      `,
+      [kioskId]
+    );
+
+    const kioskDepartmentIds = departmentRows.map(
+      (row) => String(row.department_id || "")
+    );
+
+    if (!kioskDepartmentIds.includes(adminDepartmentId)) {
+      return {
+        success: false,
+        message: "You are not authorized to unlock this kiosk.",
+      };
+    }
+
+    unlockDepartmentId = adminDepartmentId;
+  }
+
+  // =========================================================
+  // 4. VALIDATE THE AUTHENTICATED USER'S SECURITY PIN
+  // =========================================================
+
+  const isValid = await validateSecurityPin(
+    userId,
+    pin
+  );
+
+  if (!isValid) {
+    return {
+      success: false,
+      message: "Invalid Security PIN.",
+    };
+  }
+
+  // =========================================================
+  // 5. RECORD THE DAILY UNLOCK
+  // =========================================================
+
   const result = await unlockKiosk(kioskId, {
-    role: "superadmin",
-    department_id: null,
+    role,
+    department_id: unlockDepartmentId,
   });
 
   return {
@@ -764,7 +861,6 @@ async function remoteUnlockKiosk(kioskId, userId, pin) {
     ...result,
   };
 }
-
 module.exports = {
   getSecurityPin,
   createVerificationChallenge,

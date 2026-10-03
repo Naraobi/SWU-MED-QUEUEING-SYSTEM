@@ -23,8 +23,9 @@ import {
   getStaffByDepartment,
   createKiosk,
   createTerminal,
-    remotelyUnlockKiosk,
+  remotelyUnlockKiosk,
   updateTerminal,
+  getKioskUnlockStatus,
 } from '../../services/backendApi';
 import { getAuth } from 'firebase/auth';
 
@@ -85,6 +86,9 @@ const [selectedActivateId, setSelectedActivateId] = useState(null);
 const [activatingKiosk, setActivatingKiosk] = useState(false);
 const [activateError, setActivateError] = useState(null);
 const [activateSuccess, setActivateSuccess] = useState('');
+// Daily unlock status, separate from operational kiosk status.
+const [kioskUnlockStatuses, setKioskUnlockStatuses] = useState({});
+const [unlockStatusLoading, setUnlockStatusLoading] = useState(false);
 const filteredActivateKiosks = kiosks.filter((kiosk) => {
   const term = activateSearch.trim().toLowerCase();
   if (!term) return true;
@@ -111,6 +115,78 @@ function openActivateModal() {
   setPinModalOpen(false);
   setActivateModalOpen(true);
 }
+// =============================================
+// DAILY KIOSK UNLOCK STATUS SYNC
+// =============================================
+
+useEffect(() => {
+  if (!activateModalOpen || kiosks.length === 0) {
+    return undefined;
+  }
+
+  let mounted = true;
+  let requestInProgress = false;
+
+  async function refreshUnlockStatuses() {
+    if (requestInProgress) return;
+
+    requestInProgress = true;
+    setUnlockStatusLoading(true);
+
+    try {
+      const results = await Promise.all(
+        kiosks.map(async (kiosk) => {
+          try {
+            const result = await getKioskUnlockStatus(kiosk.kiosk_id);
+
+            return {
+              kioskId: String(kiosk.kiosk_id),
+              unlocked: result?.unlocked === true,
+            };
+          } catch (err) {
+            console.error(
+              `Failed to fetch unlock status for kiosk ${kiosk.kiosk_id}:`,
+              err
+            );
+
+            return {
+              kioskId: String(kiosk.kiosk_id),
+              unlocked: null,
+            };
+          }
+        })
+      );
+
+      if (mounted) {
+        setKioskUnlockStatuses((current) => {
+          const updated = { ...current };
+
+          results.forEach(({ kioskId, unlocked }) => {
+            updated[kioskId] = unlocked;
+          });
+
+          return updated;
+        });
+      }
+    } finally {
+      requestInProgress = false;
+
+      if (mounted) {
+        setUnlockStatusLoading(false);
+      }
+    }
+  }
+
+  refreshUnlockStatuses();
+
+  const intervalId = setInterval(refreshUnlockStatuses, 5000);
+
+  return () => {
+    mounted = false;
+    clearInterval(intervalId);
+  };
+}, [activateModalOpen, kiosks]);
+
 function closeActivateModal() {
   if (activatingKiosk) return;
   setActivateModalOpen(false);
@@ -136,12 +212,24 @@ async function handleVerifyPin(pin) {
       selectedActivateKiosk.kiosk_id,
       pin
     );
+if (!result?.success || !result?.unlocked) {
+  throw new Error(
+    result?.message || 'The kiosk was not unlocked.'
+  );
+}
 
-    setActivateSuccess(
-      result.message || 'Kiosk unlocked successfully for today.'
-    );
+// Immediately reflect the successful unlock.
+setKioskUnlockStatuses((current) => ({
+  ...current,
+  [String(selectedActivateKiosk.kiosk_id)]: true,
+}));
 
-    return result;
+setActivateSuccess(
+  result.message || 'Kiosk unlocked successfully for today.'
+);
+
+return result;
+
   } catch (err) {
     console.error('REMOTE KIOSK UNLOCK ERROR:', err);
     throw err;
@@ -1182,7 +1270,7 @@ async function handleSaveKiosk() {
             Activate Kiosk
           </h3>
           <p className="mt-0.5 text-sm text-[#6B7280]">
-            Select an inactive kiosk to make it available for use.
+          Select an active kiosk to unlock it for today.
           </p>
         </div>
 
@@ -1233,7 +1321,10 @@ async function handleSaveKiosk() {
     {filteredActivateKiosks.length > 0 ? (
       filteredActivateKiosks.map((kiosk) => {
         const isActive = kiosk.status === 'active';
-        const isSelected = selectedActivateId === kiosk.kiosk_id;
+const isSelected = selectedActivateId === kiosk.kiosk_id;
+
+const unlockStatus =
+  kioskUnlockStatuses[String(kiosk.kiosk_id)];
 
         return (
           <button
@@ -1271,15 +1362,37 @@ async function handleSaveKiosk() {
               </div>
             </div>
 
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                isActive
-                  ? 'border border-[#86EFAC] bg-[#E8F8F0] text-[#0D8A4E]'
-                  : 'bg-[#F1F3F5] text-[#4B5563]'
-              }`}
-            >
-              {isActive ? 'ACTIVE' : 'INACTIVE'}
-            </span>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+  {/* Operational status */}
+  <span
+    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+      isActive
+        ? 'border border-[#86EFAC] bg-[#E8F8F0] text-[#0D8A4E]'
+        : 'bg-[#F1F3F5] text-[#4B5563]'
+    }`}
+  >
+    {isActive ? 'ACTIVE' : 'INACTIVE'}
+  </span>
+
+  {/* Daily unlock status */}
+  <span
+    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+      unlockStatus === true
+        ? 'bg-green-100 text-green-700'
+        : unlockStatus === false
+        ? 'bg-red-100 text-red-700'
+        : 'bg-gray-100 text-gray-600'
+    }`}
+  >
+    {unlockStatus === true
+      ? 'UNLOCKED'
+      : unlockStatus === false
+      ? 'LOCKED'
+      : unlockStatusLoading
+      ? 'CHECKING'
+      : 'UNKNOWN'}
+  </span>
+</div>
           </button>
         );
       })
@@ -1621,11 +1734,34 @@ async function handleSaveKiosk() {
   open={pinModalOpen}
   onClose={() => setPinModalOpen(false)}
   onVerify={handleVerifyPin}
-  onSuccess={() => {
-    setPinModalOpen(false);
-    setActivateModalOpen(false);
-    setActivateError(null);
-  }}
+ onSuccess={async () => {
+  setPinModalOpen(false);
+  setActivateError(null);
+
+  if (selectedActivateKiosk?.kiosk_id) {
+    try {
+      const result = await getKioskUnlockStatus(
+        selectedActivateKiosk.kiosk_id
+      );
+
+      setKioskUnlockStatuses((current) => ({
+        ...current,
+        [String(selectedActivateKiosk.kiosk_id)]:
+          result?.unlocked === true,
+      }));
+    } catch (err) {
+      console.error(
+        'Failed to refresh kiosk status after unlocking:',
+        err
+      );
+
+      // Keep the successful unlock indication already set
+      // by handleVerifyPin.
+    }
+  }
+
+  setActivateModalOpen(false);
+}}
   title="Enter Security PIN"
   description={`Enter your Security PIN to unlock ${
     selectedActivateKiosk?.name || 'this kiosk'

@@ -136,31 +136,31 @@ async function authenticateRequest(req, res, next) {
  * authorizeRoles("superadmin", "admin")
  */
 function authorizeRoles(...allowedRoles) {
-  const normalizedRoles =
-    allowedRoles.map((role) =>
-      String(role)
-        .trim()
-        .toLowerCase()
-    );
+  const normalizedRoles = allowedRoles.map((role) =>
+    String(role).trim().toLowerCase()
+  );
 
   return (req, res, next) => {
-    const userRole =
-      String(req.user?.role || "")
-        .trim()
-        .toLowerCase();
+    const userRole = String(req.user?.role || "")
+      .trim()
+      .toLowerCase();
+
+    console.log("ROLE AUTHORIZATION CHECK:", {
+      userId: req.user?.user_id,
+      role: userRole,
+      allowedRoles: normalizedRoles,
+    });
 
     if (!normalizedRoles.includes(userRole)) {
       return res.status(403).json({
         success: false,
-        message:
-          "You are not authorized to perform this action.",
+        message: "You are not authorized to perform this action.",
       });
     }
 
     return next();
   };
 }
-
 module.exports = {
   authenticateRequest,
   authorizeRoles,
