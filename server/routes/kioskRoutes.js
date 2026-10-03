@@ -414,7 +414,7 @@ router.delete("/:id", async (req, res) => {
 router.post(
   "/:id/remote-unlock",
   authenticateRequest,
-  authorizeRoles("superadmin"),
+  authorizeRoles("superadmin", "admin"),
   async (req, res) => {
     try {
       const { pin } = req.body;
