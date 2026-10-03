@@ -7,47 +7,11 @@ import {
   PencilLine,
   X,
   AlertTriangle,
-  Info,
   Check,
 } from 'lucide-react';
 
 import { getDepartments, updateDepartment } from '../../services/backendApi';
 import { useLanguage } from '../../services/language';
-
-/*
- * =============================================================================
- * Estimated Transaction Time
- * =============================================================================
- *
- * How long each service takes. These are the numbers the waiting-time estimate
- * is built from, which is why they are editable here rather than hard-coded.
- *
- * TWO MODES, picked automatically:
- *
- *   SERVICE MODE  - the backend has a services table, so time is set per
- *                   service (Laboratory has both Specimen Collection and
- *                   Results Retrieval, each with its own number).
- *
- *                     GET  /api/service-times   -> [{ id, department_id,
- *                                                     department, service,
- *                                                     minutes }]
- *                     PUT  /api/service-times   <- [{ id, minutes }]
- *                     POST /api/service-times   <- { department_id, service,
- *                                                    minutes }
- *                     GET  /api/services        -> [{ id, department_id, name }]
- *
- *   DEPARTMENT MODE - no services table yet, so it falls back to the
- *                   department-level `est_time` that already exists and is
- *                   already used by the queue. Editing and saving work today;
- *                   only the per-service split is missing.
- *
- * FOR THE BACKEND TEAM: department mode is the honest version of what exists
- * now. Adding the services table is what unlocks the design as drawn - the
- * screen switches by itself once GET /api/service-times answers.
- * =============================================================================
- */
-
-const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
 
 const MIN_MINUTES = 1;
 const MAX_MINUTES = 480;
@@ -212,11 +176,10 @@ function AddTimeModal({
 export default function EstimatedTransactionTime() {
   const { t } = useLanguage();
 
-  const [mode, setMode] = useState('department');
   const [rows, setRows] = useState([]);
   const [baseline, setBaseline] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [services, setServices] = useState([]);
+
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -227,10 +190,9 @@ export default function EstimatedTransactionTime() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [savedAt, setSavedAt] = useState(null);
-
-  const [showAdd, setShowAdd] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState('');
+const [showAdd, setShowAdd] = useState(false);
+const [adding, setAdding] = useState(false);
+const [addError, setAddError] = useState('');
 
 const load = useCallback(async () => {
   setLoading(true);
@@ -270,10 +232,8 @@ const load = useCallback(async () => {
       }))
     );
 
-    setMode('department');
     setRows(departmentRows);
     setBaseline(departmentRows);
-    setServices([]);
   } catch (error) {
     setDepartments([]);
     setRows([]);
@@ -456,13 +416,6 @@ async function handleAdd({ departmentId, minutes }) {
             </span>
           )}
         </div>
-
-        {mode === 'department' && !loading && !loadError && (
-          <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-xs leading-5 text-[#4B5563]">
-            <Info size={13} className="mt-0.5 shrink-0 text-[#9CA3AF]" />
-            {t('sa.est.departmentMode')}
-          </div>
-        )}
 
         {saveError && (
           <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#F0DADA] bg-[#FBF1F1] px-3 py-2.5 text-xs text-[#9D0A0E]">
