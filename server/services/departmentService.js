@@ -1,84 +1,281 @@
-  const { randomUUID } = require("crypto");
+    const { randomUUID } = require("crypto");
 
-  const { db } = require("../config/firebase");
-  const pool = require("../config/mysql");
+    const { db } = require("../config/firebase");
+    const pool = require("../config/mysql");
 
-  const {
-    checkFirebaseConnection,
-  } = require("./databaseService");
+    const {
+      checkFirebaseConnection,
+    } = require("./databaseService");
 
-  /*
-  |--------------------------------------------------------------------------
-  | TEMPORARY FIREBASE OFFLINE TEST SWITCH
-  |--------------------------------------------------------------------------
-  */
+    /*
+    |--------------------------------------------------------------------------
+    | TEMPORARY FIREBASE OFFLINE TEST SWITCH
+    |--------------------------------------------------------------------------
+    */
 
-  const FORCE_FIREBASE_OFFLINE = false;
+    const FORCE_FIREBASE_OFFLINE = false;
 
+    /*
+    |--------------------------------------------------------------------------
+    | GET ALL DEPARTMENTS
+    |--------------------------------------------------------------------------
+    */
   /*
   |--------------------------------------------------------------------------
   | GET ALL DEPARTMENTS
   |--------------------------------------------------------------------------
   */
-/*
-|--------------------------------------------------------------------------
-| GET ALL DEPARTMENTS
-|--------------------------------------------------------------------------
-*/
 
-async function getDepartments() {
-  const firebaseAvailable = FORCE_FIREBASE_OFFLINE
-    ? false
-    : await checkFirebaseConnection();
+  async function getDepartments() {
+    const firebaseAvailable = FORCE_FIREBASE_OFFLINE
+      ? false
+      : await checkFirebaseConnection();
 
-  let departments = [];
+    let departments = [];
 
-  /*
-  |--------------------------------------------------------------------------
-  | GET DEPARTMENT INFORMATION
-  |--------------------------------------------------------------------------
-  */
+    /*
+    |--------------------------------------------------------------------------
+    | GET DEPARTMENT INFORMATION
+    |--------------------------------------------------------------------------
+    */
 
-  if (firebaseAvailable) {
-    try {
-      const snapshot = await db
-        .collection("department")
-        .get();
+    if (firebaseAvailable) {
+      try {
+        const snapshot = await db
+          .collection("department")
+          .get();
 
-      departments = snapshot.docs.map((doc) => doc.data());
+        departments = snapshot.docs.map((doc) => doc.data());
 
-      if (departments.length > 0) {
-        console.log(
-          `GET departments: ${departments.length} records loaded from Firebase.`
+        if (departments.length > 0) {
+          console.log(
+            `GET departments: ${departments.length} records loaded from Firebase.`
+          );
+        } else {
+          console.log(
+            "Firebase department collection is empty. Loading departments from MySQL..."
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Firebase GET departments failed:",
+          error.message
         );
-      } else {
+
         console.log(
-          "Firebase department collection is empty. Loading departments from MySQL..."
+          "Falling back to MySQL..."
         );
       }
-    } catch (error) {
-      console.error(
-        "Firebase GET departments failed:",
-        error.message
-      );
-
+    } else {
       console.log(
-        "Falling back to MySQL..."
+        "Firebase unavailable. Loading departments from MySQL..."
       );
     }
-  } else {
-    console.log(
-      "Firebase unavailable. Loading departments from MySQL..."
-    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | MYSQL DEPARTMENT FALLBACK
+    |--------------------------------------------------------------------------
+    */
+
+    if (departments.length === 0) {
+      const [rows] = await pool.query(
+        `
+        SELECT
+          department_id,
+          name,
+          classification,
+          location,
+          prefix,
+          est_time,
+          kiosk_id,
+          status
+        FROM department
+        ORDER BY name ASC
+        `
+      );
+
+      departments = rows;
+
+      console.log(
+        `GET departments: ${departments.length} records loaded from MySQL.`
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET LIVE QUEUE + TERMINAL INFORMATION
+    |--------------------------------------------------------------------------
+    */
+  const [liveData] = await pool.query(
+    `
+    SELECT
+      d.department_id,
+
+      /* =====================================================
+        WAITING PATIENTS
+        ===================================================== */
+      (
+        SELECT COUNT(*)
+        FROM queue_ticket qt_waiting
+        WHERE qt_waiting.department_id = d.department_id
+          AND qt_waiting.status = 'waiting'
+          AND DATE(qt_waiting.issued_at) = CURDATE()
+      ) AS waiting_count,
+
+      /* =====================================================
+        CURRENT QUEUE
+        Latest queue ticket issued today
+        ===================================================== */
+      (
+        SELECT qt_current.queue_number
+        FROM queue_ticket qt_current
+        WHERE qt_current.department_id = d.department_id
+          AND DATE(qt_current.issued_at) = CURDATE()
+          AND qt_current.status IN ('waiting', 'serving')
+        ORDER BY
+          qt_current.queue_sequence DESC,
+          qt_current.issued_at DESC
+        LIMIT 1
+      ) AS current_queue,
+
+      /* =====================================================
+        ACTIVE TERMINALS
+        ===================================================== */
+      (
+        SELECT COUNT(*)
+        FROM counter c
+        WHERE c.department_id = d.department_id
+          AND LOWER(c.status) = 'active'
+      ) AS active_terminals,
+
+      /* =====================================================
+        AI PREDICTED WAITING TIME
+        Get the latest prediction for this department
+        ===================================================== */
+      (
+        SELECT aqp.predicted_waiting_time
+        FROM ai_queue_prediction aqp
+        WHERE aqp.department_id COLLATE utf8mb4_general_ci =
+        d.department_id COLLATE utf8mb4_general_ci
+          AND aqp.prediction_date = CURDATE()
+        ORDER BY aqp.updated_at DESC
+        LIMIT 1
+      ) AS predicted_waiting_time
+
+    FROM department d
+    `
+  );
+    /*
+    |--------------------------------------------------------------------------
+    | MERGE LIVE DATA INTO DEPARTMENTS
+    |--------------------------------------------------------------------------
+    */
+  const liveDataMap = new Map(
+    liveData.map((row) => [
+      String(row.department_id),
+
+      {
+        waiting_count:
+          Number(row.waiting_count) || 0,
+
+        current_queue:
+          row.current_queue || null,
+
+        active_terminals:
+          Number(row.active_terminals) || 0,
+
+        predicted_waiting_time:
+          row.predicted_waiting_time !== null &&
+          row.predicted_waiting_time !== undefined
+            ? Number(row.predicted_waiting_time)
+            : null,
+      },
+    ])
+  );
+
+  const enrichedDepartments =
+    departments.map((department) => {
+
+      const departmentKey =
+        String(
+          department.department_id ||
+          department.id ||
+          ''
+        );
+
+      const live =
+        liveDataMap.get(
+          departmentKey
+        );
+
+      return {
+        ...department,
+
+        waiting_count:
+          live?.waiting_count || 0,
+
+        current_queue:
+          live?.current_queue || null,
+
+        active_terminals:
+          live?.active_terminals || 0,
+
+        predicted_waiting_time:
+          live?.predicted_waiting_time ?? null,
+      };
+    });
+
+  return enrichedDepartments;
   }
 
   /*
   |--------------------------------------------------------------------------
-  | MYSQL DEPARTMENT FALLBACK
+  | GET DEPARTMENT BY ID
   |--------------------------------------------------------------------------
   */
 
-  if (departments.length === 0) {
+  async function getDepartmentById(departmentId) {
+    const firebaseAvailable = FORCE_FIREBASE_OFFLINE
+      ? false
+      : await checkFirebaseConnection();
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET FROM FIREBASE
+    |--------------------------------------------------------------------------
+    */
+
+    if (firebaseAvailable) {
+      try {
+        const doc = await db
+          .collection("department")
+          .doc(departmentId)
+          .get();
+
+        if (doc.exists) {
+          return doc.data();
+        }
+
+        console.log(
+          `Department ${departmentId} not found in Firebase. Checking MySQL...`
+        );
+      } catch (error) {
+        console.error(
+          "Firebase GET department by ID failed:",
+          error.message
+        );
+
+        console.log("Falling back to MySQL...");
+      }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET FROM MYSQL
+    |--------------------------------------------------------------------------
+    */
+
     const [rows] = await pool.query(
       `
       SELECT
@@ -91,245 +288,219 @@ async function getDepartments() {
         kiosk_id,
         status
       FROM department
-      ORDER BY name ASC
-      `
+      WHERE department_id = ?
+      LIMIT 1
+      `,
+      [departmentId]
     );
 
-    departments = rows;
-
-    console.log(
-      `GET departments: ${departments.length} records loaded from MySQL.`
-    );
-  }
-
-  /*
-  |--------------------------------------------------------------------------
-  | GET LIVE QUEUE + TERMINAL INFORMATION
-  |--------------------------------------------------------------------------
-  */
-const [liveData] = await pool.query(
-  `
-  SELECT
-    d.department_id,
-
-    /* =====================================================
-       WAITING PATIENTS
-       ===================================================== */
-    (
-      SELECT COUNT(*)
-      FROM queue_ticket qt_waiting
-      WHERE qt_waiting.department_id = d.department_id
-        AND qt_waiting.status = 'waiting'
-        AND DATE(qt_waiting.issued_at) = CURDATE()
-    ) AS waiting_count,
-
-    /* =====================================================
-       CURRENT QUEUE
-       Latest queue ticket issued today
-       ===================================================== */
-    (
-      SELECT qt_current.queue_number
-      FROM queue_ticket qt_current
-      WHERE qt_current.department_id = d.department_id
-        AND DATE(qt_current.issued_at) = CURDATE()
-        AND qt_current.status IN ('waiting', 'serving')
-      ORDER BY
-        qt_current.queue_sequence DESC,
-        qt_current.issued_at DESC
-      LIMIT 1
-    ) AS current_queue,
-
-    /* =====================================================
-       ACTIVE TERMINALS
-       ===================================================== */
-    (
-      SELECT COUNT(*)
-      FROM counter c
-      WHERE c.department_id = d.department_id
-        AND LOWER(c.status) = 'active'
-    ) AS active_terminals,
-
-    /* =====================================================
-       AI PREDICTED WAITING TIME
-       Get the latest prediction for this department
-       ===================================================== */
-    (
-      SELECT aqp.predicted_waiting_time
-      FROM ai_queue_prediction aqp
-      WHERE aqp.department_id COLLATE utf8mb4_general_ci =
-      d.department_id COLLATE utf8mb4_general_ci
-        AND aqp.prediction_date = CURDATE()
-      ORDER BY aqp.updated_at DESC
-      LIMIT 1
-    ) AS predicted_waiting_time
-
-  FROM department d
-  `
-);
-  /*
-  |--------------------------------------------------------------------------
-  | MERGE LIVE DATA INTO DEPARTMENTS
-  |--------------------------------------------------------------------------
-  */
-const liveDataMap = new Map(
-  liveData.map((row) => [
-    String(row.department_id),
-
-    {
-      waiting_count:
-        Number(row.waiting_count) || 0,
-
-      current_queue:
-        row.current_queue || null,
-
-      active_terminals:
-        Number(row.active_terminals) || 0,
-
-      predicted_waiting_time:
-        row.predicted_waiting_time !== null &&
-        row.predicted_waiting_time !== undefined
-          ? Number(row.predicted_waiting_time)
-          : null,
-    },
-  ])
-);
-
-const enrichedDepartments =
-  departments.map((department) => {
-
-    const departmentKey =
-      String(
-        department.department_id ||
-        department.id ||
-        ''
-      );
-
-    const live =
-      liveDataMap.get(
-        departmentKey
-      );
-
-    return {
-      ...department,
-
-      waiting_count:
-        live?.waiting_count || 0,
-
-      current_queue:
-        live?.current_queue || null,
-
-      active_terminals:
-        live?.active_terminals || 0,
-
-      predicted_waiting_time:
-        live?.predicted_waiting_time ?? null,
-    };
-  });
-
-return enrichedDepartments;
-}
-
-/*
-|--------------------------------------------------------------------------
-| GET DEPARTMENT BY ID
-|--------------------------------------------------------------------------
-*/
-
-async function getDepartmentById(departmentId) {
-  const firebaseAvailable = FORCE_FIREBASE_OFFLINE
-    ? false
-    : await checkFirebaseConnection();
-
-  /*
-  |--------------------------------------------------------------------------
-  | GET FROM FIREBASE
-  |--------------------------------------------------------------------------
-  */
-
-  if (firebaseAvailable) {
-    try {
-      const doc = await db
-        .collection("department")
-        .doc(departmentId)
-        .get();
-
-      if (doc.exists) {
-        return doc.data();
-      }
-
-      console.log(
-        `Department ${departmentId} not found in Firebase. Checking MySQL...`
-      );
-    } catch (error) {
-      console.error(
-        "Firebase GET department by ID failed:",
-        error.message
-      );
-
-      console.log("Falling back to MySQL...");
+    if (rows.length === 0) {
+      return null;
     }
+
+    return rows[0];
   }
-
-  /*
-  |--------------------------------------------------------------------------
-  | GET FROM MYSQL
-  |--------------------------------------------------------------------------
-  */
-
-  const [rows] = await pool.query(
-    `
-    SELECT
-      department_id,
-      name,
-      classification,
-      location,
-      prefix,
-      est_time,
-      kiosk_id,
-      status
-    FROM department
-    WHERE department_id = ?
-    LIMIT 1
-    `,
-    [departmentId]
-  );
-
-  if (rows.length === 0) {
-    return null;
-  }
-
-  return rows[0];
-}
-  /*
-  |--------------------------------------------------------------------------
-  | CREATE DEPARTMENT
-  |--------------------------------------------------------------------------
-  */
-
-  async function createDepartment(department) {
-    const departmentId =
-      department.department_id || randomUUID();
-
-    const {
-      name,
-      classification,
-      location,
-      prefix,
-      est_time,
-      kiosk_id,
-      status,
-    } = department;
-
     /*
     |--------------------------------------------------------------------------
-    | SAVE TO MYSQL FIRST
+    | CREATE DEPARTMENT
     |--------------------------------------------------------------------------
     */
 
-    await pool.query(
+    async function createDepartment(department) {
+      const departmentId =
+        department.department_id || randomUUID();
+
+      const {
+        name,
+        classification,
+        location,
+        prefix,
+        est_time,
+        kiosk_id,
+        status,
+      } = department;
+
+      /*
+      |--------------------------------------------------------------------------
+      | SAVE TO MYSQL FIRST
+      |--------------------------------------------------------------------------
+      */
+
+      await pool.query(
+        `
+        INSERT INTO department
+        (
+          department_id,
+          name,
+          classification,
+          location,
+          prefix,
+          est_time,
+          kiosk_id,
+          status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          departmentId,
+          name,
+          classification,
+          location,
+          prefix,
+          est_time,
+          kiosk_id,
+          status,
+        ]
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | CHECK FIREBASE
+      |--------------------------------------------------------------------------
+      */
+
+      const firebaseAvailable = FORCE_FIREBASE_OFFLINE
+        ? false
+        : await checkFirebaseConnection();
+
+      /*
+      |--------------------------------------------------------------------------
+      | SAVE TO FIREBASE
+      |--------------------------------------------------------------------------
+      */
+
+      if (firebaseAvailable) {
+        try {
+          await db
+            .collection("department")
+            .doc(departmentId)
+            .set({
+              department_id: departmentId,
+              name,
+              classification,
+              location,
+              prefix,
+              est_time,
+              kiosk_id,
+              status,
+            });
+
+          console.log(
+            `Department ${departmentId} saved to MySQL and Firebase.`
+          );
+        } catch (error) {
+          console.error(
+            "Firebase CREATE failed:",
+            error.message
+          );
+
+          await pool.query(
+            `
+            INSERT INTO sync_queue
+            (
+              table_name,
+              record_id,
+              operation,
+              status,
+              error_message
+            )
+            VALUES (?, ?, ?, ?, ?)
+            `,
+            [
+              "department",
+              departmentId,
+              "create",
+              "pending",
+              error.message,
+            ]
+          );
+
+          console.log(
+            `Department ${departmentId} saved to MySQL and added to sync queue.`
+          );
+        }
+      } else {
+        await pool.query(
+          `
+          INSERT INTO sync_queue
+          (
+            table_name,
+            record_id,
+            operation,
+            status
+          )
+          VALUES (?, ?, ?, ?)
+          `,
+          [
+            "department",
+            departmentId,
+            "create",
+            "pending",
+          ]
+        );
+
+        console.log(
+          `Department ${departmentId} saved to MySQL and added to sync queue.`
+        );
+      }
+
+      return {
+        department_id: departmentId,
+        name,
+        classification,
+        location,
+        prefix,
+        est_time,
+        kiosk_id,
+        status,
+      };
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE DEPARTMENT
+    |--------------------------------------------------------------------------
+    */
+
+
+  async function updateDepartment(departmentId, department = {}) {
+    if (!departmentId) {
+      throw new Error("Department ID is required.");
+    }
+
+    const allowedFields = [
+      "name",
+      "classification",
+      "location",
+      "prefix",
+      "est_time",
+      "kiosk_id",
+      "status",
+    ];
+
+    const updates = {};
+
+    for (const field of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(department, field)) {
+        updates[field] = department[field];
+      }
+    }
+
+    // Validate estimated time when provided.
+    if (Object.prototype.hasOwnProperty.call(updates, "est_time")) {
+      const estTime = Number(updates.est_time);
+
+      if (!Number.isFinite(estTime) || estTime <= 0) {
+        throw new Error("Estimated time must be a positive number.");
+      }
+
+      updates.est_time = estTime;
+    }
+
+    // Get the current department from MySQL.
+    const [existingRows] = await pool.query(
       `
-      INSERT INTO department
-      (
+      SELECT
         department_id,
         name,
         classification,
@@ -338,205 +509,49 @@ async function getDepartmentById(departmentId) {
         est_time,
         kiosk_id,
         status
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        departmentId,
-        name,
-        classification,
-        location,
-        prefix,
-        est_time,
-        kiosk_id,
-        status,
-      ]
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | CHECK FIREBASE
-    |--------------------------------------------------------------------------
-    */
-
-    const firebaseAvailable = FORCE_FIREBASE_OFFLINE
-      ? false
-      : await checkFirebaseConnection();
-
-    /*
-    |--------------------------------------------------------------------------
-    | SAVE TO FIREBASE
-    |--------------------------------------------------------------------------
-    */
-
-    if (firebaseAvailable) {
-      try {
-        await db
-          .collection("department")
-          .doc(departmentId)
-          .set({
-            department_id: departmentId,
-            name,
-            classification,
-            location,
-            prefix,
-            est_time,
-            kiosk_id,
-            status,
-          });
-
-        console.log(
-          `Department ${departmentId} saved to MySQL and Firebase.`
-        );
-      } catch (error) {
-        console.error(
-          "Firebase CREATE failed:",
-          error.message
-        );
-
-        await pool.query(
-          `
-          INSERT INTO sync_queue
-          (
-            table_name,
-            record_id,
-            operation,
-            status,
-            error_message
-          )
-          VALUES (?, ?, ?, ?, ?)
-          `,
-          [
-            "department",
-            departmentId,
-            "create",
-            "pending",
-            error.message,
-          ]
-        );
-
-        console.log(
-          `Department ${departmentId} saved to MySQL and added to sync queue.`
-        );
-      }
-    } else {
-      await pool.query(
-        `
-        INSERT INTO sync_queue
-        (
-          table_name,
-          record_id,
-          operation,
-          status
-        )
-        VALUES (?, ?, ?, ?)
-        `,
-        [
-          "department",
-          departmentId,
-          "create",
-          "pending",
-        ]
-      );
-
-      console.log(
-        `Department ${departmentId} saved to MySQL and added to sync queue.`
-      );
-    }
-
-    return {
-      department_id: departmentId,
-      name,
-      classification,
-      location,
-      prefix,
-      est_time,
-      kiosk_id,
-      status,
-    };
-  }
-
-  /*
-  |--------------------------------------------------------------------------
-  | UPDATE DEPARTMENT
-  |--------------------------------------------------------------------------
-  */
-
-  async function updateDepartment(
-    departmentId,
-    department
-  ) {
-    const {
-      name,
-      classification,
-      location,
-      prefix,
-      est_time,
-      kiosk_id,
-      status,
-    } = department;
-
-    /*
-    |--------------------------------------------------------------------------
-    | UPDATE MYSQL FIRST
-    |--------------------------------------------------------------------------
-    */
-
-    const [result] = await pool.query(
-      `
-      UPDATE department
-      SET
-        name = ?,
-        classification = ?,
-        location = ?,
-        prefix = ?,
-        est_time = ?,
-        kiosk_id = ?,
-        status = ?
+      FROM department
       WHERE department_id = ?
+      LIMIT 1
       `,
-      [
-        name,
-        classification,
-        location,
-        prefix,
-        est_time,
-        kiosk_id,
-        status,
-        departmentId,
-      ]
+      [departmentId]
     );
 
-    if (result.affectedRows === 0) {
+    if (existingRows.length === 0) {
       return null;
     }
 
+    const existingDepartment = existingRows[0];
+
+    // Update only the fields supplied by the frontend.
+    const fields = Object.keys(updates);
+
+    if (fields.length > 0) {
+      const setClause = fields
+        .map((field) => `\`${field}\` = ?`)
+        .join(", ");
+
+      const values = fields.map((field) => updates[field]);
+
+      await pool.query(
+        `
+        UPDATE department
+        SET ${setClause}
+        WHERE department_id = ?
+        `,
+        [...values, departmentId]
+      );
+    }
+
+    // Merge the updated values with the existing department data.
     const updatedDepartment = {
-      department_id: departmentId,
-      name,
-      classification,
-      location,
-      prefix,
-      est_time,
-      kiosk_id,
-      status,
+      ...existingDepartment,
+      ...updates,
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | CHECK FIREBASE
-    |--------------------------------------------------------------------------
-    */
-
+    // Sync to Firebase if available.
     const firebaseAvailable = FORCE_FIREBASE_OFFLINE
       ? false
       : await checkFirebaseConnection();
-
-    /*
-    |--------------------------------------------------------------------------
-    | UPDATE FIREBASE
-    |--------------------------------------------------------------------------
-    */
 
     if (firebaseAvailable) {
       try {
@@ -574,10 +589,6 @@ async function getDepartmentById(departmentId) {
             error.message,
           ]
         );
-
-        console.log(
-          `Department ${departmentId} updated in MySQL and added to sync queue.`
-        );
       }
     } else {
       await pool.query(
@@ -598,181 +609,50 @@ async function getDepartmentById(departmentId) {
           "pending",
         ]
       );
-
-      console.log(
-        `Department ${departmentId} updated in MySQL and added to sync queue.`
-      );
     }
 
     return updatedDepartment;
   }
-
-  /*
-  |--------------------------------------------------------------------------
-  | DELETE DEPARTMENT
-  |--------------------------------------------------------------------------
-  */
-
-  async function deleteDepartment(departmentId) {
     /*
     |--------------------------------------------------------------------------
-    | DELETE FROM MYSQL FIRST
+    | DELETE DEPARTMENT
     |--------------------------------------------------------------------------
     */
 
-    const [result] = await pool.query(
-      `
-      DELETE FROM department
-      WHERE department_id = ?
-      `,
-      [departmentId]
-    );
+    async function deleteDepartment(departmentId) {
+      /*
+      |--------------------------------------------------------------------------
+      | DELETE FROM MYSQL FIRST
+      |--------------------------------------------------------------------------
+      */
 
-    if (result.affectedRows === 0) {
-      return false;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | CHECK FIREBASE
-    |--------------------------------------------------------------------------
-    */
-
-    const firebaseAvailable = FORCE_FIREBASE_OFFLINE
-      ? false
-      : await checkFirebaseConnection();
-
-    /*
-    |--------------------------------------------------------------------------
-    | DELETE FROM FIREBASE
-    |--------------------------------------------------------------------------
-    */
-
-    if (firebaseAvailable) {
-      try {
-        await db
-          .collection("department")
-          .doc(departmentId)
-          .delete();
-
-        console.log(
-          `Department ${departmentId} deleted from MySQL and Firebase.`
-        );
-      } catch (error) {
-        console.error(
-          "Firebase DELETE failed:",
-          error.message
-        );
-
-        await pool.query(
-          `
-          INSERT INTO sync_queue
-          (
-            table_name,
-            record_id,
-            operation,
-            status,
-            error_message
-          )
-          VALUES (?, ?, ?, ?, ?)
-          `,
-          [
-            "department",
-            departmentId,
-            "delete",
-            "pending",
-            error.message,
-          ]
-        );
-
-        console.log(
-          `Department ${departmentId} deleted from MySQL and added to sync queue.`
-        );
-      }
-    } else {
-      await pool.query(
+      const [result] = await pool.query(
         `
-        INSERT INTO sync_queue
-        (
-          table_name,
-          record_id,
-          operation,
-          status
-        )
-        VALUES (?, ?, ?, ?)
+        DELETE FROM department
+        WHERE department_id = ?
         `,
-        [
-          "department",
-          departmentId,
-          "delete",
-          "pending",
-        ]
+        [departmentId]
       );
 
-      console.log(
-        `Department ${departmentId} deleted from MySQL and added to sync queue.`
-      );
-    }
+      if (result.affectedRows === 0) {
+        return false;
+      }
 
-    return true;
-  }
+      /*
+      |--------------------------------------------------------------------------
+      | CHECK FIREBASE
+      |--------------------------------------------------------------------------
+      */
 
-  /*
-  |--------------------------------------------------------------------------
-  | EXPORT SERVICES
-  |--------------------------------------------------------------------------
-  */
-
-async function resetDepartments(departmentIds = []) {
-  if (!Array.isArray(departmentIds) || departmentIds.length === 0) {
-    throw new Error("No departments selected for reset.");
-  }
-
-  const deletedDepartments = [];
-
-  for (const departmentId of departmentIds) {
-    // Check if the department exists first
-    const [departmentRows] = await pool.query(
-      `
-      SELECT *
-      FROM department
-      WHERE department_id = ?
-      LIMIT 1
-      `,
-      [departmentId]
-    );
-
-    if (departmentRows.length === 0) {
-      continue;
-    }
-
-    const department = departmentRows[0];
-
-    // Delete counters belonging to this department first
-    await pool.query(
-      `
-      DELETE FROM counter
-      WHERE department_id = ?
-      `,
-      [departmentId]
-    );
-
-    // Delete the department from MySQL
-    const [result] = await pool.query(
-      `
-      DELETE FROM department
-      WHERE department_id = ?
-      `,
-      [departmentId]
-    );
-
-    if (result.affectedRows > 0) {
-      deletedDepartments.push(department);
-
-      // Delete the corresponding Firebase department document
       const firebaseAvailable = FORCE_FIREBASE_OFFLINE
         ? false
         : await checkFirebaseConnection();
+
+      /*
+      |--------------------------------------------------------------------------
+      | DELETE FROM FIREBASE
+      |--------------------------------------------------------------------------
+      */
 
       if (firebaseAvailable) {
         try {
@@ -786,7 +666,7 @@ async function resetDepartments(departmentIds = []) {
           );
         } catch (error) {
           console.error(
-            `Firebase DELETE failed for department ${departmentId}:`,
+            "Firebase DELETE failed:",
             error.message
           );
 
@@ -810,6 +690,10 @@ async function resetDepartments(departmentIds = []) {
               error.message,
             ]
           );
+
+          console.log(
+            `Department ${departmentId} deleted from MySQL and added to sync queue.`
+          );
         }
       } else {
         await pool.query(
@@ -830,21 +714,143 @@ async function resetDepartments(departmentIds = []) {
             "pending",
           ]
         );
+
+        console.log(
+          `Department ${departmentId} deleted from MySQL and added to sync queue.`
+        );
+      }
+
+      return true;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | EXPORT SERVICES
+    |--------------------------------------------------------------------------
+    */
+
+  async function resetDepartments(departmentIds = []) {
+    if (!Array.isArray(departmentIds) || departmentIds.length === 0) {
+      throw new Error("No departments selected for reset.");
+    }
+
+    const deletedDepartments = [];
+
+    for (const departmentId of departmentIds) {
+      // Check if the department exists first
+      const [departmentRows] = await pool.query(
+        `
+        SELECT *
+        FROM department
+        WHERE department_id = ?
+        LIMIT 1
+        `,
+        [departmentId]
+      );
+
+      if (departmentRows.length === 0) {
+        continue;
+      }
+
+      const department = departmentRows[0];
+
+      // Delete counters belonging to this department first
+      await pool.query(
+        `
+        DELETE FROM counter
+        WHERE department_id = ?
+        `,
+        [departmentId]
+      );
+
+      // Delete the department from MySQL
+      const [result] = await pool.query(
+        `
+        DELETE FROM department
+        WHERE department_id = ?
+        `,
+        [departmentId]
+      );
+
+      if (result.affectedRows > 0) {
+        deletedDepartments.push(department);
+
+        // Delete the corresponding Firebase department document
+        const firebaseAvailable = FORCE_FIREBASE_OFFLINE
+          ? false
+          : await checkFirebaseConnection();
+
+        if (firebaseAvailable) {
+          try {
+            await db
+              .collection("department")
+              .doc(departmentId)
+              .delete();
+
+            console.log(
+              `Department ${departmentId} deleted from MySQL and Firebase.`
+            );
+          } catch (error) {
+            console.error(
+              `Firebase DELETE failed for department ${departmentId}:`,
+              error.message
+            );
+
+            await pool.query(
+              `
+              INSERT INTO sync_queue
+              (
+                table_name,
+                record_id,
+                operation,
+                status,
+                error_message
+              )
+              VALUES (?, ?, ?, ?, ?)
+              `,
+              [
+                "department",
+                departmentId,
+                "delete",
+                "pending",
+                error.message,
+              ]
+            );
+          }
+        } else {
+          await pool.query(
+            `
+            INSERT INTO sync_queue
+            (
+              table_name,
+              record_id,
+              operation,
+              status
+            )
+            VALUES (?, ?, ?, ?)
+            `,
+            [
+              "department",
+              departmentId,
+              "delete",
+              "pending",
+            ]
+          );
+        }
       }
     }
+
+    return {
+      deletedCount: deletedDepartments.length,
+      deletedDepartments,
+    };
   }
 
-  return {
-    deletedCount: deletedDepartments.length,
-    deletedDepartments,
+  module.exports = {
+    getDepartments,
+    getDepartmentById,
+    createDepartment,
+    updateDepartment,
+    deleteDepartment,
+    resetDepartments,
   };
-}
-
- module.exports = {
-  getDepartments,
-  getDepartmentById,
-  createDepartment,
-  updateDepartment,
-  deleteDepartment,
-  resetDepartments,
-};

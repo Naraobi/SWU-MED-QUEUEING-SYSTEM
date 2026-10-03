@@ -62,10 +62,9 @@ function clampMinutes(value) {
    ADD MODAL
 ========================================================= */
 
+
 function AddTimeModal({
   departments,
-  services,
-  servicesAvailable,
   onClose,
   onAdd,
   saving,
@@ -74,19 +73,12 @@ function AddTimeModal({
   const { t } = useLanguage();
 
   const [departmentId, setDepartmentId] = useState('');
-  const [service, setService] = useState('');
   const [minutes, setMinutes] = useState(10);
 
-  // The design filters the service list by the chosen department.
-  const options = useMemo(
-    () =>
-      services.filter(
-        (item) => String(item.departmentId) === String(departmentId)
-      ),
-    [services, departmentId]
-  );
-
-  const ready = departmentId && service && minutes >= MIN_MINUTES;
+  const ready =
+    Boolean(departmentId) &&
+    Number(minutes) >= MIN_MINUTES &&
+    Number(minutes) <= MAX_MINUTES;
 
   return (
     <div
@@ -101,12 +93,13 @@ function AddTimeModal({
         className="swu-pop w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
       >
         <div className="flex items-start justify-between gap-4 border-b border-[#E5E7EB] px-5 py-4">
-          <div className="min-w-0">
+          <div>
             <h2 id="add-time-title" className="text-base font-bold text-[#1F2937]">
               {t('sa.est.addTitle')}
             </h2>
-
-            <p className="mt-0.5 text-xs text-[#4B5563]">{t('sa.est.addSub')}</p>
+            <p className="mt-0.5 text-xs text-[#4B5563]">
+              Set the estimated service time for a department.
+            </p>
           </div>
 
           <button
@@ -114,7 +107,7 @@ function AddTimeModal({
             onClick={onClose}
             disabled={saving}
             aria-label={t('sa.common.close')}
-            className="shrink-0 rounded-md p-1 text-[#9CA3AF] transition hover:bg-[#F1F3F5] hover:text-[#1F2937] disabled:opacity-50"
+            className="shrink-0 rounded-md p-1 text-[#9CA3AF] transition hover:bg-[#F1F3F5] disabled:opacity-50"
           >
             <X size={16} />
           </button>
@@ -132,15 +125,11 @@ function AddTimeModal({
             <select
               id="est-department"
               value={departmentId}
-              onChange={(event) => {
-                setDepartmentId(event.target.value);
-                setService('');
-              }}
+              onChange={(event) => setDepartmentId(event.target.value)}
               disabled={saving}
               className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#1F2937] outline-none focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10 disabled:opacity-60"
             >
               <option value="">{t('sa.est.selectDepartment')}</option>
-
               {departments.map((department) => (
                 <option key={department.id} value={department.id}>
                   {department.name}
@@ -151,41 +140,10 @@ function AddTimeModal({
 
           <div>
             <label
-              htmlFor="est-service"
-              className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
-            >
-              {t('sa.est.service')} <span className="text-[#9D0A0E]">*</span>
-            </label>
-
-            <select
-              id="est-service"
-              value={service}
-              onChange={(event) => setService(event.target.value)}
-              disabled={saving || !departmentId || !servicesAvailable}
-              className="h-10 w-full rounded-lg border border-[#E5E7EB] bg-white px-3 text-sm text-[#1F2937] outline-none focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10 disabled:cursor-not-allowed disabled:bg-[#F1F3F5] disabled:text-[#9CA3AF]"
-            >
-              <option value="">{t('sa.est.selectService')}</option>
-
-              {options.map((item) => (
-                <option key={item.id} value={item.name}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-
-            <p className="mt-1 text-xs text-[#9CA3AF]">
-              {servicesAvailable
-                ? t('sa.est.serviceHint')
-                : t('sa.est.noServicesYet')}
-            </p>
-          </div>
-
-          <div>
-            <label
               htmlFor="est-minutes"
               className="mb-1.5 block text-xs font-semibold text-[#1F2937]"
             >
-              {t('sa.est.title')} <span className="text-[#9D0A0E]">*</span>
+              Estimated time <span className="text-[#9D0A0E]">*</span>
             </label>
 
             <div className="flex items-center gap-2">
@@ -201,13 +159,13 @@ function AddTimeModal({
                 disabled={saving}
                 className="h-10 w-28 rounded-lg border border-[#E5E7EB] px-3 text-sm text-[#1F2937] outline-none focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10 disabled:opacity-60"
               />
-
               <span className="text-sm text-[#4B5563]">
                 {t('sa.est.minutes')}
               </span>
             </div>
-
-            <p className="mt-1 text-xs text-[#9CA3AF]">{t('sa.est.minutesHint')}</p>
+            <p className="mt-1 text-xs text-[#9CA3AF]">
+              Enter a value from {MIN_MINUTES} to {MAX_MINUTES} minutes.
+            </p>
           </div>
 
           {error && (
@@ -233,12 +191,11 @@ function AddTimeModal({
             onClick={() =>
               onAdd({
                 departmentId,
-                service,
                 minutes: clampMinutes(minutes),
               })
             }
             disabled={saving || !ready}
-            className="swu-press h-9 rounded-lg bg-[#9D0A0E] px-4 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-sm"
+            className="swu-press h-9 rounded-lg bg-[#9D0A0E] px-4 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? t('sa.est.adding') : t('sa.est.addAction')}
           </button>
@@ -275,102 +232,59 @@ export default function EstimatedTransactionTime() {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-    setSaveError('');
+const load = useCallback(async () => {
+  setLoading(true);
+  setLoadError('');
+  setSaveError('');
 
-    // Departments are needed either way: as the chip on each row, and as the
-    // department list in the Add modal.
-    let departmentRows = [];
+  try {
+    const result = await getDepartments();
 
-    try {
-      const result = await getDepartments();
-      departmentRows = (Array.isArray(result) ? result : result?.data ?? []).map(
-        (department) => ({
-          id: String(department.department_id ?? department.id ?? ''),
-          name: department.name || department.department_name || 'Department',
-          estTime: Number(department.est_time) || 15,
-        })
+    const departmentRows = (
+      Array.isArray(result) ? result : result?.data ?? []
+    ).map((department) => {
+      const id = String(
+        department.department_id ?? department.id ?? ''
       );
 
-      setDepartments(departmentRows);
-    } catch (error) {
-      setDepartments([]);
-      setLoadError(error?.message || t('sa.est.loadFailed'));
-      setLoading(false);
-      return;
-    }
-
-    // Prefer per-service times when the backend has them.
-    try {
-      const response = await fetch(`${API_BASE}/service-times`);
-
-      if (!response.ok) throw new Error(String(response.status));
-
-      const result = await response.json();
-      const list = Array.isArray(result) ? result : result?.data ?? [];
-
-      const mapped = list.map((row, index) => ({
-        id: String(row.id ?? row.service_time_id ?? index),
-        departmentId: String(row.department_id ?? ''),
+      return {
+        id,
+        departmentId: id,
         department:
-          row.department ??
-          departmentRows.find(
-            (item) => String(item.id) === String(row.department_id)
-          )?.name ??
-          '--',
-        service: row.service ?? row.service_name ?? '--',
-        minutes: clampMinutes(row.minutes ?? row.est_time ?? 15),
-      }));
+          department.name ||
+          department.department_name ||
+          'Department',
+        service:
+          department.name ||
+          department.department_name ||
+          'Department',
+        minutes: clampMinutes(department.est_time ?? 15),
+      };
+    });
 
-      setMode('service');
-      setRows(mapped);
-      setBaseline(mapped);
+    setDepartments(
+      departmentRows.map((row) => ({
+        id: row.id,
+        name: row.department,
+        estTime: row.minutes,
+      }))
+    );
 
-      try {
-        const serviceResponse = await fetch(`${API_BASE}/services`);
-
-        if (serviceResponse.ok) {
-          const serviceResult = await serviceResponse.json();
-          const serviceList = Array.isArray(serviceResult)
-            ? serviceResult
-            : serviceResult?.data ?? [];
-
-          setServices(
-            serviceList.map((item, index) => ({
-              id: String(item.id ?? item.service_id ?? index),
-              departmentId: String(item.department_id ?? ''),
-              name: item.name ?? item.service_name ?? '',
-            }))
-          );
-        } else {
-          setServices([]);
-        }
-      } catch {
-        setServices([]);
-      }
-    } catch {
-      /*
-       * No services table yet. Fall back to the department-level est_time,
-       * which is real, already drives the queue, and is editable right now.
-       */
-  const fallback = departmentRows.map((department) => ({
-  id: department.id,
-  departmentId: department.id,
-  department: department.name,
-  service: department.name,
-  minutes: clampMinutes(department.estTime),
-}));
-
-setMode('department');
-setRows(fallback);
-setBaseline(fallback);
-setServices([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+    setMode('department');
+    setRows(departmentRows);
+    setBaseline(departmentRows);
+    setServices([]);
+  } catch (error) {
+    setDepartments([]);
+    setRows([]);
+    setBaseline([]);
+    setLoadError(
+      error?.message || 'Failed to load departments.'
+    );
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   useEffect(() => {
     load();
@@ -399,72 +313,70 @@ setServices([]);
     );
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setSaveError('');
+async function handleSave() {
+  setSaving(true);
+  setSaveError('');
 
-    const changed = rows.filter(
-      (row, index) => row.minutes !== baseline[index]?.minutes
+  const baselineById = new Map(
+    baseline.map((row) => [row.id, row.minutes])
+  );
+
+  const changed = rows.filter(
+    (row) => row.minutes !== baselineById.get(row.id)
+  );
+
+  try {
+    for (const row of changed) {
+      await updateDepartment(row.departmentId, {
+        est_time: clampMinutes(row.minutes),
+      });
+    }
+
+    setBaseline(
+      rows.map((row) => ({
+        ...row,
+        minutes: clampMinutes(row.minutes),
+      }))
     );
 
-    try {
-      if (mode === 'service') {
-        const response = await fetch(`${API_BASE}/service-times`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            changed.map((row) => ({ id: row.id, minutes: row.minutes }))
-          ),
-        });
+    setRows((current) =>
+      current.map((row) => ({
+        ...row,
+        minutes: clampMinutes(row.minutes),
+      }))
+    );
 
-        if (!response.ok) {
-          throw new Error(`${response.status} ${response.statusText}`);
-        }
-      } else {
-        // Department mode writes through the endpoint that already exists.
-        for (const row of changed) {
-          await updateDepartment(row.departmentId, { est_time: row.minutes });
-        }
-      }
-
-      setBaseline(rows);
-      setSavedAt(new Date());
-      setEditingId(null);
-    } catch (error) {
-      setSaveError(error?.message || t('sa.est.saveFailed'));
-    } finally {
-      setSaving(false);
-    }
+    setSavedAt(new Date());
+    setEditingId(null);
+  } catch (error) {
+    setSaveError(
+      error?.message || t('sa.est.saveFailed')
+    );
+  } finally {
+    setSaving(false);
   }
+}
+async function handleAdd({ departmentId, minutes }) {
+  setAdding(true);
+  setAddError('');
 
-  async function handleAdd({ departmentId, service, minutes }) {
-    setAdding(true);
-    setAddError('');
+  try {
+    await updateDepartment(departmentId, {
+      est_time: clampMinutes(minutes),
+    });
 
-    try {
-      const response = await fetch(`${API_BASE}/service-times`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          department_id: departmentId,
-          service,
-          minutes,
-        }),
-      });
+    setShowAdd(false);
 
-      if (!response.ok) {
-        throw new Error(`${response.status} ${response.statusText}`);
-      }
-
-      setShowAdd(false);
-      await load();
-    } catch (error) {
-      setAddError(error?.message || t('sa.est.addFailed'));
-    } finally {
-      setAdding(false);
-    }
+    // Refresh the displayed department estimates after saving.
+    await load();
+  } catch (error) {
+    setAddError(
+      error?.message || 'Failed to save the estimated time.'
+    );
+  } finally {
+    setAdding(false);
   }
-
+}
   return (
     <section className="swu-card rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4 px-6 py-5">
@@ -483,14 +395,18 @@ setServices([]);
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setAddError('');
-              setShowAdd(true);
-            }}
-            disabled={mode !== 'service'}
-            title={mode !== 'service' ? t('sa.est.addNeedsServices') : undefined}
+      <button
+  type="button"
+  onClick={() => {
+    setAddError('');
+    setShowAdd(true);
+  }}
+  disabled={loading || departments.length === 0}
+  title={
+    departments.length === 0
+      ? 'No departments available'
+      : undefined
+  }
             className="swu-press inline-flex items-center gap-1.5 rounded-lg border border-[#F0DADA] bg-white px-3.5 py-2 text-xs font-semibold text-[#9D0A0E] transition-colors hover:bg-[#FBF1F1] disabled:cursor-not-allowed disabled:border-[#E5E7EB] disabled:text-[#9CA3AF] disabled:hover:bg-white"
           >
             <Plus size={13} />
@@ -694,17 +610,15 @@ setServices([]);
         </div>
       </div>
 
-      {showAdd && (
-        <AddTimeModal
-          departments={departments}
-          services={services}
-          servicesAvailable={mode === 'service' && services.length > 0}
-          saving={adding}
-          error={addError}
-          onClose={() => !adding && setShowAdd(false)}
-          onAdd={handleAdd}
-        />
-      )}
+{showAdd && (
+  <AddTimeModal
+    departments={departments}
+    saving={adding}
+    error={addError}
+    onClose={() => !adding && setShowAdd(false)}
+    onAdd={handleAdd}
+  />
+)}
     </section>
   );
 }
