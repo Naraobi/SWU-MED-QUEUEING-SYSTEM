@@ -1,5 +1,18 @@
+import { auth } from "../../firebase";
+
 const API_URL =
   `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api`;
+
+// Bearer header for the counter endpoints that require a signed-in user.
+async function getAuthHeader() {
+  const firebaseUser = auth.currentUser;
+
+  if (!firebaseUser) {
+    throw new Error("You must be signed in to do this.");
+  }
+
+  return { Authorization: `Bearer ${await firebaseUser.getIdToken()}` };
+}
 
 // =====================================================
 // DEPARTMENT API
@@ -480,10 +493,10 @@ export async function assignTerminal(terminalId, staffId) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(await getAuthHeader()),
       },
-      body: JSON.stringify({
-        staff_id: staffId,
-      }),
+      // The server takes the staff ID from the verified token.
+      body: JSON.stringify({}),
     }
   );
 
@@ -515,10 +528,10 @@ export async function releaseTerminal(terminalId, staffId) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(await getAuthHeader()),
       },
-      body: JSON.stringify({
-        staff_id: staffId,
-      }),
+      // The server takes the staff ID from the verified token.
+      body: JSON.stringify({}),
     }
   );
 
@@ -555,7 +568,8 @@ export async function getStaffTerminal(staffId) {
   }
 
   const response = await fetch(
-    `${API_URL}/counters/staff/${encodeURIComponent(staffId)}`
+    `${API_URL}/counters/staff/${encodeURIComponent(staffId)}`,
+    { headers: await getAuthHeader() }
   );
 
   const result = await response.json();
@@ -1115,6 +1129,7 @@ export async function createTerminal(terminalData) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(await getAuthHeader()),
     },
     body: JSON.stringify(terminalData),
   });
@@ -1140,6 +1155,7 @@ export async function updateTerminal(terminalId, terminalData) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...(await getAuthHeader()),
       },
       body: JSON.stringify(terminalData),
     }
@@ -1155,6 +1171,8 @@ export async function updateTerminal(terminalId, terminalData) {
 
   return result.data;
 }
+// Intentionally unauthenticated: the public TV display (/display) reads it
+// without a login. NOTE: the response includes assigned_staff_id.
 export async function getTerminals() {
   const response = await fetch(`${API_URL}/counters`);
   const result = await response.json();
@@ -1176,6 +1194,7 @@ export async function deleteTerminal(terminalId) {
     `${API_URL}/counters/${encodeURIComponent(terminalId)}`,
     {
       method: "DELETE",
+      headers: await getAuthHeader(),
     }
   );
 

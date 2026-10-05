@@ -221,12 +221,8 @@ async function releaseStaffTerminal(
     };
   }
 
-  if (normalizeRole(userLike?.role) !== "staff") {
-    return {
-      released: false,
-      reason: "not-staff",
-    };
-  }
+  // Release must not depend on role: any role can claim a terminal, and the
+  // backend only clears a counter this user actually holds.
 
   /*
   | The same logout can arrive twice: once from the explicit signOut()
@@ -1118,6 +1114,10 @@ export function AuthProvider({
             const sessionStaffId =
               resolveStaffId(sessionUser);
 
+            // TODO: there is no Firebase token left here, so the
+            // authenticated release endpoint rejects this call and the
+            // terminal stays held. The real fix is server-side stale-claim
+            // expiry (heartbeat/TTL on the counter claim).
             await releaseStaffTerminal(
               sessionUser
             );
