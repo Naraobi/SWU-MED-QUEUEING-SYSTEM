@@ -35,7 +35,6 @@ const reportsRoutes = require("./routes/reportsRoutes");
 const securityPinRoutes = require("./routes/securityPinRoutes");
 const positionRoutes = require("./routes/positionRoutes");
 const trackerRoutes = require("./routes/trackerRoutes");
-const pushRoutes = require("./routes/pushRoutes");
 const app = express();
 const server = http.createServer(app);
 
@@ -135,10 +134,7 @@ app.use(
 );
 
 app.use("/api/tracker", trackerRoutes);
-app.use(
-  "/api/push",
-  pushRoutes
-);
+
 // =====================================================
 // BASIC BACKEND TEST
 // =====================================================

@@ -213,10 +213,8 @@ export default function TrackerPage() {
    * Controls the notification/vibration setup
    * modal.
    *
-   * IMPORTANT:
-   *
    * This is only an overlay.
-   * It does NOT replace the tracker page.
+   * It does not replace the tracker page.
    */
   const [
     showNotificationSetup,
@@ -245,30 +243,6 @@ export default function TrackerPage() {
   const [
     vibrationSupported,
     setVibrationSupported,
-  ] = useState(false)
-
-  /* ==========================================================================
-     SERVICE WORKER STATE
-  ========================================================================== */
-
-  /*
-   * Stores the Service Worker registration.
-   *
-   * This will later be used for real Web Push
-   * subscriptions for Android and iOS.
-   */
-  const [
-    serviceWorkerRegistration,
-    setServiceWorkerRegistration,
-  ] = useState(null)
-
-  /*
-   * Tracks whether the Service Worker has
-   * successfully registered.
-   */
-  const [
-    serviceWorkerReady,
-    setServiceWorkerReady,
   ] = useState(false)
 
   /* ==========================================================================
@@ -334,127 +308,6 @@ export default function TrackerPage() {
     useRef(null)
 
   /* ==========================================================================
-     SERVICE WORKER REGISTRATION
-  ========================================================================== */
-
-  useEffect(() => {
-
-    /*
-     * Preview mode does not need a Service Worker.
-     */
-    if (previewMode) {
-      return
-    }
-
-    /*
-     * Make sure the browser supports Service Workers.
-     */
-    if (
-      !('serviceWorker' in navigator)
-    ) {
-
-      console.warn(
-        'Service Workers are not supported in this browser.'
-      )
-
-      setServiceWorkerReady(false)
-
-      return
-
-    }
-
-    let cancelled = false
-
-    const registerServiceWorker =
-      async () => {
-
-        try {
-
-          /*
-           * Register the Service Worker from:
-           *
-           * /public/sw.js
-           *
-           * which is served by Vite as:
-           *
-           * /sw.js
-           */
-          const registration =
-            await navigator.serviceWorker.register(
-              '/sw.js',
-              {
-                scope: '/',
-              }
-            )
-
-          if (cancelled) {
-            return
-          }
-
-          /*
-           * Store the registration so it can
-           * later be used for Web Push.
-           */
-          setServiceWorkerRegistration(
-            registration
-          )
-
-          /*
-           * Wait until the Service Worker is
-           * actually ready/active.
-           */
-          const readyRegistration =
-            await navigator.serviceWorker.ready
-
-          if (cancelled) {
-            return
-          }
-
-          setServiceWorkerRegistration(
-            readyRegistration
-          )
-
-          setServiceWorkerReady(
-            true
-          )
-
-          console.log(
-            'SWU-MED Service Worker registered:',
-            readyRegistration.scope
-          )
-
-        } catch (error) {
-
-          if (cancelled) {
-            return
-          }
-
-          setServiceWorkerReady(
-            false
-          )
-
-          console.error(
-            'SWU-MED Service Worker registration failed:',
-            error
-          )
-
-        }
-
-      }
-
-    registerServiceWorker()
-
-    return () => {
-
-      cancelled = true
-
-    }
-
-  }, [
-    previewMode,
-  ])
-
-  /* ==========================================================================
      NOTIFICATION SETUP
   ========================================================================== */
 
@@ -513,9 +366,6 @@ export default function TrackerPage() {
 
     /*
      * Show the setup modal.
-     *
-     * This is a modal overlay, so the tracker
-     * itself remains underneath it.
      */
     setShowNotificationSetup(
       true
@@ -541,11 +391,8 @@ export default function TrackerPage() {
          * Request browser notification permission
          * when supported.
          *
-         * IMPORTANT:
-         *
          * This is triggered directly by the
-         * patient's button click, which is required
-         * by mobile browsers.
+         * patient's button click.
          */
         if (
           'Notification' in window
@@ -563,9 +410,6 @@ export default function TrackerPage() {
         /*
          * Test vibration immediately after the
          * user presses the button.
-         *
-         * Chrome/device settings still determine
-         * whether the vibration actually happens.
          */
         if (
           'vibrate' in navigator &&
@@ -592,71 +436,34 @@ export default function TrackerPage() {
         }
 
         /*
-         * If notification permission was granted,
-         * prefer the Service Worker notification
-         * mechanism.
+         * Show a normal browser notification
+         * when permission has been granted.
          *
-         * This is the foundation for Android and
-         * iOS Web Push.
+         * No Service Worker or Web Push is used.
          */
         if (
           permission === 'granted'
         ) {
 
-          if (
-            serviceWorkerReady &&
-            serviceWorkerRegistration
-          ) {
+          try {
 
-            try {
+            new Notification(
+              'SWU Med Notifications Enabled',
+              {
+                body:
+                  'You will be notified when it is your turn.',
 
-              await serviceWorkerRegistration.showNotification(
-                'SWU Med Notifications Enabled',
-                {
-                  body:
-                    'You will be notified when it is your turn.',
-                  icon: '/logo.png',
-                  badge: '/logo.png',
-                  tag: 'swu-med-notification-enabled',
-                }
-              )
+                icon:
+                  logo,
+              }
+            )
 
-            } catch (notificationError) {
+          } catch (notificationError) {
 
-              console.warn(
-                'Unable to show Service Worker notification:',
-                notificationError
-              )
-
-            }
-
-          } else {
-
-            /*
-             * Desktop/browser fallback.
-             *
-             * Mobile browsers should use the
-             * Service Worker notification path.
-             */
-            try {
-
-              new Notification(
-                'SWU Med Notifications Enabled',
-                {
-                  body:
-                    'You will be notified when it is your turn.',
-                  icon: logo,
-                }
-              )
-
-            } catch (notificationError) {
-
-              console.warn(
-                'Unable to show confirmation notification:',
-                notificationError
-              )
-
-            }
+            console.warn(
+              'Unable to show confirmation notification:',
+              notificationError
+            )
 
           }
 
@@ -736,7 +543,7 @@ export default function TrackerPage() {
    * 1. On-screen notification
    * 2. Notification sound
    * 3. Vibration request
-   * 4. Browser / Service Worker notification
+   * 4. Browser notification
    *
    * This helper is used for BOTH:
    *
@@ -744,7 +551,7 @@ export default function TrackerPage() {
    * 2. Recall
    */
   const triggerTurnNotification =
-    async (currentTicket) => {
+    (currentTicket) => {
 
       /*
        * Show the on-screen notification.
@@ -754,12 +561,12 @@ export default function TrackerPage() {
       )
 
       /*
-       * 🔊 Sound
+       * Sound
        */
       playTurnNotificationSound()
 
       /*
-       * 📳 Vibration
+       * Vibration
        *
        * The website can request vibration,
        * but the device/browser ultimately
@@ -767,8 +574,7 @@ export default function TrackerPage() {
        */
       if (
         'vibrate' in navigator &&
-        typeof navigator.vibrate ===
-          'function'
+        typeof navigator.vibrate === 'function'
       ) {
 
         try {
@@ -793,16 +599,16 @@ export default function TrackerPage() {
       }
 
       /*
-       * 🔔 Browser / Service Worker notification
+       * Browser notification
        *
-       * The Service Worker path is preferred
-       * because it is the correct foundation
-       * for mobile Web Push.
+       * This uses the browser's normal
+       * Notification API only.
+       *
+       * No Service Worker or Web Push is used.
        */
       if (
         'Notification' in window &&
-        Notification.permission ===
-          'granted'
+        Notification.permission === 'granted'
       ) {
 
         const notificationBody =
@@ -811,82 +617,25 @@ export default function TrackerPage() {
             'your assigned terminal'
           }.`
 
-        /*
-         * Prefer Service Worker notifications.
-         */
-        if (
-          serviceWorkerReady &&
-          serviceWorkerRegistration
-        ) {
+        try {
 
-          try {
+          new Notification(
+            "It's your turn!",
+            {
+              body:
+                notificationBody,
 
-            await serviceWorkerRegistration.showNotification(
-              "It's your turn!",
-              {
-                body:
-                  notificationBody,
+              icon:
+                logo,
+            }
+          )
 
-                icon: '/logo.png',
+        } catch (error) {
 
-                badge: '/logo.png',
-
-                tag:
-                  `swu-med-turn-${
-                    currentTicket?.queueNumber ||
-                    ticketId ||
-                    'ticket'
-                  }`,
-
-                data: {
-                  ticketId:
-                    ticketId,
-
-                  url:
-                    window.location.href,
-                },
-              }
-            )
-
-          } catch (error) {
-
-            console.warn(
-              'Unable to show Service Worker turn notification:',
-              error
-            )
-
-          }
-
-        } else {
-
-          /*
-           * Desktop fallback.
-           *
-           * This is intentionally retained so
-           * existing desktop behavior continues
-           * to work if the Service Worker is
-           * unavailable.
-           */
-          try {
-
-            new Notification(
-              "It's your turn!",
-              {
-                body:
-                  notificationBody,
-
-                icon: logo,
-              }
-            )
-
-          } catch (error) {
-
-            console.warn(
-              'Unable to create browser notification:',
-              error
-            )
-
-          }
+          console.warn(
+            'Unable to create browser notification:',
+            error
+          )
 
         }
 
@@ -1023,15 +772,14 @@ export default function TrackerPage() {
          * state was waiting.
          */
         const wasWaiting =
-          previousStatusRef.current ===
-          'waiting'
+          previousStatusRef.current === 'waiting'
 
         /* ====================================================================
            CALL / RECALL MARKER
         ==================================================================== */
 
         /*
-         * The backend can return ONE of these
+         * The backend can return one of these
          * supported values.
          *
          * Preferred:
@@ -1065,14 +813,13 @@ export default function TrackerPage() {
          * Detect whether the backend marker
          * changed since the previous poll.
          *
-         * This is what allows Recall to
-         * trigger another notification.
+         * This allows Recall to trigger
+         * another notification.
          */
         const callMarkerChanged =
           initializedRef.current &&
           currentCallMarker !== null &&
-          previousCallMarkerRef.current !==
-            null &&
+          previousCallMarkerRef.current !== null &&
           String(
             currentCallMarker
           ) !==
@@ -1204,8 +951,6 @@ export default function TrackerPage() {
   }, [
     ticketId,
     previewMode,
-    serviceWorkerReady,
-    serviceWorkerRegistration,
   ])
 
   /* ==========================================================================
@@ -1321,15 +1066,6 @@ export default function TrackerPage() {
 
             <div className="px-6 pt-7">
 
-              {/*
-               * TRANSPARENT LOGO
-               *
-               * The previous circular colored background
-               * has been removed.
-               *
-               * The actual SWU Med logo is displayed
-               * directly with no background container.
-               */}
               <div className="mx-auto flex h-20 w-20 items-center justify-center">
 
                 <img
