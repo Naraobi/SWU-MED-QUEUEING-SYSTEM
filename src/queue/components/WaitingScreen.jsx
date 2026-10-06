@@ -48,112 +48,163 @@ export default function WaitingScreen({ ticket }) {
    *
    * This prevents backend polling from resetting the countdown.
    */
-  useEffect(() => {
-    if (!storageKey) {
-      const minutes =
-        Number(ticket.estimatedWaitMinutes) || 0
+useEffect(() => {
+  if (!storageKey) {
+    const minutes =
+      Number(ticket.estimatedWaitMinutes) || 0
 
-      const seconds = Math.max(
-        0,
-        Math.round(minutes * 60)
-      )
+    const seconds = Math.max(
+      0,
+      Math.round(minutes * 60)
+    )
 
-      setRemainingSeconds(seconds)
-      return
+    setRemainingSeconds(seconds)
+    return
+  }
+
+  const activeStatus = String(
+    ticket.status || ''
+  ).toLowerCase()
+
+  /*
+   * Once the patient is called/serving/completed/skipped,
+   * remove the waiting ETA.
+   */
+  if (
+    activeStatus === 'called' ||
+    activeStatus === 'serving' ||
+    activeStatus === 'completed' ||
+    activeStatus === 'skipped'
+  ) {
+    localStorage.removeItem(storageKey)
+    setRemainingSeconds(0)
+    return
+  }
+
+  try {
+    const backendMinutes =
+      Number(ticket.estimatedWaitMinutes) || 0
+
+    const backendSeconds = Math.max(
+      0,
+      Math.round(backendMinutes * 60)
+    )
+
+    const storedTarget =
+      localStorage.getItem(storageKey)
+
+    /*
+     * ========================================================
+     * FIRST LOAD / REFRESH
+     * ========================================================
+     *
+     * If an ETA already exists, preserve it so refreshing the
+     * page does NOT restart the countdown.
+     */
+    if (storedTarget) {
+      const targetTime = Number(storedTarget)
+
+      if (
+        Number.isFinite(targetTime) &&
+        targetTime > 0
+      ) {
+        const secondsLeft = Math.max(
+          0,
+          Math.ceil(
+            (targetTime - Date.now()) / 1000
+          )
+        )
+
+        /*
+         * ====================================================
+         * IMPORTANT:
+         *
+         * If the backend's current estimate has changed
+         * because people ahead changed, update the target.
+         * ====================================================
+         */
+        const currentRemainingMinutes =
+          secondsLeft / 60
+
+        const difference =
+          Math.abs(
+            currentRemainingMinutes -
+              backendMinutes
+          )
+
+        /*
+         * Only adjust when the backend estimate has
+         * materially changed.
+         *
+         * Small differences caused by the countdown itself
+         * are ignored.
+         */
+        if (difference >= 0.25) {
+          const newTargetTime =
+            Date.now() +
+            backendSeconds * 1000
+
+          localStorage.setItem(
+            storageKey,
+            String(newTargetTime)
+          )
+
+          setRemainingSeconds(
+            backendSeconds
+          )
+
+          return
+        }
+
+        /*
+         * Backend estimate has not materially changed.
+         * Keep the existing countdown.
+         */
+        setRemainingSeconds(secondsLeft)
+        return
+      }
     }
 
     /*
-     * If the ticket has already been called/served/completed,
-     * there is no reason to keep an old waiting countdown.
+     * ========================================================
+     * NO EXISTING ETA
+     * ========================================================
      */
-    const activeStatus = String(
-      ticket.status || ''
-    ).toLowerCase()
 
-    if (
-      activeStatus === 'called' ||
-      activeStatus === 'serving' ||
-      activeStatus === 'completed' ||
-      activeStatus === 'skipped'
-    ) {
-      localStorage.removeItem(storageKey)
-      setRemainingSeconds(0)
-      return
-    }
+    const targetTime =
+      Date.now() +
+      backendSeconds * 1000
 
-    try {
-      const storedTarget = localStorage.getItem(
-        storageKey
-      )
+    localStorage.setItem(
+      storageKey,
+      String(targetTime)
+    )
 
-      /*
-       * If an ETA already exists for this ticket,
-       * use it instead of creating a new countdown.
-       */
-      if (storedTarget) {
-        const targetTime = Number(storedTarget)
+    setRemainingSeconds(
+      backendSeconds
+    )
+  } catch (error) {
+    console.warn(
+      'Unable to save tracker ETA:',
+      error
+    )
 
-        if (
-          Number.isFinite(targetTime) &&
-          targetTime > 0
-        ) {
-          const secondsLeft = Math.max(
-            0,
-            Math.ceil(
-              (targetTime - Date.now()) / 1000
-            )
-          )
+    const minutes =
+      Number(ticket.estimatedWaitMinutes) || 0
 
-          setRemainingSeconds(secondsLeft)
-          return
-        }
-      }
+    const seconds = Math.max(
+      0,
+      Math.round(minutes * 60)
+    )
 
-      /*
-       * No saved ETA exists yet.
-       *
-       * Create one from the backend's initial
-       * estimatedWaitMinutes value.
-       */
-      const minutes =
-        Number(ticket.estimatedWaitMinutes) || 0
-
-      const seconds = Math.max(
-        0,
-        Math.round(minutes * 60)
-      )
-
-      const targetTime =
-        Date.now() + seconds * 1000
-
-      localStorage.setItem(
-        storageKey,
-        String(targetTime)
-      )
-
-      setRemainingSeconds(seconds)
-    } catch (error) {
-      /*
-       * If localStorage is unavailable, fall back
-       * to the normal countdown behavior.
-       */
-      console.warn(
-        'Unable to save tracker ETA:',
-        error
-      )
-
-      const minutes =
-        Number(ticket.estimatedWaitMinutes) || 0
-
-      const seconds = Math.max(
-        0,
-        Math.round(minutes * 60)
-      )
-
-      setRemainingSeconds(seconds)
-    }
-  }, [storageKey])
-
+    setRemainingSeconds(seconds)
+  }
+}, [
+  storageKey,
+  ticket.estimatedWaitMinutes,
+  ticket.peopleAhead,
+  ticket.status,
+])
   /*
    * ============================================================
    * COUNTDOWN
