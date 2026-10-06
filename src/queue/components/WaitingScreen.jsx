@@ -1,107 +1,359 @@
 import React, { useEffect, useState } from 'react'
-import { Megaphone, Users, Clock, BellRing, RefreshCw } from 'lucide-react'
+import {
+  Megaphone,
+  Users,
+  Clock,
+  BellRing,
+  RefreshCw,
+} from 'lucide-react'
 import TrackerShell from './TrackerShell.jsx'
 
 export default function WaitingScreen({ ticket }) {
-const [remainingSeconds, setRemainingSeconds] = useState(0)
-useEffect(() => {
-  const minutes = Number(ticket.estimatedWaitMinutes) || 0
+  /*
+   * ============================================================
+   * REFRESH-SAFE ESTIMATED WAIT
+   * ============================================================
+   *
+   * Instead of storing only "remaining seconds", we store the
+   * actual target time when the estimated wait should reach 0.
+   *
+   * Example:
+   *
+   * Estimated wait = 10 minutes
+   *
+   * targetTime = current time + 10 minutes
+   *
+   * If the patient refreshes after 2 minutes:
+   *
+   * targetTime - current time = 8 minutes remaining
+   *
+   * Therefore the countdown does NOT restart from 10 minutes.
+   */
 
-  const seconds = Math.max(
-    0,
-    Math.round(minutes * 60)
-  )
+  const ticketId =
+    ticket.queueId ||
+    ticket.queue_id ||
+    ticket.id ||
+    null
 
-  setRemainingSeconds(seconds)
-}, [ticket.estimatedWaitMinutes])
+  const storageKey = ticketId
+    ? `swumed_tracker_eta_${ticketId}`
+    : null
 
-useEffect(() => {
-  const timer = setInterval(() => {
-    setRemainingSeconds((previous) => {
-      if (previous <= 0) {
-        return 0
+  const [remainingSeconds, setRemainingSeconds] = useState(0)
+
+  /*
+   * Initialize the ETA only when we don't already have one
+   * stored for this ticket.
+   *
+   * This prevents backend polling from resetting the countdown.
+   */
+  useEffect(() => {
+    if (!storageKey) {
+      const minutes =
+        Number(ticket.estimatedWaitMinutes) || 0
+
+      const seconds = Math.max(
+        0,
+        Math.round(minutes * 60)
+      )
+
+      setRemainingSeconds(seconds)
+      return
+    }
+
+    /*
+     * If the ticket has already been called/served/completed,
+     * there is no reason to keep an old waiting countdown.
+     */
+    const activeStatus = String(
+      ticket.status || ''
+    ).toLowerCase()
+
+    if (
+      activeStatus === 'called' ||
+      activeStatus === 'serving' ||
+      activeStatus === 'completed' ||
+      activeStatus === 'skipped'
+    ) {
+      localStorage.removeItem(storageKey)
+      setRemainingSeconds(0)
+      return
+    }
+
+    try {
+      const storedTarget = localStorage.getItem(
+        storageKey
+      )
+
+      /*
+       * If an ETA already exists for this ticket,
+       * use it instead of creating a new countdown.
+       */
+      if (storedTarget) {
+        const targetTime = Number(storedTarget)
+
+        if (
+          Number.isFinite(targetTime) &&
+          targetTime > 0
+        ) {
+          const secondsLeft = Math.max(
+            0,
+            Math.ceil(
+              (targetTime - Date.now()) / 1000
+            )
+          )
+
+          setRemainingSeconds(secondsLeft)
+          return
+        }
       }
 
-      return previous - 1
-    })
-  }, 1000)
+      /*
+       * No saved ETA exists yet.
+       *
+       * Create one from the backend's initial
+       * estimatedWaitMinutes value.
+       */
+      const minutes =
+        Number(ticket.estimatedWaitMinutes) || 0
 
-  return () => clearInterval(timer)
-}, [])
-const total = Math.max(
-  Number(ticket.totalAheadAtIssue) || 0,
-  Number(ticket.peopleAhead) || 0
-)
+      const seconds = Math.max(
+        0,
+        Math.round(minutes * 60)
+      )
 
-const peopleAhead = Number(ticket.peopleAhead) || 0
+      const targetTime =
+        Date.now() + seconds * 1000
 
-let progressPct = 0
+      localStorage.setItem(
+        storageKey,
+        String(targetTime)
+      )
 
-if (ticket.status === 'called' || ticket.status === 'serving') {
-  progressPct = 100
-} else if (ticket.status === 'completed') {
-  progressPct = 100
-} else if (total > 0) {
-  const servedSoFar = Math.max(total - peopleAhead, 0)
-  progressPct = Math.min(
-    100,
-    Math.round((servedSoFar / total) * 100)
+      setRemainingSeconds(seconds)
+    } catch (error) {
+      /*
+       * If localStorage is unavailable, fall back
+       * to the normal countdown behavior.
+       */
+      console.warn(
+        'Unable to save tracker ETA:',
+        error
+      )
+
+      const minutes =
+        Number(ticket.estimatedWaitMinutes) || 0
+
+      const seconds = Math.max(
+        0,
+        Math.round(minutes * 60)
+      )
+
+      setRemainingSeconds(seconds)
+    }
+  }, [storageKey])
+
+  /*
+   * ============================================================
+   * COUNTDOWN
+   * ============================================================
+   *
+   * Every second we calculate the remaining time from the
+   * stored absolute target time.
+   *
+   * This is more reliable than simply subtracting 1 every
+   * second because browser tabs can pause/throttle timers.
+   */
+  useEffect(() => {
+    const updateCountdown = () => {
+      if (!storageKey) {
+        setRemainingSeconds((previous) => {
+          if (previous <= 0) {
+            return 0
+          }
+
+          return previous - 1
+        })
+
+        return
+      }
+
+      try {
+        const storedTarget =
+          localStorage.getItem(storageKey)
+
+        if (!storedTarget) {
+          setRemainingSeconds(0)
+          return
+        }
+
+        const targetTime = Number(storedTarget)
+
+        if (!Number.isFinite(targetTime)) {
+          setRemainingSeconds(0)
+          return
+        }
+
+        const secondsLeft = Math.max(
+          0,
+          Math.ceil(
+            (targetTime - Date.now()) / 1000
+          )
+        )
+
+        setRemainingSeconds(secondsLeft)
+
+        /*
+         * Once the countdown reaches zero, remove the stored
+         * target so it does not remain indefinitely.
+         */
+        if (secondsLeft <= 0) {
+          localStorage.removeItem(storageKey)
+        }
+      } catch (error) {
+        console.warn(
+          'Unable to read tracker ETA:',
+          error
+        )
+      }
+    }
+
+    /*
+     * Run immediately instead of waiting one second.
+     */
+    updateCountdown()
+
+    const timer = setInterval(
+      updateCountdown,
+      1000
+    )
+
+    return () => clearInterval(timer)
+  }, [storageKey])
+
+  /*
+   * ============================================================
+   * QUEUE PROGRESS
+   * ============================================================
+   */
+
+  const total = Math.max(
+    Number(ticket.totalAheadAtIssue) || 0,
+    Number(ticket.peopleAhead) || 0
   )
-}
-const isPriority = String(ticket.queueNumber || '')
-  .toUpperCase()
-  .startsWith('P-')
 
-const numberColor = isPriority
-  ? 'text-[#9D0A0E]'
-  : 'text-[#1F2937]'
+  const peopleAhead =
+    Number(ticket.peopleAhead) || 0
 
-console.log('WAITING SCREEN TICKET:', ticket)
+  let progressPct = 0
 
-console.log(
-  'WAITING SCREEN ESTIMATED WAIT:',
-  ticket.estimatedWaitMinutes
-)
+  if (
+    ticket.status === 'called' ||
+    ticket.status === 'serving'
+  ) {
+    progressPct = 100
+  } else if (ticket.status === 'completed') {
+    progressPct = 100
+  } else if (total > 0) {
+    const servedSoFar = Math.max(
+      total - peopleAhead,
+      0
+    )
 
-console.log(
-  'WAITING SCREEN AI PREDICTION:',
-  ticket.aiPrediction?.predictedWaitingTime
-)
-
-const estimatedWaitText =
-  formatWaitTime(remainingSeconds)
-
-function formatWaitTime(totalSeconds) {
-  totalSeconds = Math.max(
-    0,
-    Math.round(Number(totalSeconds) || 0)
-  )
-
-  const hours = Math.floor(
-    totalSeconds / 3600
-  )
-
-  const mins = Math.floor(
-    (totalSeconds % 3600) / 60
-  )
-
-  const seconds =
-    totalSeconds % 60
-
-  if (hours > 0) {
-    return mins > 0
-      ? `${hours}h ${mins}m`
-      : `${hours}h`
+    progressPct = Math.min(
+      100,
+      Math.round(
+        (servedSoFar / total) * 100
+      )
+    )
   }
 
-  if (mins > 0) {
-    return seconds > 0
-      ? `${mins}m ${seconds}s`
-      : `${mins}m`
+  /*
+   * ============================================================
+   * PRIORITY TICKET STYLING
+   * ============================================================
+   */
+
+  const isPriority = String(
+    ticket.queueNumber || ''
+  )
+    .toUpperCase()
+    .startsWith('P-')
+
+  const numberColor = isPriority
+    ? 'text-[#9D0A0E]'
+    : 'text-[#1F2937]'
+
+  /*
+   * ============================================================
+   * DEBUG LOGS
+   * ============================================================
+   */
+
+  console.log(
+    'WAITING SCREEN TICKET:',
+    ticket
+  )
+
+  console.log(
+    'WAITING SCREEN ESTIMATED WAIT:',
+    ticket.estimatedWaitMinutes
+  )
+
+  console.log(
+    'WAITING SCREEN CURRENT REMAINING:',
+    remainingSeconds
+  )
+
+  console.log(
+    'WAITING SCREEN AI PREDICTION:',
+    ticket.aiPrediction?.predictedWaitingTime
+  )
+
+  /*
+   * ============================================================
+   * FORMAT WAIT TIME
+   * ============================================================
+   */
+
+  const estimatedWaitText =
+    formatWaitTime(remainingSeconds)
+
+  function formatWaitTime(totalSeconds) {
+    totalSeconds = Math.max(
+      0,
+      Math.round(
+        Number(totalSeconds) || 0
+      )
+    )
+
+    const hours = Math.floor(
+      totalSeconds / 3600
+    )
+
+    const mins = Math.floor(
+      (totalSeconds % 3600) / 60
+    )
+
+    const seconds =
+      totalSeconds % 60
+
+    if (hours > 0) {
+      return mins > 0
+        ? `${hours}h ${mins}m`
+        : `${hours}h`
+    }
+
+    if (mins > 0) {
+      return seconds > 0
+        ? `${mins}m ${seconds}s`
+        : `${mins}m`
+    }
+
+    return `${seconds}s`
   }
 
-  return `${seconds}s`
-}
   return (
     <TrackerShell
       title={`${ticket.department} Waiting Area`}
@@ -110,9 +362,11 @@ function formatWaitTime(totalSeconds) {
         <>
           <span className="inline-flex items-center gap-1.5">
             <RefreshCw size={12} />
-            Data auto-updates every 30 seconds
+            Data auto-updates every 5 seconds
           </span>
+
           <br />
+
           Please do not close this window or lock your screen.
         </>
       }
@@ -127,12 +381,15 @@ function formatWaitTime(totalSeconds) {
             Your Ticket Number
           </p>
 
-          <p className={`mt-1 text-4xl font-extrabold sm:text-5xl ${numberColor}`}>
+          <p
+            className={`mt-1 text-4xl font-extrabold sm:text-5xl ${numberColor}`}
+          >
             {ticket.queueNumber}
           </p>
 
           <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#EBF3FE] px-3 py-1 text-xs font-medium text-[#1D4ED8]">
             <BellRing size={12} />
+
             We will notify you when it&rsquo;s time.
           </span>
         </div>
@@ -142,7 +399,11 @@ function formatWaitTime(totalSeconds) {
 
       <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-[#F1F5F9] px-4 py-3">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#1F2937]">
-          <Megaphone size={16} className="text-[#1D4ED8]" />
+          <Megaphone
+            size={16}
+            className="text-[#1D4ED8]"
+          />
+
           Now Serving
         </p>
 
@@ -155,7 +416,10 @@ function formatWaitTime(totalSeconds) {
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-[#E5E7EB] px-4 py-3 text-center">
-          <Users size={16} className="mx-auto text-[#6B7280]" />
+          <Users
+            size={16}
+            className="mx-auto text-[#6B7280]"
+          />
 
           <p className="mt-1.5 text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
             People Ahead
@@ -167,27 +431,34 @@ function formatWaitTime(totalSeconds) {
         </div>
 
         <div className="rounded-xl border border-[#E5E7EB] px-4 py-3 text-center">
-          <Clock size={16} className="mx-auto text-[#6B7280]" />
+          <Clock
+            size={16}
+            className="mx-auto text-[#6B7280]"
+          />
 
           <p className="mt-1.5 text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
             Estimated Wait
           </p>
 
-<p className="mt-1 text-xl font-bold whitespace-nowrap text-[#1F2937]">
-  ~{estimatedWaitText}
-</p>
+          <p className="mt-1 text-xl font-bold whitespace-nowrap text-[#1F2937]">
+            ~{estimatedWaitText}
+          </p>
         </div>
       </div>
 
       {/* PROGRESS */}
 
       <div className="mt-4 rounded-xl border border-[#E5E7EB] px-4 py-4">
-        <p className="text-sm font-bold text-[#1F2937]">Your Queue Progress</p>
+        <p className="text-sm font-bold text-[#1F2937]">
+          Your Queue Progress
+        </p>
 
         <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-[#DBEAFE]">
           <div
             className="h-full rounded-full bg-[#1E3A8A] transition-all duration-700"
-            style={{ width: `${progressPct}%` }}
+            style={{
+              width: `${progressPct}%`,
+            }}
           />
         </div>
 
@@ -195,6 +466,7 @@ function formatWaitTime(totalSeconds) {
           <p className="text-[#6B7280]">
             Now Serving
             <br />
+
             <span className="font-semibold text-[#1F2937]">
               {ticket.nowServing}
             </span>
@@ -203,7 +475,10 @@ function formatWaitTime(totalSeconds) {
           <p className="text-right text-[#6B7280]">
             Your Number
             <br />
-            <span className={`font-semibold ${numberColor}`}>
+
+            <span
+              className={`font-semibold ${numberColor}`}
+            >
               {ticket.queueNumber}
             </span>
           </p>

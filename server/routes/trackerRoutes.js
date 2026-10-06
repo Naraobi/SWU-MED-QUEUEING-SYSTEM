@@ -186,24 +186,6 @@ if (ticket.counter_id) {
     // ============================================================
     // 3. COUNT PEOPLE AHEAD
     // ============================================================
-    //
-    // This uses the SAME priority ordering as
-    // staffQueueRoutes.js:
-    //
-    // ORDER BY
-    //   is_priority DESC,
-    //   queue_sequence ASC
-    //
-    // Therefore:
-    //
-    // Priority patient:
-    //   only earlier priority patients are ahead.
-    //
-    // Regular patient:
-    //   all priority patients are ahead,
-    //   plus earlier regular patients.
-    //
-    // ============================================================
 
     const [aheadRows] = await pool.query(
       `
@@ -266,15 +248,6 @@ if (ticket.counter_id) {
     // ============================================================
     // 5. GET TODAY'S AI PREDICTION
     // ============================================================
-    //
-    // Current version still uses department + prediction date.
-    //
-    // If ai_queue_prediction is changed to one row per department,
-    // this query can later be changed to:
-    //
-    // WHERE department_id = ?
-    //
-    // ============================================================
 
     const [predictionRows] = await pool.query(
       `
@@ -314,15 +287,32 @@ if (ticket.counter_id) {
         ? predictionRows[0]
         : null;
 
-    // ============================================================
-    // 6. ESTIMATED WAIT
-    // ============================================================
+// ============================================================
+// 6. ESTIMATED WAIT
+// ============================================================
 
-    const estimatedWaitMinutes = prediction
-      ? Number(
-          prediction.predicted_waiting_time
-        ) || 0
-      : 0;
+const avgServiceMinutes = prediction
+  ? Number(
+      prediction.avg_service_minutes
+    ) || 0
+  : 0;
+
+const activeStaffCount = prediction
+  ? Number(
+      prediction.active_staff_count
+    ) || 0
+  : 0;
+
+const effectiveStaffCount =
+  Math.max(activeStaffCount, 1);
+
+const estimatedWaitMinutes =
+  peopleAhead > 0 && avgServiceMinutes > 0
+    ? (
+        peopleAhead *
+        avgServiceMinutes
+      ) / effectiveStaffCount
+    : 0;
 
     // ============================================================
     // 7. AI PRIORITY COUNT
