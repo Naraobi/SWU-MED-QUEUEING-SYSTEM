@@ -180,7 +180,7 @@ export default function TrackerPage() {
 
   /* ==========================================================================
      URL PARAMETERS
-     ========================================================================== */
+  ========================================================================== */
 
   const params =
     new URLSearchParams(
@@ -207,21 +207,73 @@ export default function TrackerPage() {
 
   /* ==========================================================================
      NOTIFICATION SETUP STATE
-     ========================================================================== */
+  ========================================================================== */
 
+  /*
+   * Controls the notification/vibration setup
+   * modal.
+   *
+   * IMPORTANT:
+   *
+   * This is only an overlay.
+   * It does NOT replace the tracker page.
+   */
   const [
     showNotificationSetup,
     setShowNotificationSetup,
   ] = useState(false)
 
+  /*
+   * Stores the current browser notification
+   * permission.
+   *
+   * Possible values:
+   *
+   * default
+   * granted
+   * denied
+   */
   const [
     notificationPermission,
     setNotificationPermission,
   ] = useState('default')
 
+  /*
+   * Stores whether the current browser supports
+   * the Vibration API.
+   */
+  const [
+    vibrationSupported,
+    setVibrationSupported,
+  ] = useState(false)
+
+  /* ==========================================================================
+     SERVICE WORKER STATE
+  ========================================================================== */
+
+  /*
+   * Stores the Service Worker registration.
+   *
+   * This will later be used for real Web Push
+   * subscriptions for Android and iOS.
+   */
+  const [
+    serviceWorkerRegistration,
+    setServiceWorkerRegistration,
+  ] = useState(null)
+
+  /*
+   * Tracks whether the Service Worker has
+   * successfully registered.
+   */
+  const [
+    serviceWorkerReady,
+    setServiceWorkerReady,
+  ] = useState(false)
+
   /* ==========================================================================
      TICKET STATE
-     ========================================================================== */
+  ========================================================================== */
 
   const [
     ticket,
@@ -235,7 +287,7 @@ export default function TrackerPage() {
 
   /* ==========================================================================
      TURN NOTIFICATION STATE
-     ========================================================================== */
+  ========================================================================== */
 
   /*
    * Controls the temporary on-screen
@@ -282,8 +334,129 @@ export default function TrackerPage() {
     useRef(null)
 
   /* ==========================================================================
+     SERVICE WORKER REGISTRATION
+  ========================================================================== */
+
+  useEffect(() => {
+
+    /*
+     * Preview mode does not need a Service Worker.
+     */
+    if (previewMode) {
+      return
+    }
+
+    /*
+     * Make sure the browser supports Service Workers.
+     */
+    if (
+      !('serviceWorker' in navigator)
+    ) {
+
+      console.warn(
+        'Service Workers are not supported in this browser.'
+      )
+
+      setServiceWorkerReady(false)
+
+      return
+
+    }
+
+    let cancelled = false
+
+    const registerServiceWorker =
+      async () => {
+
+        try {
+
+          /*
+           * Register the Service Worker from:
+           *
+           * /public/sw.js
+           *
+           * which is served by Vite as:
+           *
+           * /sw.js
+           */
+          const registration =
+            await navigator.serviceWorker.register(
+              '/sw.js',
+              {
+                scope: '/',
+              }
+            )
+
+          if (cancelled) {
+            return
+          }
+
+          /*
+           * Store the registration so it can
+           * later be used for Web Push.
+           */
+          setServiceWorkerRegistration(
+            registration
+          )
+
+          /*
+           * Wait until the Service Worker is
+           * actually ready/active.
+           */
+          const readyRegistration =
+            await navigator.serviceWorker.ready
+
+          if (cancelled) {
+            return
+          }
+
+          setServiceWorkerRegistration(
+            readyRegistration
+          )
+
+          setServiceWorkerReady(
+            true
+          )
+
+          console.log(
+            'SWU-MED Service Worker registered:',
+            readyRegistration.scope
+          )
+
+        } catch (error) {
+
+          if (cancelled) {
+            return
+          }
+
+          setServiceWorkerReady(
+            false
+          )
+
+          console.error(
+            'SWU-MED Service Worker registration failed:',
+            error
+          )
+
+        }
+
+      }
+
+    registerServiceWorker()
+
+    return () => {
+
+      cancelled = true
+
+    }
+
+  }, [
+    previewMode,
+  ])
+
+  /* ==========================================================================
      NOTIFICATION SETUP
-     ========================================================================== */
+  ========================================================================== */
 
   useEffect(() => {
 
@@ -296,6 +469,17 @@ export default function TrackerPage() {
     }
 
     /*
+     * Check browser vibration support.
+     *
+     * The browser/device ultimately decides
+     * whether vibration is actually allowed.
+     */
+    setVibrationSupported(
+      'vibrate' in navigator &&
+      typeof navigator.vibrate === 'function'
+    )
+
+    /*
      * Check whether the patient has already
      * completed the notification setup on
      * this browser/device.
@@ -303,80 +487,104 @@ export default function TrackerPage() {
     const setupCompleted =
       localStorage.getItem(
         'trackerNotificationSetup'
-      ) === 'true'
+      ) === 'false'
 
+    /*
+     * Read the current browser notification
+     * permission if the API exists.
+     */
+    if (
+      'Notification' in window
+    ) {
+
+      setNotificationPermission(
+        Notification.permission
+      )
+
+    }
+
+    /*
+     * If setup has already been completed,
+     * do not show the setup modal again.
+     */
     if (setupCompleted) {
-      /*
-       * Still keep the current browser
-       * permission state available.
-       */
-      if ('Notification' in window) {
-        setNotificationPermission(
-          Notification.permission
-        )
-      }
-
       return
     }
 
     /*
-     * Read the current browser notification
-     * permission before showing the setup screen.
+     * Show the setup modal.
+     *
+     * This is a modal overlay, so the tracker
+     * itself remains underneath it.
      */
-    if ('Notification' in window) {
-      setNotificationPermission(
-        Notification.permission
-      )
-    }
-
-    /*
-     * Show the setup screen.
-     */
-    setShowNotificationSetup(true)
+    setShowNotificationSetup(
+      true
+    )
 
   }, [
     previewMode,
   ])
 
   /* ==========================================================================
-     ENABLE NOTIFICATIONS
-     ========================================================================== */
+     ENABLE NOTIFICATIONS + VIBRATION
+  ========================================================================== */
 
   const enableNotifications =
     async () => {
 
       try {
 
+        let permission =
+          notificationPermission
+
         /*
-         * Request browser notification
-         * permission if the browser supports it.
+         * Request browser notification permission
+         * when supported.
+         *
+         * IMPORTANT:
+         *
+         * This is triggered directly by the
+         * patient's button click, which is required
+         * by mobile browsers.
          */
         if (
           'Notification' in window
         ) {
 
-          const permission =
+          permission =
             await Notification.requestPermission()
 
           setNotificationPermission(
             permission
           )
 
-          /*
-           * Show a small confirmation notification
-           * when permission is granted.
-           */
-          if (
-            permission === 'granted'
-          ) {
+        }
 
-            new Notification(
-              'SWU Med Notifications Enabled',
-              {
-                body:
-                  'You will be notified when it is your turn.',
-                icon: logo,
-              }
+        /*
+         * Test vibration immediately after the
+         * user presses the button.
+         *
+         * Chrome/device settings still determine
+         * whether the vibration actually happens.
+         */
+        if (
+          'vibrate' in navigator &&
+          typeof navigator.vibrate === 'function'
+        ) {
+
+          try {
+
+            navigator.vibrate([
+              150,
+              100,
+              150,
+            ])
+
+          } catch (vibrationError) {
+
+            console.warn(
+              'Unable to test device vibration:',
+              vibrationError
             )
 
           }
@@ -384,8 +592,79 @@ export default function TrackerPage() {
         }
 
         /*
-         * Remember that the setup screen
-         * has already been completed.
+         * If notification permission was granted,
+         * prefer the Service Worker notification
+         * mechanism.
+         *
+         * This is the foundation for Android and
+         * iOS Web Push.
+         */
+        if (
+          permission === 'granted'
+        ) {
+
+          if (
+            serviceWorkerReady &&
+            serviceWorkerRegistration
+          ) {
+
+            try {
+
+              await serviceWorkerRegistration.showNotification(
+                'SWU Med Notifications Enabled',
+                {
+                  body:
+                    'You will be notified when it is your turn.',
+                  icon: '/logo.png',
+                  badge: '/logo.png',
+                  tag: 'swu-med-notification-enabled',
+                }
+              )
+
+            } catch (notificationError) {
+
+              console.warn(
+                'Unable to show Service Worker notification:',
+                notificationError
+              )
+
+            }
+
+          } else {
+
+            /*
+             * Desktop/browser fallback.
+             *
+             * Mobile browsers should use the
+             * Service Worker notification path.
+             */
+            try {
+
+              new Notification(
+                'SWU Med Notifications Enabled',
+                {
+                  body:
+                    'You will be notified when it is your turn.',
+                  icon: logo,
+                }
+              )
+
+            } catch (notificationError) {
+
+              console.warn(
+                'Unable to show confirmation notification:',
+                notificationError
+              )
+
+            }
+
+          }
+
+        }
+
+        /*
+         * Remember that the setup modal has
+         * already been completed.
          */
         localStorage.setItem(
           'trackerNotificationSetup',
@@ -393,7 +672,9 @@ export default function TrackerPage() {
         )
 
         /*
-         * Continue to the tracker.
+         * Close only the modal.
+         *
+         * The tracker remains visible underneath.
          */
         setShowNotificationSetup(
           false
@@ -407,9 +688,9 @@ export default function TrackerPage() {
         )
 
         /*
-         * Even if notification permission
-         * cannot be requested, allow the
-         * patient to continue using the tracker.
+         * Even if browser notification permission
+         * cannot be requested, allow the patient
+         * to continue using the tracker.
          */
         localStorage.setItem(
           'trackerNotificationSetup',
@@ -426,7 +707,7 @@ export default function TrackerPage() {
 
   /* ==========================================================================
      CONTINUE WITHOUT NOTIFICATIONS
-     ========================================================================== */
+  ========================================================================== */
 
   const continueWithoutNotifications =
     () => {
@@ -436,6 +717,9 @@ export default function TrackerPage() {
         'true'
       )
 
+      /*
+       * Close only the setup modal.
+       */
       setShowNotificationSetup(
         false
       )
@@ -444,7 +728,7 @@ export default function TrackerPage() {
 
   /* ==========================================================================
      TURN NOTIFICATION HELPER
-     ========================================================================== */
+  ========================================================================== */
 
   /*
    * Shows the notification and performs:
@@ -452,7 +736,7 @@ export default function TrackerPage() {
    * 1. On-screen notification
    * 2. Notification sound
    * 3. Vibration request
-   * 4. Browser notification
+   * 4. Browser / Service Worker notification
    *
    * This helper is used for BOTH:
    *
@@ -460,7 +744,7 @@ export default function TrackerPage() {
    * 2. Recall
    */
   const triggerTurnNotification =
-    (currentTicket) => {
+    async (currentTicket) => {
 
       /*
        * Show the on-screen notification.
@@ -487,21 +771,33 @@ export default function TrackerPage() {
           'function'
       ) {
 
-        navigator.vibrate([
-          300,
-          150,
-          300,
-          150,
-          500,
-        ])
+        try {
+
+          navigator.vibrate([
+            300,
+            150,
+            300,
+            150,
+            500,
+          ])
+
+        } catch (error) {
+
+          console.warn(
+            'Unable to trigger turn vibration:',
+            error
+          )
+
+        }
 
       }
 
       /*
-       * 🔔 Browser notification
+       * 🔔 Browser / Service Worker notification
        *
-       * Only create a browser notification
-       * when permission was granted.
+       * The Service Worker path is preferred
+       * because it is the correct foundation
+       * for mobile Web Push.
        */
       if (
         'Notification' in window &&
@@ -509,17 +805,90 @@ export default function TrackerPage() {
           'granted'
       ) {
 
-        new Notification(
-          "It's your turn!",
-          {
-            body:
-              `Please proceed to ${
-                currentTicket?.terminal ||
-                'your assigned terminal'
-              }.`,
-            icon: logo,
+        const notificationBody =
+          `Please proceed to ${
+            currentTicket?.terminal ||
+            'your assigned terminal'
+          }.`
+
+        /*
+         * Prefer Service Worker notifications.
+         */
+        if (
+          serviceWorkerReady &&
+          serviceWorkerRegistration
+        ) {
+
+          try {
+
+            await serviceWorkerRegistration.showNotification(
+              "It's your turn!",
+              {
+                body:
+                  notificationBody,
+
+                icon: '/logo.png',
+
+                badge: '/logo.png',
+
+                tag:
+                  `swu-med-turn-${
+                    currentTicket?.queueNumber ||
+                    ticketId ||
+                    'ticket'
+                  }`,
+
+                data: {
+                  ticketId:
+                    ticketId,
+
+                  url:
+                    window.location.href,
+                },
+              }
+            )
+
+          } catch (error) {
+
+            console.warn(
+              'Unable to show Service Worker turn notification:',
+              error
+            )
+
           }
-        )
+
+        } else {
+
+          /*
+           * Desktop fallback.
+           *
+           * This is intentionally retained so
+           * existing desktop behavior continues
+           * to work if the Service Worker is
+           * unavailable.
+           */
+          try {
+
+            new Notification(
+              "It's your turn!",
+              {
+                body:
+                  notificationBody,
+
+                icon: logo,
+              }
+            )
+
+          } catch (error) {
+
+            console.warn(
+              'Unable to create browser notification:',
+              error
+            )
+
+          }
+
+        }
 
       }
 
@@ -553,7 +922,7 @@ export default function TrackerPage() {
 
   /* ==========================================================================
      CLEANUP
-     ========================================================================== */
+  ========================================================================== */
 
   /*
    * Clean up the notification timeout
@@ -579,7 +948,7 @@ export default function TrackerPage() {
 
   /* ==========================================================================
      POLL TICKET STATUS
-     ========================================================================== */
+  ========================================================================== */
 
   useEffect(() => {
 
@@ -636,7 +1005,7 @@ export default function TrackerPage() {
 
         /* ====================================================================
            CURRENT STATUS
-           ==================================================================== */
+        ==================================================================== */
 
         const currentStatus =
           result.status
@@ -659,7 +1028,7 @@ export default function TrackerPage() {
 
         /* ====================================================================
            CALL / RECALL MARKER
-           ==================================================================== */
+        ==================================================================== */
 
         /*
          * The backend can return ONE of these
@@ -713,7 +1082,7 @@ export default function TrackerPage() {
 
         /* ====================================================================
            DETERMINE WHETHER TO NOTIFY
-           ==================================================================== */
+        ==================================================================== */
 
         /*
          * NORMAL CALL
@@ -759,7 +1128,7 @@ export default function TrackerPage() {
 
         /* ====================================================================
            SAVE CURRENT VALUES FOR NEXT POLL
-           ==================================================================== */
+        ==================================================================== */
 
         /*
          * Save the current status.
@@ -835,11 +1204,13 @@ export default function TrackerPage() {
   }, [
     ticketId,
     previewMode,
+    serviceWorkerReady,
+    serviceWorkerRegistration,
   ])
 
   /* ==========================================================================
      DISPLAYED TICKET
-     ========================================================================== */
+  ========================================================================== */
 
   /*
    * Use the preview ticket when preview mode
@@ -851,154 +1222,8 @@ export default function TrackerPage() {
     previewTicket || ticket
 
   /* ==========================================================================
-     NOTIFICATION SETUP SCREEN
-     ========================================================================== */
-
-  if (
-    showNotificationSetup
-  ) {
-
-    return (
-
-      <div className="flex min-h-screen items-center justify-center bg-[#EAF3FB] px-4 py-8">
-
-        <div className="w-full max-w-md">
-
-          <img
-            src={logo}
-            alt="SWU Med"
-            className="mx-auto mb-6 h-14 w-auto object-contain"
-          />
-
-          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-lg sm:p-8">
-
-            {/* ICON */}
-
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F0DADA]">
-
-              <BellRing
-                size={26}
-                className="text-[#9D0A0E]"
-              />
-
-            </div>
-
-            {/* TITLE */}
-
-            <h1 className="mt-5 text-center text-xl font-bold text-[#1F2937]">
-              Stay Updated
-            </h1>
-
-            <p className="mt-2 text-center text-sm leading-6 text-[#6B7280]">
-              Enable notifications so SWU Med can
-              alert you when it is your turn.
-            </p>
-
-            {/* NOTIFICATION INFORMATION */}
-
-            <div className="mt-6 space-y-3">
-
-              <div className="rounded-xl bg-[#F8FAFC] p-4">
-
-                <div className="flex gap-3">
-
-                  <BellRing
-                    size={20}
-                    className="mt-0.5 shrink-0 text-[#9D0A0E]"
-                  />
-
-                  <div>
-
-                    <p className="text-sm font-semibold text-[#1F2937]">
-                      Notifications
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-[#6B7280]">
-                      Receive an alert when your queue
-                      is being served.
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-              {/* VIBRATION INFORMATION */}
-
-              <div className="rounded-xl bg-[#F8FAFC] p-4">
-
-                <div className="flex gap-3">
-
-                  <span
-                    className="mt-0.5 text-lg"
-                    aria-hidden="true"
-                  >
-                    📳
-                  </span>
-
-                  <div>
-
-                    <p className="text-sm font-semibold text-[#1F2937]">
-                      Vibration
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-[#6B7280]">
-                      For vibration alerts, make sure
-                      vibration is enabled in your
-                      phone's settings.
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* ENABLE BUTTON */}
-
-            <button
-              type="button"
-              onClick={
-                enableNotifications
-              }
-              className="mt-6 w-full rounded-xl bg-[#9D0A0E] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#82080B]"
-            >
-              Enable Notifications
-            </button>
-
-            {/* SKIP BUTTON */}
-
-            <button
-              type="button"
-              onClick={
-                continueWithoutNotifications
-              }
-              className="mt-3 w-full px-4 py-2 text-sm font-medium text-[#6B7280] hover:text-[#1F2937]"
-            >
-              Continue without notifications
-            </button>
-
-            <p className="mt-4 text-center text-[11px] leading-4 text-[#9CA3AF]">
-              You can continue using the tracker even
-              if notifications are not enabled.
-            </p>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    )
-
-  }
-
-  /* ==========================================================================
      TICKET NOT FOUND / API ERROR
-     ========================================================================== */
+  ========================================================================== */
 
   if (
     !previewTicket &&
@@ -1040,7 +1265,7 @@ export default function TrackerPage() {
 
   /* ==========================================================================
      LOADING SCREEN
-     ========================================================================== */
+  ========================================================================== */
 
   if (!shown) {
 
@@ -1065,23 +1290,202 @@ export default function TrackerPage() {
 
   /* ==========================================================================
      MAIN TRACKER
-     ========================================================================== */
+  ========================================================================== */
 
   return (
 
     <div className="relative min-h-screen">
 
       {/* ======================================================================
-         ON-SCREEN TURN NOTIFICATION
-         ======================================================================
+         NOTIFICATION / VIBRATION SETUP MODAL
+      ========================================================================== */}
 
-         Appears for 6 seconds when:
+      {showNotificationSetup && (
 
-         1. waiting → called
-         2. waiting → serving
-         3. notificationVersion changes during called/serving
-            because staff pressed Recall.
-      ====================================================================== */}
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4 py-6 backdrop-blur-[2px]"
+          role="presentation"
+        >
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notification-setup-title"
+            aria-describedby="notification-setup-description"
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+          >
+
+            {/* ================================================================
+               MODAL HEADER
+            ================================================================= */}
+
+            <div className="px-6 pt-7">
+
+              {/*
+               * TRANSPARENT LOGO
+               *
+               * The previous circular colored background
+               * has been removed.
+               *
+               * The actual SWU Med logo is displayed
+               * directly with no background container.
+               */}
+              <div className="mx-auto flex h-20 w-20 items-center justify-center">
+
+                <img
+                  src={logo}
+                  alt="SWU Med"
+                  className="h-20 w-20 object-contain"
+                />
+
+              </div>
+
+              <h2
+                id="notification-setup-title"
+                className="mt-5 text-center text-xl font-bold text-[#1F2937]"
+              >
+                Stay Updated
+              </h2>
+
+              <p
+                id="notification-setup-description"
+                className="mt-2 text-center text-sm leading-6 text-[#6B7280]"
+              >
+                Allow SWU Med to notify you when
+                your queue number is called.
+              </p>
+
+            </div>
+
+            {/* ================================================================
+               ALERT FEATURES
+            ================================================================= */}
+
+            <div className="space-y-3 px-6 pt-6">
+
+              {/* Browser Notifications */}
+
+              <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">
+
+                <div className="flex items-start gap-3">
+
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
+
+                    <BellRing
+                      size={18}
+                      className="text-[#9D0A0E]"
+                    />
+
+                  </div>
+
+                  <div className="min-w-0">
+
+                    <p className="text-sm font-semibold text-[#1F2937]">
+                      Browser Notifications
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+                      Receive an alert when it is
+                      your turn, even while viewing
+                      another browser tab.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* Vibration */}
+
+              <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4">
+
+                <div className="flex items-start gap-3">
+
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
+
+                    <span
+                      className="text-lg"
+                      aria-hidden="true"
+                    >
+                      📳
+                    </span>
+
+                  </div>
+
+                  <div className="min-w-0">
+
+                    <p className="text-sm font-semibold text-[#1F2937]">
+                      Vibration Alerts
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+
+                      {vibrationSupported
+                        ? 'Your browser supports vibration. We will request vibration when your queue number is called.'
+                        : 'Vibration is not available in this browser. You can still receive sound and notification alerts.'}
+
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* ================================================================
+               DEVICE NOTE
+            ================================================================= */}
+
+            <div className="px-6 pt-4">
+
+              <p className="text-center text-[11px] leading-5 text-[#9CA3AF]">
+
+                Vibration is controlled by your
+                browser and device settings. If
+                vibration does not work, make sure
+                your device is not in a mode that
+                disables vibration.
+
+              </p>
+
+            </div>
+
+            {/* ================================================================
+               ACTION BUTTONS
+            ================================================================= */}
+
+            <div className="px-6 pb-6 pt-5">
+
+              <button
+                type="button"
+                onClick={enableNotifications}
+                className="w-full rounded-xl bg-[#9D0A0E] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#82080B] active:scale-[0.99]"
+              >
+                Enable Alerts
+              </button>
+
+              <button
+                type="button"
+                onClick={continueWithoutNotifications}
+                className="mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-medium text-[#6B7280] transition hover:bg-[#F3F4F6] hover:text-[#1F2937]"
+              >
+                Continue without alerts
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
+
+      {/* ======================================================================
+         TURN NOTIFICATION TOAST
+      ========================================================================== */}
 
       {turnNotification && (
 
@@ -1129,7 +1533,6 @@ export default function TrackerPage() {
 
       {/* ======================================================================
          EXISTING SCREEN SWITCHING
-      ==========================================================================
 
          completed → CompletedScreen
 

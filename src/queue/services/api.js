@@ -1110,6 +1110,181 @@ export async function markAllNotificationsRead() {
     return []
   }
 }
+/* ============================================================================
+   WEB PUSH NOTIFICATIONS
+   ============================================================================ */
+
+/**
+ * Get the VAPID public key from the backend.
+ *
+ * The public key is safe to expose to the browser.
+ * The private key must NEVER be placed in the frontend.
+ */
+export async function getPushPublicKey() {
+  try {
+    const response = await fetch(
+      `${API_URL}/push/public-key`,
+      {
+        cache: 'no-store',
+      }
+    )
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+          'Failed to retrieve push notification public key.'
+      )
+    }
+
+    return (
+      result.publicKey ||
+      result.data?.publicKey ||
+      null
+    )
+  } catch (error) {
+    console.error(
+      'Get push public key error:',
+      error
+    )
+
+    throw error
+  }
+}
+
+/**
+ * Save the browser's push subscription to the backend.
+ */
+export async function savePushSubscription(
+  subscription,
+  queueId
+) {
+  if (!subscription) {
+    throw new Error(
+      'Push subscription is required.'
+    )
+  }
+
+  const subscriptionJson =
+    typeof subscription.toJSON === 'function'
+      ? subscription.toJSON()
+      : subscription
+
+  const endpoint =
+    subscriptionJson.endpoint
+
+  const p256dh =
+    subscriptionJson.keys?.p256dh
+
+  const auth =
+    subscriptionJson.keys?.auth
+
+  if (
+    !endpoint ||
+    !p256dh ||
+    !auth
+  ) {
+    throw new Error(
+      'Invalid push subscription data.'
+    )
+  }
+
+  try {
+    const response =
+      await fetch(
+        `${API_URL}/push/subscribe`,
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+
+          body: JSON.stringify({
+            queue_id:
+              queueId || null,
+
+            endpoint,
+
+            keys: {
+              p256dh,
+              auth,
+            },
+          }),
+        }
+      )
+
+    const result =
+      await response.json()
+
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+          'Failed to save push subscription.'
+      )
+    }
+
+    return result
+
+  } catch (error) {
+    console.error(
+      'Save push subscription error:',
+      error
+    )
+
+    throw error
+  }
+}
+/**
+ * Remove a browser push subscription.
+ */
+export async function removePushSubscription(
+  endpoint
+) {
+  if (!endpoint) {
+    return
+  }
+
+  try {
+    const response = await fetch(
+      `${API_URL}/push/unsubscribe`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+        body: JSON.stringify({
+          endpoint,
+        }),
+      }
+    )
+
+    const result =
+      await response.json()
+
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+          'Failed to remove push subscription.'
+      )
+    }
+
+    return (
+      result.data ||
+      result
+    )
+  } catch (error) {
+    console.error(
+      'Remove push subscription error:',
+      error
+    )
+
+    throw error
+  }
+}
 
 /* ============================================================================
    HISTORY
