@@ -835,7 +835,7 @@ async function handleSaveKiosk() {
 <button
   type="button"
   onClick={openActivateModal}
-  className="swu-press rounded-lg bg-[#9D0A0E] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[#7D080B] hover:shadow-md hover:shadow-[#9D0A0E]/25 disabled:cursor-not-allowed disabled:opacity-50"
+  className="swu-press rounded-lg border border-[#9D0A0E] bg-white px-4 py-2 text-sm font-medium text-[#1F2937] shadow-sm transition-colors hover:bg-[#9D0A0E] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
 >
   Unlock Kiosk
 </button>

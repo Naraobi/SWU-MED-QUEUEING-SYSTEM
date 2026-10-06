@@ -2350,15 +2350,15 @@ async function handleReset() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full table-fixed text-left text-xs">
             <thead>
               <tr className="border-b border-[#E5E7EB] bg-[#FBF1F1] text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
-                <th className="px-6 py-3.5">FULL NAME</th>
-                <th className="px-6 py-3.5">EMAIL</th>
-                <th className="px-6 py-3.5">DEPARTMENT</th>
-                    <th className="px-3 py-3.5 text-left">ROLE NAME</th>
-                <th className="px-6 py-3.5">ROLE</th>
-                <th className="px-6 py-3.5">STATUS</th>
+                <th className="w-[19%] px-4 py-3.5">FULL NAME</th>
+                <th className="w-[28%] px-4 py-3.5">EMAIL</th>
+                <th className="w-[18%] px-3 py-3.5">DEPARTMENT</th>
+                <th className="w-[15%] px-3 py-3.5 text-left">ROLE NAME</th>
+                <th className="w-[10%] px-3 py-3.5">ROLE</th>
+                <th className="w-[10%] px-4 py-3.5">STATUS</th>
               </tr>
             </thead>
 
@@ -2386,27 +2386,27 @@ async function handleReset() {
                     onClick={() => openEdit(user)}
                     className="cursor-pointer transition-colors hover:bg-[#FBF1F1]"
                   >
-                  <td className="px-4 py-4 font-semibold text-[#1F2937]">
+                  <td className="truncate px-4 py-4 font-semibold text-[#1F2937]">
   {user.first_name} {user.last_name}
 </td>
 
-<td className="px-4 py-4">
+<td className="truncate px-4 py-4">
   {user.email}
 </td>
 
-<td className="px-3 py-4 max-w-[140px] truncate">
+<td className="max-w-0 truncate px-3 py-4">
   {user.department || 'Whole'}
 </td>
 
-<td className="px-3 py-4">
+<td className="max-w-0 truncate px-3 py-4">
   {user.role_name || '—'}
 </td>
 
-<td className="px-3 py-4 capitalize">
+<td className="truncate px-3 py-4 capitalize">
   {normalizeRole(user.role)}
 </td>
 
-<td className="px-4 py-4">
+<td className="truncate px-4 py-4">
   <span
     className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${
       user.status === 'Active'

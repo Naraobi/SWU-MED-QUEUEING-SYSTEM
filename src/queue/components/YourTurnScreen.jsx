@@ -17,7 +17,7 @@ export default function YourTurnScreen({ ticket }) {
       <img
   src={logo}
   alt="SWU Med"
-  className="mx-auto mb-5 h-14 w-auto object-contain"
+  className="mx-auto mb-5 h-14 w-auto object-contain mix-blend-multiply"
 />
 
         <div className="overflow-hidden rounded-2xl border-2 border-[#9D0A0E] bg-white shadow-lg">

@@ -487,7 +487,7 @@ export default function TrackerPage() {
     const setupCompleted =
       localStorage.getItem(
         'trackerNotificationSetup'
-      ) === 'false'
+      ) === 'true'
 
     /*
      * Read the current browser notification
