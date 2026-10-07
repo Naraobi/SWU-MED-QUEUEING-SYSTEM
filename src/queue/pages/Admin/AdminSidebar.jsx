@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Bell, ClipboardPlus, LayoutDashboard, LogOut, Monitor, Settings, Users, Pencil } from 'lucide-react';
+import { BarChart3, Bell, ClipboardPlus, LayoutDashboard, LogOut, Monitor, Settings, Users, Pencil, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useAuth } from '../../services/Authcontext';
 import { canAccessAdminPage } from '../../services/accessControl';
 import logo from '../../../assets/logo.png';
@@ -20,6 +20,15 @@ const NAV_ITEMS = [
 export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () => {} }) {
   const { user } = useAuth();
 
+  console.log("=== ADMIN ACCESS DEBUG ===");
+  console.log("User:", user);
+  console.log("Role:", user?.role);
+  console.log("Position:", user?.position);
+  console.log("Position ID:", user?.position_id);
+  console.log("Position Name:", user?.position_name);
+  console.log("Position Tabs:", user?.position_tabs);
+  console.log("==========================");
+
   const { t } = useLanguage();
   const { logoUrl } = useAppearance();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -33,50 +42,94 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
     onSelect(key);
   }
 
+  const { isDark } = useAppearance();
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('admin_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin_sidebar_collapsed', collapsed ? 'true' : 'false');
+    } catch {}
+  }, [collapsed]);
+
   return (
     <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-[50] bg-black/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
       <aside
-        className="sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white"
+        className={`fixed lg:sticky top-0 flex h-screen flex-shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 ease-out ${
+          collapsed ? 'w-18' : 'w-64'
+        } ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${
+          isDark ? 'dark:border-slate-700 dark:bg-slate-900' : ''
+        }`}
         style={{ fontFamily: 'Inter, sans-serif' }}
       >
-        <div className="flex h-[74px] shrink-0 flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
+        <div className={`flex h-[74px] shrink-0 items-center border-b border-slate-200 px-2 text-center relative ${collapsed ? 'justify-center' : 'justify-center flex-col'}`}>
           <img
             src={logoUrl || logo}
             alt="SWUMed Logo"
             className="h-9 w-auto object-contain"
           />
 
-          <div className="text-[10px] font-medium tracking-wide text-slate-400">
-            {t('nav.queuingSystem')}
-          </div>
+          {!collapsed && (
+            <div className="text-[10px] font-medium tracking-wide text-slate-400">
+              {t('nav.queuingSystem')}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40"
+          >
+            {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+          </button>
         </div>
 
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-6">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-6">
           {visibleItems.map(({ key, labelKey, icon: Icon }) => (
             <button
               key={key}
               type="button"
               onClick={() => handleSelect(key)}
-              className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium transition ${
+              title={collapsed ? t(labelKey) : undefined}
+              aria-label={collapsed ? t(labelKey) : undefined}
+              className={`flex w-full items-center gap-3 rounded-md px-2 py-2.5 text-left text-sm font-medium transition ${
                 activeItem === key
                   ? 'bg-[#9D0A0E] text-white shadow-sm'
                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-              }`}
+              } ${collapsed ? 'justify-center px-0' : 'justify-start'}`}
             >
               <Icon size={18} />
-              <span>{t(labelKey)}</span>
+              {!collapsed && <span>{t(labelKey)}</span>}
             </button>
           ))}
         </nav>
 
-        <div className="mt-auto flex h-[var(--bottom-bar-height)] shrink-0 items-center border-t border-slate-100 px-3 py-0">
+        <div className="mt-auto flex h-[var(--bottom-bar-height)] shrink-0 items-center border-t border-slate-100 px-2 py-0">
           <button
             type="button"
             onClick={() => setShowLogoutModal(true)}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#9D0A0E] transition hover:bg-[#9D0A0E]/5"
+            title={collapsed ? t('nav.logout') : undefined}
+            aria-label={collapsed ? t('nav.logout') : undefined}
+            className={`flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-sm font-semibold text-[#9D0A0E] transition hover:bg-[#9D0A0E]/5 ${
+              collapsed ? 'justify-center px-0' : 'justify-center'
+            }`}
           >
             <LogOut size={17} />
-            {t('nav.logout')}
+            {!collapsed && <span>{t('nav.logout')}</span>}
           </button>
         </div>
       </aside>
@@ -148,11 +201,8 @@ export function AdminHeaderBar({ title }) {
       ? `${user.first_name} ${user.last_name}`
       : 'John Doe';
 
-const profileRole =
-  user?.position_name ||
-  user?.role_name ||
-  user?.role?.role ||
-  'Admin';
+  const profileRole =
+    user?.role?.role || 'Admin';
 
   const initials =
     user?.first_name && user?.last_name
@@ -168,7 +218,7 @@ const profileRole =
 
   return (
     <>
-      <header className="flex h-[74px] items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
+      <header className="sticky top-0 z-30 flex h-[74px] items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-3 shadow-xs backdrop-blur supports-[backdrop-filter]:bg-white/80">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#dce8f9] text-sm font-semibold text-slate-700">
             {departmentPrefix}
