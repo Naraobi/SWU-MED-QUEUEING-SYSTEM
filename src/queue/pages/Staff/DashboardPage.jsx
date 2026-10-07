@@ -1051,7 +1051,7 @@ export default function DashboardPage() {
     <div className={`staff-shell flex min-h-screen w-full bg-[#f4f6f8] antialiased text-slate-800${isDark ? ' staff-dark' : ''}`} style={{ fontFamily: 'Inter, sans-serif', '--staff-accent': accent }}>
       <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => handleSidebarToggle()} mobileOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
 
-      <main className="min-h-screen min-w-0 flex-1 flex flex-col transition-all duration-200 ease-out lg:ml-0">
+      <main className="min-h-screen min-w-0 flex-1 flex flex-col">
         <Topbar
           title={`${t('topbar.staffLabel')} · ${departmentLabel}`}
           subtitle={`Managing queue for department: ${departmentLabel} (${staffPrefix})`}
