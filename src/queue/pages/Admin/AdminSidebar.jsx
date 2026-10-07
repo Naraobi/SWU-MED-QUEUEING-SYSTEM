@@ -81,12 +81,12 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
             onClick={() => setCollapsed((c) => !c)}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 rounded-md"
+            className="flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 rounded-md group"
           >
             <img
               src={logoUrl || logo}
               alt="SWUMed Logo"
-              className="h-9 w-auto object-contain"
+              className="h-9 w-auto object-contain group-hover:scale-105 transition-transform duration-200"
             />
             {!collapsed && (
               <div className="text-[10px] font-medium tracking-wide text-slate-400">

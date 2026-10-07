@@ -100,9 +100,9 @@ export default function Sidebar({ isCollapsed = false, onToggle, onClose, mobile
               onClick={onToggle}
               aria-label={t('nav.toggleSidebar') || 'Toggle sidebar'}
               title={t('nav.toggleSidebar') || 'Toggle sidebar'}
-              className="hidden lg:flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 rounded-md"
+              className="hidden lg:flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 rounded-md group"
             >
-              <img src={logoUrl || logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
+              <img src={logoUrl || logo} alt="SWUMed Logo" className="h-9 w-auto object-contain group-hover:scale-105 transition-transform duration-200" />
               {!isCollapsed && <p className="text-xs text-slate-400">{t('nav.terminalLabel')}</p>}
             </button>
           )}

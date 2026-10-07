@@ -242,14 +242,14 @@ function handleNavigate(key) {
                 }
                 setCollapsed((c) => !c);
               }}
-              className="flex flex-col items-center justify-center w-full cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 rounded-md"
+              className="flex flex-col items-center justify-center w-full cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 rounded-md group"
               aria-label={collapsed ? t('sa.nav.expandSidebar') || 'Expand sidebar' : t('sa.nav.collapseSidebar') || 'Collapse sidebar'}
               title={collapsed ? t('sa.nav.expandSidebar') || 'Expand sidebar' : t('sa.nav.collapseSidebar') || 'Collapse sidebar'}
             >
               <img
                 src={saLogo || brandLogo || logo}
                 alt="SWUMed"
-                className="h-9 w-auto object-contain"
+                className="h-9 w-auto object-contain group-hover:scale-105 transition-transform duration-200"
               />
               {!collapsed && (
                 <p className="mt-1 text-xs text-[#4B5563]">
