@@ -3,12 +3,7 @@ const { Server } = require("socket.io");
 
 let io = null;
 
-// Allowed frontend origins
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "https://swumedqs.swucite.tech",
-];
+const allowedOrigins = require("../config/corsOrigins");
 
 // Initialize Socket.IO server
 function initializeSocket(server) {

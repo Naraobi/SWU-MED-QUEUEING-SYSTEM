@@ -21,6 +21,7 @@ const {
   authenticateRequest,
   authorizeRoles,
 } = require("./middleware/authMiddleware");
+const allowedOrigins = require("./config/corsOrigins");
 
 
 // =====================================================
@@ -55,19 +56,13 @@ let lastFullSyncAt = 0;
 // MIDDLEWARE
 // =====================================================
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "https://swumedqs.swucite.tech",
-];
-
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error(`Not allowed by CORS: ${origin}`));
       }
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -330,13 +325,23 @@ app.post(
   authorizeRoles("superadmin"),
   async (req, res) => {
     try {
-      await syncPendingRecords();
+      let queueSyncError = null;
+      try {
+        await syncPendingRecords();
+      } catch (error) {
+        queueSyncError = error?.message || String(error);
+        console.error("MANUAL QUEUE SYNC FAILED; continuing full sync:", error);
+      }
+
       const fullSync = await syncAllMySqlToFirebase();
 
       res.json({
         success: true,
         message: "MySQL to Firebase synchronization completed.",
-        data: fullSync,
+        data: {
+          fullSync,
+          queueSyncError,
+        },
       });
     } catch (error) {
       console.error(
@@ -361,29 +366,20 @@ app.post(
 */
 
 async function runAutomaticSync() {
+  console.log("Checking sync queue...");
   try {
-    console.log(
-      "Checking sync queue..."
-    );
-
     await syncPendingRecords();
+  } catch (error) {
+    console.error("AUTOMATIC QUEUE SYNC FAILED:", error);
+  }
 
-    if (Date.now() - lastFullSyncAt >= FULL_SYNC_INTERVAL) {
+  if (Date.now() - lastFullSyncAt >= FULL_SYNC_INTERVAL) {
+    try {
       await syncAllMySqlToFirebase();
       lastFullSyncAt = Date.now();
+    } catch (error) {
+      console.error("AUTOMATIC FULL SYNC FAILED:", error);
     }
-  } catch (error) {
-    console.error("AUTOMATIC SYNC ERROR DETAILS:", {
-      error,
-      name: error?.name,
-      message: error?.message,
-      code: error?.code,
-      errno: error?.errno,
-      sqlState: error?.sqlState,
-      sql: error?.sql,
-      stack: error?.stack,
-      cause: error?.cause,
-    });
   }
 }
 
