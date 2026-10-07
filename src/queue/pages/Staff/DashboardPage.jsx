@@ -626,24 +626,6 @@ export default function DashboardPage() {
   const [showSkip, setShowSkip] = useState(false)
   const [startingService, setStartingService] = useState(false)
   const [departmentLoading, setDepartmentLoading] = useState(true)
-  const [queueFilter, setQueueFilter] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('staff_queue_filter')
-      return saved || 'All'
-    } catch {
-      return 'All'
-    }
-  })
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try {
-      const saved = localStorage.getItem('staff_sidebar_collapsed')
-      return saved === 'true'
-    } catch {
-      return false
-    }
-  })
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const [filterLoading, setFilterLoading] = useState(false)
 
   const [selectedTerminal, setSelectedTerminal] = useState(() =>
     readSavedTerminal(staffId)
@@ -971,20 +953,6 @@ export default function DashboardPage() {
   )
 
   useEffect(() => {
-    try {
-      localStorage.setItem('staff_sidebar_collapsed', sidebarCollapsed ? 'true' : 'false')
-    } catch {}
-  }, [sidebarCollapsed])
-
-  function handleSidebarToggle() {
-    setSidebarCollapsed((prev) => !prev)
-  }
-
-  function handleMobileSidebarToggle() {
-    setMobileSidebarOpen((prev) => !prev)
-  }
-
-  useEffect(() => {
     let interval
     if (serviceHasStarted && activeServing) {
       setLocalSeconds(0) 
@@ -1049,21 +1017,18 @@ export default function DashboardPage() {
 
   return (
     <div className={`staff-shell flex min-h-screen w-full bg-[#f4f6f8] antialiased text-slate-800${isDark ? ' staff-dark' : ''}`} style={{ fontFamily: 'Inter, sans-serif', '--staff-accent': accent }}>
-      <Sidebar isCollapsed={sidebarCollapsed} onToggle={handleSidebarToggle} mobileOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
+      <Sidebar />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <main className="min-h-screen min-w-0 flex-1 flex flex-col">
         <Topbar
-          title={`${t('topbar.staffLabel')} A ${departmentLabel}`}
+          title={`${t('topbar.staffLabel')} · ${departmentLabel}`}
           subtitle={`Managing queue for department: ${departmentLabel} (${staffPrefix})`}
           currentTerminal={selectedTerminal}
           onOpenTerminalModal={() => setShowTerminalModal(true)}
-          onToggleSidebar={handleMobileSidebarToggle}
-          isSidebarCollapsed={sidebarCollapsed}
-          onToggleDesktopSidebar={handleSidebarToggle}
         />
-        <main className="min-w-0 flex-1 bg-[#f4f6f8] px-8 py-6 flex flex-col w-full">
-          <div className="flex-1 flex flex-col max-w-[1600px] w-full mx-auto">
-            <div className="mb-6">
+
+        <div className="p-8 flex-1 flex flex-col max-w-[1600px] w-full mx-auto">
+          <div className="mb-6">
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               {t('dashboard.title')}
             </h1>
@@ -1371,9 +1336,9 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
         <div className="mt-auto"><AppFooter accent={accent} /></div>
-        </main>
-      </div>
+      </main>
 
       {showTerminalModal && (
         <TerminalSelectionPage

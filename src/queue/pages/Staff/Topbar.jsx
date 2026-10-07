@@ -36,9 +36,6 @@ export default function Topbar({
   subtitle,
   currentTerminal,
   onOpenTerminalModal,
-  onToggleSidebar,
-  onToggleDesktopSidebar,
-  isSidebarCollapsed,
 }) {
   const { t, accent, logoUrl, setAccent, setLogo } =
     useStaffPreferences();
@@ -379,8 +376,8 @@ export default function Topbar({
   };
 
   return (
-    <div className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 shadow-xs backdrop-blur supports-[backdrop-filter]:bg-white/80 sm:px-6">
-      <div className="flex min-w-0 items-center gap-4">
+    <div className="flex h-[84px] min-h-[84px] w-full items-center justify-between border-b border-slate-200 bg-white">
+      <div className="min-w-0 pl-[60px]">
         <h1 className="truncate text-2xl font-bold text-slate-800">
           {t('topbar.staffLabel')} · {department}
         </h1>
