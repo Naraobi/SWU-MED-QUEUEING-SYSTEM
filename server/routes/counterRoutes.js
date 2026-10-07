@@ -14,6 +14,17 @@ const {
   getStaffCounter,
 } = require("../services/counterService");
 
+const {
+  authenticateRequest,
+  authorizeRoles,
+} = require("../middleware/authMiddleware");
+
+function isAdminRole(user) {
+  return ["admin", "superadmin"].includes(
+    String(user?.role || "").trim().toLowerCase()
+  );
+}
+
 // =====================================================
 // GET ALL COUNTERS
 // GET /api/counters
@@ -53,6 +64,7 @@ router.get("/", async (req, res) => {
 
 router.get(
   "/staff/:staffId",
+  authenticateRequest,
   async (req, res) => {
     try {
       const { staffId } = req.params;
@@ -61,6 +73,16 @@ router.get(
         return res.status(400).json({
           success: false,
           message: "Staff ID is required",
+        });
+      }
+
+      if (
+        String(staffId) !== String(req.user.user_id) &&
+        !isAdminRole(req.user)
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only view your own terminal.",
         });
       }
 
@@ -108,10 +130,13 @@ router.get(
 
 router.post(
   "/:id/assign",
+  authenticateRequest,
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { staff_id } = req.body;
+      // Identity comes from the verified token; any staff_id in the body
+      // is ignored.
+      const staff_id = req.user.user_id;
 
       if (!id) {
         return res.status(400).json({
@@ -185,10 +210,13 @@ router.post(
 
 router.post(
   "/:id/release",
+  authenticateRequest,
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { staff_id } = req.body;
+      // Identity comes from the verified token; any staff_id in the body
+      // is ignored.
+      let staff_id = req.user.user_id;
 
       if (!id) {
         return res.status(400).json({
@@ -197,10 +225,26 @@ router.post(
         });
       }
 
+      // Admin / superadmin can force-release whoever holds the terminal.
+      if (req.body?.force === true) {
+        if (!isAdminRole(req.user)) {
+          return res.status(403).json({
+            success: false,
+            message: "Only an admin can force-release a terminal.",
+          });
+        }
+
+        // Throws "Counter not found" -> 404 in the catch below.
+        const held = await getCounterById(id);
+        staff_id = held.assigned_staff_id;
+      }
+
       if (!staff_id) {
-        return res.status(400).json({
-          success: false,
-          message: "Staff ID is required",
+        return res.status(200).json({
+          success: true,
+          released: false,
+          message: "Counter is not assigned to anyone",
+          data: { counter_id: id, released: false },
         });
       }
 
@@ -333,6 +377,8 @@ router.get(
 
 router.post(
   "/",
+  authenticateRequest,
+  authorizeRoles("admin", "superadmin"),
   async (req, res) => {
     try {
       const counter =
@@ -369,6 +415,8 @@ router.post(
 
 router.put(
   "/:id",
+  authenticateRequest,
+  authorizeRoles("admin", "superadmin"),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -421,6 +469,8 @@ router.put(
 
 router.delete(
   "/:id",
+  authenticateRequest,
+  authorizeRoles("admin", "superadmin"),
   async (req, res) => {
     try {
       const { id } = req.params;
