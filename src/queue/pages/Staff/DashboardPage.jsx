@@ -1049,11 +1049,11 @@ export default function DashboardPage() {
 
   return (
     <div className={`staff-shell flex min-h-screen w-full bg-[#f4f6f8] antialiased text-slate-800${isDark ? ' staff-dark' : ''}`} style={{ fontFamily: 'Inter, sans-serif', '--staff-accent': accent }}>
-      <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => handleSidebarToggle()} mobileOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
+      <Sidebar isCollapsed={sidebarCollapsed} onToggle={handleSidebarToggle} mobileOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
 
-      <main className="min-h-screen min-w-0 flex-1 flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
-          title={`${t('topbar.staffLabel')} · ${departmentLabel}`}
+          title={`${t('topbar.staffLabel')} A ${departmentLabel}`}
           subtitle={`Managing queue for department: ${departmentLabel} (${staffPrefix})`}
           currentTerminal={selectedTerminal}
           onOpenTerminalModal={() => setShowTerminalModal(true)}
@@ -1061,6 +1061,7 @@ export default function DashboardPage() {
           isSidebarCollapsed={sidebarCollapsed}
           onToggleDesktopSidebar={handleSidebarToggle}
         />
+        <main className="min-w-0 flex-1 bg-[#f4f6f8] px-8 py-6 flex flex-col max-w-[1600px] w-full mx-auto">
 
         <div className="p-8 flex-1 flex flex-col max-w-[1600px] w-full mx-auto">
           <div className="mb-6">
@@ -1373,7 +1374,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-auto"><AppFooter accent={accent} /></div>
-      </main>
+      </div>
 
       {showTerminalModal && (
         <TerminalSelectionPage
