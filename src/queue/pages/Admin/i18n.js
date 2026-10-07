@@ -1,23 +1,3 @@
-// =====================================================
-// ADMIN TRANSLATIONS
-// =====================================================
-//
-// Every static UI string shown across the Admin pages,
-// in the three languages offered on the Settings page.
-//
-// Filipino and Cebuano strings here are a first machine
-// translation pass, not a native-speaker review — they're
-// meant to make the interface genuinely usable in each
-// language, but a native speaker should still sanity-check
-// wording before this ships to real users.
-//
-// Backend/validation error messages (thrown from failed
-// API calls, form validation) are intentionally left in
-// English for now — there are dozens of them scattered
-// through form handlers, and translating those is a
-// separate, larger pass than translating the static page
-// chrome this covers.
-
 export const LANGUAGES = ['English', 'Filipino', 'Cebuano'];
 
 export const LANGUAGE_CODES = {
@@ -355,6 +335,7 @@ const en = {
   'reports.previous': 'Previous',
   'reports.next': 'Next',
   'reports.pagination': 'Pagination',
+  'reports.toggleSidebar': 'Toggle sidebar',
   'reports.empty': 'No records found for the selected filters.',
   'reports.error': 'We couldn\'t load the report. Please try again.',
   'reports.retry': 'Retry',

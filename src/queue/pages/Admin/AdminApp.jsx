@@ -83,10 +83,10 @@ function AdminShell() {
       className={`admin-shell flex min-h-screen bg-slate-100${isDark ? ' admin-dark' : ''}`}
       style={{ '--admin-accent': accent }}
     >
-      <AdminSidebar activeItem={activeItem} onSelect={handleSelect} />
+      <AdminSidebar activeItem={activeItem} onSelect={(item) => { handleSelect(item); }} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AdminHeaderBar />
+        <AdminHeaderBar title={activeItem === 'dashboard' ? 'Dashboard' : activeItem === 'staff' ? 'Staff Management' : activeItem === 'terminal' ? 'Terminal Management' : activeItem === 'queues' ? 'Queue Management' : activeItem === 'reports' ? 'Reports' : 'Settings'} />
 
         <main className="min-w-0 flex-1 bg-[#f1f3f6] px-4 py-5">
           {activeItem === 'dashboard' && <AdminDashboard />}

@@ -626,6 +626,24 @@ export default function DashboardPage() {
   const [showSkip, setShowSkip] = useState(false)
   const [startingService, setStartingService] = useState(false)
   const [departmentLoading, setDepartmentLoading] = useState(true)
+  const [queueFilter, setQueueFilter] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('staff_queue_filter')
+      return saved || 'All'
+    } catch {
+      return 'All'
+    }
+  })
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      const saved = localStorage.getItem('staff_sidebar_collapsed')
+      return saved === 'true'
+    } catch {
+      return false
+    }
+  })
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [filterLoading, setFilterLoading] = useState(false)
 
   const [selectedTerminal, setSelectedTerminal] = useState(() =>
     readSavedTerminal(staffId)
@@ -953,6 +971,20 @@ export default function DashboardPage() {
   )
 
   useEffect(() => {
+    try {
+      localStorage.setItem('staff_sidebar_collapsed', sidebarCollapsed ? 'true' : 'false')
+    } catch {}
+  }, [sidebarCollapsed])
+
+  function handleSidebarToggle() {
+    setSidebarCollapsed((prev) => !prev)
+  }
+
+  function handleMobileSidebarToggle() {
+    setMobileSidebarOpen((prev) => !prev)
+  }
+
+  useEffect(() => {
     let interval
     if (serviceHasStarted && activeServing) {
       setLocalSeconds(0) 
@@ -1017,14 +1049,17 @@ export default function DashboardPage() {
 
   return (
     <div className={`staff-shell flex min-h-screen w-full bg-[#f4f6f8] antialiased text-slate-800${isDark ? ' staff-dark' : ''}`} style={{ fontFamily: 'Inter, sans-serif', '--staff-accent': accent }}>
-      <Sidebar />
+      <Sidebar isCollapsed={sidebarCollapsed} onToggle={() => handleSidebarToggle()} mobileOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
 
-      <main className="min-h-screen min-w-0 flex-1 flex flex-col">
+      <main className="min-h-screen min-w-0 flex-1 flex flex-col transition-all duration-200 ease-out lg:ml-0">
         <Topbar
           title={`${t('topbar.staffLabel')} · ${departmentLabel}`}
           subtitle={`Managing queue for department: ${departmentLabel} (${staffPrefix})`}
           currentTerminal={selectedTerminal}
           onOpenTerminalModal={() => setShowTerminalModal(true)}
+          onToggleSidebar={handleMobileSidebarToggle}
+          isSidebarCollapsed={sidebarCollapsed}
+          onToggleDesktopSidebar={handleSidebarToggle}
         />
 
         <div className="p-8 flex-1 flex flex-col max-w-[1600px] w-full mx-auto">
