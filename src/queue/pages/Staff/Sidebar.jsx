@@ -93,7 +93,7 @@ export default function Sidebar({ isCollapsed = false, onToggle, onClose, mobile
         style={{ fontFamily: 'Inter, sans-serif' }}
         aria-label="Sidebar"
       >
-        <div className={`flex h-[74px] shrink-0 items-center border-b border-slate-200 px-3 ${isCollapsed ? 'justify-center' : 'justify-center'}`}>
+        <div className={`flex h-[74px] shrink-0 items-center border-b border-slate-200 px-3 justify-center`}>
           {onToggle && (
             <button
               type="button"
