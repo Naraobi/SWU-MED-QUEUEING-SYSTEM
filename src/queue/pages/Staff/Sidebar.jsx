@@ -153,8 +153,8 @@ export default function Sidebar({ isCollapsed = false, onToggle, onClose, mobile
             onClick={() => setShowLogout(true)}
             title={isCollapsed ? t('nav.logout') : undefined}
             aria-label={isCollapsed ? t('nav.logout') : undefined}
-            className={`flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700 cursor-pointer ${
-              isCollapsed ? 'justify-center px-0' : 'justify-center'
+            className={`flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-sm font-semibold text-[#9D0A0E] transition hover:bg-[#9D0A0E]/5 ${
+              isCollapsed ? 'justify-center px-0' : 'justify-start'
             }`}
           >
             <LogoutIcon />
