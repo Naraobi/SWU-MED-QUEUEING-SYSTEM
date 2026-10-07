@@ -119,6 +119,14 @@ export default function Layout({ activePage, onNavigate, children }) {
 
   // A logo uploaded in Settings replaces the bundled mark everywhere.
   const [brandLogo, setBrandLogo] = useState(() => getLogo());
+  const [collapsed, setCollapsed] = useState(() => {
+    const saved = localStorage.getItem('superadmin_sidebar_collapsed');
+    return saved === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('superadmin_sidebar_collapsed', String(collapsed));
+  }, [collapsed]);
 
   useEffect(
     () => subscribeAppearance((appearance) => setBrandLogo(appearance.logo)),
@@ -222,32 +230,39 @@ function handleNavigate(key) {
     >
       <div className="flex flex-1">
         {/* Sidebar */}
-        <aside className="sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r border-[#E5E7EB] bg-white">
+        <aside className={`sticky top-0 flex h-screen flex-shrink-0 flex-col border-r border-[#E5E7EB] bg-white transition-all duration-200 ease-out ${collapsed ? 'w-18' : 'w-64'}`}>
           {/* Logo */}
-          <div className="shrink-0 border-b border-[#E5E7EB] px-6 py-5">
+          <div className="shrink-0 border-b border-[#E5E7EB] px-4 py-5">
             <button
               type="button"
-              onClick={() => handleNavigate('dashboard')}
-              className="block cursor-pointer select-none text-left focus:outline-none"
-              aria-label={t('sa.nav.goToDashboard')}
-              title={t('sa.nav.goToDashboard')}
+              onClick={() => {
+                const canGoDashboard = hasPermission('superadmin:dashboard');
+                if (canGoDashboard) {
+                  handleNavigate('dashboard');
+                }
+                setCollapsed((c) => !c);
+              }}
+              className="flex flex-col items-center justify-center w-full cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 rounded-md"
+              aria-label={collapsed ? t('sa.nav.expandSidebar') || 'Expand sidebar' : t('sa.nav.collapseSidebar') || 'Collapse sidebar'}
+              title={collapsed ? t('sa.nav.expandSidebar') || 'Expand sidebar' : t('sa.nav.collapseSidebar') || 'Collapse sidebar'}
             >
               <img
                 src={saLogo || brandLogo || logo}
                 alt="SWUMed"
-                className="h-4 w-auto object-contain object-left"
+                className="h-9 w-auto object-contain"
               />
+              {!collapsed && (
+                <p className="mt-1 text-xs text-[#4B5563]">
+                  {saSystemName && saSystemName !== DEFAULT_SYSTEM_NAME
+                    ? saSystemName
+                    : t('sa.nav.queuingSystem')}
+                </p>
+              )}
             </button>
-
-            <p className="mt-1 text-xs text-[#4B5563]">
-              {saSystemName && saSystemName !== DEFAULT_SYSTEM_NAME
-                ? saSystemName
-                : t('sa.nav.queuingSystem')}
-            </p>
           </div>
 
           {/* Navigation */}
-          <nav className="swu-stagger flex-1 space-y-0.5 px-3 py-4">
+          <nav className="swu-stagger flex-1 space-y-0.5 px-2 py-4">
             {visibleNavItems.map(({ key, labelKey, icon: Icon }) => {
               const isActive = activePage === key;
 
@@ -256,31 +271,35 @@ function handleNavigate(key) {
                   key={key}
                   type="button"
                   onClick={() => handleNavigate(key)}
-                  className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+                  title={collapsed ? t(labelKey) : undefined}
+                  aria-label={collapsed ? t(labelKey) : undefined}
+                  className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-lg px-2 py-2.5 text-sm font-medium transition-all duration-200 ${
                     isActive
                       ? 'bg-[#9D0A0E] text-white shadow-sm shadow-[#9D0A0E]/30'
                       : 'text-[#4B5563] hover:translate-x-1 hover:bg-[#FBF1F1] hover:text-[#9D0A0E]'
-                  }`}
+                  } ${collapsed ? 'justify-center px-0' : 'justify-start'}`}
                 >
                   <Icon
                     size={18}
                     className="shrink-0 transition-transform duration-200 group-hover:scale-110"
                   />
-                  {t(labelKey)}
+                  {!collapsed && t(labelKey)}
                 </button>
               );
             })}
           </nav>
 
           {/* Logout Button at the bottom of the sidebar */}
-          <div className="mt-auto flex h-[var(--bottom-bar-height)] shrink-0 items-center border-t border-[#E5E7EB] px-3">
+          <div className="mt-auto flex h-[var(--bottom-bar-height)] shrink-0 items-center border-t border-[#E5E7EB] px-2">
             <button
               type="button"
               onClick={() => setShowLogoutModal(true)}
-              className="swu-press group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#9D0A0E] transition-all duration-200 hover:translate-x-1 hover:bg-[#FBF1F1]"
+              title={collapsed ? t('sa.nav.logout') : undefined}
+              aria-label={collapsed ? t('sa.nav.logout') : undefined}
+              className={`swu-press group flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-sm font-semibold text-[#9D0A0E] transition-all duration-200 hover:translate-x-1 hover:bg-[#FBF1F1] ${collapsed ? 'justify-center px-0' : 'justify-start'}`}
             >
-              <LogOut size={18} />
-              {t('sa.nav.logout')}
+              <LogOut size={17} className="shrink-0 transition-transform duration-200 group-hover:scale-110" />
+              {!collapsed && t('sa.nav.logout')}
             </button>
           </div>
         </aside>

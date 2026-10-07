@@ -76,25 +76,23 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
         style={{ fontFamily: 'Inter, sans-serif' }}
       >
         <div className={`flex h-[74px] shrink-0 items-center border-b border-slate-200 px-2 text-center relative ${collapsed ? 'justify-center' : 'justify-center flex-col'}`}>
-          <img
-            src={logoUrl || logo}
-            alt="SWUMed Logo"
-            className="h-9 w-auto object-contain"
-          />
-
-          {!collapsed && (
-            <div className="text-[10px] font-medium tracking-wide text-slate-400">
-              {t('nav.queuingSystem')}
-            </div>
-          )}
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40"
+            className="flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 rounded-md"
           >
-            {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+            <img
+              src={logoUrl || logo}
+              alt="SWUMed Logo"
+              className="h-9 w-auto object-contain"
+            />
+            {!collapsed && (
+              <div className="text-[10px] font-medium tracking-wide text-slate-400">
+                {t('nav.queuingSystem')}
+              </div>
+            )}
           </button>
         </div>
 
