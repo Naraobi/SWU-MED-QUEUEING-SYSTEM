@@ -1063,7 +1063,7 @@ export default function DashboardPage() {
         />
         <main className="min-w-0 flex-1 bg-[#f4f6f8] px-8 py-6 flex flex-col w-full">
           <div className="flex-1 flex flex-col max-w-[1600px] w-full mx-auto">
-          <div className="mb-6">
+            <div className="mb-6">
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
               {t('dashboard.title')}
             </h1>
@@ -1371,8 +1371,8 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-
         <div className="mt-auto"><AppFooter accent={accent} /></div>
+        </main>
       </div>
 
       {showTerminalModal && (
