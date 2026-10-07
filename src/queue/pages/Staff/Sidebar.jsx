@@ -94,20 +94,23 @@ export default function Sidebar({ isCollapsed = false, onToggle, onClose, mobile
         aria-label="Sidebar"
       >
         <div className={`flex h-[74px] shrink-0 items-center border-b border-slate-200 px-3 relative ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-          <div className="flex flex-1 items-center justify-center gap-2">
-            <img src={logoUrl || logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
-            {!isCollapsed && <p className="text-xs text-slate-400">{t('nav.terminalLabel')}</p>}
-          </div>
           {onToggle && (
             <button
               type="button"
               onClick={onToggle}
               aria-label={t('nav.toggleSidebar') || 'Toggle sidebar'}
               title={t('nav.toggleSidebar') || 'Toggle sidebar'}
-              className="hidden lg:flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 absolute right-1 top-1"
+              className="hidden lg:flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#9D0A0E]/40 rounded-md"
             >
-              {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+              <img src={logoUrl || logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
+              {!isCollapsed && <p className="text-xs text-slate-400">{t('nav.terminalLabel')}</p>}
             </button>
+          )}
+          {!onToggle && (
+            <div className="flex flex-1 items-center justify-center gap-2">
+              <img src={logoUrl || logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
+              {!isCollapsed && <p className="text-xs text-slate-400">{t('nav.terminalLabel')}</p>}
+            </div>
           )}
           {onClose && (
             <button
