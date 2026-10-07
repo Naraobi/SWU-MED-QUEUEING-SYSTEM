@@ -15,7 +15,12 @@ const {
 
 const {
   syncPendingRecords,
+  syncAllMySqlToFirebase,
 } = require("./services/syncService");
+const {
+  authenticateRequest,
+  authorizeRoles,
+} = require("./middleware/authMiddleware");
 
 
 // =====================================================
@@ -43,6 +48,8 @@ initializeSocket(server);
 const PORT = process.env.PORT || 5000;
 
 const SYNC_INTERVAL = 30 * 1000;
+const FULL_SYNC_INTERVAL = 15 * 60 * 1000;
+let lastFullSyncAt = 0;
 
 // =====================================================
 // MIDDLEWARE
@@ -319,14 +326,17 @@ app.get("/api/test/email", async (req, res) => {
 
 app.post(
   "/api/sync/run",
+  authenticateRequest,
+  authorizeRoles("superadmin"),
   async (req, res) => {
     try {
       await syncPendingRecords();
+      const fullSync = await syncAllMySqlToFirebase();
 
       res.json({
         success: true,
-        message:
-          "Synchronization completed",
+        message: "MySQL to Firebase synchronization completed.",
+        data: fullSync,
       });
     } catch (error) {
       console.error(
@@ -357,11 +367,23 @@ async function runAutomaticSync() {
     );
 
     await syncPendingRecords();
+
+    if (Date.now() - lastFullSyncAt >= FULL_SYNC_INTERVAL) {
+      await syncAllMySqlToFirebase();
+      lastFullSyncAt = Date.now();
+    }
   } catch (error) {
-    console.error(
-      "AUTOMATIC SYNC ERROR:",
-      error.message
-    );
+    console.error("AUTOMATIC SYNC ERROR DETAILS:", {
+      error,
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      errno: error?.errno,
+      sqlState: error?.sqlState,
+      sql: error?.sql,
+      stack: error?.stack,
+      cause: error?.cause,
+    });
   }
 }
 
