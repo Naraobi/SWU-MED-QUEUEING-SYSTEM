@@ -68,7 +68,10 @@ const NAV_ITEMS = [
     key: 'queues',
     labelKey: 'sa.nav.queues',
     icon: ClipboardList,
-    permission: 'superadmin:queues',
+    // Role Management saves this feature permission as `queues`.
+    // AuthContext checks permissions by exact string, so keep the sidebar
+    // key identical to the value stored on the role.
+    permission: 'queues',
   },
     {
     key: 'reports',

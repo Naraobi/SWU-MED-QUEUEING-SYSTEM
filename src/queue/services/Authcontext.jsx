@@ -1077,10 +1077,37 @@ export function AuthProvider({
   const [loading, setLoading] =
     useState(true);
 
-   const hasPermission = (permission) => {
-  return Array.isArray(user?.permissions) &&
-    user.permissions.includes(permission);
-}; 
+  const hasPermission = (permission) => {
+    const requested = String(permission ?? '').trim().toLowerCase();
+    const requestedKey = requested.includes(':')
+      ? requested.slice(requested.lastIndexOf(':') + 1)
+      : requested;
+    const aliases = requestedKey === 'queues'
+      ? new Set(['queues', 'queue', 'queue_management'])
+      : new Set([requestedKey]);
+
+    const rawPermissions =
+      user?.permissions ?? user?.role_permissions ?? user?.role?.permissions;
+    let permissions = rawPermissions;
+
+    if (typeof permissions === 'string') {
+      try {
+        permissions = JSON.parse(permissions);
+      } catch {
+        permissions = permissions.split(',');
+      }
+    }
+
+    if (!Array.isArray(permissions)) return false;
+
+    return permissions.some((value) => {
+      const stored = String(value ?? '').trim().toLowerCase();
+      const storedKey = stored.includes(':')
+        ? stored.slice(stored.lastIndexOf(':') + 1)
+        : stored;
+      return aliases.has(storedKey);
+    });
+  };
 
   useEffect(() => {
     const unsubscribe =
