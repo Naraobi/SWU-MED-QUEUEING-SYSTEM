@@ -1,12 +1,44 @@
-const API_URL =
-  `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api`;
+import { API_URL } from './apiBase';
+import { offlineFetch } from './offlineFetch';
+import { getOfflineData, saveOfflineData } from './offlineStorage';
+
+async function applyDepartmentCache(action, department) {
+  const envelope = await getOfflineData('api:departments');
+  const rows = Array.isArray(envelope?.data) ? [...envelope.data] : [];
+  const id = String(department.department_id);
+  const index = rows.findIndex((row) => String(row.department_id) === id);
+  if (action === 'delete') {
+    if (index >= 0) rows.splice(index, 1);
+  } else if (index >= 0) {
+    rows[index] = { ...rows[index], ...department, _offline_pending: true };
+  } else {
+    rows.push({ ...department, _offline_pending: true });
+  }
+  await saveOfflineData('api:departments', { ...(envelope || { success: true }), data: rows });
+}
+
+async function applyUserCache(action, user) {
+  const envelope = await getOfflineData('api:users');
+  const rows = Array.isArray(envelope?.data) ? [...envelope.data] : [];
+  const id = String(user.user_id || user._offline_id || '');
+  const index = rows.findIndex((row) => String(row.user_id || row.uid || row._offline_id) === id);
+  if (action === 'delete') {
+    if (index >= 0) rows.splice(index, 1);
+  } else if (index >= 0) {
+    rows[index] = { ...rows[index], ...user, _offline_pending: true };
+  } else {
+    rows.push({ ...user, _offline_pending: true });
+  }
+  await saveOfflineData('api:users', { ...(envelope || { success: true }), data: rows });
+}
 
 // =====================================================
 // DEPARTMENT API
 // =====================================================
 
 export async function getDepartments() {
-  const response = await fetch(`${API_URL}/departments`);
+  const url = `${API_URL}/departments`;
+  const response = await offlineFetch(url, {}, { cacheKey: 'api:departments' });
   const result = await response.json();
 
   if (!response.ok || !result.success) {
@@ -43,13 +75,14 @@ export async function createDepartment(department) {
     throw new Error("Department data is required");
   }
 
-  const response = await fetch(`${API_URL}/departments`, {
+  const payload = { ...department, department_id: department.department_id || crypto.randomUUID() };
+  const response = await offlineFetch(`${API_URL}/departments`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(department),
-  });
+    body: JSON.stringify(payload),
+  }, { queueOnFailure: true, optimisticData: payload });
 
   const result = await response.json();
 
@@ -59,6 +92,7 @@ export async function createDepartment(department) {
     );
   }
 
+  if (result.pending_sync) await applyDepartmentCache('create', payload);
   return result.data;
 }
 
@@ -71,7 +105,7 @@ export async function updateDepartment(departmentId, department) {
     throw new Error("Department data is required");
   }
 
-  const response = await fetch(
+  const response = await offlineFetch(
     `${API_URL}/departments/${encodeURIComponent(departmentId)}`,
     {
       method: "PUT",
@@ -79,7 +113,8 @@ export async function updateDepartment(departmentId, department) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(department),
-    }
+    },
+    { queueOnFailure: true, optimisticData: { ...department, department_id: departmentId } }
   );
 
   const result = await response.json();
@@ -90,6 +125,7 @@ export async function updateDepartment(departmentId, department) {
     );
   }
 
+  if (result.pending_sync) await applyDepartmentCache('update', { ...department, department_id: departmentId });
   return result.data;
 }
 
@@ -98,11 +134,12 @@ export async function deleteDepartment(departmentId) {
     throw new Error("Department ID is required");
   }
 
-  const response = await fetch(
+  const response = await offlineFetch(
     `${API_URL}/departments/${encodeURIComponent(departmentId)}`,
     {
       method: "DELETE",
-    }
+    },
+    { queueOnFailure: true, optimisticData: { department_id: departmentId } }
   );
 
   const result = await response.json();
@@ -113,6 +150,7 @@ export async function deleteDepartment(departmentId) {
     );
   }
 
+  if (result.pending_sync) await applyDepartmentCache('delete', { department_id: departmentId });
   return result;
 }
 
@@ -135,34 +173,7 @@ export async function resetDepartments(departmentIds) {
       continue;
     }
 
-    const response = await fetch(
-      `${API_URL}/departments/${encodeURIComponent(departmentId)}`,
-      {
-        method: "DELETE",
-      }
-    );
-
-    const responseText = await response.text();
-
-    let result;
-
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      throw new Error(
-        `Failed to delete department ${departmentId}. ` +
-        `Server returned an invalid response (HTTP ${response.status}).`
-      );
-    }
-
-    if (!response.ok || !result.success) {
-      throw new Error(
-        result.message ||
-          `Failed to delete department ${departmentId}.`
-      );
-    }
-
-    results.push(result);
+    results.push(await deleteDepartment(departmentId));
   }
 
   return {
@@ -216,7 +227,7 @@ export async function remotelyUnlockKiosk(firebaseUser, kioskId, pin) {
   return result;
 }
 export async function getKiosks() {
-  const response = await fetch(`${API_URL}/kiosks`);
+  const response = await offlineFetch(`${API_URL}/kiosks`, {}, { cacheKey: 'api:kiosks' });
   const result = await response.json();
 
   if (!response.ok || !result.success) {
@@ -331,7 +342,7 @@ export async function deleteKiosk(kioskId) {
 // =====================================================
 
 export async function getRoles() {
-  const response = await fetch(`${API_URL}/roles`);
+  const response = await offlineFetch(`${API_URL}/roles`, {}, { cacheKey: 'api:roles' });
   const result = await response.json();
 
   if (!response.ok || !result.success) {
@@ -578,10 +589,10 @@ export async function getPatientDepartments(kioskId) {
     throw new Error("Kiosk ID is required");
   }
 
-  const response = await fetch(
-    `${API_URL}/patients/departments/${encodeURIComponent(
-      kioskId
-    )}`
+  const response = await offlineFetch(
+    `${API_URL}/patients/departments/${encodeURIComponent(kioskId)}`,
+    {},
+    { cacheKey: `api:patient-departments:${kioskId}` }
   );
 
   const result = await response.json();
@@ -600,12 +611,20 @@ export async function createPatientQueue(queueData) {
     throw new Error("Queue data is required");
   }
 
-  const response = await fetch(`${API_URL}/patients/queue`, {
+  const clientQueueId = queueData.client_queue_id || crypto.randomUUID();
+  const payload = { ...queueData, client_queue_id: clientQueueId };
+  const response = await offlineFetch(`${API_URL}/patients/queue`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(queueData),
+    body: JSON.stringify(payload),
+  }, {
+    queueOnFailure: true,
+    operationType: 'CREATE_PATIENT_QUEUE',
+    localId: clientQueueId,
+    operationPayload: payload,
+    optimisticData: { queue_id: clientQueueId, pending_sync: true },
   });
 
   const result = await response.json();
@@ -616,7 +635,7 @@ export async function createPatientQueue(queueData) {
     );
   }
 
-  return result.data;
+  return result.pending_sync ? { ...result.data, queue_id: clientQueueId, pending_sync: true } : result.data;
 }
 
 export async function getQueueTicket(queueId) {
@@ -644,10 +663,12 @@ export async function getWaitingCount(departmentId) {
     throw new Error("Department ID is required");
   }
 
-  const response = await fetch(
+  const response = await offlineFetch(
     `${API_URL}/patients/waiting-count/${encodeURIComponent(
       departmentId
-    )}`
+    )}`,
+    {},
+    { cacheKey: `api:waiting-count:${departmentId}` }
   );
 
   const result = await response.json();
@@ -1017,12 +1038,18 @@ export async function createUser(userData) {
     throw new Error("User data is required");
   }
 
-  const response = await fetch(`${API_URL}/users`, {
+  const localId = crypto.randomUUID();
+  const payload = { ...userData, user_id: localId, client_sync_id: localId };
+  const response = await offlineFetch(`${API_URL}/users`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(userData),
+    body: JSON.stringify(payload),
+  }, {
+    queueOnFailure: true,
+    optimisticData: { ...payload, user_id: localId, _offline_id: localId },
+    syncMeta: { cacheKey: 'api:users', localId },
   });
 
   const result = await response.json();
@@ -1035,6 +1062,7 @@ export async function createUser(userData) {
     );
   }
 
+  if (result.pending_sync) await applyUserCache('create', { ...result.data, user_id: localId, _offline_id: localId });
   return result.data;
 }
 export async function deleteUser(userId, deletionReason = "") {
@@ -1042,7 +1070,7 @@ export async function deleteUser(userId, deletionReason = "") {
     throw new Error("User ID is required");
   }
 
-  const response = await fetch(
+  const response = await offlineFetch(
     `${API_URL}/users/${encodeURIComponent(userId)}`,
     {
       method: "DELETE",
@@ -1052,7 +1080,8 @@ export async function deleteUser(userId, deletionReason = "") {
       body: JSON.stringify({
         deletion_reason: deletionReason,
       }),
-    }
+    },
+    { queueOnFailure: true, optimisticData: { user_id: userId } }
   );
 
   const result = await response.json();
@@ -1065,10 +1094,11 @@ export async function deleteUser(userId, deletionReason = "") {
     );
   }
 
+  if (result.pending_sync) await applyUserCache('delete', { user_id: userId });
   return result;
 }
 export async function getUsers() {
-  const response = await fetch(`${API_URL}/users`);
+  const response = await offlineFetch(`${API_URL}/users`, {}, { cacheKey: 'api:users' });
   const result = await response.json();
 
   if (!response.ok || !result.success) {
@@ -1089,7 +1119,7 @@ export async function updateUser(userId, userData) {
     throw new Error("User data is required");
   }
 
-  const response = await fetch(
+  const response = await offlineFetch(
     `${API_URL}/users/${encodeURIComponent(userId)}`,
     {
       method: "PUT",
@@ -1097,7 +1127,8 @@ export async function updateUser(userId, userData) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(userData),
-    }
+    },
+    { queueOnFailure: true, optimisticData: { ...userData, user_id: userId } }
   );
 
   const result = await response.json();
@@ -1108,6 +1139,7 @@ export async function updateUser(userId, userData) {
     );
   }
 
+  if (result.pending_sync) await applyUserCache('update', { ...userData, user_id: userId });
   return result.data;
 }
 export async function createTerminal(terminalData) {
@@ -1156,7 +1188,7 @@ export async function updateTerminal(terminalId, terminalData) {
   return result.data;
 }
 export async function getTerminals() {
-  const response = await fetch(`${API_URL}/counters`);
+  const response = await offlineFetch(`${API_URL}/counters`, {}, { cacheKey: 'api:terminals' });
   const result = await response.json();
 
   if (!response.ok || !result.success) {
@@ -1794,10 +1826,10 @@ export async function getKioskUnlockStatus(kioskId) {
     throw new Error("Kiosk ID is required.");
   }
 
-  const response = await fetch(
-    `${API_URL}/security/pin/kiosk-status/${encodeURIComponent(
-      kioskId
-    )}`
+  const response = await offlineFetch(
+    `${API_URL}/security/pin/kiosk-status/${encodeURIComponent(kioskId)}`,
+    {},
+    { cacheKey: `api:kiosk-unlock:${kioskId}` }
   );
 
   const result = await response.json();
@@ -1839,7 +1871,7 @@ export async function getDatabaseStatus() {
 // =====================================================
 
 export async function getPositions() {
-  const response = await fetch(`${API_URL}/positions`);
+  const response = await offlineFetch(`${API_URL}/positions`, {}, { cacheKey: 'api:positions' });
 
   if (!response.ok) {
     throw new Error(

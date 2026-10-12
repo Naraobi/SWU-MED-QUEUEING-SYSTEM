@@ -1706,6 +1706,10 @@ return formattedDepartment;
 
     loadData();
 
+    const handleSyncedChange = () => loadData();
+    window.addEventListener('offline-sync-success', handleSyncedChange);
+    return () => window.removeEventListener('offline-sync-success', handleSyncedChange);
+
   }, []);
 
   // =========================================================

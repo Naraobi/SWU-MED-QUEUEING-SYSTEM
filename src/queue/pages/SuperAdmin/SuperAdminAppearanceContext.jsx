@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -14,6 +15,8 @@ import {
   getLogo,
   getThemeMode,
 } from '../../services/appearance';
+import { auth } from '../../../firebase';
+import { fetchPatientBranding, publishPatientBranding } from '../../services/patientBranding';
 
 // =====================================================
 // SUPER ADMIN APPEARANCE PROVIDER
@@ -88,6 +91,15 @@ export function SuperAdminAppearanceProvider({ children }) {
   const [saved, setSaved] = useState(loadSaved);
   const [draft, setDraft] = useState(saved);
   const [systemTheme, setSystemTheme] = useState(getSystemTheme);
+  const editedBeforeLoad = useRef(false);
+
+  useEffect(() => {
+    fetchPatientBranding().then((branding) => {
+      if (editedBeforeLoad.current) return;
+      setSaved((current) => ({ ...current, accent: branding.accent, logoUrl: branding.logo || '', systemName: branding.systemName }));
+      setDraft((current) => ({ ...current, accent: branding.accent, logoUrl: branding.logo || '', systemName: branding.systemName }));
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let query;
@@ -125,6 +137,7 @@ export function SuperAdminAppearanceProvider({ children }) {
   );
 
   const setField = useCallback((field, value) => {
+    editedBeforeLoad.current = true;
     setDraft((current) => ({ ...current, [field]: value }));
   }, []);
 
@@ -141,7 +154,15 @@ export function SuperAdminAppearanceProvider({ children }) {
     draft.systemName !== saved.systemName ||
     draft.clockFormat !== saved.clockFormat;
 
-  const save = useCallback(() => {
+  const save = useCallback(async () => {
+    // Publish the patient-facing name and logo before marking this draft saved.
+    // A failure leaves the draft intact so the Super Admin can retry.
+    await publishPatientBranding({
+      systemName: draft.systemName.trim() || DEFAULT_SYSTEM_NAME,
+      logo: draft.logoUrl,
+      accent: draft.accent,
+    }, auth.currentUser);
+
     writeKey(THEME_KEY, draft.theme);
     writeKey(ACCENT_KEY, draft.accent);
     writeKey(LOGO_KEY, draft.logoUrl);

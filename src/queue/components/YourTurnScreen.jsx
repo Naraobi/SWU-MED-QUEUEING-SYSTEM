@@ -1,8 +1,10 @@
 import React from 'react'
 import { BellRing } from 'lucide-react'
 import logo from '../../assets/logo.png'
+import { usePatientBranding } from '../services/patientBranding';
 
 export default function YourTurnScreen({ ticket }) {
+  const branding = usePatientBranding();
   // Priority tickets carry a "P-" prefix; they render in brand red.
   const isPriority = String(ticket.queueNumber || '')
     .toUpperCase()
@@ -15,8 +17,8 @@ export default function YourTurnScreen({ ticket }) {
       <div className="w-full max-w-md sm:max-w-lg md:max-w-xl">
 
       <img
-  src={logo}
-  alt="SWU Med"
+  src={branding.logo || logo}
+  alt={branding.systemName}
   className="mx-auto mb-5 h-14 w-auto object-contain mix-blend-multiply"
 />
 

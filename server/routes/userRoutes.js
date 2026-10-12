@@ -316,6 +316,15 @@ router.get("/:id", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
+    // Browser outbox retries carry a stable user ID. Return the existing
+    // profile when the original create committed but its response was lost.
+    if (req.body?.client_sync_id && req.body?.user_id) {
+      const existing = await getUserById(req.body.user_id);
+      if (existing) {
+        return res.json({ success: true, message: "User was already created.", data: existing });
+      }
+    }
+
     const user = await createUser(req.body);
 
     return res.status(201).json({

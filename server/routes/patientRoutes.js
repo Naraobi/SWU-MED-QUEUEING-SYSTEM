@@ -65,6 +65,7 @@ router.post("/queue", async (req, res) => {
     department_id,
     department_name,
     queue_type,
+    client_queue_id,
   } = req.body;
 
   /*
@@ -137,6 +138,39 @@ router.post("/queue", async (req, res) => {
     */
 
     await connection.beginTransaction();
+
+    // Offline retries reuse the same client-generated queue ID. If the first
+    // request committed but its response was lost, return that ticket instead
+    // of creating a duplicate when the browser retries its outbox item.
+    if (client_queue_id) {
+      const [existingTickets] = await connection.query(
+        `
+        SELECT qt.queue_id, qt.queue_number, qt.queue_sequence, qt.status,
+               qt.is_priority, qt.issued_at, d.department_id, d.name AS department,
+               d.kiosk_id, d.est_time, p.transaction_id, p.location AS kiosk
+        FROM queue_ticket qt
+        INNER JOIN department d ON d.department_id = qt.department_id
+        INNER JOIN patient p ON p.transaction_id = qt.transaction_id
+        WHERE qt.queue_id = ?
+        LIMIT 1
+        FOR UPDATE
+        `,
+        [client_queue_id]
+      );
+
+      if (existingTickets.length) {
+        await connection.commit();
+        const existing = existingTickets[0];
+        return res.json({
+          success: true,
+          data: {
+            ...existing,
+            patient_number: existing.queue_number,
+            queue_type: Number(existing.is_priority) ? 'Priority' : 'Regular',
+          },
+        });
+      }
+    }
 
 
     /*
@@ -301,7 +335,7 @@ router.post("/queue", async (req, res) => {
       randomUUID();
 
     queueId =
-      randomUUID();
+      client_queue_id || randomUUID();
 
 
     /*

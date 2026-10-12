@@ -304,7 +304,6 @@ export function QueueProvider({ children }) {
     setCurrentlyServing(
       state?.currentlyServing || null
     )
-
     setActiveTickets(
       Array.isArray(state?.activeTickets)
         ? state.activeTickets
@@ -367,6 +366,7 @@ export function QueueProvider({ children }) {
     setCurrentlyServing(
       state?.currentlyServing || null
     )
+    if (Array.isArray(state?.activeTickets)) setActiveTickets(state.activeTickets)
 
     return state
   }
@@ -394,6 +394,7 @@ export function QueueProvider({ children }) {
     setCurrentlyServing(
       state?.currentlyServing || null
     )
+    if (Array.isArray(state?.activeTickets)) setActiveTickets(state.activeTickets)
 
     return state
   }
@@ -421,6 +422,7 @@ export function QueueProvider({ children }) {
     setCurrentlyServing(
       state?.currentlyServing || null
     )
+    if (Array.isArray(state?.activeTickets)) setActiveTickets(state.activeTickets)
 
     return state
   }
@@ -448,6 +450,7 @@ export function QueueProvider({ children }) {
     setCurrentlyServing(
       state?.currentlyServing || null
     )
+    if (Array.isArray(state?.activeTickets)) setActiveTickets(state.activeTickets)
 
     setStats({
       waiting:
@@ -510,6 +513,7 @@ export function QueueProvider({ children }) {
     setCurrentlyServing(
       state?.currentlyServing || null
     )
+    if (Array.isArray(state?.activeTickets)) setActiveTickets(state.activeTickets)
 
     setStats({
       waiting:

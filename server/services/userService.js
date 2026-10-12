@@ -439,11 +439,8 @@ r.permissions AS role_permissions,
            u.department_id
 
       LEFT JOIN \`position\` p
-        ON LOWER(
-          TRIM(p.name)
-        ) = LOWER(
-          TRIM(u.position)
-        )
+        ON (LOWER(TRIM(p.name)) COLLATE utf8mb4_unicode_ci) =
+           (LOWER(TRIM(u.position)) COLLATE utf8mb4_unicode_ci)
 
       ORDER BY
         u.last_name ASC,
@@ -567,11 +564,8 @@ r.permissions AS role_permissions,
            u.department_id
 
       LEFT JOIN \`position\` p
-        ON LOWER(
-          TRIM(p.name)
-        ) = LOWER(
-          TRIM(u.position)
-        )
+     ON LOWER(TRIM(p.name)) COLLATE utf8mb4_unicode_ci =
+   LOWER(TRIM(u.position)) COLLATE utf8mb4_unicode_ci
 
       WHERE u.user_id = ?
 
@@ -657,11 +651,8 @@ async function getUserByFirebaseUid(
            u.department_id
 
       LEFT JOIN \`position\` p
-        ON LOWER(
-          TRIM(p.name)
-        ) = LOWER(
-          TRIM(u.position)
-        )
+        ON (LOWER(TRIM(p.name)) COLLATE utf8mb4_unicode_ci) =
+           (LOWER(TRIM(u.position)) COLLATE utf8mb4_unicode_ci)
 
     WHERE u.firebase_uid = ?
 LIMIT 1
@@ -2784,12 +2775,8 @@ r.permissions AS role_permissions,
            u.department_id
 
       LEFT JOIN \`position\` p
-        ON LOWER(
-          TRIM(p.name)
-        ) = LOWER(
-          TRIM(u.position)
-        )
-
+        ON LOWER(TRIM(p.name)) COLLATE utf8mb4_unicode_ci =
+     LOWER(TRIM(u.position)) COLLATE utf8mb4_unicode_ci
       WHERE
         u.department_id = ?
 
@@ -2945,11 +2932,8 @@ r.permissions AS role_permissions,
            u.department_id
 
       LEFT JOIN \`position\` p
-        ON LOWER(
-          TRIM(p.name)
-        ) = LOWER(
-          TRIM(u.position)
-        )
+        ON (LOWER(TRIM(p.name)) COLLATE utf8mb4_unicode_ci) =
+           (LOWER(TRIM(u.position)) COLLATE utf8mb4_unicode_ci)
 
       WHERE LOWER(u.email) = ?
 

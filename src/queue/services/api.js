@@ -1,5 +1,6 @@
-const API_URL =
-  `${import.meta.env.VITE_API_URL || 'https://lightsteelblue-mandrill-330485.hostingersite.com/'}/api`
+import { API_URL } from './apiBase';
+import { offlineFetch } from './offlineFetch';
+import { addPendingOperation, getOfflineData, saveOfflineData } from './offlineStorage';
 
 /* ============================================================================
    DEMO DATA
@@ -434,19 +435,27 @@ export async function fetchQueueState(
     const queryString =
       params.toString()
 
+    const cacheKey = `api:queue-state:${departmentPrefix}:${terminalId || 'all'}`;
     const response =
-      await fetch(
+      await offlineFetch(
         `${API_URL}/staff-queue/state/${encodeURIComponent(
           departmentPrefix
         )}${
           queryString
             ? `?${queryString}`
-            : ''
-        }`
+          : ''
+        }`,
+        {},
+        { cacheKey }
       )
 
     const result =
       await response.json()
+
+    if (response.headers.get('X-Offline-Cache') === '1') {
+      const localState = await getOfflineData(`queue-state:${departmentPrefix}:${terminalId || 'all'}`).catch(() => null);
+      if (localState) return localState;
+    }
 
     if (!response.ok) {
       throw new Error(
@@ -527,7 +536,7 @@ export async function fetchQueueState(
         ) || 0
     }
 
-    return {
+    const normalizedState = {
       waitingQueue,
 
       currentlyServing,
@@ -536,6 +545,8 @@ export async function fetchQueueState(
 
       stats
     }
+    await saveOfflineData(`queue-state:${departmentPrefix}:${terminalId || 'all'}`, normalizedState).catch(() => {});
+    return normalizedState
   } catch (error) {
     console.error(
       'Node.js queue state error:',
@@ -544,6 +555,46 @@ export async function fetchQueueState(
 
     throw error
   }
+}
+
+async function applyOfflineQueueAction(action, departmentPrefix, terminalId, requestUrl, body) {
+  const cacheKey = `queue-state:${departmentPrefix}:${terminalId}`;
+  const state = await getOfflineData(cacheKey).catch(() => null);
+  const current = state?.currentlyServing;
+  if (!state || !current) throw new Error('No cached active patient is available for this offline action.');
+
+  const now = new Date().toISOString();
+  let serving = { ...current, _offline_pending: true };
+  const stats = { ...state.stats };
+  let activeTickets = [...(state.activeTickets || [])];
+
+  if (action === 'arrived') serving = { ...serving, arrived_at: now, arrivedAt: now };
+  if (action === 'start') serving = { ...serving, status: 'serving', service_began_at: now, serviceBeganAt: now, secondsElapsed: 0 };
+  if (action === 'recall') serving = { ...serving, called_at: now, calledAt: now, recallCount: Number(serving.recallCount || 0) + 1 };
+  if (action === 'complete' || action === 'skip') {
+    serving = null;
+    activeTickets = activeTickets.filter((item) => item.counterId !== terminalId && item.dbId !== current.dbId);
+    if (action === 'complete') stats.completed = Number(stats.completed || 0) + 1;
+    else stats.skipped = Number(stats.skipped || 0) + 1;
+    stats.currentlyServing = Math.max(0, Number(stats.currentlyServing || 0) - 1);
+  } else {
+    activeTickets = [...activeTickets.filter((item) => item.dbId !== current.dbId), serving];
+  }
+
+  const updated = { ...state, currentlyServing: serving, activeTickets, stats };
+  await addPendingOperation({
+    type: 'STAFF_QUEUE_ACTION',
+    request: {
+      url: requestUrl,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, queueId: current.dbId }),
+    },
+  });
+  await saveOfflineData(cacheKey, updated);
+
+  if (action === 'complete' || action === 'skip') return { currentlyServing: null, stats, activeTickets };
+  return { currentlyServing: serving, activeTickets };
 }
 
 /* ============================================================================
@@ -575,21 +626,20 @@ export async function callNextPatient(
     )
   }
 
+  const requestUrl = `${API_URL}/staff-queue/call-next/${encodeURIComponent(departmentPrefix)}`;
+  const requestBody = { terminalId, queueId: null };
+
   try {
     const response =
       await fetch(
-        `${API_URL}/staff-queue/call-next/${encodeURIComponent(
-          departmentPrefix
-        )}`,
+        requestUrl,
         {
           method: 'POST',
           headers: {
             'Content-Type':
               'application/json'
           },
-          body: JSON.stringify({
-            terminalId: terminalId || null
-          })
+          body: JSON.stringify(requestBody)
         }
       )
 
@@ -621,6 +671,28 @@ export async function callNextPatient(
       { terminalId }
     )
   } catch (error) {
+    if (error instanceof TypeError) {
+      const cacheKey = `queue-state:${departmentPrefix}:${terminalId}`;
+      const state = await getOfflineData(cacheKey).catch(() => null);
+      const patient = state?.waitingQueue?.[0];
+      if (!patient) throw new Error('No cached waiting queue is available for offline calling.');
+      const calledAt = new Date().toISOString();
+      const current = { ...patient, status: 'called', counterId: terminalId, calledAt, called_at: calledAt, _offline_pending: true };
+      const updated = {
+        ...state,
+        waitingQueue: state.waitingQueue.slice(1),
+        currentlyServing: current,
+        activeTickets: [...(state.activeTickets || []).filter((item) => item.counterId !== terminalId), current],
+        stats: { ...state.stats, waiting: Math.max(0, Number(state.stats?.waiting || 0) - 1), currentlyServing: Number(state.stats?.currentlyServing || 0) + 1 },
+      };
+      requestBody.queueId = patient.dbId;
+      await addPendingOperation({
+        type: 'STAFF_QUEUE_ACTION',
+        request: { url: requestUrl, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) },
+      });
+      await saveOfflineData(cacheKey, updated);
+      return updated;
+    }
     console.error(
       'Call next patient error:',
       error
@@ -696,6 +768,7 @@ export async function markPatientArrived(
           : null
     }
   } catch (error) {
+    if (error instanceof TypeError) return applyOfflineQueueAction('arrived', departmentPrefix, terminalId, `${API_URL}/staff-queue/arrived/${encodeURIComponent(departmentPrefix)}`, { terminalId });
     console.error(
       'Mark patient arrived error:',
       error
@@ -762,6 +835,7 @@ export async function startService(
           : null
     }
   } catch (error) {
+    if (error instanceof TypeError) return applyOfflineQueueAction('start', departmentPrefix, terminalId, `${API_URL}/staff-queue/start-service/${encodeURIComponent(departmentPrefix)}`, { terminalId });
     console.error(
       'Start service error:',
       error
@@ -828,6 +902,7 @@ export async function recallCurrentPatient(
           : null
     }
   } catch (error) {
+    if (error instanceof TypeError) return applyOfflineQueueAction('recall', departmentPrefix, terminalId, `${API_URL}/staff-queue/recall/${encodeURIComponent(departmentPrefix)}`, { terminalId });
     console.error(
       'Recall patient error:',
       error
@@ -912,6 +987,7 @@ export async function completeCurrentPatient(
       }
     }
   } catch (error) {
+    if (error instanceof TypeError) return applyOfflineQueueAction('complete', departmentPrefix, terminalId, `${API_URL}/staff-queue/complete/${encodeURIComponent(departmentPrefix)}`, { terminalId });
     console.error(
       'Complete patient error:',
       error
@@ -1000,6 +1076,7 @@ export async function skipCurrentPatient(
       }
     }
   } catch (error) {
+    if (error instanceof TypeError) return applyOfflineQueueAction('skip', departmentPrefix, terminalId, `${API_URL}/staff-queue/cancel/${encodeURIComponent(departmentPrefix)}`, { terminalId, reason: reason || null });
     console.error(
       'Skip patient error:',
       error

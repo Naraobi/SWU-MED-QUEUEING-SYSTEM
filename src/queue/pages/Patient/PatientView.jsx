@@ -19,10 +19,9 @@ import {
 import {
   getOfflineData,
   saveOfflineData,
-  addPendingOperation,
+  removeOfflineData,
 } from '../../services/offlineStorage';
 
-import { syncPendingOperations } from '../../services/queueSync';
 
 import {
   ArrowRight,
@@ -53,6 +52,7 @@ import { QRCodeSVG } from 'qrcode.react';
 
 import logoImage from '../../../assets/logo-transparent.png';
 import { THEME } from '../../theme/colors';
+import { usePatientBranding } from '../../services/patientBranding';
 const TransitionContext = createContext({ leaving: false });
 
 const EXIT_MS = 140;
@@ -390,10 +390,11 @@ async function checkKioskUnlocked(kioskId) {
 ========================================================= */
 
 function Wordmark({ size = 'h-10' }) {
+  const { logo, systemName } = usePatientBranding();
   return (
     <img
-      src={logoImage}
-      alt="SWU Med"
+      src={logo || logoImage}
+      alt={systemName}
       className={`${size} w-auto object-contain mix-blend-multiply`}
     />
   );
@@ -740,6 +741,7 @@ function NavButtons({
 ========================================================= */
 
 function WelcomeScreen({ onStart }) {
+  const { systemName } = usePatientBranding();
   return (
     <Screen stepKey="welcome">
       <div className="flex flex-col items-center px-2 py-10 text-center">
@@ -753,7 +755,7 @@ function WelcomeScreen({ onStart }) {
           </h1>
 
           <h1 className="text-2xl font-bold text-[#9D0A0E]">
-            SWU Med Hospital
+            {systemName}
           </h1>
 
           <p className="mt-3 text-sm text-slate-500">
@@ -1950,6 +1952,7 @@ function PrintedTicketReceipt({
 export default function PatientView({
   kioskId = null,
 }) {
+  const { systemName } = usePatientBranding();
   /* =======================================================
      PATIENT FLOW STATE
   ======================================================= */
@@ -2013,6 +2016,18 @@ export default function PatientView({
 
   const [queueId, setQueueId] =
     useState('');
+
+  useEffect(() => {
+    getOfflineData('patient:active-ticket').then((ticket) => {
+      if (!ticket?.queueId || !ticket?.queueNumber) return;
+      setQueueId(String(ticket.queueId));
+      setQueueNumber(ticket.queueNumber);
+      setKiosk(ticket.kiosk || null);
+      setService(ticket.service || null);
+      setQueueType(ticket.queueType || null);
+      setStepState('ticket');
+    }).catch(() => {});
+  }, []);
 
   const [isGenerating, setIsGenerating] =
     useState(false);
@@ -2224,47 +2239,6 @@ export default function PatientView({
   }, [step]);
 
   /* =======================================================
-     AUTOMATIC OFFLINE QUEUE SYNCHRONIZATION
-  ======================================================= */
-
-  useEffect(() => {
-    console.log(
-      'QUEUE SYNC: initializing...'
-    );
-
-    syncPendingOperations();
-
-    const handleOnline = () => {
-      console.log(
-        'QUEUE SYNC: connection restored. Starting synchronization...'
-      );
-
-      syncPendingOperations();
-    };
-
-    window.addEventListener(
-      'online',
-      handleOnline
-    );
-
-    const syncInterval =
-      setInterval(() => {
-        syncPendingOperations();
-      }, 10000);
-
-    return () => {
-      window.removeEventListener(
-        'online',
-        handleOnline
-      );
-
-      clearInterval(
-        syncInterval
-      );
-    };
-  }, []);
-
-  /* =======================================================
      UPDATE OFFLINE TICKET AFTER SYNC
   ======================================================= */
 
@@ -2298,6 +2272,18 @@ export default function PatientView({
         setQueueNumber(
           queue_number
         );
+
+        getOfflineData('patient:active-ticket').then((ticket) => {
+          if (ticket?.queueId === local_id) {
+            return saveOfflineData('patient:active-ticket', {
+              ...ticket,
+              queueId: String(queue_id),
+              queueNumber: queue_number,
+              pendingSync: false,
+            });
+          }
+          return undefined;
+        }).catch(() => {});
 
         setService(
           (current) =>
@@ -2626,6 +2612,7 @@ async function handleStart() {
 
       setQueueNumber('');
       setQueueId('');
+      removeOfflineData('patient:active-ticket').catch(() => {});
 
       setIsGenerating(false);
 
@@ -2752,6 +2739,12 @@ try {
         );
       }
 
+      if (!result.queue_number && result.pending_sync) {
+        const prefix = service.prefix || service.queuePrefix || 'Q';
+        const suffix = String(result.queue_id).replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase();
+        result.queue_number = `${queueType.key === 'priority' ? 'P-' : ''}${prefix}-OFF-${suffix}`;
+      }
+
       if (!result.queue_number) {
         throw new Error(
           'Queue was created, but no queue number was returned.'
@@ -2770,6 +2763,19 @@ try {
       setQueueNumber(
         result.queue_number
       );
+
+      await saveOfflineData('patient:active-ticket', {
+        queueId: String(result.queue_id),
+        queueNumber: result.queue_number,
+        queueType,
+        kiosk,
+        service,
+        pendingSync: Boolean(result.pending_sync),
+      }).catch(() => {});
+
+      if (result.pending_sync) {
+        console.info('Patient ticket saved on this device and will sync when online.');
+      }
 
       /* ---------------------------------------------
          UPDATE SERVICE

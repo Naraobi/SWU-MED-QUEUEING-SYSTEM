@@ -1721,6 +1721,9 @@ async function fetchRoles() {
 
   useEffect(() => {
     loadData();
+    const handleSyncedChange = () => loadData();
+    window.addEventListener('offline-sync-success', handleSyncedChange);
+    return () => window.removeEventListener('offline-sync-success', handleSyncedChange);
   }, []);
 
   useEffect(() => {

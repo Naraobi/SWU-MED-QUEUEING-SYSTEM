@@ -41,6 +41,7 @@ const reportsRoutes = require("./routes/reportsRoutes");
 const securityPinRoutes = require("./routes/securityPinRoutes");
 const positionRoutes = require("./routes/positionRoutes");
 const trackerRoutes = require("./routes/trackerRoutes");
+const brandingRoutes = require("./routes/brandingRoutes");
 const app = express();
 const server = http.createServer(app);
 
@@ -71,7 +72,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 
 // =====================================================
 // API ROUTES
@@ -136,6 +137,7 @@ app.use(
 );
 
 app.use("/api/tracker", trackerRoutes);
+app.use("/api/branding", brandingRoutes);
 
 // =====================================================
 // BASIC BACKEND TEST

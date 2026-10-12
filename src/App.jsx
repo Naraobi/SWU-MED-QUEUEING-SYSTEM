@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { AuthProvider, useAuth } from './queue/services/Authcontext';
 import ProtectedRoute from './queue/pages/SuperAdmin/Protectedroute';
 import Login from './queue/pages/SuperAdmin/Login';
@@ -13,6 +14,22 @@ import TerminalSelectionPage from './queue/pages/Staff/TerminalSelectionPage';
 import { StaffPreferencesProvider } from './queue/pages/Staff/StaffPreferencesContext';
 import { QueueProvider } from './queue/context/QueueContext';
 import OfflineIndicator from './queue/components/OfflineIndicator';
+import { syncPendingOperations } from './queue/services/queueSync';
+import { PatientBrandingProvider } from './queue/services/patientBranding';
+
+function OfflineSync() {
+  useEffect(() => {
+    const sync = () => syncPendingOperations();
+    sync();
+    window.addEventListener('online', sync);
+    const interval = window.setInterval(sync, 15000);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.clearInterval(interval);
+    };
+  }, []);
+  return null;
+}
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -51,8 +68,10 @@ function App() {
   return (
     <AuthProvider>
       <QueueProvider>
+        <PatientBrandingProvider>
         <BrowserRouter>
         <OfflineIndicator />
+        <OfflineSync />
         
           <Routes>
             <Route path="/" element={<RootRedirect />} />
@@ -134,6 +153,7 @@ function App() {
             />
           </Routes>
         </BrowserRouter>
+        </PatientBrandingProvider>
       </QueueProvider>
     </AuthProvider>
   );

@@ -471,7 +471,7 @@ router.post(
       // worse, let it act on) another terminal's patient. Every terminal
       // in a department can serve a different patient simultaneously, so
       // "active" is only ever meaningful per-terminal.
-      const { terminalId } = req.body || {};
+      const { terminalId, queueId } = req.body || {};
 
       if (!terminalId) {
         // No transaction has started yet — nothing to roll back, just
@@ -485,6 +485,29 @@ router.post(
       }
 
       await connection.beginTransaction();
+
+      // A call queued by an offline terminal may be retried after the server
+      // committed the first request but its response was lost. Treat the same
+      // ticket/terminal pair as already applied instead of returning the next
+      // patient or blocking the retry behind the active-patient guard.
+      if (queueId) {
+        const [retriedRows] = await connection.query(
+          `
+          SELECT qt.queue_id, qt.queue_number, qt.status, qt.counter_id
+          FROM queue_ticket qt
+          INNER JOIN department d ON d.department_id = qt.department_id
+          WHERE qt.queue_id = ? AND d.prefix = ?
+          LIMIT 1
+          FOR UPDATE
+          `,
+          [queueId, departmentPrefix]
+        );
+        const retried = retriedRows[0];
+        if (retried && ['called', 'serving'].includes(retried.status) && String(retried.counter_id) === String(terminalId)) {
+          await connection.commit();
+          return res.json({ success: true, message: 'Patient was already called by this terminal.', currentlyServing: retried });
+        }
+      }
 
       const [activeRows] =
         await connection.query(
@@ -558,6 +581,7 @@ router.post(
           WHERE d.prefix = ?
             AND DATE(qt.issued_at) = CURDATE()
             AND qt.status = 'waiting'
+            AND (? IS NULL OR qt.queue_id = ?)
 
           ORDER BY
             qt.is_priority DESC,
@@ -567,7 +591,7 @@ router.post(
 
           FOR UPDATE
           `,
-          [departmentPrefix]
+          [departmentPrefix, queueId || null, queueId || null]
         );
 
       if (nextRows.length === 0) {

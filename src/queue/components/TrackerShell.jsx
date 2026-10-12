@@ -1,14 +1,16 @@
 import React from 'react'
 import logo from '../../assets/logo.png'
+import { usePatientBranding } from '../services/patientBranding';
 
 export default function TrackerShell({ title, subtitle, children, footer }) {
+  const branding = usePatientBranding();
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#EAF3FB] px-4 py-8">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-lg sm:max-w-lg md:max-w-xl">
         <div className="px-6 pt-6 pb-4 text-center">
       <img
-  src={logo}
-  alt="SWU Med"
+  src={branding.logo || logo}
+  alt={branding.systemName}
   className="mx-auto h-14 w-auto object-contain"
 />
           {title && (

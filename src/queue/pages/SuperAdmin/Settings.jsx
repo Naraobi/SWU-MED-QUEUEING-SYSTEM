@@ -770,12 +770,22 @@ export default function Settings() {
   } = useSuperAdminAppearance();
 
   const [justSaved, setJustSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
 
-  function handleSaveSettings() {
-    if (!isDirty) return;
-    saveSettings();
-    setJustSaved(true);
-    setTimeout(() => setJustSaved(false), 2000);
+  async function handleSaveSettings() {
+    if (!isDirty || savingSettings) return;
+    setSavingSettings(true);
+    setSaveError('');
+    try {
+      await saveSettings();
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2000);
+    } catch (error) {
+      setSaveError(error?.message || 'Could not publish the branding changes.');
+    } finally {
+      setSavingSettings(false);
+    }
   }
 
   // Covers a closed tab / browser refresh the in-app nav guard can't see.
@@ -955,7 +965,7 @@ export default function Settings() {
           <button
             type="button"
             onClick={discardSettings}
-            disabled={!isDirty}
+            disabled={!isDirty || savingSettings}
             className={`rounded-lg border px-4 py-2 text-xs font-semibold transition-colors ${
               isDirty
                 ? 'border-[#E5E7EB] bg-white text-[#1F2937] hover:bg-[#F1F3F5]'
@@ -968,7 +978,7 @@ export default function Settings() {
           <button
             type="button"
             onClick={handleSaveSettings}
-            disabled={!isDirty}
+            disabled={!isDirty || savingSettings}
             className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-sm transition-colors ${
               isDirty
                 ? 'bg-[#9D0A0E] text-white hover:bg-[#7d0809]'
@@ -976,10 +986,11 @@ export default function Settings() {
             }`}
           >
             {justSaved ? <Check size={14} /> : <Save size={14} />}
-            {justSaved ? t('sa.settings.saved') : t('sa.settings.saveChanges')}
+            {savingSettings ? 'Publishing…' : justSaved ? t('sa.settings.saved') : t('sa.settings.saveChanges')}
           </button>
         </div>
       </div>
+      {saveError && <p role="alert" className="mt-2 text-right text-xs text-[#9D0A0E]">{saveError}</p>}
 
       {/* =====================================================
           BRANDING & IDENTITY

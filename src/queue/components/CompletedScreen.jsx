@@ -1,8 +1,10 @@
 import React from 'react'
 import { Check } from 'lucide-react'
 import TrackerShell from './TrackerShell.jsx'
+import { usePatientBranding } from '../services/patientBranding';
 
 export default function CompletedScreen({ ticket }) {
+  const branding = usePatientBranding();
   // Priority tickets carry a "P-" prefix; they render in brand red.
   const isPriority = String(ticket.queueNumber || '')
     .toUpperCase()
@@ -13,7 +15,7 @@ export default function CompletedScreen({ ticket }) {
   return (
     <TrackerShell
       title="Patient Queue Tracker"
-      footer="Thank you for using SWUMed Hospital Queue Tracker."
+      footer={`Thank you for using ${branding.systemName}.`}
     >
       <div className="rounded-xl border border-[#E5E7EB] px-6 py-7 text-center shadow-sm">
 
