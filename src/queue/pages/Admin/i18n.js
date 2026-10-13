@@ -573,6 +573,26 @@ const en = {
   'modal.dark': 'Dark',
   'modal.device': 'Device',
   'modal.themeNote': "Light/Dark is applied immediately. The accent color is saved, but the rest of the admin pages don't read it yet — that's a follow-up, not something quietly faked here.",
+
+  // ---- TV layout (Lobby TV Video) ----
+  'tvLayout.title': 'TV layout',
+  'tvLayout.videoSize': 'Video size',
+  'tvLayout.presetSmall': 'Small video',
+  'tvLayout.presetBalanced': 'Balanced',
+  'tvLayout.presetLarge': 'Large video',
+  'tvLayout.reset': 'Reset',
+  'tvLayout.saved': 'TV layout saved.',
+  'tvLayout.saveFailed': 'Could not save the TV layout. Please try again.',
+  'tvLayout.previewDepartments': 'Departments',
+  'tvLayout.previewVideo': 'Video',
+  'tvLayout.applyAll': 'Apply to all kiosks',
+  'tvLayout.applyAllBusy': 'Applying...',
+  'tvLayout.applyAllDone': 'TV size applied to {n} kiosks.',
+  'tvLayout.applyAllFailed': 'Could not apply the TV size to {n} kiosk(s).',
+
+  // ---- TV display ----
+  'tvPage.page': 'Page {current}/{total}',
+  'tvPage.resetLayout': 'Reset to admin size',
 };
 
 const fil = {
@@ -1048,6 +1068,26 @@ const fil = {
   'modal.dark': 'Madilim',
   'modal.device': 'Device',
   'modal.themeNote': 'Kaagad na naaapply ang Light/Dark. Naka-save ang accent color, pero hindi pa ito nababasa ng ibang admin pages — susunod na gawain ito, hindi lihim na pinapanggap dito.',
+
+  // ---- TV layout (Lobby TV Video) ----
+  'tvLayout.title': 'Layout ng TV',
+  'tvLayout.videoSize': 'Laki ng video',
+  'tvLayout.presetSmall': 'Maliit na video',
+  'tvLayout.presetBalanced': 'Balanse',
+  'tvLayout.presetLarge': 'Malaking video',
+  'tvLayout.reset': 'I-reset',
+  'tvLayout.saved': 'Nai-save ang layout ng TV.',
+  'tvLayout.saveFailed': 'Hindi ma-save ang layout ng TV. Pakisubukan muli.',
+  'tvLayout.previewDepartments': 'Mga Departamento',
+  'tvLayout.previewVideo': 'Video',
+  'tvLayout.applyAll': 'I-apply sa lahat ng kiosk',
+  'tvLayout.applyAllBusy': 'Ina-apply...',
+  'tvLayout.applyAllDone': 'Na-apply ang laki ng TV sa {n} kiosk.',
+  'tvLayout.applyAllFailed': 'Hindi na-apply ang laki ng TV sa {n} kiosk.',
+
+  // ---- TV display ----
+  'tvPage.page': 'Pahina {current}/{total}',
+  'tvPage.resetLayout': 'I-reset sa laki ng admin',
 };
 
 const ceb = {
@@ -1523,6 +1563,26 @@ const ceb = {
   'modal.dark': 'Ngitngit',
   'modal.device': 'Device',
   'modal.themeNote': 'Diretso na-apply ang Light/Dark. Na-save ang accent color, apan wala pa kini gibasa sa ubang admin pages — sunod nga buhaton na lang, dili tinago nga gipakaaron-ingnon dinhi.',
+
+  // ---- TV layout (Lobby TV Video) ----
+  'tvLayout.title': 'Layout sa TV',
+  'tvLayout.videoSize': 'Kadako sa video',
+  'tvLayout.presetSmall': 'Gamay nga video',
+  'tvLayout.presetBalanced': 'Balanse',
+  'tvLayout.presetLarge': 'Dako nga video',
+  'tvLayout.reset': 'I-reset',
+  'tvLayout.saved': 'Na-save ang layout sa TV.',
+  'tvLayout.saveFailed': 'Dili ma-save ang layout sa TV. Palihug sulayi pag-usab.',
+  'tvLayout.previewDepartments': 'Mga Departamento',
+  'tvLayout.previewVideo': 'Video',
+  'tvLayout.applyAll': 'I-apply sa tanan nga kiosk',
+  'tvLayout.applyAllBusy': 'Gi-apply...',
+  'tvLayout.applyAllDone': 'Na-apply ang kadako sa TV sa {n} ka kiosk.',
+  'tvLayout.applyAllFailed': 'Wala na-apply ang kadako sa TV sa {n} ka kiosk.',
+
+  // ---- TV display ----
+  'tvPage.page': 'Panid {current}/{total}',
+  'tvPage.resetLayout': 'I-reset sa gidak-on sa admin',
 };
 
 const TRANSLATIONS = { en, fil, ceb };

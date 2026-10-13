@@ -55,9 +55,52 @@ import { useLanguage } from '../../services/language';
  */
 
 const POLL_MS = 5000;
-const MAX_DEPARTMENTS = 4;
-const WAITING_ROWS = 2;
 const SETTINGS_KEY = 'swumed_tv_video_settings';
+
+// The left grid shows up to this many departments at once. A longer list
+// rotates through pages instead of overflowing the screen.
+const TV_PAGE_SIZE = 8;
+const TV_PAGE_ROTATE_MS = 10000;
+
+// How much of the split the VIDEO panel takes, as a percentage.
+// Set from Admin Settings -> Lobby TV Video, saved at
+// kiosks/<kioskId>/settings/tvLayout. 25-75, default 50.
+const DEFAULT_VIDEO_WIDTH = 50;
+const VIDEO_WIDTH_MIN = 25;
+const VIDEO_WIDTH_MAX = 75;
+
+function clampVideoWidth(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_VIDEO_WIDTH;
+  return Math.min(VIDEO_WIDTH_MAX, Math.max(VIDEO_WIDTH_MIN, Math.round(n)));
+}
+
+const layoutOverrideKey = (kioskId) => `swu-tv-layout-override-${kioskId}`;
+
+const tvLayoutDoc = (kioskId) =>
+  doc(getFirestore(auth.app), 'kiosks', String(kioskId), 'settings', 'tvLayout');
+
+/*
+ * Equal-height grid that always fills its whole area, no gaps and no scroll:
+ *   n = 1      -> 1 column x 1 row
+ *   n = 2      -> 1 column x 2 rows (stacked)
+ *   n odd, 2col-> the last card spans both columns
+ * Columns are 1 for one or two departments, otherwise 2; rows fill out the
+ * rest so every card stretches to fill its row.
+ */
+function gridFor(count) {
+  const columns = count === 1 || count === 2 ? 1 : 2;
+  const rows = Math.max(1, Math.ceil(count / columns));
+  const spanLast = columns === 2 && count % 2 === 1;
+  return { columns, rows, spanLast };
+}
+
+// Waiting chips per lane: 3 for 1-2 departments, 2 for 3-4, 1 for 5+.
+function waitingRowsFor(count) {
+  if (count <= 2) return 3;
+  if (count <= 4) return 2;
+  return 1;
+}
 
 // Uploading is done from Admin / Super Admin Settings -> Lobby TV Video.
 // Set to true to bring the local upload panel (and "Replace video") back on
@@ -364,7 +407,15 @@ function useKioskQueue(kioskId) {
       const results = await Promise.all(
         (Array.isArray(list) ? list : [])
           .filter((d) => d.prefix)
-          .slice(0, MAX_DEPARTMENTS)
+          // A stable order, so cards keep their place between polls even
+          // though the server may return the list in a different order.
+          .sort(
+            (a, b) =>
+              String(a.name || '').localeCompare(String(b.name || '')) ||
+              String(a.department_id || a.prefix || '').localeCompare(
+                String(b.department_id || b.prefix || '')
+              )
+          )
           .map(async (department) => {
             try {
               const queue = await fetchQueueState(department.prefix);
@@ -519,7 +570,7 @@ function useAnnouncer(departments, mode) {
 function QueueChip({ ticket, priority }) {
   return (
     <div
-      className={`shrink-0 rounded-md px-3 py-1 text-center text-sm font-bold ${
+      className={`shrink-0 rounded-md px-3.5 py-1.5 text-center font-bold text-[clamp(0.8rem,1vw,1.15rem)] ${
         priority
           ? 'bg-[#FBF1F1] text-[#9D0A0E]'
           : 'bg-[#EFF4FA] text-[#1F2937]'
@@ -537,29 +588,29 @@ function QueueChip({ ticket, priority }) {
  * than spilling, so a busy department can never push a ticket outside the
  * card. Whatever does not fit is counted instead of being silently dropped.
  */
-function QueueLane({ label, tickets, priority }) {
+function QueueLane({ label, tickets, priority, waitingRows }) {
   const next = tickets[0]?.id || '\u2014';
-  const rows = tickets.slice(1, WAITING_ROWS + 1);
-  const hidden = Math.max(0, tickets.length - WAITING_ROWS - 1);
+  const rows = tickets.slice(1, waitingRows + 1);
+  const hidden = Math.max(0, tickets.length - waitingRows - 1);
 
   return (
-    <div className="flex min-h-0 flex-col gap-1.5">
+    <div className="flex min-h-0 flex-col gap-2">
       <div
-        className={`shrink-0 rounded-md border px-2 py-1.5 text-center ${
+        className={`shrink-0 rounded-md border px-3 py-2 text-center ${
           priority
             ? 'border-[#F0DADA] bg-[#FBF1F1]'
             : 'border-[#E5E7EB] bg-[#EFF4FA]'
         }`}
       >
         <span
-          className={`inline-block rounded px-1.5 py-0.5 text-xs font-bold uppercase text-white ${
+          className={`inline-block rounded px-2 py-0.5 text-[clamp(0.7rem,0.85vw,0.95rem)] font-bold uppercase text-white ${
             priority ? 'bg-[#9D0A0E]' : 'bg-[#1F2937]'
           }`}
         >
           {label}
         </span>
 
-        <p className="mt-1 truncate text-xs text-[#4B5563]">
+        <p className="mt-1 truncate text-[clamp(0.72rem,0.88vw,1rem)] text-[#4B5563]">
           Next:{' '}
           <span className={`font-bold ${priority ? 'text-[#9D0A0E]' : 'text-[#1F2937]'}`}>
             {next}
@@ -567,7 +618,7 @@ function QueueLane({ label, tickets, priority }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         {rows.map((ticket) => (
           <QueueChip
             key={ticket.uniqueKey || ticket.id}
@@ -577,7 +628,7 @@ function QueueLane({ label, tickets, priority }) {
         ))}
 
         {hidden > 0 && (
-          <p className="shrink-0 text-center text-[10px] font-medium text-[#9CA3AF]">
+          <p className="shrink-0 text-center text-[clamp(0.6rem,0.75vw,0.85rem)] font-medium text-[#9CA3AF]">
             +{hidden} more waiting
           </p>
         )}
@@ -586,17 +637,20 @@ function QueueLane({ label, tickets, priority }) {
   );
 }
 
-function DepartmentCard({ department }) {
+function DepartmentCard({ department, waitingRows, bigNumber, span }) {
   const { name, code, serving, servingTerminal, priority, regular } = department;
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+    <div
+      style={span ? { gridColumn: '1 / -1' } : undefined}
+      className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-sm"
+    >
       <div className="flex shrink-0 items-center justify-between gap-2">
-        <p className="truncate text-xs font-bold uppercase tracking-wide text-[#1F2937]">
+        <p className="truncate font-bold uppercase tracking-wide text-[#1F2937] text-[clamp(0.85rem,1.15vw,1.25rem)]">
           {name}
         </p>
         {code && (
-          <span className="shrink-0 rounded bg-[#F1F3F5] px-1.5 py-0.5 text-xs font-medium text-[#9CA3AF]">
+          <span className="shrink-0 rounded bg-[#F1F3F5] px-2 py-0.5 text-[clamp(0.7rem,0.88vw,1rem)] font-medium text-[#9CA3AF]">
             {code}
           </span>
         )}
@@ -605,19 +659,25 @@ function DepartmentCard({ department }) {
       {/* now serving - keyed on the call so a recall re-animates the number */}
       <div
         key={serving ? callSignature(serving, servingTerminal) : 'idle'}
-        className={`mt-2 shrink-0 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-3 py-2.5 text-center ${
+        className={`mt-3 shrink-0 rounded-lg border border-[#E5E7EB] bg-[#F8F9FA] px-4 py-3 text-center ${
           serving ? 'swu-pop' : ''
         }`}
       >
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+        <p className="text-[clamp(0.7rem,0.9vw,1rem)] font-semibold uppercase tracking-wide text-[#9CA3AF]">
           Now Serving
         </p>
 
-        <p className={`mt-0.5 text-3xl font-extrabold ${serving ? 'text-[#9D0A0E]' : 'text-[#D1D5DB]'}`}>
+        <p
+          className={`mt-1 font-extrabold leading-none ${
+            bigNumber
+              ? 'text-[clamp(2.5rem,4.5vw,5rem)]'
+              : 'text-[clamp(2rem,3.2vw,3.5rem)]'
+          } ${serving ? 'text-[#9D0A0E]' : 'text-[#D1D5DB]'}`}
+        >
           {serving?.id || '---'}
         </p>
 
-        <p className="mt-0.5 text-xs text-[#4B5563]">
+        <p className="mt-1.5 text-[clamp(0.78rem,1vw,1.15rem)] text-[#4B5563]">
           {serving
             ? servingTerminal
               ? `\u2192 Proceed to Terminal ${servingTerminal}`
@@ -626,7 +686,7 @@ function DepartmentCard({ department }) {
         </p>
       </div>
 
-      <p className="mt-2.5 shrink-0 text-center text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+      <p className="mt-3 shrink-0 text-center text-[clamp(0.7rem,0.9vw,1rem)] font-semibold uppercase tracking-wide text-[#9CA3AF]">
         Waiting Queue
       </p>
 
@@ -636,9 +696,9 @@ function DepartmentCard({ department }) {
         Without min-h-0 + overflow-hidden the chips are drawn PAST the card's
         rounded border and the grid slices them in half - that was the bug.
       */}
-      <div className="mt-2 grid min-h-0 flex-1 grid-cols-2 gap-2">
-        <QueueLane label="Priority" tickets={priority} priority />
-        <QueueLane label="Regular" tickets={regular} priority={false} />
+      <div className="mt-2.5 grid min-h-0 flex-1 grid-cols-2 gap-2.5">
+        <QueueLane label="Priority" tickets={priority} priority waitingRows={waitingRows} />
+        <QueueLane label="Regular" tickets={regular} priority={false} waitingRows={waitingRows} />
       </div>
     </div>
   );
@@ -918,6 +978,130 @@ function useKioskName(kioskId, enabled) {
   return name;
 }
 
+/* ---------------------------------------------------------------
+   Adjustable split between the departments and the video panel.
+
+   Priority: this screen's local override (set by the optional on-screen
+   adjuster in edit mode) wins here only; otherwise the admin's value from
+   Firestore (kiosks/<id>/settings/tvLayout); otherwise the 50% default.
+--------------------------------------------------------------- */
+
+function useTvLayout(kioskId) {
+  // The value is kept with the kiosk it was read for, so a different kiosk
+  // never briefly shows the previous one's width.
+  const [remote, setRemote] = useState({ kioskId: null, value: null });
+  const [override, setOverride] = useState(null);
+
+  useEffect(() => {
+    if (!kioskId) return undefined;
+
+    return onSnapshot(
+      tvLayoutDoc(kioskId),
+      (snap) => {
+        const raw = snap.exists() ? snap.data()?.videoWidthPercent : null;
+        setRemote({ kioskId: String(kioskId), value: raw == null ? null : clampVideoWidth(raw) });
+      },
+      () => setRemote({ kioskId: String(kioskId), value: null })
+    );
+  }, [kioskId]);
+
+  useEffect(() => {
+    if (!kioskId) {
+      setOverride(null);
+      return;
+    }
+
+    try {
+      const raw = localStorage.getItem(layoutOverrideKey(kioskId));
+      setOverride(raw == null ? null : clampVideoWidth(raw));
+    } catch {
+      setOverride(null);
+    }
+  }, [kioskId]);
+
+  const saveOverride = useCallback(
+    (value) => {
+      const next = clampVideoWidth(value);
+      setOverride(next);
+      try {
+        localStorage.setItem(layoutOverrideKey(kioskId), String(next));
+      } catch {
+        // Storage blocked; the choice just lasts until the page reloads.
+      }
+    },
+    [kioskId]
+  );
+
+  const clearOverride = useCallback(() => {
+    setOverride(null);
+    try {
+      localStorage.removeItem(layoutOverrideKey(kioskId));
+    } catch {
+      /* ignore */
+    }
+  }, [kioskId]);
+
+  const remoteValue = remote.kioskId === String(kioskId) ? remote.value : null;
+
+  return {
+    value: override ?? remoteValue ?? DEFAULT_VIDEO_WIDTH,
+    override,
+    saveOverride,
+    clearOverride,
+  };
+}
+
+// Below this width the split is ignored and the two sections stack instead.
+function useNarrowScreen(max = 900) {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < max
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const query = window.matchMedia(`(max-width: ${max - 1}px)`);
+    const update = () => setNarrow(query.matches);
+
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, [max]);
+
+  return narrow;
+}
+
+/*
+ * More than TV_PAGE_SIZE departments are shown in pages of 8, rotating every
+ * 10 seconds with a short fade. A shorter list never rotates.
+ */
+function useDepartmentPaging(total) {
+  const pageCount = Math.max(1, Math.ceil(total / TV_PAGE_SIZE));
+  const [step, setStep] = useState(0);
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    if (pageCount <= 1) return undefined;
+
+    let fadeTimer;
+    const timer = setInterval(() => {
+      setFading(true);
+      fadeTimer = setTimeout(() => {
+        setStep((current) => current + 1);
+        setFading(false);
+      }, 200);
+    }, TV_PAGE_ROTATE_MS);
+
+    return () => {
+      clearInterval(timer);
+      clearTimeout(fadeTimer);
+    };
+  }, [pageCount]);
+
+  // The page is derived, so a shrinking list can never point past the end.
+  return { page: step % pageCount, pageCount, fading };
+}
+
 function NoLobbyVideoGuide({ kioskLabel, failed, tr }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 bg-[#F8F9FA] px-8 text-center">
@@ -1037,6 +1221,72 @@ export default function TvDisplay() {
     [now]
   );
 
+  /* departments / video split, paging and the optional on-screen adjuster */
+  const narrow = useNarrowScreen();
+  const layout = useTvLayout(kioskId);
+  const editMode = params.get('edit') === '1';
+
+  const [dragValue, setDragValue] = useState(null);
+  const bodyRef = useRef(null);
+  const draggingRef = useRef(false);
+  const dragValueRef = useRef(null);
+
+  const videoWidth = editMode && dragValue != null ? dragValue : layout.value;
+  const departmentsWidth = 100 - videoWidth;
+
+  const { page, pageCount, fading } = useDepartmentPaging(departments.length);
+  const pageStart = page * TV_PAGE_SIZE;
+  const visibleDepartments = departments.slice(pageStart, pageStart + TV_PAGE_SIZE);
+  const { columns, rows, spanLast } = gridFor(visibleDepartments.length || 1);
+  const waitingRows = waitingRowsFor(visibleDepartments.length);
+  const bigNumber = visibleDepartments.length <= 4;
+
+  // Where the divider sits is read from the pointer against the body's
+  // content box, so it stays correct whatever the screen size.
+  const widthFromPointer = useCallback(
+    (clientX) => {
+      const el = bodyRef.current;
+      if (!el) return videoWidth;
+
+      const rect = el.getBoundingClientRect();
+      const styles = window.getComputedStyle(el);
+      const padLeft = parseFloat(styles.paddingLeft) || 0;
+      const padRight = parseFloat(styles.paddingRight) || 0;
+      const middle = 12; // the 0.75rem middle track
+      const usable = rect.width - padLeft - padRight - middle;
+      if (usable <= 0) return videoWidth;
+
+      // The pointer sits on the centre of the middle track.
+      const x = clientX - rect.left - padLeft - middle / 2;
+      return clampVideoWidth(Math.round((1 - x / usable) * 100));
+    },
+    [videoWidth]
+  );
+
+  function beginDrag(event) {
+    draggingRef.current = true;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const next = widthFromPointer(event.clientX);
+    dragValueRef.current = next;
+    setDragValue(next);
+  }
+
+  function moveDrag(event) {
+    if (!draggingRef.current) return;
+    const next = widthFromPointer(event.clientX);
+    dragValueRef.current = next;
+    setDragValue(next);
+  }
+
+  function endDrag() {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    // The override is saved once, on release, and wins on this screen only.
+    if (dragValueRef.current != null) layout.saveOverride(dragValueRef.current);
+    dragValueRef.current = null;
+    setDragValue(null);
+  }
+
   if (!kioskId) return <KioskPicker />;
 
   return (
@@ -1059,35 +1309,92 @@ export default function TvDisplay() {
 
       {/* BODY */}
 
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 p-3">
+      <div
+        ref={bodyRef}
+        className="grid min-h-0 flex-1 p-3"
+        style={{
+          // Departments take the rest, the video takes videoWidth. A fixed
+          // 0.75rem middle track holds the divider (edit mode) or the gap.
+          gridTemplateColumns: narrow
+            ? 'minmax(0, 1fr)'
+            : `minmax(0, ${departmentsWidth}fr) 0.75rem minmax(0, ${videoWidth}fr)`,
+          gridTemplateRows: narrow
+            ? 'minmax(0, 1fr) 0.75rem minmax(0, 1fr)'
+            : undefined,
+          transition:
+            dragValue != null ? 'none' : 'grid-template-columns 200ms ease',
+        }}
+      >
 
         {/* LEFT — departments */}
 
-        <section className="grid min-h-0 grid-cols-2 grid-rows-2 gap-3 overflow-hidden">
-          {loading && departments.length === 0 && (
-            <p className="col-span-2 self-center text-center text-sm text-[#9CA3AF]">
-              Loading departments...
+        <section className="flex min-h-0 min-w-0 flex-col">
+          <div
+            className="grid min-h-0 flex-1 gap-3 overflow-hidden transition-opacity duration-200"
+            style={{
+              opacity: fading ? 0 : 1,
+              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+            }}
+          >
+            {loading && departments.length === 0 && (
+              <p style={{ gridColumn: '1 / -1' }} className="self-center text-center text-sm text-[#9CA3AF]">
+                Loading departments...
+              </p>
+            )}
+
+            {!loading && departments.length === 0 && !error && (
+              <p style={{ gridColumn: '1 / -1' }} className="self-center text-center text-sm text-[#9CA3AF]">
+                No departments assigned to this kiosk.
+              </p>
+            )}
+
+            {error && (
+              <p style={{ gridColumn: '1 / -1' }} className="self-center text-center text-sm text-[#9D0A0E]">
+                {error}
+              </p>
+            )}
+
+            {visibleDepartments.map((department, index) => (
+              <DepartmentCard
+                key={department.id}
+                department={department}
+                waitingRows={waitingRows}
+                bigNumber={bigNumber}
+                span={spanLast && index === visibleDepartments.length - 1}
+              />
+            ))}
+          </div>
+
+          {pageCount > 1 && (
+            <p className="mt-2 shrink-0 text-center text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+              {tr('tvPage.page', { current: page + 1, total: pageCount })}
             </p>
           )}
-
-          {!loading && departments.length === 0 && !error && (
-            <p className="col-span-2 self-center text-center text-sm text-[#9CA3AF]">
-              No departments assigned to this kiosk.
-            </p>
-          )}
-
-          {error && (
-            <p className="col-span-2 self-center text-center text-sm text-[#9D0A0E]">{error}</p>
-          )}
-
-          {departments.map((department) => (
-            <DepartmentCard key={department.id} department={department} />
-          ))}
         </section>
+
+        {/* adjuster — the middle track, only interactive in edit mode */}
+        {narrow || !editMode ? (
+          <div aria-hidden="true" />
+        ) : (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onPointerDown={beginDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            style={{ touchAction: 'none' }}
+            className="relative z-10 flex cursor-col-resize items-center justify-center"
+          >
+            <span className="h-full w-0.5 rounded-full bg-[#E5E7EB]" />
+            <span className="absolute h-10 w-1.5 rounded-full border border-[#E5E7EB] bg-white shadow-sm" />
+          </div>
+        )}
 
         {/* RIGHT — video */}
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
           {activeUrl ? (
             <>
               <div className="relative min-h-0 flex-1 bg-black">
@@ -1105,8 +1412,8 @@ export default function TvDisplay() {
                 />
               </div>
 
-              <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[#E5E7EB] px-3 py-2 text-xs text-[#4B5563]">
-                <span className="truncate">{activeName}</span>
+              <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2 overflow-hidden border-t border-[#E5E7EB] px-3 py-2 text-xs text-[#4B5563]">
+                <span className="min-w-0 flex-1 truncate">{activeName}</span>
                 <div className="flex shrink-0 items-center gap-2">
                   {activeSettings.muted && (
                     <span className="rounded bg-[#F1F3F5] px-2 py-0.5">Muted for Lobby</span>
@@ -1166,7 +1473,7 @@ export default function TvDisplay() {
               {latest && (
                 <div
                   key={latest.key}
-                  className="swu-enter flex shrink-0 items-center gap-3 bg-[#9D0A0E] px-4 py-3 text-white"
+                  className="swu-enter flex min-w-0 shrink-0 items-center gap-3 overflow-hidden bg-[#9D0A0E] px-4 py-3 text-white"
                 >
                   <Megaphone size={18} className="shrink-0" />
                   <div className="min-w-0">
@@ -1199,6 +1506,17 @@ export default function TvDisplay() {
           )}
         </section>
       </div>
+
+      {/* on-screen adjuster controls — edit mode only, never on the public screen */}
+      {editMode && (
+        <button
+          type="button"
+          onClick={layout.clearOverride}
+          className="swu-press fixed bottom-4 right-4 z-40 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#4B5563] shadow-sm transition-colors hover:border-[#F0DADA] hover:text-[#9D0A0E]"
+        >
+          {tr('tvPage.resetLayout')}
+        </button>
+      )}
 
       {(!soundOn || soundBlocked) && callMode !== 'muted' && (
         <div className="swu-enter-fade fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 px-6">

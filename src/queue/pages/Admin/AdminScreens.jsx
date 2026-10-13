@@ -104,7 +104,7 @@
   import { extractDominantColor } from '../../theme/colors';
   import Logo from '../../../assets/logo.png';
   import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-  import { getFirestore, doc as fsDoc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+  import { getFirestore, doc as fsDoc, getDoc, getDocFromServer, setDoc, onSnapshot } from 'firebase/firestore';
 
   // =====================================================
   // SHARED HELPERS
@@ -4237,6 +4237,19 @@
   const tvInfoDoc = (kioskId) =>
     fsDoc(getFirestore(auth.app), 'kiosks', String(kioskId), 'settings', 'tvVideo');
 
+  // The departments / video split, saved separately at
+  // kiosks/<kioskId>/settings/tvLayout as { videoWidthPercent, updated_at }.
+  const DEFAULT_TV_VIDEO_WIDTH = 50;
+
+  const clampTvVideoWidth = (value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return DEFAULT_TV_VIDEO_WIDTH;
+    return Math.min(75, Math.max(25, Math.round(n)));
+  };
+
+  const tvLayoutDoc = (kioskId) =>
+    fsDoc(getFirestore(auth.app), 'kiosks', String(kioskId), 'settings', 'tvLayout');
+
   // 'legacy' is the single video saved by the first version of this feature.
   const tvFileRef = (kioskId, videoId) =>
     storageRef(
@@ -4288,10 +4301,13 @@
 
   // Shared by Admin, Super Admin and Staff settings.
   //   accentColor        - pass it where there is no Admin AppearanceProvider
-  //   canManage          - false hides "Add videos" and "Remove" (Staff)
+  //   canManage          - false hides "Add videos", "Remove" and the whole
+  //                        TV layout block (Staff)
   //   lockToDepartment   - limit the kiosk to the signed-in user's department
   //                        (Admin, Staff); Super Admin leaves it off to pick any
-  export function TvVideoSettings({ accentColor: accentProp, canManage = true, lockToDepartment = false }) {
+  //   allowApplyAll      - show "Apply to all kiosks" on the TV layout; writes
+  //                        to the kiosk(s) this screen can manage (Admin)
+  export function TvVideoSettings({ accentColor: accentProp, canManage = true, lockToDepartment = false, allowApplyAll = false }) {
     // Follows the accent colour chosen in Settings.
     let appearanceAccent;
     try {
@@ -4300,6 +4316,13 @@
       // Not inside the Admin AppearanceProvider; the accentColor prop is used.
     }
     const accentColor = accentProp ?? appearanceAccent ?? '#9D0A0E';
+
+    // Admin pages carry the Admin language; Super Admin has its own, whose t()
+    // falls back to the Admin keys these strings live in.
+    const adminLanguage = useContext(LanguageContext);
+    const superAdminLanguage = useSuperAdminLanguage();
+    const t = adminLanguage ? adminLanguage.t : superAdminLanguage.t;
+
     const { user: tvUser } = useAuth();
     const [noKiosk, setNoKiosk] = useState(false);
 
@@ -4310,6 +4333,19 @@
     const [uploadLabel, setUploadLabel] = useState('');
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
+
+    // TV layout (video size), saved immediately at
+    // kiosks/<kioskId>/settings/tvLayout. The value is tagged with the kiosk it
+    // was read for, so switching kiosks never shows the previous value.
+    const [layoutState, setLayoutState] = useState({ kioskId: '', value: DEFAULT_TV_VIDEO_WIDTH });
+    const [layoutMessage, setLayoutMessage] = useState('');
+    const [layoutError, setLayoutError] = useState('');
+    const [applyingLayout, setApplyingLayout] = useState(false);
+    const layoutMessageTimer = useRef(null);
+    const layoutSaveSeq = useRef(0);
+
+    const layoutReady = Boolean(kioskId) && layoutState.kioskId === String(kioskId);
+    const videoWidth = layoutReady ? layoutState.value : DEFAULT_TV_VIDEO_WIDTH;
 
     useEffect(() => {
       if (lockToDepartment) {
@@ -4346,6 +4382,26 @@
         () => setInfo(null)
       );
     }, [kioskId]);
+
+    // Live view of this kiosk's TV layout (video size), so every TV for the
+    // kiosk updates without a refresh.
+    useEffect(() => {
+      if (!kioskId) return undefined;
+
+      return onSnapshot(
+        tvLayoutDoc(kioskId),
+        (snap) => {
+          const raw = snap.exists() ? snap.data()?.videoWidthPercent : null;
+          setLayoutState({
+            kioskId: String(kioskId),
+            value: raw == null ? DEFAULT_TV_VIDEO_WIDTH : clampTvVideoWidth(raw),
+          });
+        },
+        () => {}
+      );
+    }, [kioskId]);
+
+    useEffect(() => () => clearTimeout(layoutMessageTimer.current), []);
 
     const videos = useMemo(() => normalizeTvVideos(info), [info]);
     const mode = info?.mode === 'playlist' ? 'playlist' : 'single';
@@ -4387,6 +4443,95 @@
       } catch {
         setError('Could not save the playback settings.');
       }
+    }
+
+    function flashLayoutSaved(text) {
+      clearTimeout(layoutMessageTimer.current);
+      setLayoutMessage(text);
+      layoutMessageTimer.current = setTimeout(() => setLayoutMessage(''), 3000);
+    }
+
+    // Saves the departments/video split immediately (no Save Changes button),
+    // the same way the playback settings are saved above. It writes a NUMBER,
+    // then reads the value back FROM THE SERVER, so the green "saved" message
+    // is only shown once the value is really stored in Firestore (a local,
+    // queued write resolves too, which is how a save can look successful while
+    // nothing reaches the server).
+    async function saveVideoWidth(percent) {
+      if (!kioskId) {
+        setLayoutError(t('tvLayout.saveFailed'));
+        return;
+      }
+
+      const clamped = clampTvVideoWidth(percent);
+      setLayoutState({ kioskId: String(kioskId), value: clamped });
+      setLayoutError('');
+      setLayoutMessage('');
+
+      const ref = tvLayoutDoc(kioskId);
+
+      // Dragging fires many saves; only the newest one may touch the UI, so a
+      // slow earlier read-back can never show a stale "failed".
+      const seq = (layoutSaveSeq.current += 1);
+
+      try {
+        await setDoc(
+          ref,
+          { videoWidthPercent: clamped, updated_at: new Date().toISOString() },
+          { merge: true }
+        );
+
+        // getDocFromServer skips the local cache and rejects when the client
+        // cannot reach Firestore, so this proves the write really landed.
+        const check = await getDocFromServer(ref);
+        if (seq !== layoutSaveSeq.current) return;
+
+        const stored = check.exists() ? check.data()?.videoWidthPercent : undefined;
+
+        if (!check.exists() || Number(stored) !== clamped) {
+          const mismatch = new Error('write not confirmed at ' + ref.path);
+          mismatch.code = 'tv-layout/not-confirmed';
+          throw mismatch;
+        }
+
+        flashLayoutSaved(t('tvLayout.saved'));
+      } catch (saveError) {
+        if (seq !== layoutSaveSeq.current) return;
+        console.error('TV layout could not be saved:', saveError?.code || saveError);
+        setLayoutError(t('tvLayout.saveFailed') + ' (' + (saveError?.code || 'unknown') + ')');
+      }
+    }
+
+    // Writes the current size to every kiosk this screen can manage.
+    async function applyLayoutToAll() {
+      if (kiosks.length === 0) return;
+
+      setApplyingLayout(true);
+      setLayoutError('');
+      setLayoutMessage('');
+
+      if (!auth.currentUser) {
+        setApplyingLayout(false);
+        setLayoutError(t('tvLayout.saveFailed'));
+        return;
+      }
+
+      const value = videoWidth;
+      const results = await Promise.allSettled(
+        kiosks.map((kiosk) =>
+          setDoc(
+            tvLayoutDoc(kiosk.kiosk_id),
+            { videoWidthPercent: value, updated_at: new Date().toISOString() },
+            { merge: true }
+          )
+        )
+      );
+
+      const failed = results.filter((result) => result.status === 'rejected').length;
+      setApplyingLayout(false);
+
+      if (failed === 0) flashLayoutSaved(t('tvLayout.applyAllDone', { n: kiosks.length }));
+      else setLayoutError(t('tvLayout.applyAllFailed', { n: failed }));
     }
 
     async function handleUpload(event) {
@@ -4534,7 +4679,17 @@
         {lockToDepartment && !noKiosk && (
           <p className="text-sm font-semibold text-[#1F2937]">{kiosks[0]?.name || ''}</p>
         )}
-        <select hidden={lockToDepartment} value={kioskId} onChange={(event) => setKioskId(event.target.value)} aria-label="Kiosk"className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20">
+        <select
+          hidden={lockToDepartment}
+          value={kioskId}
+          onChange={(event) => {
+            setKioskId(event.target.value);
+            setLayoutMessage('');
+            setLayoutError('');
+          }}
+          aria-label="Kiosk"
+          className="w-full max-w-xs rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+        >
           {kiosks.length === 0 && <option value="">No kiosks found</option>}
           {kiosks.map((k) => (
             <option key={k.kiosk_id} value={k.kiosk_id}>{k.name}</option>
@@ -4641,6 +4796,91 @@
             </label>
           ))}
         </div>
+
+        {canManage && (
+        <div className="mt-5">
+          <SettingsExactFieldLabel>{t('tvLayout.title')}</SettingsExactFieldLabel>
+
+          <div className="rounded-lg border border-[#E5E7EB] bg-white p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-[#1F2937]">{t('tvLayout.videoSize')}</span>
+              <span className="rounded bg-[#EFF4FA] px-2 py-0.5 text-xs font-bold text-[#4B5563]">{videoWidth}%</span>
+            </div>
+
+            <input
+              type="range"
+              min={25}
+              max={75}
+              step={5}
+              value={videoWidth}
+              disabled={!kioskId}
+              onChange={(event) => saveVideoWidth(Number(event.target.value))}
+              style={{ accentColor }}
+              aria-label={t('tvLayout.videoSize')}
+              className="mt-2 w-full disabled:cursor-not-allowed disabled:opacity-60"
+            />
+
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {[
+                { key: 'small', label: t('tvLayout.presetSmall'), value: 35 },
+                { key: 'balanced', label: t('tvLayout.presetBalanced'), value: 50 },
+                { key: 'large', label: t('tvLayout.presetLarge'), value: 65 },
+              ].map(({ key, label, value }) => (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={!kioskId}
+                  onClick={() => saveVideoWidth(value)}
+                  style={videoWidth === value ? { borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` } : undefined}
+                  className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:bg-[#F1F3F5] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {label}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                disabled={!kioskId}
+                onClick={() => saveVideoWidth(50)}
+                className="ml-auto rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#667085] transition hover:border-[#F0DADA] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {t('tvLayout.reset')}
+              </button>
+            </div>
+
+            {/* live preview of the split */}
+            <div className="mt-3 flex h-7 overflow-hidden rounded-md border border-[#E5E7EB]">
+              <div
+                className="flex items-center justify-center bg-[#F1F3F5] text-[10px] font-semibold uppercase tracking-wide text-[#4B5563]"
+                style={{ width: `${100 - videoWidth}%` }}
+              >
+                {t('tvLayout.previewDepartments')}
+              </div>
+              <div
+                className="flex items-center justify-center text-[10px] font-bold uppercase tracking-wide text-white"
+                style={{ width: `${videoWidth}%`, backgroundColor: accentColor }}
+              >
+                {t('tvLayout.previewVideo')}
+              </div>
+            </div>
+
+            {allowApplyAll && canManage && (
+              <button
+                type="button"
+                onClick={applyLayoutToAll}
+                disabled={applyingLayout || !kioskId || kiosks.length < 2}
+                className="mt-3 flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1F2937] transition hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Check size={14} />
+                {applyingLayout ? t('tvLayout.applyAllBusy') : t('tvLayout.applyAll')}
+              </button>
+            )}
+
+            {layoutMessage && <p className="mt-3 text-xs font-medium text-emerald-700">{layoutMessage}</p>}
+            {layoutError && <p className="mt-3 text-xs text-[#9D0A0E]">{layoutError}</p>}
+          </div>
+        </div>
+        )}
 
         {message && <p className="mt-3 text-xs font-medium text-emerald-700">{message}</p>}
         {error && <p className="mt-3 text-xs text-[#9D0A0E]">{error}</p>}
@@ -5605,7 +5845,7 @@
           </div>
         </SettingsExactSection>
 
-        <TvVideoSettings lockToDepartment />
+        <TvVideoSettings lockToDepartment allowApplyAll />
 
         <CallSoundSettings accentColor={accentColor} lockToDepartment />
 
