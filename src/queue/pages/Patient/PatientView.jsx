@@ -706,18 +706,7 @@ function NavButtons({
 }) {
   return (
     <div className="mt-1 flex items-center gap-3">
-      <button
-        type="button"
-        onClick={onBack}
-        className="kiosk-nav-button group flex items-center gap-1.5 rounded-md border bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        style={{ borderColor: REGULAR_DARK }}
-      >
-        <ArrowLeft
-          size={15}
-          className="transition-transform duration-200 group-hover:-translate-x-0.5"
-        />
-        Back
-      </button>
+      <BackButton onBack={onBack} />
 
       <button
         type="button"
@@ -733,6 +722,23 @@ function NavButtons({
         />
       </button>
     </div>
+  );
+}
+
+function BackButton({ onBack }) {
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      className="kiosk-nav-button group flex items-center gap-1.5 rounded-md border bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+      style={{ borderColor: REGULAR_DARK }}
+    >
+      <ArrowLeft
+        size={15}
+        className="transition-transform duration-200 group-hover:-translate-x-0.5"
+      />
+      Back
+    </button>
   );
 }
 
@@ -1141,11 +1147,10 @@ try {
 }
 
   function QueueTypeScreen({
-  selected,
-  onSelect,
-  onBack,
-  onContinue,
-}) {
+    selected,
+    onSelect,
+    onBack,
+  }) {
   return (
     <Screen
       stepKey="queueType"
@@ -1203,12 +1208,8 @@ try {
         })}
       </div>
 
-      <div className="kiosk-stagger-4">
-        <NavButtons
-          onBack={onBack}
-          onContinue={onContinue}
-          disabled={!selected}
-        />
+      <div className="kiosk-stagger-4 mt-1">
+        <BackButton onBack={onBack} />
       </div>
     </Screen>
   );
@@ -1223,7 +1224,6 @@ function SelectDepartmentScreen({
   selected,
   onSelect,
   onBack,
-  onContinue,
   loading,
 }) {
   return (
@@ -1365,19 +1365,8 @@ function SelectDepartmentScreen({
           </div>
         )}
       </div>
-
-    
-
-      <div className="kiosk-stagger-4">
-        <NavButtons
-          onBack={onBack}
-          onContinue={onContinue}
-          disabled={
-            loading ||
-            departments.length === 0 ||
-            !selected
-          }
-        />
+      <div className="kiosk-stagger-4 mt-1">
+        <BackButton onBack={onBack} />
       </div>
     </Screen>
   );
@@ -3048,8 +3037,14 @@ onContinue={async () => {
           selected={queueType}
           kiosk={kiosk}
           onSelect={(type) => {
+            if (!kiosk || transitionLock.current) {
+              return;
+            }
+
             setQueueType(type);
             setService(null);
+            fetchDepartments(kiosk);
+            goTo('department');
           }}
           onBack={() => {
             if (
@@ -3059,21 +3054,6 @@ onContinue={async () => {
             } else {
               handleReset();
             }
-          }}
-          onContinue={() => {
-            if (!queueType) {
-              return;
-            }
-
-            if (!kiosk) {
-              return;
-            }
-
-            fetchDepartments(
-              kiosk
-            );
-
-            goTo('department');
           }}
         />
 
@@ -3099,20 +3079,18 @@ onContinue={async () => {
           }
           selected={service}
           onSelect={(department) => {
+            if (transitionLock.current) {
+              return;
+            }
+
             setService(
               department
             );
+            goTo('confirm');
           }}
           onBack={() =>
             goTo('queueType')
           }
-  onContinue={() => {
-  if (!service) {
-    return;
-  }
-
-  goTo('confirm');
-}}
         />
 
         {departmentsError && (
