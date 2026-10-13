@@ -1298,7 +1298,7 @@ export default function TvDisplay() {
         <img
           src={brandLogo || brandMark}
           alt="SWUMed"
-          className="h-14 w-auto object-contain object-left"
+          className="h-10 w-auto object-contain object-left"
         />
 
         <div className="text-right">
