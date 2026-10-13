@@ -21,6 +21,99 @@ const {
 } = require("../services/realtimeDatabaseService");
 
 // ============================================================
+// HELPER: MARK A QUEUE TICKET AS CALLED + BROADCAST
+// ============================================================
+/*
+ * The single "a patient has been called" code path.
+ *
+ * It bumps called_at to NOW() so every screen sees a brand-new call
+ * signature — the lobby TV keys its announcement on the call timestamp,
+ * so this is what makes a number (re)announce — and then fans the change
+ * out to Firestore, the Realtime Database and every connected staff
+ * client.
+ *
+ * Call Patient (call-next) passes its open transaction connection so the
+ * update stays inside that transaction; Recall reuses the same logic
+ * against the pool. Routing both actions through here is what keeps a
+ * recall behaving exactly like a first call.
+ */
+async function applyCalledTicket({
+  connection,
+  departmentPrefix,
+  queueId,
+  queueNumber,
+  terminalId,
+  action,
+  firebaseLabel = "call",
+}) {
+  const runner = connection || pool;
+
+  await runner.query(
+    `
+    UPDATE queue_ticket
+
+    SET
+      status = 'called',
+      called_at = NOW(),
+      counter_id = ?
+
+    WHERE queue_id = ?
+    `,
+    [terminalId || null, queueId]
+  );
+
+  if (connection) {
+    await connection.commit();
+  }
+
+  void triggerQueuePrediction(
+    "queue_called",
+    queueId
+  );
+
+  let firebaseSynced = true;
+  let firebaseError = null;
+
+  try {
+    await syncQueueTicketToFirebase(queueId);
+  } catch (syncError) {
+    firebaseSynced = false;
+    firebaseError = syncError.message;
+
+    console.error(
+      `Firebase ${firebaseLabel} sync failed:`,
+      syncError
+    );
+  }
+
+  await updateDepartmentQueue(
+    departmentPrefix,
+    {
+      action,
+      queueId,
+      queueNumber,
+      status: "called",
+    }
+  );
+
+  // Notify all connected clients in this department
+  // that the queue has changed.
+  emitQueueUpdated(
+    departmentPrefix,
+    {
+      action,
+      queueId,
+      queueNumber,
+    }
+  );
+
+  return {
+    firebaseSynced,
+    firebaseError,
+  };
+}
+
+// ============================================================
 // HELPER: SYNC QUEUE TICKET TO FIREBASE
 // ============================================================
 async function getQueueState(
@@ -606,65 +699,21 @@ router.post(
 
       const nextPatient =
         nextRows[0];
-await connection.query(
-  `
-  UPDATE queue_ticket
 
-  SET
-    status = 'called',
-    called_at = NOW(),
-    counter_id = ?
-
-  WHERE queue_id = ?
-  `,
-  [terminalId || null, nextPatient.queue_id]
-);
-
-await connection.commit();
-
-void triggerQueuePrediction(
-  "queue_called",
-  nextPatient.queue_id
-);
-
-      let firebaseSynced = true;
-      let firebaseError = null;
-
-      try {
-        await syncQueueTicketToFirebase(
-          nextPatient.queue_id
-        );
-      } catch (syncError) {
-        firebaseSynced = false;
-        firebaseError =
-          syncError.message;
-
-        console.error(
-          "Firebase call-next sync failed:",
-          syncError
-        );
-      }
-
-      await updateDepartmentQueue(
+      const {
+        firebaseSynced,
+        firebaseError,
+      } = await applyCalledTicket({
+        connection,
         departmentPrefix,
-        {
-          action: "CALL_NEXT",
-          queueId: nextPatient.queue_id,
-          queueNumber: nextPatient.queue_number,
-          status: "called",
-        }
-      );
-
-      // Notify all connected clients in this department
-      // that the queue has changed.
-      emitQueueUpdated(
-        departmentPrefix,
-        {
-          action: "CALL_NEXT",
-          queueId: nextPatient.queue_id,
-          queueNumber: nextPatient.queue_number,
-        }
-      );
+        queueId:
+          nextPatient.queue_id,
+        queueNumber:
+          nextPatient.queue_number,
+        terminalId,
+        action: "CALL_NEXT",
+        firebaseLabel: "call-next",
+      });
 
       return res.json({
         success: true,
@@ -1100,6 +1149,25 @@ router.post(
       const current =
         rows[0];
 
+      // Recall re-announces the patient already at this terminal, so it
+      // runs through the exact same "patient called" path as Call Patient:
+      // called_at is bumped (which is what makes the lobby TV announce the
+      // number again), Firestore/RTDB are synced and staff clients are
+      // notified. No separate recall implementation.
+      const {
+        firebaseSynced,
+        firebaseError,
+      } = await applyCalledTicket({
+        departmentPrefix,
+        queueId:
+          current.queue_id,
+        queueNumber:
+          current.queue_number,
+        terminalId,
+        action: "RECALL",
+        firebaseLabel: "recall",
+      });
+
       const secondsElapsed =
         current.service_began_at
           ? Math.max(
@@ -1121,8 +1189,22 @@ router.post(
         message:
           "Patient recalled successfully.",
 
+        firebase_synced:
+          firebaseSynced,
+
+        ...(firebaseError && {
+          firebase_error:
+            firebaseError,
+        }),
+
         currentlyServing: {
           ...current,
+
+          status: "called",
+
+          called_at:
+            new Date(),
+
           secondsElapsed,
         },
       });
