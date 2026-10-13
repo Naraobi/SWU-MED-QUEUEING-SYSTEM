@@ -1790,7 +1790,7 @@
                       <span className="mt-1.5 block h-2.5 w-2.5 shrink-0 rounded-full bg-[#9D0A0E]" />
                       <div>
                         <p className="text-xs font-semibold text-[#1F2937]">{item.title || t('reports.activityFallback')}</p>
-                        <p className="mt-0.5 text-xs text-slate-400">{item.message || item.time || ''}</p>
+                        <p className="mt-0.5 text-xs text-slate-400">{item.message || ''}{item.time ? ` · ${new Date(item.time).toLocaleString()}` : ''}</p>
                       </div>
                     </div>
                   ))}
@@ -1831,7 +1831,7 @@
                     <span className="mt-1.5 block h-2.5 w-2.5 shrink-0 rounded-full bg-[#9D0A0E]" />
                     <div>
                       <p className="text-lg font-semibold text-[#1F2937]">{item.title || t('reports.activityFallback')}</p>
-                      <p className="mt-0.5 text-xs text-slate-400">{item.message || item.time || ''}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">{item.message || ''}{item.time ? ` · ${new Date(item.time).toLocaleString()}` : ''}</p>
                     </div>
                   </div>
                 ))}

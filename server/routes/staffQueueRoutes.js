@@ -395,12 +395,10 @@ router.get(
 //
 // This endpoint prevents the 404.
 //
-// Since the current database schema shown does not include a
-// notification table, we return an empty notification list.
-//
-// This can later be connected to a proper notifications table
-// or Firebase notification collection without changing the
-// frontend API URL.
+// Build the Reports activity feed from persisted queue events. This keeps
+// the existing report UI useful without requiring a separate notification
+// table; the queue issue and completion timestamps are the durable events
+// currently available in the schema.
 //
 // ============================================================
 
@@ -420,17 +418,45 @@ router.get(
         });
       }
 
-      /*
-       * There is currently no notification table
-       * in the database schema provided.
-       *
-       * Return an empty list so the staff dashboard
-       * can load normally.
-       */
+      const [rows] = await pool.query(
+        `
+        SELECT activity.id, activity.title, activity.message,
+               activity.activity_at AS activityAt
+        FROM (
+          SELECT
+            CONCAT('issued-', qt.queue_id) AS id,
+            'Queue ticket issued' AS title,
+            CONCAT('Ticket ', qt.queue_number) AS message,
+            qt.issued_at AS activity_at
+          FROM queue_ticket qt
+          INNER JOIN department d ON d.department_id = qt.department_id
+          WHERE d.prefix = ? AND qt.issued_at IS NOT NULL
+
+          UNION ALL
+
+          SELECT
+            CONCAT('completed-', qt.queue_id) AS id,
+            'Queue ticket completed' AS title,
+            CONCAT('Ticket ', qt.queue_number) AS message,
+            qt.completed_at AS activity_at
+          FROM queue_ticket qt
+          INNER JOIN department d ON d.department_id = qt.department_id
+          WHERE d.prefix = ? AND qt.completed_at IS NOT NULL
+        ) AS activity
+        ORDER BY activity.activity_at DESC
+        LIMIT 100
+        `,
+        [departmentPrefix, departmentPrefix]
+      );
 
       return res.json({
         success: true,
-        data: [],
+        data: rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          message: row.message,
+          time: row.activityAt,
+        })),
       });
     } catch (error) {
       console.error(

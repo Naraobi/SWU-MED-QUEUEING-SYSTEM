@@ -6,6 +6,7 @@ import {
   Info,
   Monitor,
   RefreshCw,
+  ScrollText,
   Search,
 } from 'lucide-react';
 
@@ -32,6 +33,7 @@ import {
 import { ReportToast, pageWindow, readableOn } from '../Admin/ReportsPage';
 import { buildXlsxBlob, downloadBlob } from '../Admin/reportExport';
 import { buildTodayValue, formatClock, rangeFileLabel } from '../Admin/reportData';
+import AuditLogModal from '../../components/modals/AuditLogModal';
 import DepartmentFilterDropdown from './ReportDepartmentFilter';
 import { useSuperAdminAppearance } from './SuperAdminAppearanceContext';
 import {
@@ -101,6 +103,7 @@ export default function ReportsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState(null);
+  const [showAudit, setShowAudit] = useState(false);
 
   const requestRef = useRef(0);
   const inFlightRef = useRef('');
@@ -485,16 +488,28 @@ export default function ReportsPage() {
             <p className="mt-1 text-sm text-[#4B5563]">{t('sa.rep.subtitle')}</p>
           </div>
 
-          <button
-            type="button"
-            onClick={exportToExcel}
-            disabled={status !== 'ready' || visible.length === 0}
-            style={{ backgroundColor: ACCENT, color: ON_ACCENT }}
-            className="flex h-10 items-center gap-2 rounded-lg px-4 text-xs font-bold shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Download size={14} />
-            {t('reports.export.button')}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowAudit(true)}
+              style={{ borderColor: ACCENT, color: ACCENT }}
+              className="flex h-10 items-center gap-2 rounded-lg border bg-white px-4 text-xs font-bold transition hover:bg-[#F8F9FA]"
+            >
+              <ScrollText size={14} />
+              {t('reports.audit.button')}
+            </button>
+
+            <button
+              type="button"
+              onClick={exportToExcel}
+              disabled={status !== 'ready' || visible.length === 0}
+              style={{ backgroundColor: ACCENT, color: ON_ACCENT }}
+              className="flex h-10 items-center gap-2 rounded-lg px-4 text-xs font-bold shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Download size={14} />
+              {t('reports.export.button')}
+            </button>
+          </div>
         </div>
 
         {/* FILTER CARD - each dropdown applies when its own Apply is pressed */}
@@ -703,6 +718,15 @@ export default function ReportsPage() {
             </nav>
           </div>
         </div>
+
+        {showAudit && (
+          <AuditLogModal
+            onClose={() => setShowAudit(false)}
+            t={t}
+            accent={accent}
+            onToast={showToast}
+          />
+        )}
       </div>
     </LanguageContext.Provider>
   );

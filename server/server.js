@@ -42,6 +42,9 @@ const securityPinRoutes = require("./routes/securityPinRoutes");
 const positionRoutes = require("./routes/positionRoutes");
 const trackerRoutes = require("./routes/trackerRoutes");
 const brandingRoutes = require("./routes/brandingRoutes");
+const auditLogRoutes = require("./routes/auditLogRoutes");
+const { ensureAuditLogsTable } = require("./services/auditLogService");
+const { auditTrail } = require("./middleware/auditLogger");
 const app = express();
 const server = http.createServer(app);
 
@@ -67,12 +70,24 @@ app.use(
       }
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+      "X-Actor-Id",
+      "X-Actor-Name",
+      "X-Actor-Role",
+      "X-Actor-Email",
+      "X-Actor-Department-Id",
+    ],
     credentials: true,
   })
 );
 
 app.use(express.json({ limit: "2mb" }));
+
+// Records create / update / delete actions on the admin-managed records.
+app.use(auditTrail);
 
 // =====================================================
 // API ROUTES
@@ -138,6 +153,11 @@ app.use(
 
 app.use("/api/tracker", trackerRoutes);
 app.use("/api/branding", brandingRoutes);
+
+app.use(
+  "/api/audit-logs",
+  auditLogRoutes
+);
 
 // =====================================================
 // BASIC BACKEND TEST
@@ -395,6 +415,19 @@ setInterval(
   runAutomaticSync,
   SYNC_INTERVAL
 );
+
+/*
+|--------------------------------------------------------------------------
+| AUDIT LOG TABLE
+|--------------------------------------------------------------------------
+*/
+
+ensureAuditLogsTable().catch((error) => {
+  console.error(
+    "AUDIT LOG TABLE SETUP FAILED:",
+    error.message
+  );
+});
 
 /*
 |--------------------------------------------------------------------------

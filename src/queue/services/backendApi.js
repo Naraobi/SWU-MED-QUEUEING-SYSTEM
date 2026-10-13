@@ -1,6 +1,7 @@
 import { API_URL } from './apiBase';
 import { offlineFetch } from './offlineFetch';
 import { getOfflineData, saveOfflineData } from './offlineStorage';
+import { getAuditActorHeaders } from './auditActor';
 
 async function applyDepartmentCache(action, department) {
   const envelope = await getOfflineData('api:departments');
@@ -80,6 +81,7 @@ export async function createDepartment(department) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuditActorHeaders(),
     },
     body: JSON.stringify(payload),
   }, { queueOnFailure: true, optimisticData: payload });
@@ -111,6 +113,7 @@ export async function updateDepartment(departmentId, department) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
       body: JSON.stringify(department),
     },
@@ -138,6 +141,9 @@ export async function deleteDepartment(departmentId) {
     `${API_URL}/departments/${encodeURIComponent(departmentId)}`,
     {
       method: "DELETE",
+      headers: {
+        ...getAuditActorHeaders(),
+      },
     },
     { queueOnFailure: true, optimisticData: { department_id: departmentId } }
   );
@@ -268,6 +274,7 @@ export async function createKiosk(kiosk) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuditActorHeaders(),
     },
     body: JSON.stringify(kiosk),
   });
@@ -298,6 +305,7 @@ export async function updateKiosk(kioskId, kiosk) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
       body: JSON.stringify(kiosk),
     }
@@ -323,6 +331,9 @@ export async function deleteKiosk(kioskId) {
     `${API_URL}/kiosks/${encodeURIComponent(kioskId)}`,
     {
       method: "DELETE",
+      headers: {
+        ...getAuditActorHeaders(),
+      },
     }
   );
 
@@ -383,6 +394,7 @@ export async function createRole(role) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuditActorHeaders(),
     },
     body: JSON.stringify({
       role_id: role.role_id,
@@ -422,6 +434,7 @@ export async function updateRole(roleId, role) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
       body: JSON.stringify({
         role: role.role,
@@ -455,6 +468,9 @@ export async function deleteRole(roleId) {
     `${API_URL}/roles/${encodeURIComponent(roleId)}`,
     {
       method: "DELETE",
+      headers: {
+        ...getAuditActorHeaders(),
+      },
     }
   );
 
@@ -491,6 +507,7 @@ export async function assignTerminal(terminalId, staffId) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
       body: JSON.stringify({
         staff_id: staffId,
@@ -526,6 +543,7 @@ export async function releaseTerminal(terminalId, staffId) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
       body: JSON.stringify({
         staff_id: staffId,
@@ -1044,6 +1062,7 @@ export async function createUser(userData) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuditActorHeaders(),
     },
     body: JSON.stringify(payload),
   }, {
@@ -1076,6 +1095,7 @@ export async function deleteUser(userId, deletionReason = "") {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
       body: JSON.stringify({
         deletion_reason: deletionReason,
@@ -1125,6 +1145,7 @@ export async function updateUser(userId, userData) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
       body: JSON.stringify(userData),
     },
@@ -1147,6 +1168,7 @@ export async function createTerminal(terminalData) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuditActorHeaders(),
     },
     body: JSON.stringify(terminalData),
   });
@@ -1172,6 +1194,7 @@ export async function updateTerminal(terminalId, terminalData) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
       body: JSON.stringify(terminalData),
     }
@@ -1208,6 +1231,9 @@ export async function deleteTerminal(terminalId) {
     `${API_URL}/counters/${encodeURIComponent(terminalId)}`,
     {
       method: "DELETE",
+      headers: {
+        ...getAuditActorHeaders(),
+      },
     }
   );
 
@@ -1439,6 +1465,51 @@ export async function getAdminReportRows(
   if (!response.ok || !result.success) {
     throw new Error(
       result.message || "Failed to load report data."
+    );
+  }
+
+  return result.data;
+}
+
+// =====================================================
+// AUDIT LOGS
+// =====================================================
+
+// Recent create / update / delete actions for the Reports audit modal.
+// SuperAdmin sees every department; Admin is scoped to their own on the
+// server, so no department filter is sent from here.
+export async function getAuditLogs(firebaseUser, options = {}) {
+  if (!firebaseUser) {
+    throw new Error("Firebase user is required");
+  }
+
+  const token = await firebaseUser.getIdToken();
+  const params = new URLSearchParams();
+
+  if (options.startDate) params.set("startDate", options.startDate);
+  if (options.endDate) params.set("endDate", options.endDate);
+  if (options.search) params.set("search", options.search);
+  if (options.action) params.set("action", options.action);
+  if (options.entityType) params.set("entityType", options.entityType);
+  if (options.limit) params.set("limit", String(options.limit));
+  if (options.offset) params.set("offset", String(options.offset));
+
+  const response = await fetch(
+    `${API_URL}/audit-logs?${params.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to load audit logs."
     );
   }
 
@@ -1899,6 +1970,7 @@ export async function createPosition(position) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuditActorHeaders(),
     },
     body: JSON.stringify(position),
   });
@@ -1929,6 +2001,7 @@ export async function updatePosition(positionId, position) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
       body: JSON.stringify(position),
     }
@@ -1954,6 +2027,9 @@ export async function deletePosition(positionId) {
     `${API_URL}/positions/${encodeURIComponent(positionId)}`,
     {
       method: "DELETE",
+      headers: {
+        ...getAuditActorHeaders(),
+      },
     }
   );
 
