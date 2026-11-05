@@ -631,7 +631,7 @@ async function handleSaveKiosk() {
     } catch (err) {
       console.error('OPEN ADD TERMINAL ERROR:', err);
 
-      setTerminalError(err.message || 'Unable to prepare terminal.');
+      setTerminalError(err.message || 'Unable to prepare counter.');
     }
   }
 
@@ -787,7 +787,7 @@ async function handleSaveKiosk() {
     } catch (err) {
       console.error('SAVE TERMINAL ERROR:', err);
 
-      setTerminalError(err.message || 'Failed to save terminal.');
+      setTerminalError(err.message || 'Failed to save counter.');
     } finally {
       setSavingTerminal(false);
     }
@@ -828,7 +828,7 @@ async function handleSaveKiosk() {
           </h1>
 
           <p className="mt-1 text-sm text-[#4B5563]">
-            Manage kiosks, departments, and terminals.
+            Manage kiosks, departments, and counters.
           </p>
         </div>
 <div className="flex items-center gap-3">
@@ -1028,18 +1028,18 @@ async function handleSaveKiosk() {
                                 </span>
                               </button>
 
-                              {/* TERMINALS */}
+                              {/* COUNTERS */}
 
                               {isDepartmentExpanded && (
                                 <div className="border-t border-[#E5E7EB] bg-[#F8F9FA]/50 px-4 py-4">
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <h4 className="text-xs font-semibold uppercase tracking-wide text-[#4B5563]">
-                                        Terminals
+                                        Counters
                                       </h4>
 
                                       <p className="mt-1 text-xs text-[#9CA3AF]">
-                                        Terminals assigned to this department
+                                        Counters assigned to this department
                                       </p>
                                     </div>
 
@@ -1050,7 +1050,7 @@ async function handleSaveKiosk() {
                                         openTerminalModal(department);
                                       }}
                                       className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E5E7EB] bg-white text-[#4B5563] transition hover:border-[#9D0A0E] hover:text-[#9D0A0E]"
-                                      title="Add Terminal"
+                                      title="Add Counter"
                                     >
                                       <Plus size={16} />
                                     </button>
@@ -1068,7 +1068,7 @@ async function handleSaveKiosk() {
                                         >
                                           <div className="min-w-0">
                                             <p className="text-sm font-medium text-[#1F2937]">
-                                              Terminal {terminal.counter_number}
+                                              Counter {terminal.counter_number}
                                             </p>
 
                                             <p className="mt-1 text-xs text-[#4B5563]">
@@ -1101,7 +1101,7 @@ async function handleSaveKiosk() {
                                     </div>
                                   ) : (
                                     <div className="mt-4 rounded-lg border border-dashed border-[#E5E7EB] bg-white p-4 text-center text-xs text-[#4B5563]">
-                                      No terminals assigned to this department.
+                                      No counters assigned to this department.
                                     </div>
                                   )}
                                 </div>
@@ -1523,12 +1523,12 @@ const unlockStatus =
               <div>
                 <h3 className="text-lg font-semibold text-[#1F2937]">
                   {terminalModal.mode === 'edit'
-                    ? 'Edit Terminal'
-                    : 'Add Terminal'}
+                    ? 'Edit Counter'
+                    : 'Add Counter'}
                 </h3>
 
                 <p className="mt-0.5 text-sm text-[#6B7280]">
-                  Create a new service terminal for this department.
+                  Create a new service counter for this department.
                 </p>
 
                 {terminalModal.mode === 'add' && (
@@ -1573,10 +1573,10 @@ const unlockStatus =
                 )}
               </div>
 
-              {/* Terminal Name */}
+              {/* Counter Name */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-[#374151]">
-                  Terminal Name <span className="text-[#9D0A0E]">*</span>
+                  Counter Name <span className="text-[#9D0A0E]">*</span>
                 </label>
 
                 <input
@@ -1596,11 +1596,11 @@ const unlockStatus =
                 />
               </div>
 
-              {/* Terminal Code / ID */}
+              {/* Counter Code / ID */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-sm font-medium text-[#374151]">
-                    Terminal Code / ID <span className="text-[#9D0A0E]">*</span>
+                    Counter Code / ID <span className="text-[#9D0A0E]">*</span>
                   </label>
                   <span className="text-xs text-[#6B7280]">Auto-generated</span>
                 </div>
@@ -1722,7 +1722,7 @@ const unlockStatus =
                 ) : (
                   <>
                     <Plus size={16} />
-                    Add Terminal
+                    Add Counter
                   </>
                 )}
               </button>

@@ -1027,7 +1027,7 @@
         }
       } catch (err) {
         console.error('Failed to load terminals:', err);
-        setError(err?.message || 'Failed to load terminals.');
+        setError(err?.message || 'Failed to load counters.');
       } finally {
         setLoading(false);
       }
@@ -1214,7 +1214,7 @@
         await loadAll();
       } catch (err) {
         console.error('Failed to save terminal:', err);
-        setError(err?.message || 'Failed to save terminal.');
+        setError(err?.message || 'Failed to save counter.');
       } finally {
         setSaving(false);
       }
@@ -1234,7 +1234,7 @@
         await loadAll();
       } catch (err) {
         console.error('Failed to delete terminal:', err);
-        setError(err?.message || 'Failed to delete terminal.');
+        setError(err?.message || 'Failed to delete counter.');
         setSaving(false);
       }
     }

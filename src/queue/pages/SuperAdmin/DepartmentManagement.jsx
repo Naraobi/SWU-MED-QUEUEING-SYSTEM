@@ -2539,7 +2539,7 @@ return (
           <div className="flex items-center justify-between">
 
             <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
-              TERMINAL
+              COUNTERS
             </span>
 
             <Monitor
@@ -2558,7 +2558,7 @@ return (
             </p>
 
             <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-[#4B5563]">
-              ACTIVE TERMINALS
+              ACTIVE COUNTERS
             </p>
 
           </div>
