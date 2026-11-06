@@ -1,6 +1,5 @@
-import React from 'react'
 import { BellRing } from 'lucide-react'
-import logo from '../../assets/logo.png'
+import Logo from './Logo'
 import { usePatientBranding } from '../services/patientBranding';
 
 export default function YourTurnScreen({ ticket }) {
@@ -16,11 +15,12 @@ export default function YourTurnScreen({ ticket }) {
     <div className="flex min-h-screen items-center justify-center bg-[#EAF3FB] px-4 py-8">
       <div className="w-full max-w-md sm:max-w-lg md:max-w-xl">
 
-      <img
-  src={branding.logo || logo}
-  alt={branding.systemName}
-  className="mx-auto mb-5 h-14 w-auto object-contain mix-blend-multiply"
-/>
+        <Logo
+          src={branding.logo}
+          size="lg"
+          alt={branding.systemName}
+          className="mx-auto mb-5 mix-blend-multiply"
+        />
 
         <div className="overflow-hidden rounded-2xl border-2 border-[#9D0A0E] bg-white shadow-lg">
 

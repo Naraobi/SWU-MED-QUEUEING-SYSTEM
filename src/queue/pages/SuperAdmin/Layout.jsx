@@ -15,13 +15,12 @@ import {
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../services/Authcontext';
-import logo from '../../../assets/logo-transparent.png';
+import Logo from '../../components/Logo';
+import logoTransparent from '../../../assets/logo-transparent.png';
 import AppFooter from '../../components/AppFooter';
 import { useSuperAdminAppearance, DEFAULT_SYSTEM_NAME } from './SuperAdminAppearanceContext';
-import { canAccessSuperadminPage } from '../../services/accessControl';
 import NotificationsBell from './NotificationsBell';
 import { useLanguage } from '../../services/language';
-import { getLogo, subscribeAppearance } from '../../services/appearance';
 import SharedProfileModal, {
   getStoredProfileAvatar,
 } from '../../components/modals/ProfileModal';
@@ -119,14 +118,6 @@ export default function Layout({ activePage, onNavigate, children }) {
     discard: saDiscard,
   } = useSuperAdminAppearance();
   const [pendingPage, setPendingPage] = useState(null);
-
-  // A logo uploaded in Settings replaces the bundled mark everywhere.
-  const [brandLogo, setBrandLogo] = useState(() => getLogo());
-
-  useEffect(
-    () => subscribeAppearance((appearance) => setBrandLogo(appearance.logo)),
-    []
-  );
 
 console.log('Current user:', user);
 console.log('User permissions:', user?.permissions);
@@ -235,17 +226,17 @@ function handleNavigate(key) {
               aria-label={t('sa.nav.goToDashboard')}
               title={t('sa.nav.goToDashboard')}
             >
-              <img
-                src={saLogo || brandLogo || logo}
-                alt="SWUMed"
-                className="h-4 w-auto object-contain object-left"
+              <Logo
+                src={saLogo}
+                fallbackSrc={logoTransparent}
+                size="xxs"
+                alt={saSystemName || DEFAULT_SYSTEM_NAME}
+                className="object-left"
               />
             </button>
 
             <p className="mt-1 text-xs text-[#4B5563]">
-              {saSystemName && saSystemName !== DEFAULT_SYSTEM_NAME
-                ? saSystemName
-                : t('sa.nav.queuingSystem')}
+              {saSystemName || DEFAULT_SYSTEM_NAME}
             </p>
           </div>
 

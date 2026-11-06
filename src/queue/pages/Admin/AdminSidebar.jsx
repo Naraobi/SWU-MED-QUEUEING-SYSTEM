@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { BarChart3, Bell, ClipboardPlus, LayoutDashboard, LogOut, Monitor, Settings, Users, Pencil } from 'lucide-react';
 import { useAuth } from '../../services/Authcontext';
 import { canAccessAdminPage } from '../../services/accessControl';
-import logo from '../../../assets/logo.png';
+import Logo from '../../components/Logo';
+import { usePatientBranding } from '../../services/patientBranding';
 import LogoutModal from '../../components/modals/LogoutModal';
 import ProfileModal, { getStoredProfileAvatar } from '../../components/modals/ProfileModal';
 import { useLanguage } from './LanguageContext';
@@ -21,7 +22,7 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
   const { user } = useAuth();
 
   const { t } = useLanguage();
-  const { logoUrl } = useAppearance();
+  const { systemName, logo } = usePatientBranding();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const visibleItems = NAV_ITEMS.filter(({ key }) =>
@@ -40,14 +41,10 @@ export default function AdminSidebar({ activeItem = 'dashboard', onSelect = () =
         style={{ fontFamily: 'Inter, sans-serif' }}
       >
         <div className="flex h-[74px] shrink-0 flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
-          <img
-            src={logoUrl || logo}
-            alt="SWUMed Logo"
-            className="h-9 w-auto object-contain"
-          />
+          <Logo src={logo} size="md" alt={systemName} />
 
           <div className="text-[10px] font-medium tracking-wide text-slate-400">
-            {t('nav.queuingSystem')}
+            {systemName}
           </div>
         </div>
 
@@ -96,7 +93,7 @@ export function AdminHeaderBar({ title }) {
 
   /*
    * KEEP AppearanceContext for the SYSTEM appearance.
-   * logoUrl is still used by AdminSidebar.
+   * logoUrl stays available for the profile modal.
    *
    * It is NOT used for the user's profile picture anymore.
    */

@@ -50,7 +50,8 @@ import {
 
 import { QRCodeSVG } from 'qrcode.react';
 
-import logoImage from '../../../assets/logo-transparent.png';
+import Logo from '../../components/Logo';
+import logoTransparent from '../../../assets/logo-transparent.png';
 import { THEME } from '../../theme/colors';
 import { usePatientBranding } from '../../services/patientBranding';
 const TransitionContext = createContext({ leaving: false });
@@ -392,10 +393,12 @@ async function checkKioskUnlocked(kioskId) {
 function Wordmark({ size = 'h-10' }) {
   const { logo, systemName } = usePatientBranding();
   return (
-    <img
-      src={logo || logoImage}
+    <Logo
+      src={logo}
+      fallbackSrc={logoTransparent}
+      size={size}
       alt={systemName}
-      className={`${size} w-auto object-contain mix-blend-multiply`}
+      className="mix-blend-multiply"
     />
   );
 }

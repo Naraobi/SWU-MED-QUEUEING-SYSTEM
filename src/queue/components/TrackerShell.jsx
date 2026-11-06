@@ -1,5 +1,4 @@
-import React from 'react'
-import logo from '../../assets/logo.png'
+import Logo from './Logo'
 import { usePatientBranding } from '../services/patientBranding';
 
 export default function TrackerShell({ title, subtitle, children, footer }) {
@@ -8,11 +7,12 @@ export default function TrackerShell({ title, subtitle, children, footer }) {
     <div className="flex min-h-screen items-center justify-center bg-[#EAF3FB] px-4 py-8">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-lg sm:max-w-lg md:max-w-xl">
         <div className="px-6 pt-6 pb-4 text-center">
-      <img
-  src={branding.logo || logo}
-  alt={branding.systemName}
-  className="mx-auto h-14 w-auto object-contain"
-/>
+          <Logo
+            src={branding.logo}
+            size="lg"
+            alt={branding.systemName}
+            className="mx-auto"
+          />
           {title && (
             <p className="mt-2 text-sm font-bold text-[#1F2937] sm:text-base">
               {title}

@@ -3,7 +3,8 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../services/Authcontext';
 import { canAccessStaffPage } from '../../services/accessControl';
 import LogoutModal from '../../components/modals/LogoutModal.jsx';
-import logo from '../../../assets/logo.png';
+import Logo from '../../components/Logo';
+import { usePatientBranding } from '../../services/patientBranding';
 import { useStaffPreferences } from './StaffPreferencesContext.jsx';
 
 const LINKS = [
@@ -51,7 +52,8 @@ export default function Sidebar() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, isDirty, discardChanges, logoUrl } = useStaffPreferences();
+  const { t, isDirty, discardChanges } = useStaffPreferences();
+  const { logo, systemName } = usePatientBranding();
   const visibleLinks = LINKS.filter(({ key }) => canAccessStaffPage(user, key));
 
   // Keep restricted staff from remaining on Today's Queue if their permissions change.
@@ -95,12 +97,12 @@ React.useEffect(() => {
   return (
     <aside className="staff-sidebar sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white z-40" style={{ fontFamily: 'Inter, sans-serif' }}>
       <div className="flex h-[74px] shrink-0 flex-col items-center justify-center border-b border-slate-200 px-5 text-center">
-        <img src={logoUrl || logo} alt="SWUMed Logo" className="h-9 w-auto object-contain" />
+        <Logo src={logo} size="md" alt={systemName} />
         <p className="text-xs text-slate-400">{t('nav.terminalLabel')}</p>
       </div>
 
       <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-        {visibleLinks.map(({ key, to, labelKey, icon: Icon }) => (
+        {visibleLinks.map(({ to, labelKey, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
