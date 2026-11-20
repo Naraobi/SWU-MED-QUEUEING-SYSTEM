@@ -64,6 +64,56 @@ router.get("/", async (_req, res) => {
   }
 });
 
+router.get("/media/:kind", async (req, res) => {
+  const field =
+    req.params.kind === "logo"
+      ? "logo"
+      : req.params.kind === "background"
+        ? "loginBackground"
+        : null;
+
+  if (!field) {
+    return res.status(400).json({ success: false, message: "Unknown branding image type." });
+  }
+
+  try {
+    const snapshot = await db.doc(BRANDING_DOC).get();
+    const url = snapshot.data()?.[field];
+    const match =
+      typeof url === "string" &&
+      /^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/([^/]+)\/o\/([^?]+)/i.exec(url);
+
+    if (!match) {
+      return res.status(404).json({ success: false, message: "Branding image not found." });
+    }
+
+    const file = storage
+      .bucket(match[1])
+      .file(decodeURIComponent(match[2]));
+    const [metadata] = await file.getMetadata();
+
+    res.set({
+      "Content-Type": metadata.contentType || "application/octet-stream",
+      "Cache-Control": "public, max-age=300",
+    });
+
+    return file
+      .createReadStream()
+      .on("error", (error) => {
+        console.error("Failed to stream branding image:", error);
+        if (!res.headersSent) {
+          res.status(502).json({ success: false, message: "Failed to load branding image." });
+        } else {
+          res.destroy(error);
+        }
+      })
+      .pipe(res);
+  } catch (error) {
+    console.error("Failed to load branding image:", error);
+    return res.status(404).json({ success: false, message: "Branding image not found." });
+  }
+});
+
 router.post(
   "/upload/:kind",
   authenticateRequest,

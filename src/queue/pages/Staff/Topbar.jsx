@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useQueue } from '../../context/QueueContext.jsx';
 import { useAuth } from '../../services/Authcontext.jsx';
 import { useStaffPreferences } from './StaffPreferencesContext.jsx';
+import { usePatientBranding } from '../../services/patientBranding';
 import ProfileModal, {
   getStoredProfileAvatar,
 } from '../../components/modals/ProfileModal.jsx';
@@ -37,8 +38,8 @@ export default function Topbar({
   currentTerminal,
   onOpenTerminalModal,
 }) {
-  const { t, accent, logoUrl, setAccent, setLogo } =
-    useStaffPreferences();
+  const { t } = useStaffPreferences();
+  const { accent } = usePatientBranding();
 
   const [online, setOnline] = useState(true);
   const [showPanel, setShowPanel] = useState(false);
@@ -64,9 +65,6 @@ export default function Topbar({
 
   /*
    * Individual Staff profile picture.
-   *
-   * This is separate from logoUrl.
-   * logoUrl is still used for the system/terminal logo.
    */
   const [profileAvatar, setProfileAvatar] = useState(() =>
     getStoredProfileAvatar(user)
@@ -611,9 +609,7 @@ export default function Topbar({
       {showProfile && (
         <ProfileModal
           accent={accent}
-          logoUrl={logoUrl}
-          onLogoChange={setLogo}
-          onAccentChange={setAccent}
+          onLogoChange={() => {}}
           onAvatarChange={setProfileAvatar}
           t={t}
           onClose={() => setShowProfile(false)}

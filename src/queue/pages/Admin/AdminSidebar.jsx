@@ -7,7 +7,6 @@ import { usePatientBranding } from '../../services/patientBranding';
 import LogoutModal from '../../components/modals/LogoutModal';
 import ProfileModal, { getStoredProfileAvatar } from '../../components/modals/ProfileModal';
 import { useLanguage } from './LanguageContext';
-import { useAppearance } from './AppearanceContext';
 
 const NAV_ITEMS = [
   { key: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
@@ -91,18 +90,7 @@ export function AdminHeaderBar({ title }) {
   const { user } = useAuth();
   const { t } = useLanguage();
 
-  /*
-   * KEEP AppearanceContext for the SYSTEM appearance.
-   * logoUrl stays available for the profile modal.
-   *
-   * It is NOT used for the user's profile picture anymore.
-   */
-  const {
-    accent,
-    logoUrl,
-    setAccent,
-    setLogo,
-  } = useAppearance();
+  const { accent } = usePatientBranding();
 
   const [showProfile, setShowProfile] = useState(false);
 
@@ -227,9 +215,7 @@ const profileRole =
       {showProfile && (
         <ProfileModal
           accent={accent}
-          logoUrl={logoUrl}
-          onLogoChange={setLogo}
-          onAccentChange={setAccent}
+          onLogoChange={() => {}}
           onAvatarChange={setProfileAvatar}
           t={t}
           onClose={() => setShowProfile(false)}

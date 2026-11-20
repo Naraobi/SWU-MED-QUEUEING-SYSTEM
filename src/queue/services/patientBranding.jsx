@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { API_URL } from './apiBase';
+import { API_URL, brandingMediaUrl } from './apiBase';
 
 const DEFAULT_BRANDING = {
   systemName: 'SWUMed Queuing System',
@@ -8,7 +8,24 @@ const DEFAULT_BRANDING = {
   accent: '#9D0A0E',
 };
 
+const FALLBACK_ICON = '/favicon.svg';
+const ICON_TYPES = {
+  svg: 'image/svg+xml',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+};
+
 const BrandingContext = createContext(DEFAULT_BRANDING);
+
+function iconType(src) {
+  if (src.startsWith('data:')) {
+    return src.match(/^data:(image\/[a-z0-9.+-]+)/i)?.[1] || '';
+  }
+  const path = src.split(/[?#]/, 1)[0];
+  return ICON_TYPES[path.slice(path.lastIndexOf('.') + 1).toLowerCase()] || '';
+}
 
 function normalizeBranding(data = {}) {
   return {
@@ -20,7 +37,7 @@ function normalizeBranding(data = {}) {
 }
 
 export async function fetchPatientBranding() {
-  const response = await fetch(`${API_URL}/branding`);
+  const response = await fetch(`${API_URL}/branding`, { cache: 'no-store' });
   const result = await response.json();
   if (!response.ok || !result.success) throw new Error(result.message || 'Could not load branding.');
   return normalizeBranding(result.data);
@@ -111,33 +128,44 @@ export function PatientBrandingProvider({ children }) {
   useEffect(() => {
     document.title = branding.systemName || DEFAULT_BRANDING.systemName;
 
-    const link = document.querySelector("link[rel~='icon']");
-    if (!link) return undefined;
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
 
-    const fallback = '/favicon.svg';
+    const applyIcon = (src, explicitType) => {
+      link.href = src;
+      const type = explicitType || iconType(src);
+      if (type) link.type = type;
+      else link.removeAttribute('type');
+    };
+
     let cancelled = false;
+    const logoUrl = brandingMediaUrl(branding.logo, 'logo', branding.updatedAt);
 
-    if (!branding.logo) {
-      link.href = fallback;
+    if (!logoUrl) {
+      applyIcon(FALLBACK_ICON);
       return undefined;
     }
 
     const image = new Image();
 
     image.onload = () => {
-      if (!cancelled) link.href = branding.logo;
+      if (!cancelled) applyIcon(logoUrl, iconType(branding.logo));
     };
 
     image.onerror = () => {
-      if (!cancelled) link.href = fallback;
+      if (!cancelled) applyIcon(FALLBACK_ICON);
     };
 
-    image.src = branding.logo;
+    image.src = logoUrl;
 
     return () => {
       cancelled = true;
     };
-  }, [branding.logo, branding.systemName]);
+  }, [branding.logo, branding.systemName, branding.updatedAt]);
 
   const value = useMemo(() => ({ ...branding, refresh }), [branding, refresh]);
 

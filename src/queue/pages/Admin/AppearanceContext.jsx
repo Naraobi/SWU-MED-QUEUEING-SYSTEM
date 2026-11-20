@@ -7,14 +7,8 @@ import {
   useState,
 } from 'react';
 
-import {
-  loadStoredAccent,
-  loadStoredLogo,
-  loadStoredTheme,
-  saveStoredAccent,
-  saveStoredLogo,
-  saveStoredTheme,
-} from './adminHelpers';
+import { loadStoredTheme, saveStoredTheme } from './adminHelpers';
+import { usePatientBranding } from '../../services/patientBranding';
 
 const AppearanceContext = createContext(null);
 
@@ -28,25 +22,10 @@ function getSystemTheme() {
   }
 }
 
-// =====================================================
-// APPEARANCE PROVIDER
-// =====================================================
-//
-// Owns the Admin section's theme mode, accent colour, and logo.
-//
-// The resolved theme and accent are applied by AdminApp to the
-// Admin root element, never to <html> or <body>. That scoping is
-// deliberate: Staff, SuperAdmin, TV and Patient screens share the
-// same document, so a class left on <html> would restyle them too
-// once an admin navigated away. The logo is scoped the same way:
-// uploading one in Settings only replaces what this Admin sees in
-// their own sidebar, not what patients or other roles see.
-
 export function AppearanceProvider({ children }) {
   const [theme, setThemeState] = useState(() => loadStoredTheme());
-  const [accent, setAccentState] = useState(() => loadStoredAccent());
-  const [logoUrl, setLogoUrlState] = useState(() => loadStoredLogo());
   const [systemTheme, setSystemTheme] = useState(getSystemTheme);
+  const { accent } = usePatientBranding();
 
   // Only matters while the admin has picked "System Default", but the
   // listener is cheap and keeps systemTheme correct if they switch to it.
@@ -73,30 +52,17 @@ export function AppearanceProvider({ children }) {
     saveStoredTheme(mode);
   }, []);
 
-  const setAccent = useCallback((hex) => {
-    setAccentState(hex);
-    saveStoredAccent(hex);
-  }, []);
-
-  const setLogo = useCallback((dataUrl) => {
-    setLogoUrlState(dataUrl || '');
-    saveStoredLogo(dataUrl || '');
-  }, []);
-
   const resolvedTheme = theme === 'system' ? systemTheme : theme;
 
   const value = useMemo(
     () => ({
       theme,
       accent,
-      logoUrl,
       resolvedTheme,
       isDark: resolvedTheme === 'dark',
       setTheme,
-      setAccent,
-      setLogo,
     }),
-    [theme, accent, logoUrl, resolvedTheme, setTheme, setAccent, setLogo]
+    [theme, accent, resolvedTheme, setTheme]
   );
 
   return (

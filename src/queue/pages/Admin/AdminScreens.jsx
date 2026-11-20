@@ -20,7 +20,6 @@
     Globe,
     KeyRound,
     Circle,
-    Palette,
     Upload,
     Play,
     Square,
@@ -2615,14 +2614,6 @@
   // =====================================================
   // SETTINGS - EXACT REFERENCE IMPLEMENTATION
   // =====================================================
-
-  const SETTINGS_ACCENT_PRESETS = [
-    '#9D0A0E',
-    '#B34C4C',
-    '#1F2937',
-    '#0F766E',
-    '#4B5563',
-  ];
 
   const SETTINGS_LANGUAGES = ['English', 'Filipino', 'Cebuano'];
 
@@ -5547,7 +5538,6 @@
       theme: themeMode,
       accent: accentColor,
       setTheme: setThemeMode,
-      setAccent: setAccentColor,
     } = useAppearance();
 
     const [clockFormat, setClockFormat] = useState(SETTINGS_CLOCK_FORMATS[0].key);
@@ -5564,14 +5554,12 @@
     // Baseline "last saved" values. Save moves this baseline forward;
     // leaving without saving (sidebar nav or a closed tab) reverts the
     // live values back to it instead of quietly keeping half-made edits.
-    const [savedAccent, setSavedAccent] = useState(accentColor);
     const [savedTheme, setSavedTheme] = useState(themeMode);
     const [savedLanguage, setSavedLanguage] = useState(language);
     const [savedClockFormat, setSavedClockFormat] = useState(clockFormat);
     const [justSaved, setJustSaved] = useState(false);
 
     const isDirty =
-      accentColor !== savedAccent ||
       themeMode !== savedTheme ||
       language !== savedLanguage ||
       clockFormat !== savedClockFormat;
@@ -5582,12 +5570,11 @@
 
     useEffect(() => {
       registerDiscard(() => {
-        setAccentColor(savedAccent);
         setThemeMode(savedTheme);
         setLanguage(savedLanguage);
         setClockFormat(savedClockFormat);
       });
-    }, [registerDiscard, savedAccent, savedTheme, savedLanguage, savedClockFormat, setAccentColor, setThemeMode, setLanguage]);
+    }, [registerDiscard, savedTheme, savedLanguage, savedClockFormat, setThemeMode, setLanguage]);
 
     // Covers a closed tab / browser refresh the in-app nav guard can't see.
     useEffect(() => {
@@ -5623,7 +5610,6 @@
 
     function handleSaveSettings() {
       if (!isDirty) return;
-      setSavedAccent(accentColor);
       setSavedTheme(themeMode);
       setSavedLanguage(language);
       setSavedClockFormat(clockFormat);
@@ -5632,7 +5618,6 @@
     }
 
     const applyThemeSelection = setThemeMode;
-    const applyAccentSelection = setAccentColor;
 
     return (
       <div className="space-y-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -5665,27 +5650,6 @@
             </button>
           </div>
         </div>
-
-        <SettingsExactSection icon={Palette} title={t('settingsPage.branding.title')} subtitle={t('settingsPage.branding.subtitle')} badge={t('settingsPage.branding.badge')}>
-          <div>
-            <SettingsExactFieldLabel>{t('settingsPage.branding.accent')}</SettingsExactFieldLabel>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] px-3 py-2">
-                <span className="h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10" style={{ backgroundColor: accentColor }} />
-                <span className="text-xs font-semibold uppercase text-[#1F2937]">{t('settingsPage.branding.hex')} {accentColor.toUpperCase()}</span>
-              </div>
-              <div className="flex items-center gap-2 border-l border-[#E5E7EB] pl-4">
-                <span className="text-xs text-[#667085]">{t('settingsPage.branding.presets')}</span>
-                {SETTINGS_ACCENT_PRESETS.map((preset) => (
-                  <button key={preset} type="button" onClick={() => applyAccentSelection(preset)} aria-label={`Accent ${preset}`} aria-pressed={accentColor.toUpperCase() === preset.toUpperCase()} className={`flex h-6 w-6 items-center justify-center rounded-full transition ${accentColor.toUpperCase() === preset.toUpperCase() ? 'ring-2 ring-[#9D0A0E] ring-offset-2' : 'ring-1 ring-black/10 hover:ring-[#98A2B3]'}`} style={{ backgroundColor: preset }}>
-                    {accentColor.toUpperCase() === preset.toUpperCase() && <Check size={12} strokeWidth={3} className="text-white" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <SettingsExactHint>{t('settingsPage.branding.accentHint')}</SettingsExactHint>
-          </div>
-        </SettingsExactSection>
 
         <SettingsExactSection icon={ShieldCheck} title={t('settingsPage.security.title')} subtitle={t('settingsPage.security.subtitle')}>
           <div className="divide-y divide-[#E5E7EB]">

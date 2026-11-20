@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import defaultLogo from '../../assets/logo.png';
+import { brandingMediaUrl } from '../services/apiBase';
 
 const SIZES = {
   xxs: 'h-4 w-auto',
@@ -21,7 +22,8 @@ export default function Logo({
   ...props
 }) {
   const [failedSrc, setFailedSrc] = useState(null);
-  const resolved = src && src !== failedSrc ? src : fallbackSrc;
+  const mediaSrc = brandingMediaUrl(src, 'logo');
+  const resolved = mediaSrc && mediaSrc !== failedSrc ? mediaSrc : fallbackSrc;
   const sizeClass = SIZES[size] || size || SIZES.md;
 
   return (
@@ -29,7 +31,7 @@ export default function Logo({
       src={resolved}
       alt={alt}
       onError={() => {
-        if (src && src !== failedSrc) setFailedSrc(src);
+        if (mediaSrc && mediaSrc !== failedSrc) setFailedSrc(mediaSrc);
       }}
       className={`${sizeClass} object-contain ${className}`}
       {...props}

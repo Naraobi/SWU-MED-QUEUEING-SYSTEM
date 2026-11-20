@@ -36,6 +36,8 @@ import {
   readBackgroundFile,
 } from '../../services/appearance';
 import { useSuperAdminAppearance } from './SuperAdminAppearanceContext';
+import { brandingMediaUrl } from '../../services/apiBase';
+import { usePatientBranding } from '../../services/patientBranding';
 
 import { useLanguage, LANGUAGES } from '../../services/language';
 
@@ -765,6 +767,7 @@ export default function Settings() {
     save: saveSettings,
     discard: discardSettings,
   } = useSuperAdminAppearance();
+  const { updatedAt: brandingUpdatedAt } = usePatientBranding();
 
   const [justSaved, setJustSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -920,7 +923,10 @@ export default function Settings() {
 
   const [backgroundBusy, setBackgroundBusy] = useState(false);
   const [backgroundError, setBackgroundError] = useState('');
-  const resolvedLoginBackground = useResolvedImage(loginBackground, LoginBG1);
+  const resolvedLoginBackground = useResolvedImage(
+    brandingMediaUrl(loginBackground, 'loginBackground', brandingUpdatedAt),
+    LoginBG1
+  );
 
   async function handleBackgroundUpload(event) {
     const file = event.target.files?.[0];

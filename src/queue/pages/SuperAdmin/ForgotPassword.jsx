@@ -20,6 +20,7 @@ import LoginBG1 from '../../../assets/LoginBG1.jpg';
 import Footer from '../../components/Footer';
 import Logo from '../../components/Logo';
 import useResolvedImage from '../../hooks/useResolvedImage';
+import { brandingMediaUrl } from '../../services/apiBase';
 import { usePatientBranding } from '../../services/patientBranding';
 
 /*
@@ -39,8 +40,11 @@ import { usePatientBranding } from '../../services/patientBranding';
 
 
 function RecoveryShell({ children }) {
-  const { systemName, logo, loginBackground } = usePatientBranding();
-  const loginBackgroundImage = useResolvedImage(loginBackground, LoginBG1);
+  const { systemName, logo, loginBackground, updatedAt } = usePatientBranding();
+  const loginBackgroundImage = useResolvedImage(
+    brandingMediaUrl(loginBackground, 'loginBackground', updatedAt),
+    LoginBG1
+  );
 
   return (
     <div

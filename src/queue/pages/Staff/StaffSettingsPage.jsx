@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Globe, KeyRound, Monitor, Moon, Palette, Save, ShieldCheck, Sun } from 'lucide-react';
+import { Check, Globe, KeyRound, Monitor, Moon, Save, ShieldCheck, Sun } from 'lucide-react';
 import Sidebar from './Sidebar.jsx';
 import AppFooter from '../../components/AppFooter.jsx';
 import Topbar from './Topbar.jsx';
@@ -29,8 +29,6 @@ const THEME_MODES = [
   },
 ];
 
-const ACCENT_PRESETS = ['#9D0A0E', '#B34C4C', '#1F2937', '#0F766E', '#4B5563', '#1E5FA8'];
-
 function SettingsSection({ icon: Icon, title, subtitle, children }) {
   return (
     <section className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
@@ -51,7 +49,6 @@ export default function StaffSettingsPage() {
     theme,
     setTheme,
     accent,
-    setAccent,
     isDark,
     language,
     setLanguage,
@@ -66,12 +63,10 @@ export default function StaffSettingsPage() {
   // leaving without saving reverts the live values back to it instead
   // of quietly keeping half-made edits. Mirrors Admin's SettingsExactPage.
   const [savedTheme, setSavedTheme] = useState(theme);
-  const [savedAccent, setSavedAccent] = useState(accent);
   const [savedLanguage, setSavedLanguage] = useState(language);
   const [justSaved, setJustSaved] = useState(false);
 
-  const isDirty =
-    theme !== savedTheme || accent !== savedAccent || language !== savedLanguage;
+  const isDirty = theme !== savedTheme || language !== savedLanguage;
 
   useEffect(() => {
     setIsDirty(isDirty);
@@ -80,10 +75,9 @@ export default function StaffSettingsPage() {
   useEffect(() => {
     registerDiscard(() => {
       setTheme(savedTheme);
-      setAccent(savedAccent);
       setLanguage(savedLanguage);
     });
-  }, [registerDiscard, savedTheme, savedAccent, savedLanguage, setTheme, setAccent, setLanguage]);
+  }, [registerDiscard, savedTheme, savedLanguage, setTheme, setLanguage]);
 
   // Covers a closed tab / browser refresh the in-app nav guard can't see.
   useEffect(() => {
@@ -99,7 +93,6 @@ export default function StaffSettingsPage() {
   function handleSave() {
     if (!isDirty) return;
     setSavedTheme(theme);
-    setSavedAccent(accent);
     setSavedLanguage(language);
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 2000);
@@ -192,33 +185,6 @@ export default function StaffSettingsPage() {
                 <KeyRound size={14} />
                 {t('settings.security.changePassword')}
               </button>
-            </div>
-          </SettingsSection>
-
-          <SettingsSection icon={Palette} title={t('settings.color.title')} subtitle={t('settings.color.subtitle')}>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 rounded-lg border border-[#E5E7EB] px-3 py-2">
-                <span className="h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10" style={{ backgroundColor: accent }} />
-                <span className="text-xs font-semibold uppercase text-[#1F2937]">{t('settings.color.hex')} {accent.toUpperCase()}</span>
-              </div>
-              <div className="flex items-center gap-2 border-l border-[#E5E7EB] pl-4">
-                <span className="text-xs text-[#667085]">{t('settings.color.presets')}</span>
-                {ACCENT_PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setAccent(preset)}
-                    aria-label={`Accent ${preset}`}
-                    aria-pressed={accent.toUpperCase() === preset.toUpperCase()}
-                    className={`flex h-6 w-6 items-center justify-center rounded-full transition ${
-                      accent.toUpperCase() === preset.toUpperCase() ? 'ring-2 ring-[#9D0A0E] ring-offset-2' : 'ring-1 ring-black/10 hover:ring-[#98A2B3]'
-                    }`}
-                    style={{ backgroundColor: preset }}
-                  >
-                    {accent.toUpperCase() === preset.toUpperCase() && <Check size={12} strokeWidth={3} className="text-white" />}
-                  </button>
-                ))}
-              </div>
             </div>
           </SettingsSection>
 

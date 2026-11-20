@@ -10,3 +10,9 @@ export const API_BASE_URL = String(
 ).replace(/\/+$/, "");
 
 export const API_URL = `${API_BASE_URL}/api`;
+
+export function brandingMediaUrl(url, kind, version) {
+  if (!url || !/^https:\/\/firebasestorage\.googleapis\.com\//i.test(url)) return url;
+  const suffix = kind === 'loginBackground' ? 'background' : 'logo';
+  return `${API_URL}/branding/media/${suffix}${version ? `?v=${encodeURIComponent(version)}` : ''}`;
+}

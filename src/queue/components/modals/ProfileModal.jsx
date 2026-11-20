@@ -1,17 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Briefcase, Building2, Mail, Monitor, Pencil, RefreshCw, ShieldCheck, User, X } from 'lucide-react'
 import { useAuth } from '../../services/Authcontext.jsx'
-import { extractDominantColor } from '../../theme/colors'
-
-/*
- * Profile pictures are stored separately from the system logo.
- *
- * IMPORTANT:
- * Do NOT use logoUrl / onLogoChange for the user's profile picture.
- *
- * The system logo remains controlled by AppearanceContext /
- * StaffPreferencesContext.
- */
 
 const PROFILE_AVATAR_PREFIX = 'swumed_profile_avatar_'
 
@@ -77,9 +66,7 @@ function saveStoredProfileAvatar(user, avatar) {
 export default function ProfileModal({
   onClose,
   accent = '#9D0A0E',
-  logoUrl = '',
   onLogoChange,
-  onAccentChange,
   onAvatarChange,
   t = (key) => key,
 }) {
@@ -208,7 +195,7 @@ export default function ProfileModal({
 
     const reader = new FileReader()
 
-    reader.onload = async () => {
+    reader.onload = () => {
       const dataUrl = reader.result
 
       if (!dataUrl) {
@@ -217,34 +204,8 @@ export default function ProfileModal({
         return
       }
 
-      /*
-       * Only preview it for now.
-       */
       setPendingAvatar(dataUrl)
-
-      /*
-       * Keep your existing accent-color extraction logic.
-       *
-       * This does NOT change the system logo.
-       * It only keeps the existing accent behavior you already had.
-       */
-      try {
-        const dominantColor = await extractDominantColor(dataUrl)
-
-        if (
-          dominantColor &&
-          typeof onAccentChange === 'function'
-        ) {
-          onAccentChange(dominantColor)
-        }
-      } catch (error) {
-        console.error(
-          'Failed to extract a color from the uploaded photo:',
-          error
-        )
-      } finally {
-        setUploading(false)
-      }
+      setUploading(false)
     }
 
     reader.onerror = () => {
