@@ -1,9 +1,11 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../services/Authcontext';
-import logo from '../../../assets/logo.png';
+import Logo from '../../components/Logo';
+import { usePatientBranding } from '../../services/patientBranding';
 
 export default function ProtectedRoute({ children, allowedRole }) {
   const { user, loading } = useAuth();
+  const { systemName, logo } = usePatientBranding();
 
   /*
    * Wait until AuthContext restores/checks the local session.
@@ -15,10 +17,11 @@ export default function ProtectedRoute({ children, allowedRole }) {
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#F8F9FA] px-6">
-        <img
+        <Logo
           src={logo}
-          alt="SWUMed Queuing System"
-          className="swu-pop h-12 w-auto opacity-90"
+          size="xl"
+          alt={systemName}
+          className="swu-pop opacity-90"
         />
 
         <div className="flex items-center gap-2.5">

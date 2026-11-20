@@ -1,4 +1,4 @@
-import React, {
+import {
   useEffect,
   useRef,
   useState,
@@ -14,7 +14,8 @@ import YourTurnScreen from '../../components/YourTurnScreen.jsx'
 
 import CompletedScreen from '../../components/CompletedScreen.jsx'
 
-import logo from '../../../assets/logo.png'
+import Logo from '../../components/Logo';
+import defaultLogo from '../../../assets/logo.png';
 import { usePatientBranding } from '../../services/patientBranding';
 
 const POLL_INTERVAL_MS = 5000
@@ -179,7 +180,7 @@ function playTurnNotificationSound() {
 
 export default function TrackerPage() {
   const branding = usePatientBranding();
-  const brandLogo = branding.logo || logo;
+  const notificationIcon = branding.logo || defaultLogo;
 
   /* ==========================================================================
      URL PARAMETERS
@@ -456,8 +457,7 @@ export default function TrackerPage() {
                 body:
                   'You will be notified when it is your turn.',
 
-                icon:
-                  brandLogo,
+                icon: notificationIcon,
               }
             )
 
@@ -628,8 +628,7 @@ export default function TrackerPage() {
               body:
                 notificationBody,
 
-              icon:
-                brandLogo,
+              icon: notificationIcon,
             }
           )
 
@@ -984,10 +983,11 @@ export default function TrackerPage() {
 
         <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg">
 
-          <img
-            src={brandLogo}
+          <Logo
+            src={branding.logo}
+            size="lg"
             alt={branding.systemName}
-            className="mx-auto h-14 w-auto object-contain"
+            className="mx-auto"
           />
 
           <h1 className="mt-5 text-xl font-bold text-[#1F2937]">
@@ -1071,10 +1071,11 @@ export default function TrackerPage() {
 
               <div className="mx-auto flex h-20 w-20 items-center justify-center">
 
-                <img
-                  src={brandLogo}
+                <Logo
+                  src={branding.logo}
+                  size="xxl"
                   alt={branding.systemName}
-                  className="h-20 w-20 object-contain"
+                  className="max-w-full"
                 />
 
               </div>

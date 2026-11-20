@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import LoginBG1 from '../../../assets/LoginBG1.jpg';
 import Footer from '../../components/Footer';
+import Logo from '../../components/Logo';
+import useResolvedImage from '../../hooks/useResolvedImage';
+import { usePatientBranding } from '../../services/patientBranding';
 
 /*
  * Password recovery uses Firebase Authentication's built-in reset:
@@ -36,10 +39,13 @@ import Footer from '../../components/Footer';
 
 
 function RecoveryShell({ children }) {
+  const { systemName, logo, loginBackground } = usePatientBranding();
+  const loginBackgroundImage = useResolvedImage(loginBackground, LoginBG1);
+
   return (
     <div
       className="relative flex min-h-screen items-center justify-center bg-cover bg-center bg-no-repeat px-4 py-10"
-      style={{ backgroundImage: `url(${LoginBG1})` }}
+      style={{ backgroundImage: `url("${loginBackgroundImage}")` }}
     >
       <div
         aria-hidden="true"
@@ -47,6 +53,11 @@ function RecoveryShell({ children }) {
       />
 
       <div className="swu-pop relative z-10 w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex flex-col items-center border-b border-[#F1F3F5] px-7 pb-4 pt-6">
+          <Logo src={logo} size="sm" alt={systemName} />
+          <p className="mt-2 text-xs font-bold text-[#1F2937]">{systemName}</p>
+        </div>
+
         {children}
       </div>
     </div>

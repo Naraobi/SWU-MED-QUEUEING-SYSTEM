@@ -350,6 +350,89 @@ export function readLogoFile(file) {
 }
 
 /*
+ * readBackgroundFile(file) -> dataUrl
+ *
+ * The login background is redrawn at no more than 1920px and compressed as
+ * JPEG before it is uploaded. The API accepts images under 1.5MB, and the
+ * browser's base64 payload has to stay inside the server's JSON limit too.
+ */
+export function readBackgroundFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error('No file selected.'));
+      return;
+    }
+
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+      reject(new Error('Please choose a PNG, JPG or WEBP image.'));
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      reject(new Error('That image is larger than 10MB.'));
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+
+    reader.onload = () => {
+      const source = String(reader.result);
+      const image = new Image();
+
+      image.onerror = () =>
+        reject(new Error('That file could not be read as an image.'));
+
+      image.onload = () => {
+        try {
+          const encode = (maxDimension, quality) => {
+            const scale = Math.min(
+              1,
+              maxDimension / Math.max(image.width, image.height)
+            );
+
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(image.width * scale));
+            canvas.height = Math.max(1, Math.round(image.height * scale));
+
+            const context = canvas.getContext('2d');
+            context.fillStyle = '#FFFFFF';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+            return canvas.toDataURL('image/jpeg', quality);
+          };
+
+          let dataUrl = encode(1920, 0.82);
+
+          if (dataUrl.length > 1.6 * 1024 * 1024) {
+            dataUrl = encode(1280, 0.72);
+          }
+
+          if (dataUrl.length > 1.6 * 1024 * 1024) {
+            dataUrl = encode(1024, 0.65);
+          }
+
+          if (dataUrl.length > 1.6 * 1024 * 1024) {
+            reject(new Error('That image is too large. Choose a smaller image.'));
+            return;
+          }
+
+          resolve(dataUrl);
+        } catch {
+          reject(new Error('That image could not be processed.'));
+        }
+      };
+
+      image.src = source;
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+/*
  * applyBrandingFromFile(file)
  *
  * The whole upload flow: read it, store it, and re-colour the app from it.

@@ -6,8 +6,10 @@ import { getLandingPath } from '../../services/accessControl';
 import ChangePasswordModal from '../../components/changePasswordModal';
 import LegalModal from '../../components/LegalModal';
 import Footer from '../../components/Footer';
+import Logo from '../../components/Logo';
 import LoginBG1 from '../../../assets/LoginBG1.jpg';
-import Logo from '../../../assets/logo.png';
+import useResolvedImage from '../../hooks/useResolvedImage';
+import { usePatientBranding } from '../../services/patientBranding';
 
 export default function Login() {
  const {
@@ -17,6 +19,8 @@ export default function Login() {
   loading: sessionLoading,
 } = useAuth();
   const navigate = useNavigate();
+  const { systemName, logo, loginBackground } = usePatientBranding();
+  const loginBackgroundImage = useResolvedImage(loginBackground, LoginBG1);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -299,7 +303,7 @@ async function handlePasswordChangeSuccess(
     <div
       className="relative min-h-screen bg-cover bg-center bg-no-repeat"
       style={{
-        backgroundImage: `url(${LoginBG1})`,
+        backgroundImage: `url("${loginBackgroundImage}")`,
       }}
     >
       {/* Maroon wash over the building photo */}
@@ -319,14 +323,10 @@ async function handlePasswordChangeSuccess(
           {/* LOGO + TITLE */}
 
           <div className="flex flex-col items-center text-center">
-            <img
-              src={Logo}
-              alt="SWUMed"
-              className="h-9 w-auto object-contain"
-            />
+            <Logo src={logo} size="md" alt={systemName} />
 
             <p className="mt-2 text-base font-bold text-[#1F2937]">
-              Queuing Management System
+              {systemName}
             </p>
           </div>
 
@@ -566,7 +566,7 @@ async function handlePasswordChangeSuccess(
 
         <div className="swu-enter hidden flex-1 flex-col justify-end pb-12 lg:flex">
           <h1 className="text-3xl font-bold text-white">
-            Welcome to SWUMed
+            Welcome to {systemName}
           </h1>
 
           <p className="mt-3 max-w-lg text-sm leading-6 text-white/90">

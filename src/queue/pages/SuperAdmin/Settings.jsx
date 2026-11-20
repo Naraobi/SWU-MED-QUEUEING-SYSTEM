@@ -9,10 +9,9 @@ import {
   ShieldCheck,
   LockKeyhole,
   Palette,
-  Copy,
   Upload,
- Eye, 
- EyeOff,
+  Eye,
+  EyeOff,
   KeyRound,
   Globe,
   FileText,
@@ -33,20 +32,16 @@ import ChangePasswordModal from '../../components/changePasswordModal';
 import LegalModal, { LAST_UPDATED } from '../../components/LegalModal';
 
 import {
-  getAccentColor,
-  getThemeMode,
-  setAccentColor as persistAccentColor,
-  setThemeMode as persistThemeMode,
-  getLogo,
-  clearLogo,
-  applyBrandingFromFile,
   readLogoFile,
+  readBackgroundFile,
 } from '../../services/appearance';
 import { useSuperAdminAppearance } from './SuperAdminAppearanceContext';
 
 import { useLanguage, LANGUAGES } from '../../services/language';
 
-import Logo from '../../../assets/logo.png';
+import Logo from '../../components/Logo';
+import useResolvedImage from '../../hooks/useResolvedImage';
+import LoginBG1 from '../../../assets/LoginBG1.jpg';
 
 const ACCENT_PRESETS = [
   '#9D0A0E',
@@ -760,6 +755,8 @@ export default function Settings() {
     setTheme: setThemeMode,
     logoUrl: logo,
     setLogo: setLogoDraft,
+    loginBackground,
+    setLoginBackground,
     systemName,
     setSystemName,
     clockFormat,
@@ -921,20 +918,38 @@ export default function Settings() {
     setLogoError('');
   }
 
+  const [backgroundBusy, setBackgroundBusy] = useState(false);
+  const [backgroundError, setBackgroundError] = useState('');
+  const resolvedLoginBackground = useResolvedImage(loginBackground, LoginBG1);
+
+  async function handleBackgroundUpload(event) {
+    const file = event.target.files?.[0];
+
+    event.target.value = '';
+
+    if (!file) return;
+
+    setBackgroundError('');
+    setBackgroundBusy(true);
+
+    try {
+      setLoginBackground(await readBackgroundFile(file));
+    } catch (error) {
+      setBackgroundError(
+        error?.message || t('sa.settings.backgroundFailed')
+      );
+    } finally {
+      setBackgroundBusy(false);
+    }
+  }
+
+  function handleBackgroundRestore() {
+    setLoginBackground('');
+    setBackgroundError('');
+  }
+
   const [showChangePassword, setShowChangePassword] =
     useState(false);
-
-  const [copied, setCopied] = useState(false);
-
-  function handleCopyName() {
-    navigator.clipboard
-      ?.writeText(systemName)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      })
-      .catch(() => setCopied(false));
-  }
 
   return (
     <div className="space-y-5">
@@ -1008,31 +1023,15 @@ export default function Settings() {
         <div>
           <FieldLabel>{t('sa.settings.systemName')}</FieldLabel>
 
-          <div className="relative">
-            <input
-              id="system-name"
-              type="text"
-              value={systemName}
-              onChange={(e) =>
-                setSystemName(e.target.value)
-              }
-              className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 pr-10 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
-            />
-
-            <button
-              type="button"
-              onClick={handleCopyName}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-[#9CA3AF] transition hover:text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/30"
-              aria-label={t('sa.settings.copyName')}
-              title={copied ? t('sa.settings.copied') : t('sa.settings.copy')}
-            >
-              {copied ? (
-                <Check size={16} className="text-emerald-600" />
-              ) : (
-                <Copy size={16} />
-              )}
-            </button>
-          </div>
+          <input
+            id="system-name"
+            type="text"
+            value={systemName}
+            onChange={(e) =>
+              setSystemName(e.target.value)
+            }
+            className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm text-[#1F2937] transition focus:border-[#9D0A0E] focus:outline-none focus:ring-2 focus:ring-[#9D0A0E]/20"
+          />
 
           <Hint>{t('sa.settings.systemNameHint')}</Hint>
         </div>
@@ -1045,14 +1044,14 @@ export default function Settings() {
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] px-4 py-3">
 
             <div className="flex items-center gap-4">
-              <img
-                src={logo || Logo}
+              <Logo
+                src={logo}
+                size="xs"
                 alt={
                   logo
                     ? t('sa.settings.uploadedLogo')
                     : t('sa.settings.currentLogo')
                 }
-                className="h-7 w-auto object-contain"
               />
 
               <div>
@@ -1126,6 +1125,74 @@ export default function Settings() {
           {logoError && (
             <p className="mt-2 text-xs text-[#9D0A0E]">{logoError}</p>
           )}
+        </div>
+
+        {/* LOGIN BACKGROUND */}
+
+        <div className="mt-6">
+          <FieldLabel>{t('sa.settings.loginBackground')}</FieldLabel>
+
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#E5E7EB] px-4 py-3">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-28 shrink-0 overflow-hidden rounded-md border border-[#E5E7EB] bg-[#F1F3F5]">
+                <img
+                  src={resolvedLoginBackground}
+                  alt={t('sa.settings.currentBackground')}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-[#1F2937]">
+                  {t('sa.settings.currentBackground')}
+                </p>
+
+                <p className="mt-0.5 text-xs text-[#9CA3AF]">
+                  {t('sa.settings.backgroundFormats')}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {loginBackground && (
+                <button
+                  type="button"
+                  onClick={handleBackgroundRestore}
+                  disabled={backgroundBusy}
+                  className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#4B5563] transition hover:bg-[#F1F3F5] disabled:opacity-50"
+                >
+                  {t('sa.settings.restoreBackground')}
+                </button>
+              )}
+
+              <label
+                className={`swu-press flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] transition-colors hover:border-[#F0DADA] hover:bg-[#FBF1F1] hover:text-[#9D0A0E] ${
+                  backgroundBusy
+                    ? 'pointer-events-none opacity-60'
+                    : 'cursor-pointer'
+                }`}
+              >
+                <Upload size={14} />
+                {backgroundBusy
+                  ? t('sa.settings.readingBackground')
+                  : t('sa.settings.uploadBackground')}
+
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleBackgroundUpload}
+                  disabled={backgroundBusy}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          {backgroundError && (
+            <p className="mt-2 text-xs text-[#9D0A0E]">{backgroundError}</p>
+          )}
+
+          <Hint>{t('sa.settings.loginBackgroundHint')}</Hint>
         </div>
 
         {/* PRIMARY ACCENT COLOR */}

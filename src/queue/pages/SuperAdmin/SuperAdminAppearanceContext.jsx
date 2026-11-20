@@ -16,7 +16,12 @@ import {
   getThemeMode,
 } from '../../services/appearance';
 import { auth } from '../../../firebase';
-import { fetchPatientBranding, publishPatientBranding } from '../../services/patientBranding';
+import {
+  fetchPatientBranding,
+  publishPatientBranding,
+  uploadBrandingImage,
+  usePatientBranding,
+} from '../../services/patientBranding';
 
 // =====================================================
 // SUPER ADMIN APPEARANCE PROVIDER
@@ -36,6 +41,7 @@ import { fetchPatientBranding, publishPatientBranding } from '../../services/pat
 const THEME_KEY = 'swumed_superadmin_theme';
 const ACCENT_KEY = 'swumed_superadmin_accent';
 const LOGO_KEY = 'swumed_superadmin_logo';
+const LOGIN_BACKGROUND_KEY = 'swumed_superadmin_login_background';
 const SYSTEM_NAME_KEY = 'swumed_superadmin_system_name';
 const CLOCK_FORMAT_KEY = 'swumed_superadmin_clock_format';
 
@@ -74,6 +80,7 @@ function loadSaved() {
     theme: readKey(THEME_KEY) || getThemeMode(),
     accent: readKey(ACCENT_KEY) || getAccentColor(),
     logoUrl: readKey(LOGO_KEY) || getLogo() || '',
+    loginBackground: readKey(LOGIN_BACKGROUND_KEY) || '',
     systemName: readKey(SYSTEM_NAME_KEY) || DEFAULT_SYSTEM_NAME,
     clockFormat: readKey(CLOCK_FORMAT_KEY) || DEFAULT_CLOCK_FORMAT,
   };
@@ -92,12 +99,25 @@ export function SuperAdminAppearanceProvider({ children }) {
   const [draft, setDraft] = useState(saved);
   const [systemTheme, setSystemTheme] = useState(getSystemTheme);
   const editedBeforeLoad = useRef(false);
+  const { refresh: refreshPatientBranding } = usePatientBranding();
 
   useEffect(() => {
     fetchPatientBranding().then((branding) => {
       if (editedBeforeLoad.current) return;
-      setSaved((current) => ({ ...current, accent: branding.accent, logoUrl: branding.logo || '', systemName: branding.systemName }));
-      setDraft((current) => ({ ...current, accent: branding.accent, logoUrl: branding.logo || '', systemName: branding.systemName }));
+      setSaved((current) => ({
+        ...current,
+        accent: branding.accent,
+        logoUrl: branding.logo || '',
+        loginBackground: branding.loginBackground || '',
+        systemName: branding.systemName,
+      }));
+      setDraft((current) => ({
+        ...current,
+        accent: branding.accent,
+        logoUrl: branding.logo || '',
+        loginBackground: branding.loginBackground || '',
+        systemName: branding.systemName,
+      }));
     }).catch(() => {});
   }, []);
 
@@ -144,6 +164,10 @@ export function SuperAdminAppearanceProvider({ children }) {
   const setTheme = useCallback((value) => setField('theme', value), [setField]);
   const setAccent = useCallback((value) => setField('accent', value), [setField]);
   const setLogo = useCallback((value) => setField('logoUrl', value || ''), [setField]);
+  const setLoginBackground = useCallback(
+    (value) => setField('loginBackground', value || ''),
+    [setField]
+  );
   const setSystemName = useCallback((value) => setField('systemName', value), [setField]);
   const setClockFormat = useCallback((value) => setField('clockFormat', value), [setField]);
 
@@ -151,32 +175,59 @@ export function SuperAdminAppearanceProvider({ children }) {
     draft.theme !== saved.theme ||
     draft.accent !== saved.accent ||
     draft.logoUrl !== saved.logoUrl ||
+    draft.loginBackground !== saved.loginBackground ||
     draft.systemName !== saved.systemName ||
     draft.clockFormat !== saved.clockFormat;
 
   const save = useCallback(async () => {
-    // Publish the patient-facing name and logo before marking this draft saved.
-    // A failure leaves the draft intact so the Super Admin can retry.
+    // Upload only the images that actually changed. Name, accent and theme
+    // saves must keep working even while Firebase Storage is unavailable.
+    let logo = draft.logoUrl || null;
+    let loginBackground = draft.loginBackground || null;
+
+    if (logo && logo !== saved.logoUrl && logo.startsWith('data:')) {
+      logo = await uploadBrandingImage('logo', logo, auth.currentUser);
+    }
+
+    if (
+      loginBackground &&
+      loginBackground !== saved.loginBackground &&
+      loginBackground.startsWith('data:')
+    ) {
+      loginBackground = await uploadBrandingImage(
+        'login-background',
+        loginBackground,
+        auth.currentUser
+      );
+    }
+
+    // Publish the shared branding before marking this draft saved. A failure
+    // leaves the draft intact so the Super Admin can retry.
     await publishPatientBranding({
       systemName: draft.systemName.trim() || DEFAULT_SYSTEM_NAME,
-      logo: draft.logoUrl,
+      logo,
+      loginBackground,
       accent: draft.accent,
     }, auth.currentUser);
 
     writeKey(THEME_KEY, draft.theme);
     writeKey(ACCENT_KEY, draft.accent);
-    writeKey(LOGO_KEY, draft.logoUrl);
+    writeKey(LOGO_KEY, logo || '');
+    writeKey(LOGIN_BACKGROUND_KEY, loginBackground || '');
     writeKey(SYSTEM_NAME_KEY, draft.systemName.trim() || DEFAULT_SYSTEM_NAME);
     writeKey(CLOCK_FORMAT_KEY, draft.clockFormat);
 
     const next = {
       ...draft,
+      logoUrl: logo || '',
+      loginBackground: loginBackground || '',
       systemName: draft.systemName.trim() || DEFAULT_SYSTEM_NAME,
     };
 
     setSaved(next);
     setDraft(next);
-  }, [draft]);
+    await refreshPatientBranding();
+  }, [draft, saved.logoUrl, saved.loginBackground, refreshPatientBranding]);
 
   const discard = useCallback(() => {
     setDraft(saved);
@@ -187,6 +238,7 @@ export function SuperAdminAppearanceProvider({ children }) {
       theme: draft.theme,
       accent: draft.accent,
       logoUrl: draft.logoUrl,
+      loginBackground: draft.loginBackground,
       systemName: draft.systemName,
       clockFormat: draft.clockFormat,
       resolvedTheme,
@@ -194,6 +246,7 @@ export function SuperAdminAppearanceProvider({ children }) {
       setTheme,
       setAccent,
       setLogo,
+      setLoginBackground,
       setSystemName,
       setClockFormat,
       isDirty,
@@ -206,6 +259,7 @@ export function SuperAdminAppearanceProvider({ children }) {
       setTheme,
       setAccent,
       setLogo,
+      setLoginBackground,
       setSystemName,
       setClockFormat,
       isDirty,

@@ -20,12 +20,12 @@ import {
   getTerminals,
 } from '../../services/backendApi';
 import { fetchQueueState } from '../../services/api';
-import { getLogo, subscribeAppearance } from '../../services/appearance';
+import Logo from '../../components/Logo';
+import logoTransparent from '../../../assets/logo-transparent.png';
+import { usePatientBranding } from '../../services/patientBranding';
 
 import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
 import { auth } from '../../../firebase';
-
-import brandMark from '../../../assets/logo-transparent.png';
 
 import {
   attachVideo,
@@ -1134,18 +1134,11 @@ export default function TvDisplay() {
   const soundBlocked = useCallSoundBlocked();
   const { t: tr } = useLanguage();
   const { enabled: soundOn, enable: enableSound, latest } = useAnnouncer(departments, callMode);
+  const { systemName, logo } = usePatientBranding();
 
   useEffect(() => {
     preloadCallSound();
   }, []);
-
-  // A logo uploaded in Settings replaces the bundled mark on the TV too.
-  const [brandLogo, setBrandLogo] = useState(() => getLogo());
-
-  useEffect(
-    () => subscribeAppearance((appearance) => setBrandLogo(appearance.logo)),
-    []
-  );
 
   const [videoUrl, setVideoUrl] = useState(null);
   const [videoName, setVideoName] = useState(null);
@@ -1295,11 +1288,18 @@ export default function TvDisplay() {
       {/* HEADER */}
 
       <header className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-6 py-3">
-        <img
-          src={brandLogo || brandMark}
-          alt="SWUMed"
-          className="h-10 w-auto object-contain object-left"
-        />
+        <div className="flex items-center gap-3">
+          <Logo
+            src={logo}
+            fallbackSrc={logoTransparent}
+            size="tv"
+            alt={systemName}
+            className="object-left"
+          />
+          <p className="hidden text-sm font-semibold text-[#4B5563] sm:block">
+            {systemName}
+          </p>
+        </div>
 
         <div className="text-right">
           <p className="text-3xl font-bold text-[#1F2937]">{time}</p>

@@ -9,6 +9,7 @@ const {
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getDatabase } = require("firebase-admin/database");
+const { getStorage } = require("firebase-admin/storage");
 
 const path = require("path");
 const fs = require("fs");
@@ -63,6 +64,14 @@ const firebaseApp =
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
 const realtimeDb = getDatabase(firebaseApp);
+const storage = getStorage(firebaseApp);
+
+// Storage bucket names differ between newer and older Firebase projects.
+const storageBucketCandidates = [
+  process.env.FIREBASE_STORAGE_BUCKET,
+  `${projectId}.firebasestorage.app`,
+  `${projectId}.appspot.com`,
+].filter(Boolean).filter((value, index, all) => all.indexOf(value) === index);
 
 // Export services.
 module.exports = {
@@ -70,4 +79,7 @@ module.exports = {
   auth,
   db,
   realtimeDb,
+  storage,
+  projectId,
+  storageBucketCandidates,
 };
