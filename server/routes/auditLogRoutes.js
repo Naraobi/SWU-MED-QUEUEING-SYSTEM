@@ -35,8 +35,8 @@ const auditAccess = [
 | startDate   YYYY-MM-DD
 | endDate     YYYY-MM-DD
 | search      free text
-| action      created | updated | deleted | assigned | released
-| entityType  user | department | counter | role | position | kiosk
+| action      created | updated | deleted | assigned | vacant | completed | skipped | login | logout
+| entityType  user | department | counter | role | position | kiosk | queue | session
 | limit       max 1000
 | offset
 |

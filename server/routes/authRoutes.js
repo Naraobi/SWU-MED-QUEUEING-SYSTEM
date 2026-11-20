@@ -18,7 +18,75 @@ const {
   getAuth,
 } = require("firebase-admin/auth");
 
+const {
+  authenticateRequest,
+} = require("../middleware/authMiddleware");
+
+const {
+  recordAudit,
+} = require("../services/auditLogService");
+
 const router = express.Router();
+
+function sessionAuditEntry(req, action) {
+  const user = req.user || {};
+  const name =
+    [user.first_name, user.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    user.email ||
+    null;
+
+  const method = String(req.body?.method || "")
+    .trim()
+    .slice(0, 32);
+
+  return {
+    actorId: user.user_id || null,
+    actorName: name,
+    actorRole: user.role || null,
+    actorEmail: user.email || null,
+    action,
+    entityType: "session",
+    entityId: user.user_id || null,
+    entityName: name,
+    details: method ? `Method: ${method}` : null,
+    departmentId: user.department_id || null,
+  };
+}
+
+function sessionAuditHandler(action) {
+  return async (req, res) => {
+    try {
+      await recordAudit(sessionAuditEntry(req, action));
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error(
+        `POST /api/auth/audit/${action} error:`,
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message: "Failed to record session audit.",
+      });
+    }
+  };
+}
+
+router.post(
+  "/audit/login",
+  authenticateRequest,
+  sessionAuditHandler("login")
+);
+
+router.post(
+  "/audit/logout",
+  authenticateRequest,
+  sessionAuditHandler("logout")
+);
 
 /*
 |--------------------------------------------------------------------------

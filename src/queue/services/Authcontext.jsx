@@ -23,6 +23,7 @@ import {
   getCurrentUserProfile,
   getStaffTerminal,
   releaseTerminal,
+  recordAuthAudit,
 } from "./backendApi";
 
 import { auth } from "../../firebase";
@@ -80,6 +81,18 @@ const ALLOWED_ROLES = new Set([
   "admin",
   "staff",
 ]);
+
+async function recordSessionAudit(action, method) {
+  try {
+    const firebaseUser = auth.currentUser;
+
+    if (!firebaseUser) return;
+
+    await recordAuthAudit(firebaseUser, action, method);
+  } catch (error) {
+    console.error(`Failed to record ${action} audit:`, error);
+  }
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -1721,6 +1734,8 @@ const hasPasswordProvider = firebaseUser.providerData.some(
   (provider) => provider.providerId === "password"
 );
 
+void recordSessionAudit("login", "password");
+
 return {
   error: null,
   user: finalUser,
@@ -2188,6 +2203,8 @@ console.log(
       }
     );
 
+    void recordSessionAudit("login", "google");
+
     return {
       error: null,
 
@@ -2332,6 +2349,8 @@ console.log(
     }
 
     try {
+      await recordSessionAudit("logout");
+
       await firebaseSignOut(
         auth
       );

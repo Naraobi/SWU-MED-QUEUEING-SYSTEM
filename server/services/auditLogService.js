@@ -6,8 +6,9 @@ const pool = require("../config/mysql");
 |--------------------------------------------------------------------------
 |
 | Records who changed what across the admin-managed records (users,
-| departments, terminals, roles, positions and kiosks) and reads them
-| back for the Reports "Audit Logs" modal.
+| departments, terminals, roles, positions and kiosks), sign-ins,
+| sign-outs and queue completions/skips, then reads them back for the
+| Reports "Audit Logs" modal.
 |
 | The table is created lazily with CREATE TABLE IF NOT EXISTS, following
 | the same pattern the user deletion log already uses. Every write is
@@ -41,7 +42,15 @@ async function ensureAuditLogsTable() {
     )
   `);
 
+  await pool.query(
+    "UPDATE audit_logs SET action = 'vacant' WHERE action = 'released'"
+  );
+
   tableReady = true;
+}
+
+function normalizeAction(value) {
+  return value === "released" ? "vacant" : value;
 }
 
 function toText(value, maxLength) {
@@ -117,9 +126,13 @@ async function listAuditLogs({
     params.push(endDate);
   }
 
-  if (action) {
+  const normalizedAction = normalizeAction(action);
+
+  if (normalizedAction === "vacant") {
+    where.push("action IN ('vacant', 'released')");
+  } else if (normalizedAction) {
     where.push("action = ?");
-    params.push(action);
+    params.push(normalizedAction);
   }
 
   if (entityType) {
@@ -186,7 +199,7 @@ async function listAuditLogs({
       actorName: row.actor_name,
       actorRole: row.actor_role,
       actorEmail: row.actor_email,
-      action: row.action,
+      action: normalizeAction(row.action),
       entityType: row.entity_type,
       entityId: row.entity_id,
       entityName: row.entity_name,

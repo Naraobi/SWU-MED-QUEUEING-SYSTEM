@@ -7,8 +7,8 @@ const { recordAudit } = require("../services/auditLogService");
 |
 | Records a row in audit_logs whenever a known create / update / delete
 | route answers successfully. It is registered globally and only reacts
-| to a small allowlist of admin-managed mutation routes, so unrelated
-| traffic (queue tickets, patient kiosks, ...) is never logged.
+| to a small allowlist of admin-managed mutation routes; sign-ins,
+| sign-outs and queue actions record their own rows in their handlers.
 |
 | Identity comes from the same session the app already trusts: the
 | frontend sends X-Actor-* headers carrying the signed-in profile. The
@@ -26,6 +26,16 @@ function headerValue(req, name) {
   }
 
   return value || null;
+}
+
+function auditActorFromRequest(req) {
+  return {
+    actorId: headerValue(req, "x-actor-id"),
+    actorName: headerValue(req, "x-actor-name"),
+    actorRole: headerValue(req, "x-actor-role"),
+    actorEmail: headerValue(req, "x-actor-email"),
+    departmentId: headerValue(req, "x-actor-department-id"),
+  };
 }
 
 function entityNameFor(entityType, body) {
@@ -137,7 +147,7 @@ const MUTATION_ROUTES = [
   { method: "PUT", pattern: /^\/api\/counters\/([^/]+)\/?$/i, entityType: "counter", action: "updated", entityIdFrom: 1 },
   { method: "DELETE", pattern: /^\/api\/counters\/([^/]+)\/?$/i, entityType: "counter", action: "deleted", entityIdFrom: 1 },
   { method: "POST", pattern: /^\/api\/counters\/([^/]+)\/assign\/?$/i, entityType: "counter", action: "assigned", entityIdFrom: 1, details: staffDetails },
-  { method: "POST", pattern: /^\/api\/counters\/([^/]+)\/release\/?$/i, entityType: "counter", action: "released", entityIdFrom: 1, details: staffDetails },
+  { method: "POST", pattern: /^\/api\/counters\/([^/]+)\/release\/?$/i, entityType: "counter", action: "vacant", entityIdFrom: 1, details: staffDetails },
 
   // Roles
   { method: "POST", pattern: /^\/api\/roles\/?$/i, entityType: "role", action: "created" },
@@ -205,11 +215,10 @@ function auditTrail(req, res, next) {
         body.kiosk_id ||
         null;
 
+      const actor = auditActorFromRequest(req);
+
       recordAudit({
-        actorId: headerValue(req, "x-actor-id"),
-        actorName: headerValue(req, "x-actor-name"),
-        actorRole: headerValue(req, "x-actor-role"),
-        actorEmail: headerValue(req, "x-actor-email"),
+        ...actor,
         action: route.action,
         entityType: route.entityType,
         entityId,
@@ -217,10 +226,7 @@ function auditTrail(req, res, next) {
         details: route.details
           ? route.details(body)
           : detailsFor(route.entityType, body),
-        departmentId:
-          headerValue(req, "x-actor-department-id") ||
-          body.department_id ||
-          null,
+        departmentId: actor.departmentId || body.department_id || null,
       });
     } catch (error) {
       console.error("AUDIT TRAIL ERROR:", error.message);
@@ -232,4 +238,5 @@ function auditTrail(req, res, next) {
 
 module.exports = {
   auditTrail,
+  auditActorFromRequest,
 };

@@ -851,6 +851,7 @@ export async function completeCurrentPatient(departmentPrefix) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
     }
   );
@@ -900,6 +901,7 @@ export async function skipCurrentPatient(departmentPrefix) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuditActorHeaders(),
       },
     }
   );
@@ -1475,9 +1477,9 @@ export async function getAdminReportRows(
 // AUDIT LOGS
 // =====================================================
 
-// Recent create / update / delete actions for the Reports audit modal.
-// SuperAdmin sees every department; Admin is scoped to their own on the
-// server, so no department filter is sent from here.
+// Recent record changes, sign-ins, sign-outs and queue actions for the
+// Reports audit modal. SuperAdmin sees every department; Admin is scoped
+// to their own on the server, so no department filter is sent from here.
 export async function getAuditLogs(firebaseUser, options = {}) {
   if (!firebaseUser) {
     throw new Error("Firebase user is required");
@@ -1510,6 +1512,34 @@ export async function getAuditLogs(firebaseUser, options = {}) {
   if (!response.ok || !result.success) {
     throw new Error(
       result.message || "Failed to load audit logs."
+    );
+  }
+
+  return result.data;
+}
+
+export async function recordAuthAudit(firebaseUser, action, method) {
+  if (!firebaseUser) return;
+
+  const token = await firebaseUser.getIdToken();
+
+  const response = await fetch(
+    `${API_URL}/auth/audit/${encodeURIComponent(action)}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ method: method || null }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message || "Failed to record session audit."
     );
   }
 

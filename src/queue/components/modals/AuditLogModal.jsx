@@ -19,8 +19,8 @@ import { toDateKey } from '../../pages/Admin/adminHelpers';
 |--------------------------------------------------------------------------
 |
 | Opened from the Reports tab of both the Admin and SuperAdmin apps. It
-| lists the recent create / update / delete actions recorded by the
-| server and can export whatever is shown to a spreadsheet.
+| lists the recent record changes, sign-ins, sign-outs and queue actions
+| recorded by the server and can export whatever is shown to a spreadsheet.
 |
 | The parent supplies `t` (Admin or SuperAdmin translate) and `accent`,
 | so the same component serves both apps. The server scopes an Admin to
@@ -29,16 +29,43 @@ import { toDateKey } from '../../pages/Admin/adminHelpers';
 */
 
 const PAGE_SIZE = 10;
-const ACTION_TABS = ['created', 'updated', 'deleted', 'assigned', 'released'];
-const ENTITY_TABS = ['user', 'department', 'counter', 'role', 'position', 'kiosk'];
+const ACTION_TABS = [
+  'created',
+  'updated',
+  'deleted',
+  'assigned',
+  'vacant',
+  'completed',
+  'skipped',
+  'login',
+  'logout',
+];
+const ENTITY_TABS = [
+  'user',
+  'department',
+  'counter',
+  'role',
+  'position',
+  'kiosk',
+  'queue',
+  'session',
+];
 
 const ACTION_STYLES = {
   created: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   updated: 'border-amber-200 bg-amber-50 text-amber-700',
   deleted: 'border-red-200 bg-red-50 text-red-600',
   assigned: 'border-sky-200 bg-sky-50 text-sky-700',
-  released: 'border-slate-200 bg-slate-100 text-slate-600',
+  vacant: 'border-slate-200 bg-slate-100 text-slate-600',
+  completed: 'border-teal-200 bg-teal-50 text-teal-700',
+  skipped: 'border-orange-200 bg-orange-50 text-orange-700',
+  login: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+  logout: 'border-slate-200 bg-slate-100 text-slate-600',
 };
+
+function normalizeAction(value) {
+  return value === 'released' ? 'vacant' : value;
+}
 
 function defaultRange() {
   const end = new Date();
@@ -229,7 +256,7 @@ export default function AuditLogModal({ onClose, t, accent = '#9D0A0E', onToast 
   const from = state.total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const to = Math.min(currentPage * PAGE_SIZE, state.total);
 
-  const actionLabel = (value) => t(`reports.audit.action.${value}`);
+  const actionLabel = (value) => t(`reports.audit.action.${normalizeAction(value)}`);
   const entityLabel = (value) => t(`reports.audit.entity.${value}`);
 
   const filterChips = [
@@ -439,7 +466,7 @@ export default function AuditLogModal({ onClose, t, accent = '#9D0A0E', onToast 
                     <td className="px-3 py-3">
                       <span
                         className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-                          ACTION_STYLES[log.action] || 'border-slate-200 bg-slate-100 text-slate-600'
+                          ACTION_STYLES[normalizeAction(log.action)] || 'border-slate-200 bg-slate-100 text-slate-600'
                         }`}
                       >
                         {actionLabel(log.action)}

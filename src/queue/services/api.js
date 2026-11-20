@@ -1,6 +1,7 @@
 import { API_URL } from './apiBase';
 import { offlineFetch } from './offlineFetch';
 import { addPendingOperation, getOfflineData, saveOfflineData } from './offlineStorage';
+import { getAuditActorHeaders } from './auditActor';
 
 /* ============================================================================
    DEMO DATA
@@ -587,7 +588,7 @@ async function applyOfflineQueueAction(action, departmentPrefix, terminalId, req
     request: {
       url: requestUrl,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuditActorHeaders() },
       body: JSON.stringify({ ...body, queueId: current.dbId }),
     },
   });
@@ -942,7 +943,8 @@ export async function completeCurrentPatient(
           method: 'POST',
           headers: {
             'Content-Type':
-              'application/json'
+              'application/json',
+            ...getAuditActorHeaders()
           },
           body: JSON.stringify({
             terminalId: terminalId || null
@@ -1028,7 +1030,8 @@ export async function skipCurrentPatient(
           method: 'POST',
           headers: {
             'Content-Type':
-              'application/json'
+              'application/json',
+            ...getAuditActorHeaders()
           },
           body: JSON.stringify({
             reason:

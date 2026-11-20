@@ -20,6 +20,14 @@ const {
   updateDepartmentQueue,
 } = require("../services/realtimeDatabaseService");
 
+const {
+  recordAudit,
+} = require("../services/auditLogService");
+
+const {
+  auditActorFromRequest,
+} = require("../middleware/auditLogger");
+
 // ============================================================
 // HELPER: SYNC QUEUE TICKET TO FIREBASE
 // ============================================================
@@ -1198,7 +1206,8 @@ router.post(
             qt.queue_id,
             qt.queue_number,
             qt.status,
-            qt.service_began_at
+            qt.service_began_at,
+            d.department_id
 
           FROM queue_ticket qt
 
@@ -1279,14 +1288,24 @@ console.log("EMITTING COMPLETE WEBSOCKET EVENT:", {
   queueNumber: rows[0].queue_number,
 });
 
-emitQueueUpdated(
-  departmentPrefix,
-  {
-    action: "COMPLETE",
-    queueId,
-    queueNumber: rows[0].queue_number,
-  }
-);      
+      emitQueueUpdated(
+        departmentPrefix,
+        {
+          action: "COMPLETE",
+          queueId,
+          queueNumber: rows[0].queue_number,
+        }
+      );
+
+      await recordAudit({
+        ...auditActorFromRequest(req),
+        action: "completed",
+        entityType: "queue",
+        entityId: queueId,
+        entityName: rows[0].queue_number || null,
+        details: `Queue: ${rows[0].queue_number || queueId} | Terminal: ${terminalId}`,
+        departmentId: rows[0].department_id || null,
+      });
 
       const [statsRows] =
         await pool.query(
@@ -1422,7 +1441,8 @@ router.post(
           SELECT
             qt.queue_id,
             qt.queue_number,
-            qt.status
+            qt.status,
+            d.department_id
 
           FROM queue_ticket qt
 
@@ -1509,6 +1529,22 @@ emitQueueUpdated(
     queueNumber: rows[0].queue_number,
   }
 );
+
+      const reason = String(req.body?.reason || "")
+        .trim()
+        .slice(0, 200);
+
+      await recordAudit({
+        ...auditActorFromRequest(req),
+        action: "skipped",
+        entityType: "queue",
+        entityId: queueId,
+        entityName: rows[0].queue_number || null,
+        details: `Queue: ${rows[0].queue_number || queueId}${
+          reason ? ` | Reason: ${reason}` : ""
+        } | Terminal: ${terminalId}`,
+        departmentId: rows[0].department_id || null,
+      });
 
       const [statsRows] =
         await pool.query(
