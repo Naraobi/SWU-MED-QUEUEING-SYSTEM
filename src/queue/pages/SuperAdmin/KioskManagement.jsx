@@ -592,11 +592,21 @@ async function handleSaveKiosk() {
       // EXISTING TERMINALS
       // -----------------------------------------
 
-      const departmentTerminals = terminals.filter(
-        (terminal) => terminal.department_id === department.department_id
-      );
+      const kioskDepartmentIds = departments
+        .filter(
+          (item) =>
+            String(item.kiosk_id) === String(department.kiosk_id)
+        )
+        .map((item) => String(item.department_id));
 
-      const usedNumbers = departmentTerminals
+      if (!kioskDepartmentIds.includes(String(department.department_id))) {
+        kioskDepartmentIds.push(String(department.department_id));
+      }
+
+      const usedNumbers = terminals
+        .filter((terminal) =>
+          kioskDepartmentIds.includes(String(terminal.department_id))
+        )
         .map((terminal) => Number(terminal.counter_number))
         .filter((number) => Number.isInteger(number) && number > 0);
 
@@ -604,11 +614,9 @@ async function handleSaveKiosk() {
       // NEXT TERMINAL NUMBER
       // -----------------------------------------
 
-      let nextCounterNumber = 1;
-
-      while (usedNumbers.includes(nextCounterNumber)) {
-        nextCounterNumber++;
-      }
+      const nextCounterNumber = usedNumbers.length
+        ? Math.max(...usedNumbers) + 1
+        : 1;
 
       const generatedCode = departmentPrefix
         ? `${departmentPrefix}-${nextCounterNumber}`
@@ -758,10 +766,14 @@ async function handleSaveKiosk() {
           {
             ...newTerminal,
             department_id: terminalModal.department_id,
-            counter_number: Number(
-              terminalForm.terminalName || terminalForm.counterNumber
-            ),
-            prefix: terminalForm.prefix.trim().toUpperCase(),
+            counter_number:
+              newTerminal.counter_number ??
+              Number(
+                terminalForm.terminalName || terminalForm.counterNumber
+              ),
+            prefix:
+              newTerminal.prefix ??
+              terminalForm.prefix.trim().toUpperCase(),
             status: terminalForm.status,
             assigned_staff_id: assignedStaffId || '',
           },
@@ -1582,6 +1594,7 @@ const unlockStatus =
                 <input
                   type="text"
                   value={terminalForm.terminalName}
+                  readOnly={terminalModal.mode === 'add'}
                   onChange={(event) =>
                     setTerminalForm((prev) => ({
                       ...prev,
@@ -1592,7 +1605,9 @@ const unlockStatus =
                     }))
                   }
                   placeholder="3"
-                  className="w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10"
+                  className={`w-full rounded-lg border border-[#E5E7EB] px-3 py-2.5 text-sm outline-none transition focus:border-[#9D0A0E] focus:ring-2 focus:ring-[#9D0A0E]/10 ${
+                    terminalModal.mode === 'add' ? 'bg-[#F8F9FA]' : ''
+                  }`}
                 />
               </div>
 

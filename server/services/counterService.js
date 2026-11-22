@@ -13,6 +13,45 @@ const COUNTER_COLLECTION = "counter";
 // HELPER
 // =====================================================
 
+function normalizeCounterPrefix(
+  prefix,
+  requestedCounterNumber,
+  assignedCounterNumber
+) {
+  if (
+    typeof prefix !== "string" ||
+    !prefix
+  ) {
+    return prefix || null;
+  }
+
+  const requested = Number(requestedCounterNumber);
+
+  if (
+    !Number.isInteger(requested) ||
+    requested <= 0 ||
+    requested === assignedCounterNumber
+  ) {
+    return prefix;
+  }
+
+  const suffix = String(requested);
+  const suffixIndex = prefix.length - suffix.length;
+
+  if (
+    suffixIndex < 0 ||
+    !prefix.endsWith(suffix) ||
+    (
+      suffixIndex > 0 &&
+      /\d/.test(prefix[suffixIndex - 1])
+    )
+  ) {
+    return prefix;
+  }
+
+  return `${prefix.slice(0, suffixIndex)}${assignedCounterNumber}`;
+}
+
 function normalizeCounter(counter) {
   if (!counter) {
     return null;
@@ -403,25 +442,27 @@ async function getCounterById(counterId) {
 // =====================================================
 
 async function counterNumberExists(
-  departmentId,
+  kioskId,
   counterNumber,
   excludeCounterId = null
 ) {
   let sql = `
-    SELECT counter_id
+    SELECT counter.counter_id
     FROM counter
-    WHERE department_id = ?
-      AND counter_number = ?
+    INNER JOIN department
+      ON department.department_id = counter.department_id
+    WHERE department.kiosk_id <=> ?
+      AND counter.counter_number = ?
   `;
 
   const params = [
-    departmentId,
+    kioskId,
     counterNumber,
   ];
 
   if (excludeCounterId) {
     sql += `
-      AND counter_id != ?
+      AND counter.counter_id != ?
     `;
 
     params.push(
@@ -455,7 +496,7 @@ async function createCounter(
 
   const {
     department_id,
-    counter_number,
+    counter_number: requestedCounterNumber,
     prefix,
     assigned_staff_id,
     status = "active",
@@ -471,30 +512,6 @@ async function createCounter(
     );
   }
 
-  if (
-    counter_number === undefined ||
-    counter_number === null ||
-    counter_number === ""
-  ) {
-    throw new Error(
-      "Counter number is required"
-    );
-  }
-
-  const parsedCounterNumber =
-    Number(counter_number);
-
-  if (
-    !Number.isInteger(
-      parsedCounterNumber
-    ) ||
-    parsedCounterNumber <= 0
-  ) {
-    throw new Error(
-      "Counter number must be a positive integer"
-    );
-  }
-
   // =================================================
   // CHECK DEPARTMENT
   // =================================================
@@ -502,7 +519,7 @@ async function createCounter(
   const [departmentRows] =
     await pool.query(
       `
-      SELECT department_id
+      SELECT department_id, kiosk_id
       FROM department
       WHERE department_id = ?
       LIMIT 1
@@ -516,21 +533,8 @@ async function createCounter(
     );
   }
 
-  // =================================================
-  // CHECK DUPLICATE COUNTER
-  // =================================================
-
-  const exists =
-    await counterNumberExists(
-      department_id,
-      parsedCounterNumber
-    );
-
-  if (exists) {
-    throw new Error(
-      `Counter ${parsedCounterNumber} already exists in this department`
-    );
-  }
+  const kioskId =
+    departmentRows[0].kiosk_id;
 
   // =================================================
   // GENERATE UUID
@@ -540,37 +544,72 @@ async function createCounter(
     randomUUID();
 
   try {
+    await pool.query(
+      `
+      INSERT INTO counter (
+        counter_id,
+        department_id,
+        counter_number,
+        prefix,
+        assigned_staff_id,
+        status
+      )
+      SELECT ?, ?, COALESCE(MAX(counter.counter_number), 0) + 1, ?, ?, ?
+      FROM counter
+      INNER JOIN department
+        ON department.department_id = counter.department_id
+      WHERE department.kiosk_id <=> ?
+      `,
+      [
+        counterId,
+        department_id,
+        prefix || null,
+        assigned_staff_id || null,
+        status || "active",
+        kioskId,
+      ]
+    );
+
+    const [createdRows] =
+      await pool.query(
+        `
+        SELECT counter_number
+        FROM counter
+        WHERE counter_id = ?
+        LIMIT 1
+        `,
+        [counterId]
+      );
+
+    const parsedCounterNumber =
+      Number(createdRows[0].counter_number);
+
+    const finalPrefix =
+      normalizeCounterPrefix(
+        prefix,
+        requestedCounterNumber,
+        parsedCounterNumber
+      );
+
+    if (
+      finalPrefix !== (prefix || null)
+    ) {
+      await pool.query(
+        `
+        UPDATE counter
+        SET prefix = ?
+        WHERE counter_id = ?
+        `,
+        [finalPrefix, counterId]
+      );
+    }
+
+    console.log(
+      `Counter ${counterId} created in MySQL with number ${parsedCounterNumber}.`
+    );
+
     const mode =
       await getDatabaseMode();
-
-    // =================================================
-    // MYSQL DATA
-    // =================================================
-
-    const mysqlCounter = {
-      counter_id:
-        counterId,
-
-      department_id:
-        department_id,
-
-      counter_number:
-        parsedCounterNumber,
-
-      prefix:
-        prefix || null,
-
-      assigned_staff_id:
-        assigned_staff_id || null,
-
-      status:
-        status || "active",
-    };
-
-    // =================================================
-    // ONLINE
-    // FIREBASE + MYSQL
-    // =================================================
 
     if (mode === "firebase") {
       try {
@@ -593,7 +632,7 @@ async function createCounter(
               parsedCounterNumber,
 
             prefix:
-              prefix || null,
+              finalPrefix,
 
             assigned_staff_id:
               assigned_staff_id ||
@@ -618,73 +657,25 @@ async function createCounter(
           firebaseError.message
         );
 
+        try {
+          await pool.query(
+            `
+            DELETE FROM counter
+            WHERE counter_id = ?
+            `,
+            [counterId]
+          );
+        } catch (cleanupError) {
+          console.error(
+            "Failed to roll back counter insert:",
+            cleanupError.message
+          );
+        }
+
         throw new Error(
           "Failed to create counter in Firebase"
         );
       }
-
-      // =================================================
-      // MYSQL
-      // =================================================
-
-      await pool.query(
-        `
-        INSERT INTO counter (
-          counter_id,
-          department_id,
-          counter_number,
-          prefix,
-          assigned_staff_id,
-          status
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-        `,
-        [
-          mysqlCounter.counter_id,
-          mysqlCounter.department_id,
-          mysqlCounter.counter_number,
-          mysqlCounter.prefix,
-          mysqlCounter.assigned_staff_id,
-          mysqlCounter.status,
-        ]
-      );
-
-      console.log(
-        `Counter ${counterId} created in MySQL.`
-      );
-    }
-
-    // =================================================
-    // OFFLINE
-    // MYSQL ONLY
-    // =================================================
-
-    else {
-      await pool.query(
-        `
-        INSERT INTO counter (
-          counter_id,
-          department_id,
-          counter_number,
-          prefix,
-          assigned_staff_id,
-          status
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-        `,
-        [
-          mysqlCounter.counter_id,
-          mysqlCounter.department_id,
-          mysqlCounter.counter_number,
-          mysqlCounter.prefix,
-          mysqlCounter.assigned_staff_id,
-          mysqlCounter.status,
-        ]
-      );
-
-      console.log(
-        `Counter ${counterId} created in MySQL (offline mode).`
-      );
     }
 
     // =================================================
@@ -766,6 +757,28 @@ async function updateCounter(
       department_id ||
       existing.department_id;
 
+    const [departmentRows] =
+      await pool.query(
+        `
+        SELECT kiosk_id
+        FROM department
+        WHERE department_id = ?
+        LIMIT 1
+        `,
+        [finalDepartmentId]
+      );
+
+    if (
+      departmentRows.length === 0
+    ) {
+      throw new Error(
+        "Department not found"
+      );
+    }
+
+    const finalKioskId =
+      departmentRows[0].kiosk_id;
+
     const finalCounterNumber =
       counter_number !==
         undefined &&
@@ -775,9 +788,13 @@ async function updateCounter(
         : existing.counter_number;
 
     const finalPrefix =
-      prefix !== undefined
-        ? prefix
-        : existing.prefix;
+      normalizeCounterPrefix(
+        prefix !== undefined
+          ? prefix
+          : existing.prefix,
+        existing.counter_number,
+        finalCounterNumber
+      );
 
     const finalStaffId =
       assigned_staff_id !==
@@ -808,17 +825,24 @@ async function updateCounter(
     // CHECK DUPLICATE
     // =================================================
 
-    const duplicate =
-      await counterNumberExists(
-        finalDepartmentId,
-        finalCounterNumber,
-        counterId
-      );
+    if (
+      finalCounterNumber !==
+        Number(existing.counter_number) ||
+      String(finalDepartmentId) !==
+        String(existing.department_id)
+    ) {
+      const duplicate =
+        await counterNumberExists(
+          finalKioskId,
+          finalCounterNumber,
+          counterId
+        );
 
-    if (duplicate) {
-      throw new Error(
-        `Counter ${finalCounterNumber} already exists in this department`
-      );
+      if (duplicate) {
+        throw new Error(
+          `Counter ${finalCounterNumber} already exists in this kiosk`
+        );
+      }
     }
 
     // =================================================

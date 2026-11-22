@@ -2146,18 +2146,13 @@ export async function createCounterForDepartment({
   }
 
   const {
-    data: department,
+    data: allDepartments,
     error: departmentError
   } = await supabase
     .from('departments')
     .select(
-      'department_id, name, prefix'
+      'department_id, name, prefix, kiosk_id'
     )
-    .eq(
-      'department_id',
-      departmentId
-    )
-    .maybeSingle()
 
   if (departmentError) {
     console.error(
@@ -2167,6 +2162,14 @@ export async function createCounterForDepartment({
 
     throw departmentError
   }
+
+  const department =
+    (allDepartments || [])
+      .find(
+        item =>
+          String(item.department_id) ===
+          String(departmentId)
+      )
 
   if (!department) {
     throw new Error(
@@ -2185,23 +2188,27 @@ export async function createCounterForDepartment({
     )
   }
 
+  const kioskDepartmentIds =
+    new Set(
+      (allDepartments || [])
+        .filter(
+          item =>
+            String(item.kiosk_id) ===
+            String(department.kiosk_id)
+        )
+        .map(
+          item =>
+            String(item.department_id)
+        )
+    )
+
   const {
     data: existingCounters,
     error: countersError
   } = await supabase
     .from('counter')
     .select(
-      'counter_number'
-    )
-    .eq(
-      'department_id',
-      departmentId
-    )
-    .order(
-      'counter_number',
-      {
-        ascending: true
-      }
+      'counter_number, department_id'
     )
 
   if (countersError) {
@@ -2214,7 +2221,13 @@ export async function createCounterForDepartment({
   }
 
   const counters =
-    existingCounters || []
+    (existingCounters || [])
+      .filter(
+        counter =>
+          kioskDepartmentIds.has(
+            String(counter.department_id)
+          )
+      )
 
   const usedNumbers =
     counters
@@ -2232,16 +2245,10 @@ export async function createCounterForDepartment({
           number > 0
       )
 
-  let nextCounterNumber =
-    1
-
-  while (
-    usedNumbers.includes(
-      nextCounterNumber
-    )
-  ) {
-    nextCounterNumber++
-  }
+  const nextCounterNumber =
+    usedNumbers.length
+      ? Math.max(...usedNumbers) + 1
+      : 1
 
   const terminalPrefix =
     `${departmentPrefix}-${nextCounterNumber}`

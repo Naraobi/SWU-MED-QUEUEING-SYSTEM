@@ -1126,16 +1126,20 @@
     }, [departmentTerminals, completedCount]);
 
     function nextCounterNumber() {
-      const used = departmentTerminals
+      const kioskDepartmentIds = departments
+        .filter((department) =>
+          adminKiosk?.kiosk_id
+            ? String(department.kiosk_id) === String(adminKiosk.kiosk_id)
+            : String(department.department_id) === String(adminDepartment?.department_id)
+        )
+        .map((department) => String(department.department_id));
+
+      const used = terminals
+        .filter((terminal) => kioskDepartmentIds.includes(String(terminal.department_id)))
         .map((terminal) => Number(terminal.counter_number))
         .filter((number) => Number.isInteger(number) && number > 0);
 
-      let candidate = 1;
-      while (used.includes(candidate)) {
-        candidate += 1;
-      }
-
-      return candidate;
+      return used.length ? Math.max(...used) + 1 : 1;
     }
 
     function openAdd() {
@@ -1416,8 +1420,8 @@
                     type="number"
                     min={1}
                     value={form.counter_number}
-                    onChange={(e) => setForm((f) => ({ ...f, counter_number: e.target.value }))}
-                    className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#9D0A0E]"
+                    readOnly
+                    className="mt-1 w-full rounded-md border border-[#E5E7EB] bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
                   />
                 </label>
 
